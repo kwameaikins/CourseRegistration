@@ -1,0 +1,2 @@
+-- Real operational seed data is added only after the hosted Supabase project
+-- and the founder's Auth account exist (Document 3, Section 9).

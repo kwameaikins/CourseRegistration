@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Local environment files and secrets
+.env
+.env.*
+!.env.local.example
+
+# Test and tool output
+coverage/
+playwright-report/
+test-results/
+.supabase/
+*.tsbuildinfo
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
