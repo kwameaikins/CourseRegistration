@@ -1,5 +1,6 @@
 // F1.05 — Paystack webhook processing (BR-13 signature validation happens in
 // the route before this handler runs; BR-14 idempotency happens here).
+import { parsePaymentStatus } from '@/lib/domain/parsers';
 import { pesewasToGhs } from '@/lib/paystack/client';
 import * as paymentsRepository from '@/modules/payments/repository';
 import * as communicationsService from '@/modules/communications/service';
@@ -7,7 +8,7 @@ import {
   paystackWebhookSchema,
   type WebhookOutcome,
 } from '@/modules/payments/types';
-import type { PaymentMethod } from '@/lib/supabase/database.types';
+import type { PaymentMethod } from '@/lib/domain/types';
 
 function channelToPaymentMethod(channel: string | undefined): PaymentMethod {
   if (channel === 'mobile_money') return 'MTN MoMo';
@@ -100,5 +101,5 @@ export async function processWebhookEvent(payload: unknown): Promise<WebhookOutc
     }
   }
 
-  return { status: 'processed', paymentStatus: updated.payment_status };
+  return { status: 'processed', paymentStatus: parsePaymentStatus(updated.payment_status) };
 }

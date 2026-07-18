@@ -1,414 +1,616 @@
-// Database types for the Supabase schema in supabase/migrations.
-//
-// NOTE: Document 11 requires these types to be generated via
-// `npx supabase gen types typescript` once a Supabase project is linked or a
-// local instance is running. This file was authored to match the foundation
-// migration exactly so development can proceed before the project is linked.
-// Regenerate and overwrite this file after the first `supabase db push`.
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
 
-export type StaffRole = 'admin' | 'finance' | 'marketing' | 'tutor' | 'management';
-
-export type RegistrationStatus = 'Registered' | 'Confirmed' | 'Attended' | 'Cancelled';
-
-export type PaymentStatus = 'Unpaid' | 'Part Payment' | 'Paid';
-
-export type PaymentMethod = 'Paystack Card' | 'MTN MoMo' | 'Bank Transfer' | 'Cash' | 'Other';
-
-export type LeadSource = 'WhatsApp' | 'Facebook' | 'LinkedIn' | 'Referral' | 'Website' | 'Other';
-
-// WhatsApp key-moment messages (founder-approved 2026-07-18): welcome doubles
-// as the payment-instruction message; reminders mirror E03–E06.
-export type WhatsappMessageType =
-  | 'welcome'
-  | 'reminder_1'
-  | 'reminder_2'
-  | 'reminder_3'
-  | 'reminder_4'
-  | 'payment_confirmation';
-
-export type EmailType =
-  | 'welcome'
-  | 'payment_instruction'
-  | 'reminder_1'
-  | 'reminder_2'
-  | 'reminder_3'
-  | 'reminder_4'
-  | 'payment_confirmation'
-  | 'class_reminder_24h'
-  | 'class_reminder_2h'
-  | 'zoom_link'
-  | 'whatsapp_invite'
-  | 'post_training_thankyou'
-  | 'upsell';
-
-export interface Database {
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
-      staff_users: {
-        Row: {
-          id: string;
-          user_id: string;
-          full_name: string;
-          email: string;
-          role: StaffRole;
-          is_active: boolean;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          user_id: string;
-          full_name: string;
-          email: string;
-          role: StaffRole;
-          is_active?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          user_id?: string;
-          full_name?: string;
-          email?: string;
-          role?: StaffRole;
-          is_active?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-      courses: {
-        Row: {
-          id: string;
-          course_code: string;
-          course_name: string;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          course_code: string;
-          course_name: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          course_code?: string;
-          course_name?: string;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
       batches: {
         Row: {
-          id: string;
-          course_id: string;
-          cohort_label: string;
-          course_fee: number;
-          start_date: string;
-          start_time: string;
-          end_date: string;
-          zoom_link: string | null;
-          whatsapp_group_link: string | null;
-          facilitator_name: string;
-          facilitator_staff_id: string | null;
-          welcome_email_enabled: boolean;
-          payment_reminder_enabled: boolean;
-          class_reminder_enabled: boolean;
-          whatsapp_enabled: boolean;
-          is_active: boolean;
-          created_at: string;
-          updated_at: string;
-        };
+          class_reminder_enabled: boolean
+          cohort_label: string
+          course_fee: number
+          course_id: string
+          created_at: string
+          end_date: string
+          facilitator_name: string
+          facilitator_staff_id: string | null
+          id: string
+          is_active: boolean
+          payment_reminder_enabled: boolean
+          start_date: string
+          start_time: string
+          updated_at: string
+          welcome_email_enabled: boolean
+          whatsapp_enabled: boolean
+          whatsapp_group_link: string | null
+          zoom_link: string | null
+        }
         Insert: {
-          id?: string;
-          course_id: string;
-          cohort_label: string;
-          course_fee: number;
-          start_date: string;
-          start_time: string;
-          end_date: string;
-          zoom_link?: string | null;
-          whatsapp_group_link?: string | null;
-          facilitator_name: string;
-          facilitator_staff_id?: string | null;
-          welcome_email_enabled?: boolean;
-          payment_reminder_enabled?: boolean;
-          class_reminder_enabled?: boolean;
-          whatsapp_enabled?: boolean;
-          is_active?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
+          class_reminder_enabled?: boolean
+          cohort_label: string
+          course_fee: number
+          course_id: string
+          created_at?: string
+          end_date: string
+          facilitator_name: string
+          facilitator_staff_id?: string | null
+          id?: string
+          is_active?: boolean
+          payment_reminder_enabled?: boolean
+          start_date: string
+          start_time: string
+          updated_at?: string
+          welcome_email_enabled?: boolean
+          whatsapp_enabled?: boolean
+          whatsapp_group_link?: string | null
+          zoom_link?: string | null
+        }
         Update: {
-          id?: string;
-          course_id?: string;
-          cohort_label?: string;
-          course_fee?: number;
-          start_date?: string;
-          start_time?: string;
-          end_date?: string;
-          zoom_link?: string | null;
-          whatsapp_group_link?: string | null;
-          facilitator_name?: string;
-          facilitator_staff_id?: string | null;
-          welcome_email_enabled?: boolean;
-          payment_reminder_enabled?: boolean;
-          class_reminder_enabled?: boolean;
-          whatsapp_enabled?: boolean;
-          is_active?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-      participants: {
+          class_reminder_enabled?: boolean
+          cohort_label?: string
+          course_fee?: number
+          course_id?: string
+          created_at?: string
+          end_date?: string
+          facilitator_name?: string
+          facilitator_staff_id?: string | null
+          id?: string
+          is_active?: boolean
+          payment_reminder_enabled?: boolean
+          start_date?: string
+          start_time?: string
+          updated_at?: string
+          welcome_email_enabled?: boolean
+          whatsapp_enabled?: boolean
+          whatsapp_group_link?: string | null
+          zoom_link?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "batches_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "batches_facilitator_staff_id_fkey"
+            columns: ["facilitator_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      courses: {
         Row: {
-          id: string;
-          full_name: string;
-          email: string;
-          phone: string;
-          consent_given: boolean;
-          consent_at: string | null;
-          deleted_at: string | null;
-          created_at: string;
-          updated_at: string;
-        };
+          course_code: string
+          course_name: string
+          created_at: string
+          id: string
+          updated_at: string
+        }
         Insert: {
-          id?: string;
-          full_name: string;
-          email: string;
-          phone: string;
-          consent_given?: boolean;
-          consent_at?: string | null;
-          deleted_at?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
+          course_code: string
+          course_name: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
         Update: {
-          id?: string;
-          full_name?: string;
-          email?: string;
-          phone?: string;
-          consent_given?: boolean;
-          consent_at?: string | null;
-          deleted_at?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-      registrations: {
-        Row: {
-          id: string;
-          participant_id: string;
-          batch_id: string;
-          registration_status: RegistrationStatus;
-          lead_source: LeadSource;
-          consent_given: boolean;
-          notes: string | null;
-          registered_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          participant_id: string;
-          batch_id: string;
-          registration_status?: RegistrationStatus;
-          lead_source: LeadSource;
-          consent_given: boolean;
-          notes?: string | null;
-          registered_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          participant_id?: string;
-          batch_id?: string;
-          registration_status?: RegistrationStatus;
-          lead_source?: LeadSource;
-          consent_given?: boolean;
-          notes?: string | null;
-          registered_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-      payments: {
-        Row: {
-          id: string;
-          registration_id: string;
-          course_fee: number;
-          amount_paid: number;
-          balance: number;
-          payment_status: PaymentStatus;
-          payment_method: PaymentMethod | null;
-          transaction_id: string | null;
-          payment_date: string | null;
-          verified_by: string | null;
-          payment_notes: string | null;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          registration_id: string;
-          course_fee: number;
-          amount_paid?: number;
-          payment_method?: PaymentMethod | null;
-          transaction_id?: string | null;
-          payment_date?: string | null;
-          verified_by?: string | null;
-          payment_notes?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          registration_id?: string;
-          course_fee?: number;
-          amount_paid?: number;
-          payment_method?: PaymentMethod | null;
-          transaction_id?: string | null;
-          payment_date?: string | null;
-          verified_by?: string | null;
-          payment_notes?: string | null;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-      email_templates: {
-        Row: {
-          id: string;
-          course_id: string;
-          email_type: EmailType;
-          subject: string;
-          body: string;
-          is_active: boolean;
-          created_at: string;
-          updated_at: string;
-        };
-        Insert: {
-          id?: string;
-          course_id: string;
-          email_type: EmailType;
-          subject: string;
-          body: string;
-          is_active?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Update: {
-          id?: string;
-          course_id?: string;
-          email_type?: EmailType;
-          subject?: string;
-          body?: string;
-          is_active?: boolean;
-          created_at?: string;
-          updated_at?: string;
-        };
-        Relationships: [];
-      };
-      email_log: {
-        Row: {
-          id: string;
-          registration_id: string;
-          email_type: string;
-          sent_at: string;
-          success: boolean;
-          error_message: string | null;
-        };
-        Insert: {
-          id?: string;
-          registration_id: string;
-          email_type: string;
-          sent_at?: string;
-          success: boolean;
-          error_message?: string | null;
-        };
-        Update: {
-          id?: string;
-          registration_id?: string;
-          email_type?: string;
-          sent_at?: string;
-          success?: boolean;
-          error_message?: string | null;
-        };
-        Relationships: [];
-      };
-      whatsapp_log: {
-        Row: {
-          id: string;
-          registration_id: string;
-          message_type: WhatsappMessageType;
-          sent_at: string;
-          success: boolean;
-          error_message: string | null;
-        };
-        Insert: {
-          id?: string;
-          registration_id: string;
-          message_type: WhatsappMessageType;
-          sent_at?: string;
-          success: boolean;
-          error_message?: string | null;
-        };
-        Update: {
-          id?: string;
-          registration_id?: string;
-          message_type?: WhatsappMessageType;
-          sent_at?: string;
-          success?: boolean;
-          error_message?: string | null;
-        };
-        Relationships: [];
-      };
+          course_code?: string
+          course_name?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       deletion_log: {
         Row: {
-          id: string;
-          participant_id: string;
-          deleted_by_staff_id: string;
-          deleted_at: string;
-        };
+          deleted_at: string
+          deleted_by_staff_id: string
+          id: string
+          participant_id: string
+        }
         Insert: {
-          id?: string;
-          participant_id: string;
-          deleted_by_staff_id: string;
-          deleted_at?: string;
-        };
+          deleted_at?: string
+          deleted_by_staff_id: string
+          id?: string
+          participant_id: string
+        }
         Update: {
-          id?: string;
-          participant_id?: string;
-          deleted_by_staff_id?: string;
-          deleted_at?: string;
-        };
-        Relationships: [];
-      };
-    };
-    Views: Record<string, never>;
+          deleted_at?: string
+          deleted_by_staff_id?: string
+          id?: string
+          participant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deletion_log_deleted_by_staff_id_fkey"
+            columns: ["deleted_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_log: {
+        Row: {
+          email_type: string
+          error_message: string | null
+          id: string
+          registration_id: string
+          sent_at: string
+          success: boolean
+        }
+        Insert: {
+          email_type: string
+          error_message?: string | null
+          id?: string
+          registration_id: string
+          sent_at?: string
+          success: boolean
+        }
+        Update: {
+          email_type?: string
+          error_message?: string | null
+          id?: string
+          registration_id?: string
+          sent_at?: string
+          success?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_log_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_templates: {
+        Row: {
+          body: string
+          course_id: string
+          created_at: string
+          email_type: string
+          id: string
+          is_active: boolean
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          course_id: string
+          created_at?: string
+          email_type: string
+          id?: string
+          is_active?: boolean
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          course_id?: string
+          created_at?: string
+          email_type?: string
+          id?: string
+          is_active?: boolean
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_templates_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      participants: {
+        Row: {
+          consent_at: string | null
+          consent_given: boolean
+          created_at: string
+          deleted_at: string | null
+          email: string
+          full_name: string
+          id: string
+          phone: string
+          updated_at: string
+        }
+        Insert: {
+          consent_at?: string | null
+          consent_given?: boolean
+          created_at?: string
+          deleted_at?: string | null
+          email: string
+          full_name: string
+          id?: string
+          phone: string
+          updated_at?: string
+        }
+        Update: {
+          consent_at?: string | null
+          consent_given?: boolean
+          created_at?: string
+          deleted_at?: string | null
+          email?: string
+          full_name?: string
+          id?: string
+          phone?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      payments: {
+        Row: {
+          amount_paid: number
+          balance: number | null
+          course_fee: number
+          created_at: string
+          id: string
+          payment_date: string | null
+          payment_method: string | null
+          payment_notes: string | null
+          payment_status: string
+          registration_id: string
+          transaction_id: string | null
+          updated_at: string
+          verified_by: string | null
+        }
+        Insert: {
+          amount_paid?: number
+          balance?: number | null
+          course_fee: number
+          created_at?: string
+          id?: string
+          payment_date?: string | null
+          payment_method?: string | null
+          payment_notes?: string | null
+          payment_status?: string
+          registration_id: string
+          transaction_id?: string | null
+          updated_at?: string
+          verified_by?: string | null
+        }
+        Update: {
+          amount_paid?: number
+          balance?: number | null
+          course_fee?: number
+          created_at?: string
+          id?: string
+          payment_date?: string | null
+          payment_method?: string | null
+          payment_notes?: string | null
+          payment_status?: string
+          registration_id?: string
+          transaction_id?: string | null
+          updated_at?: string
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: true
+            referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      registrations: {
+        Row: {
+          batch_id: string
+          consent_given: boolean
+          id: string
+          lead_source: string
+          notes: string | null
+          participant_id: string
+          registered_at: string
+          registration_status: string
+          updated_at: string
+        }
+        Insert: {
+          batch_id: string
+          consent_given: boolean
+          id?: string
+          lead_source: string
+          notes?: string | null
+          participant_id: string
+          registered_at?: string
+          registration_status?: string
+          updated_at?: string
+        }
+        Update: {
+          batch_id?: string
+          consent_given?: boolean
+          id?: string
+          lead_source?: string
+          notes?: string | null
+          participant_id?: string
+          registered_at?: string
+          registration_status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registrations_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registrations_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "participants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      staff_users: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          is_active: boolean
+          role: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name: string
+          id?: string
+          is_active?: boolean
+          role: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string
+          id?: string
+          is_active?: boolean
+          role?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      whatsapp_log: {
+        Row: {
+          error_message: string | null
+          id: string
+          message_type: string
+          registration_id: string
+          sent_at: string
+          success: boolean
+        }
+        Insert: {
+          error_message?: string | null
+          id?: string
+          message_type: string
+          registration_id: string
+          sent_at?: string
+          success: boolean
+        }
+        Update: {
+          error_message?: string | null
+          id?: string
+          message_type?: string
+          registration_id?: string
+          sent_at?: string
+          success?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_log_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
     Functions: {
-      fn_current_role: {
-        Args: Record<string, never>;
-        Returns: string | null;
-      };
-      fn_current_staff_id: {
-        Args: Record<string, never>;
-        Returns: string | null;
-      };
-      fn_soft_delete_participant: {
-        Args: { participant_id_to_delete: string };
-        Returns: undefined;
-      };
+      fn_current_role: { Args: never; Returns: string }
+      fn_current_staff_id: { Args: never; Returns: string }
       fn_hard_delete_participant: {
-        Args: { participant_id_to_delete: string; deleting_staff_id: string };
-        Returns: undefined;
-      };
-    };
-    Enums: Record<string, never>;
-    CompositeTypes: Record<string, never>;
-  };
+        Args: { deleting_staff_id: string; participant_id_to_delete: string }
+        Returns: undefined
+      }
+      fn_soft_delete_participant: {
+        Args: { participant_id_to_delete: string }
+        Returns: undefined
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
 }
+
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
+  public: {
+    Enums: {},
+  },
+} as const

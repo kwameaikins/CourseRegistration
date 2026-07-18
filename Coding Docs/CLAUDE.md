@@ -119,23 +119,21 @@ npx playwright test          # E2E tests (Section 6, Document 9)
 > session (or a new context window) to know where things stand without re-reading everything.
 
 ```
-Week (per PLAN.md):     5 (code-complete for Tasks 1–5; external setup pending)
-Last completed task:    All Phase 1 code built — migration + RLS, all modules, all 10 API
-                        routes + /api/health, all 8 screens, Paystack webhook (BR-13/14),
-                        email engine + cron (BR-07/08/09/10), DPA delete UI, Sentry PII
-                        scrubbing. PLUS founder-approved WhatsApp notifications via Meta
-                        Cloud API (Doc 4 EC-09): whatsapp_log dedup, key-moment messages,
-                        per-batch toggle. 69 unit tests passing; typecheck/lint/build green.
-                        SQL DB test suite ready: supabase/tests/database_test_suite.sql.
-Currently in progress:  Nothing — blocked on external account setup.
-Blockers:                (1) Supabase project not created/linked (CLI unauthenticated,
-                        Docker unavailable) — migration not yet applied; regenerate
-                        lib/supabase/database.types.ts after db push. (2) No Paystack/
-                        Resend/Sentry keys. (3) Not deployed to Vercel; webhook URL,
-                        Uptime Robot, and live tests (T-INT-01…06, T-RLS live) pending.
-                        (4) WhatsApp: Meta Business account, 3 approved templates, and
-                        WHATSAPP_* env vars pending (sends skip gracefully until set).
-                        See Doc 4 EC-07/EC-08/EC-09 for flagged design resolutions.
+Week (per PLAN.md):     5 (Tasks 1–5 code-complete; live integrations pending)
+Last completed task:    Supabase project linked and migrations 202607170001 through
+                        202607180003 applied. BR-06 trigger repair is reproducible,
+                        generated database types refreshed, and constrained values
+                        validated at the domain boundary. Database SQL suite reported
+                        passing. 71 unit tests pass; typecheck, lint, and build are green.
+Currently in progress:  Rotate/disable the exposed legacy Supabase service-role key,
+                        then deploy and run live integration/RLS smoke tests.
+Blockers:                (1) Authenticated Supabase dashboard action required to rotate
+                        the exposed legacy key. (2) Paystack/Resend/Sentry credentials
+                        and Meta Business templates/WHATSAPP_* variables are pending.
+                        (3) Vercel deployment, webhook URL, Uptime Robot, and live tests
+                        T-INT-01…06 remain pending. (4) Admin login and remaining five
+                        staff accounts still need role-routing smoke tests.
+                        See Doc 4 EC-07/EC-08/EC-09/EC-10 for design resolutions.
 Pivot-or-persevere gate status: Not yet reached (needs live Paystack test)
 ```
 

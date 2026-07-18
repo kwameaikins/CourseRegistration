@@ -156,7 +156,10 @@ statement that attempts to set it.
 
 **Owning aggregate:** Registration+Payment
 **Concurrency control:** Database trigger (`trg_sync_registration_status`, Document 3,
-Section 4), `AFTER UPDATE OF payment_status`. The `WHERE registration_status = 'Registered'`
+Section 4), `AFTER UPDATE OF amount_paid, course_fee`. `payment_status` is derived by a
+`BEFORE` trigger, so PostgreSQL would not fire an `UPDATE OF payment_status` trigger when the
+application's original `SET` clause only names `amount_paid`. The function compares old/new
+status, and the `WHERE registration_status = 'Registered'`
 clause in the trigger's `UPDATE` prevents overwriting a Registration that has already moved
 to `Attended` or `Cancelled` — the trigger only advances `Registered → Confirmed`, never
 regresses or overrides a later state.
@@ -425,6 +428,7 @@ order by b.start_date asc;
 | EC-07 | *(Added Week 1 build — flagged for founder confirmation)* The public registration orchestration (Document 5, Section 2) must read the Batch, upsert the Participant, and return created rows, but the `anon` role deliberately has no RLS SELECT policies on those tables (public anon key must never read PII) | The server-side `POST /api/registrations` route performs the Zod-validated orchestration on the service-role client (a trusted server context, like the webhook). The anon insert policies from Document 3, Section 7 remain as defence in depth. A tightly-scoped `public_insert_payment` anon policy (initial state only: `amount_paid = 0`, no method/transaction/verifier) was added to the foundation migration for consistency with Document 3's anon grant on `payments`. |
 | EC-09 | *(Added 2026-07-18 — founder-approved scope addition)* WhatsApp notifications alongside email, via the Meta WhatsApp Business Cloud API | Key moments only: `welcome` (doubles as payment instructions), `reminder_1`–`reminder_4`, `payment_confirmation`. Mirrors the email engine exactly: `whatsapp_log` with `unique(registration_id, message_type)` enforces send-once (BR-07 analog); gates (batch active, per-batch `whatsapp_enabled` toggle, payment-reminder toggle for reminders, participant not soft-deleted, usable phone) are checked BEFORE the reservation. Message bodies are pre-approved Meta templates (`course_registration_welcome`, `course_payment_reminder`, `course_payment_confirmation`) — see migration `202607180002_whatsapp.sql` header. When `WHATSAPP_ACCESS_TOKEN`/`WHATSAPP_PHONE_NUMBER_ID` are unset, all sends skip gracefully without reserving. **Budget note:** business-initiated template messages are billed per message by Meta (~$0.01–0.05 in Ghana) — an approved deviation from the strict $0/month constraint. |
 | EC-08 | *(Added Week 1 build — flagged for founder confirmation)* The Management role needs `GET /api/dashboard/summary` (F1.08) but has no row-level RLS access to `registrations`/`payments` (F1.09 gives Management aggregates only, never row data) | The dashboard repository computes aggregates on the service-role client after the service layer verifies the session role is `admin` or `management`. Management never receives row-level data — only the computed figures — which matches the F1.09 access matrix exactly. |
+| EC-10 | *(Added 2026-07-18 after live BR-06 verification)* A `BEFORE UPDATE` trigger derives `payment_status`, while a downstream trigger needs to react to that derived value | The downstream `trg_sync_registration_status` listens to the source columns (`amount_paid`, `course_fee`) and compares `old.payment_status` with `new.payment_status` inside the function. PostgreSQL's `UPDATE OF` trigger list is based on the original `SET` clause, not columns changed by another trigger. Migration `202607180003_fix_registration_confirmation_trigger.sql` captures the repair reproducibly. |
 
 ---
 
@@ -446,7 +450,7 @@ order by b.start_date asc;
 □ 6. BR-14's idempotency check happens before any payment record mutation.
 □ 7. BR-06's guard clause (WHERE registration_status = 'Registered')
       confirmed present — prevents overwriting Cancelled/Attended states.
-□ 8. All 6 edge cases (EC-01 through EC-06) understood and their
+□ 8. All documented edge cases understood and their
       resolutions implemented, not left as unhandled exceptions.
 □ 9. Next document to read: Document 5 — API Contract and Endpoint Specification.
 ```

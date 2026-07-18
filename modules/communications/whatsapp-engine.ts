@@ -7,7 +7,7 @@ import {
   sendWhatsappTemplateMessage,
 } from '@/lib/whatsapp/client';
 import * as communicationsRepository from '@/modules/communications/repository';
-import type { WhatsappMessageType } from '@/lib/supabase/database.types';
+import type { WhatsappMessageType } from '@/lib/domain/types';
 import type { RegistrationEmailContext } from '@/modules/communications/types';
 import { formatGhs } from '@/lib/utils';
 

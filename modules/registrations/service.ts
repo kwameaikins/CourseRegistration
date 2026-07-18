@@ -1,4 +1,9 @@
 // Registration aggregate business rules (BR-01, BR-02, BR-03, BR-15, BR-19).
+import {
+  parseLeadSource,
+  parsePaymentStatus,
+  parseRegistrationStatus,
+} from '@/lib/domain/parsers';
 import { AppError } from '@/lib/errors';
 import * as registrationsRepository from '@/modules/registrations/repository';
 import * as coursesService from '@/modules/courses/service';
@@ -12,7 +17,7 @@ import type {
   RegistrationListFilters,
   RegistrationListRow,
 } from '@/modules/registrations/types';
-import type { StaffRole } from '@/lib/supabase/database.types';
+import type { StaffRole } from '@/lib/domain/types';
 
 function isUniqueViolation(err: unknown): boolean {
   return (
@@ -100,8 +105,8 @@ export async function createRegistration(
 
   return {
     registrationId: registration.id,
-    registrationStatus: registration.registration_status,
-    paymentStatus: payment.payment_status,
+    registrationStatus: parseRegistrationStatus(registration.registration_status),
+    paymentStatus: parsePaymentStatus(payment.payment_status),
     message: `Thank you, ${input.fullName}. Your registration for ${batch.cohortLabel} has been received. Please check your email for payment instructions.`,
   };
 }
@@ -132,9 +137,9 @@ export async function listRegistrations(filters: RegistrationListFilters): Promi
       courseCode: row.course?.course_code ?? '',
       cohortLabel: row.batch?.cohort_label ?? '',
       batchId: row.registration.batch_id,
-      leadSource: row.registration.lead_source,
-      registrationStatus: row.registration.registration_status,
-      paymentStatus: row.payment?.payment_status ?? 'Unpaid',
+      leadSource: parseLeadSource(row.registration.lead_source),
+      registrationStatus: parseRegistrationStatus(row.registration.registration_status),
+      paymentStatus: parsePaymentStatus(row.payment?.payment_status ?? 'Unpaid'),
       courseFee: Number(row.payment?.course_fee ?? 0),
       amountPaid: Number(row.payment?.amount_paid ?? 0),
       balance: Number(row.payment?.balance ?? 0),

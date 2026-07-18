@@ -288,6 +288,8 @@ for each row execute function fn_derive_payment_status();
 
 -- =========================================================
 -- TRIGGER: cascade payment_status -> registration_status (BR-06)
+-- Listen to payment inputs because payment_status is assigned by the BEFORE trigger;
+-- PostgreSQL UPDATE OF only considers columns named in the original SET clause.
 -- =========================================================
 create or replace function fn_sync_registration_status()
 returns trigger as $$
@@ -303,7 +305,7 @@ end;
 $$ language plpgsql;
 
 create trigger trg_sync_registration_status
-after update of payment_status on payments
+after update of amount_paid, course_fee on payments
 for each row execute function fn_sync_registration_status();
 ```
 

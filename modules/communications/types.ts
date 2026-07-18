@@ -1,4 +1,4 @@
-import type { EmailType } from '@/lib/supabase/database.types';
+import type { EmailType } from '@/lib/domain/types';
 
 export type { EmailType };
 

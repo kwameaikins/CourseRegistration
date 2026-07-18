@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import type { StaffRole } from '@/lib/supabase/database.types';
+import type { StaffRole } from '@/lib/domain/types';
 
 export interface StaffUser {
   id: string;

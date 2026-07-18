@@ -13,17 +13,17 @@ actionable version of that document, meant to be edited as work happens, not jus
 *Riskiest assumption tested: does the schema + RLS + auth foundation actually work as designed?*
 
 - [x] Repository scaffolded per `/docs/02_Technical_Architecture.md`, Section 3
-- [ ] Supabase project created *(external — needs founder's Supabase account)*
-- [x] Full migration written (`supabase/migrations/202607170001_foundation.sql`; all 8 tables + `deletion_log`, all triggers, generated `balance`) — apply with `npx supabase db push` once linked
+- [x] Supabase project created and CLI-linked
+- [x] Full migrations written and applied (`202607170001_foundation.sql`, `202607180002_whatsapp.sql`, `202607180003_fix_registration_confirmation_trigger.sql`)
 - [x] RLS policies written (same migration; includes `public_insert_payment` addition — see Doc 4, EC-07)
 - [x] PostgREST grants written (same migration)
-- [ ] First real Admin account created and can log in *(external — Supabase dashboard)*
+- [ ] First real Admin account created and can log in *(account created; login smoke test pending)*
 - [x] Course Control Panel screen built (F1.02) — Admin can create a Course and Batch
 - [x] Staff User Management screen built (US-A05)
 - [ ] Remaining 5 staff accounts created *(via the Users screen once live)*
 - [x] Middleware route protection implemented (`/docs/06_Security_and_Authentication.md`, Section 3)
 - [ ] Manual smoke test: all 6 roles log in and land on correct default page
-- [ ] **RLS test cases T-RLS-01 through T-RLS-07 run and passing** — ready to run: `supabase/tests/database_test_suite.sql` in the SQL editor
+- [ ] **RLS test cases T-RLS-01 through T-RLS-07 run and passing** — database SQL suite passed; API-level T-RLS-03 and anonymous-access T-RLS-06 still need live verification
 
 **Week 1 gate:** ⬜ PASS — all 6 staff can log in with correct role routing; RLS tests pass.
 
@@ -117,13 +117,14 @@ dashboard). Automate the webhook as a fast-follow in Week 6. **Do not let this b
 ## Task 5 — Testing, Fixes, Go-Live (Buffer Week)
 
 - [ ] Full Test Specification run (`/docs/09_Test_Specification.md`) — all BR, integration, RLS test cases
-  - [x] Unit level: 53 Vitest tests passing (`npm run test`) — BR-03/04/07/08/13/14/15/19 logic, webhook, email engine, dashboard
-  - [ ] Database level: run `supabase/tests/database_test_suite.sql` once Supabase project exists (covers triggers, constraints, RLS, DPA functions)
+  - [x] Unit level: 71 Vitest tests passing (`npm run test`) — BR-03/04/07/08/13/14/15/19 logic, webhook, email and WhatsApp engines, dashboard
+  - [x] Database level: `supabase/tests/database_test_suite.sql` passed against the linked project; BR-06 repair is captured in migration `202607180003`
   - [ ] Live integration: T-INT-01…06 once deployed with real keys
 - [ ] Load test run — 10 concurrent registrations, no corruption (Section 7, Document 9)
 - [ ] Load test — simultaneous duplicate registration attempt, exactly one succeeds
 - [ ] Manual pre-launch checklist completed with founder + at least one staff member per role (`/docs/09_Test_Specification.md`, Section 6)
 - [ ] All bugs from Days 21–23 fixed
+- [ ] Exposed legacy Supabase service_role key rotated/disabled and local/server environment updated
 - [ ] Production deployment to Vercel
 - [ ] **Paystack webhook URL updated to production domain (not a Preview URL)**
 - [ ] Real Course + Batch data entered for the approaching intake (if not already done Week 1)

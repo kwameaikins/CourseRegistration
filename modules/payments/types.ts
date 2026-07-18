@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import type { PaymentMethod, PaymentStatus } from '@/lib/supabase/database.types';
+import type { PaymentMethod, PaymentStatus } from '@/lib/domain/types';
 
 export interface Payment {
   id: string;

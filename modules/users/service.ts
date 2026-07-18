@@ -1,9 +1,11 @@
 // Staff account business rules (US-A05). Account creation is admin-only —
 // there is no self-service sign-up (Document 6, Section 1).
+import { parseStaffRole } from '@/lib/domain/parsers';
 import { AppError } from '@/lib/errors';
 import * as usersRepository from '@/modules/users/repository';
 import type { StaffUser, StaffUserInput, StaffUserUpdate } from '@/modules/users/types';
-import type { Database, StaffRole } from '@/lib/supabase/database.types';
+import type { StaffRole } from '@/lib/domain/types';
+import type { Database } from '@/lib/supabase/database.types';
 
 function toStaffUser(row: Database['public']['Tables']['staff_users']['Row']): StaffUser {
   return {
@@ -11,7 +13,7 @@ function toStaffUser(row: Database['public']['Tables']['staff_users']['Row']): S
     userId: row.user_id,
     fullName: row.full_name,
     email: row.email,
-    role: row.role,
+    role: parseStaffRole(row.role),
     isActive: row.is_active,
     createdAt: row.created_at,
   };

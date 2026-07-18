@@ -1,4 +1,4 @@
-import type { StaffRole } from '@/lib/supabase/database.types';
+import type { StaffRole } from '@/lib/domain/types';
 
 export const STAFF_ROLES: readonly StaffRole[] = [
   'admin',

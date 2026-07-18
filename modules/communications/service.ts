@@ -4,4 +4,4 @@ export { sendEmailOnce, renderTemplateBody } from '@/modules/communications/emai
 export { sendWhatsappOnce } from '@/modules/communications/whatsapp-engine';
 export { runDailyReminders } from '@/modules/communications/reminder-scheduler';
 export type { EmailType, ReminderRunSummary } from '@/modules/communications/types';
-export type { WhatsappMessageType } from '@/lib/supabase/database.types';
+export type { WhatsappMessageType } from '@/lib/domain/types';

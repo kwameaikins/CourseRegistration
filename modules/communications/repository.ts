@@ -4,11 +4,8 @@
 // server-side code (registration orchestration, payment status changes,
 // cron, webhook).
 import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
-import type {
-  Database,
-  EmailType,
-  WhatsappMessageType,
-} from '@/lib/supabase/database.types';
+import type { EmailType, WhatsappMessageType } from '@/lib/domain/types';
+import type { Database } from '@/lib/supabase/database.types';
 import type { RegistrationEmailContext } from '@/modules/communications/types';
 
 type EmailTemplateRow = Database['public']['Tables']['email_templates']['Row'];

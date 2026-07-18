@@ -1,4 +1,5 @@
 // Payment business rules (BR-04, BR-05, BR-06, BR-12).
+import { parsePaymentMethod, parsePaymentStatus } from '@/lib/domain/parsers';
 import { AppError } from '@/lib/errors';
 import * as paymentsRepository from '@/modules/payments/repository';
 import * as usersService from '@/modules/users/service';
@@ -13,8 +14,8 @@ function toPayment(row: Database['public']['Tables']['payments']['Row']): Paymen
     courseFee: Number(row.course_fee),
     amountPaid: Number(row.amount_paid),
     balance: Number(row.balance),
-    paymentStatus: row.payment_status,
-    paymentMethod: row.payment_method,
+    paymentStatus: parsePaymentStatus(row.payment_status),
+    paymentMethod: row.payment_method ? parsePaymentMethod(row.payment_method) : null,
     transactionId: row.transaction_id,
     paymentDate: row.payment_date,
     verifiedBy: row.verified_by,

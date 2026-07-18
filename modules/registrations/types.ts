@@ -4,7 +4,7 @@ import type {
   LeadSource,
   PaymentStatus,
   RegistrationStatus,
-} from '@/lib/supabase/database.types';
+} from '@/lib/domain/types';
 
 export interface Registration {
   id: string;

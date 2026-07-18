@@ -4,7 +4,7 @@ import { sendEmailOnce } from '@/modules/communications/email-engine';
 import { sendWhatsappOnce } from '@/modules/communications/whatsapp-engine';
 import * as communicationsRepository from '@/modules/communications/repository';
 import type { EmailType, ReminderRunSummary } from '@/modules/communications/types';
-import type { WhatsappMessageType } from '@/lib/supabase/database.types';
+import type { WhatsappMessageType } from '@/lib/domain/types';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
