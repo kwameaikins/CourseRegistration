@@ -8,11 +8,13 @@ const usersServiceMock = {
   requireRole: vi.fn(),
 };
 const sendEmailOnceMock = vi.fn();
+const sendWhatsappOnceMock = vi.fn();
 
 vi.mock('@/modules/payments/repository', () => paymentsRepositoryMock);
 vi.mock('@/modules/users/service', () => usersServiceMock);
 vi.mock('@/modules/communications/service', () => ({
   sendEmailOnce: (...args: unknown[]) => sendEmailOnceMock(...args),
+  sendWhatsappOnce: (...args: unknown[]) => sendWhatsappOnceMock(...args),
 }));
 
 const { updatePaymentByStaff } = await import('@/modules/payments/service');
@@ -82,9 +84,10 @@ describe('BR-12 — verified_by is always the session staff id', () => {
 });
 
 describe('E07 — confirmation email only on the transition to Paid', () => {
-  it('sends payment_confirmation when status transitions Unpaid → Paid', async () => {
+  it('sends payment_confirmation email AND WhatsApp when status transitions Unpaid → Paid', async () => {
     await updatePaymentByStaff('reg-1', { amountPaid: 1200, paymentMethod: 'Bank Transfer' });
     expect(sendEmailOnceMock).toHaveBeenCalledWith('reg-1', 'payment_confirmation');
+    expect(sendWhatsappOnceMock).toHaveBeenCalledWith('reg-1', 'payment_confirmation');
   });
 
   it('does not send when the payment was already Paid (EC-05 double-mark)', async () => {
@@ -93,6 +96,7 @@ describe('E07 — confirmation email only on the transition to Paid', () => {
     );
     await updatePaymentByStaff('reg-1', { amountPaid: 1200, paymentMethod: 'Bank Transfer' });
     expect(sendEmailOnceMock).not.toHaveBeenCalled();
+    expect(sendWhatsappOnceMock).not.toHaveBeenCalled();
   });
 
   it('does not send for a part payment', async () => {

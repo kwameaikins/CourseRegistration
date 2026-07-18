@@ -64,6 +64,11 @@ export async function updatePaymentByStaff(
     } catch (err) {
       console.error('[payment_confirmation email]', err);
     }
+    try {
+      await communicationsService.sendWhatsappOnce(registrationId, 'payment_confirmation');
+    } catch (err) {
+      console.error('[payment_confirmation whatsapp]', err);
+    }
   }
 
   // BR-06's trigger has already advanced the Registration by the time the

@@ -4,7 +4,11 @@
 // server-side code (registration orchestration, payment status changes,
 // cron, webhook).
 import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
-import type { Database, EmailType } from '@/lib/supabase/database.types';
+import type {
+  Database,
+  EmailType,
+  WhatsappMessageType,
+} from '@/lib/supabase/database.types';
 import type { RegistrationEmailContext } from '@/modules/communications/types';
 
 type EmailTemplateRow = Database['public']['Tables']['email_templates']['Row'];
@@ -41,6 +45,37 @@ export async function updateEmailLogEntry(
   if (error) throw error;
 }
 
+// WhatsApp analog of reserveEmailLogSlot — same reservation-before-send
+// idempotency guarantee, backed by unique(registration_id, message_type).
+export async function reserveWhatsappLogSlot(
+  registrationId: string,
+  messageType: WhatsappMessageType,
+): Promise<'reserved' | 'duplicate'> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase.from('whatsapp_log').insert({
+    registration_id: registrationId,
+    message_type: messageType,
+    success: false,
+    sent_at: new Date().toISOString(),
+  });
+  if (error?.code === '23505') return 'duplicate';
+  if (error) throw error;
+  return 'reserved';
+}
+
+export async function updateWhatsappLogEntry(
+  registrationId: string,
+  messageType: WhatsappMessageType,
+  changes: { success: boolean; error_message?: string | null },
+): Promise<void> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase
+    .from('whatsapp_log')
+    .update(changes)
+    .match({ registration_id: registrationId, message_type: messageType });
+  if (error) throw error;
+}
+
 export async function selectTemplate(
   courseId: string,
   emailType: EmailType,
@@ -74,7 +109,7 @@ export async function selectRegistrationEmailContext(
   const [{ data: participant }, { data: batch }, { data: payment }] = await Promise.all([
     supabase
       .from('participants')
-      .select('full_name, email, deleted_at')
+      .select('full_name, email, phone, deleted_at')
       .eq('id', registration.participant_id)
       .maybeSingle(),
     supabase.from('batches').select('*').eq('id', registration.batch_id).maybeSingle(),
@@ -97,6 +132,7 @@ export async function selectRegistrationEmailContext(
     registrationId,
     participantFullName: participant.full_name,
     participantEmail: participant.email,
+    participantPhone: participant.phone,
     participantDeleted: participant.deleted_at !== null,
     courseId: course.id,
     courseName: course.course_name,
@@ -116,6 +152,7 @@ export async function selectRegistrationEmailContext(
     welcomeEmailEnabled: batch.welcome_email_enabled,
     paymentReminderEnabled: batch.payment_reminder_enabled,
     classReminderEnabled: batch.class_reminder_enabled,
+    whatsappEnabled: batch.whatsapp_enabled,
   };
 }
 

@@ -38,6 +38,7 @@ export interface RegistrationEmailContext {
   registrationId: string;
   participantFullName: string;
   participantEmail: string;
+  participantPhone: string;
   participantDeleted: boolean;
   courseId: string;
   courseName: string;
@@ -57,6 +58,7 @@ export interface RegistrationEmailContext {
   welcomeEmailEnabled: boolean;
   paymentReminderEnabled: boolean;
   classReminderEnabled: boolean;
+  whatsappEnabled: boolean;
 }
 
 export interface ReminderRunSummary {
@@ -66,5 +68,6 @@ export interface ReminderRunSummary {
   skippedDeduplicated: number;
   skippedPaidSinceQuery: number;
   skippedInactiveBatch: number;
+  whatsappSent: number;
   errors: string[];
 }

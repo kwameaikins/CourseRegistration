@@ -90,6 +90,14 @@ export async function createRegistration(
     }
   }
 
+  // WhatsApp welcome (doubles as payment instructions) — same non-blocking
+  // posture as email: a messaging failure never fails the registration.
+  try {
+    await communicationsService.sendWhatsappOnce(registration.id, 'welcome');
+  } catch (err) {
+    console.error('[registration whatsapp welcome]', err);
+  }
+
   return {
     registrationId: registration.id,
     registrationStatus: registration.registration_status,

@@ -24,6 +24,7 @@ function makeContext(overrides: Partial<RegistrationEmailContext> = {}): Registr
     registrationId: 'reg-1',
     participantFullName: 'Ama Owusu',
     participantEmail: 'ama@example.com',
+    participantPhone: '+233241234567',
     participantDeleted: false,
     courseId: 'course-1',
     courseName: 'ICAG Level 1 Prep',
@@ -43,6 +44,7 @@ function makeContext(overrides: Partial<RegistrationEmailContext> = {}): Registr
     welcomeEmailEnabled: true,
     paymentReminderEnabled: true,
     classReminderEnabled: true,
+    whatsappEnabled: true,
     ...overrides,
   };
 }

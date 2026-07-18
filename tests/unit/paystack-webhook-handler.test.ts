@@ -6,10 +6,12 @@ const repositoryMock = {
   applyWebhookPaymentSystem: vi.fn(),
 };
 const sendEmailOnceMock = vi.fn();
+const sendWhatsappOnceMock = vi.fn();
 
 vi.mock('@/modules/payments/repository', () => repositoryMock);
 vi.mock('@/modules/communications/service', () => ({
   sendEmailOnce: (...args: unknown[]) => sendEmailOnceMock(...args),
+  sendWhatsappOnce: (...args: unknown[]) => sendWhatsappOnceMock(...args),
 }));
 
 const { processWebhookEvent } = await import(

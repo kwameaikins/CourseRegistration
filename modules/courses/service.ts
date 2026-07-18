@@ -38,6 +38,7 @@ function toBatch(row: BatchRow): Batch {
     welcomeEmailEnabled: row.welcome_email_enabled,
     paymentReminderEnabled: row.payment_reminder_enabled,
     classReminderEnabled: row.class_reminder_enabled,
+    whatsappEnabled: row.whatsapp_enabled,
     isActive: row.is_active,
   };
 }
@@ -102,6 +103,9 @@ export async function updateBatch(batchId: string, changes: BatchUpdate): Promis
     ...(changes.classReminderEnabled !== undefined && {
       class_reminder_enabled: changes.classReminderEnabled,
     }),
+    ...(changes.whatsappEnabled !== undefined && {
+      whatsapp_enabled: changes.whatsappEnabled,
+    }),
     ...(changes.isActive !== undefined && { is_active: changes.isActive }),
   });
   return toBatch(row);
@@ -141,6 +145,7 @@ function toBatchInsert(input: BatchInput): Database['public']['Tables']['batches
     welcome_email_enabled: input.welcomeEmailEnabled,
     payment_reminder_enabled: input.paymentReminderEnabled,
     class_reminder_enabled: input.classReminderEnabled,
+    whatsapp_enabled: input.whatsappEnabled,
     is_active: input.isActive,
   };
 }

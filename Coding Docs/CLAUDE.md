@@ -123,7 +123,9 @@ Week (per PLAN.md):     5 (code-complete for Tasks 1–5; external setup pending
 Last completed task:    All Phase 1 code built — migration + RLS, all modules, all 10 API
                         routes + /api/health, all 8 screens, Paystack webhook (BR-13/14),
                         email engine + cron (BR-07/08/09/10), DPA delete UI, Sentry PII
-                        scrubbing. 53 unit tests passing; typecheck/lint/build green.
+                        scrubbing. PLUS founder-approved WhatsApp notifications via Meta
+                        Cloud API (Doc 4 EC-09): whatsapp_log dedup, key-moment messages,
+                        per-batch toggle. 69 unit tests passing; typecheck/lint/build green.
                         SQL DB test suite ready: supabase/tests/database_test_suite.sql.
 Currently in progress:  Nothing — blocked on external account setup.
 Blockers:                (1) Supabase project not created/linked (CLI unauthenticated,
@@ -131,7 +133,9 @@ Blockers:                (1) Supabase project not created/linked (CLI unauthenti
                         lib/supabase/database.types.ts after db push. (2) No Paystack/
                         Resend/Sentry keys. (3) Not deployed to Vercel; webhook URL,
                         Uptime Robot, and live tests (T-INT-01…06, T-RLS live) pending.
-                        See Doc 4 EC-07/EC-08 for two flagged design resolutions.
+                        (4) WhatsApp: Meta Business account, 3 approved templates, and
+                        WHATSAPP_* env vars pending (sends skip gracefully until set).
+                        See Doc 4 EC-07/EC-08/EC-09 for flagged design resolutions.
 Pivot-or-persevere gate status: Not yet reached (needs live Paystack test)
 ```
 

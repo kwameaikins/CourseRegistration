@@ -77,6 +77,19 @@ dashboard). Automate the webhook as a fast-follow in Week 6. **Do not let this b
 
 **Week 3 gate:** ⬜ PASS — all 7 Phase 1 email types sending correctly; deduplication confirmed under repeated execution.
 
+### WhatsApp notifications (scope addition, approved 2026-07-18 — see Doc 4, EC-09)
+
+- [x] `whatsapp_log` migration + per-batch WhatsApp toggle (`202607180002_whatsapp.sql`)
+- [x] Meta Cloud API client with Ghana phone normalization (`lib/whatsapp/client.ts`)
+- [x] `sendWhatsappOnce` engine — BR-07-style dedup, gates before reservation, graceful skip when unconfigured
+- [x] Wired: welcome on registration, reminders in daily cron, confirmation on payment → Paid (manual + webhook)
+- [x] Courses screen: "WhatsApp messages" toggle under Automation Settings
+- [x] Unit tests (16) for normalization, dedup ordering, gating, template mapping
+- [ ] *(external)* Meta Business account + WhatsApp Business phone number set up
+- [ ] *(external)* Three templates created and approved in Meta Business Manager: `course_registration_welcome`, `course_payment_reminder`, `course_payment_confirmation` (parameter layout in the migration header)
+- [ ] *(external)* `WHATSAPP_ACCESS_TOKEN` + `WHATSAPP_PHONE_NUMBER_ID` set in Vercel
+- [ ] Live test: registration triggers WhatsApp welcome; duplicate cron run sends zero duplicates
+
 ---
 
 ## Task 4 — Dashboard, Compliance, Tutor View

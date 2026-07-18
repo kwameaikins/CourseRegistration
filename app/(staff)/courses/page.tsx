@@ -32,6 +32,7 @@ interface Batch {
   welcomeEmailEnabled: boolean;
   paymentReminderEnabled: boolean;
   classReminderEnabled: boolean;
+  whatsappEnabled: boolean;
   isActive: boolean;
 }
 
@@ -265,6 +266,7 @@ export default function CourseControlPanelPage() {
                             ['welcomeEmailEnabled', 'Welcome email'],
                             ['paymentReminderEnabled', 'Payment reminders'],
                             ['classReminderEnabled', 'Class reminders'],
+                            ['whatsappEnabled', 'WhatsApp messages'],
                           ] as const
                         ).map(([field, label]) => (
                           <div key={field} className="flex items-center gap-2">

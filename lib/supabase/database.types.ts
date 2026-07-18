@@ -16,6 +16,16 @@ export type PaymentMethod = 'Paystack Card' | 'MTN MoMo' | 'Bank Transfer' | 'Ca
 
 export type LeadSource = 'WhatsApp' | 'Facebook' | 'LinkedIn' | 'Referral' | 'Website' | 'Other';
 
+// WhatsApp key-moment messages (founder-approved 2026-07-18): welcome doubles
+// as the payment-instruction message; reminders mirror E03–E06.
+export type WhatsappMessageType =
+  | 'welcome'
+  | 'reminder_1'
+  | 'reminder_2'
+  | 'reminder_3'
+  | 'reminder_4'
+  | 'payment_confirmation';
+
 export type EmailType =
   | 'welcome'
   | 'payment_instruction'
@@ -107,6 +117,7 @@ export interface Database {
           welcome_email_enabled: boolean;
           payment_reminder_enabled: boolean;
           class_reminder_enabled: boolean;
+          whatsapp_enabled: boolean;
           is_active: boolean;
           created_at: string;
           updated_at: string;
@@ -126,6 +137,7 @@ export interface Database {
           welcome_email_enabled?: boolean;
           payment_reminder_enabled?: boolean;
           class_reminder_enabled?: boolean;
+          whatsapp_enabled?: boolean;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -145,6 +157,7 @@ export interface Database {
           welcome_email_enabled?: boolean;
           payment_reminder_enabled?: boolean;
           class_reminder_enabled?: boolean;
+          whatsapp_enabled?: boolean;
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -321,6 +334,33 @@ export interface Database {
           id?: string;
           registration_id?: string;
           email_type?: string;
+          sent_at?: string;
+          success?: boolean;
+          error_message?: string | null;
+        };
+        Relationships: [];
+      };
+      whatsapp_log: {
+        Row: {
+          id: string;
+          registration_id: string;
+          message_type: WhatsappMessageType;
+          sent_at: string;
+          success: boolean;
+          error_message: string | null;
+        };
+        Insert: {
+          id?: string;
+          registration_id: string;
+          message_type: WhatsappMessageType;
+          sent_at?: string;
+          success: boolean;
+          error_message?: string | null;
+        };
+        Update: {
+          id?: string;
+          registration_id?: string;
+          message_type?: WhatsappMessageType;
           sent_at?: string;
           success?: boolean;
           error_message?: string | null;

@@ -22,6 +22,7 @@ export interface Batch {
   welcomeEmailEnabled: boolean;
   paymentReminderEnabled: boolean;
   classReminderEnabled: boolean;
+  whatsappEnabled: boolean;
   isActive: boolean;
 }
 
@@ -65,6 +66,7 @@ export const batchInputSchema = z
     welcomeEmailEnabled: z.boolean().default(true),
     paymentReminderEnabled: z.boolean().default(true),
     classReminderEnabled: z.boolean().default(true),
+    whatsappEnabled: z.boolean().default(true),
     isActive: z.boolean().default(true),
   })
   .refine((batch) => batch.startDate <= batch.endDate, {
@@ -95,6 +97,7 @@ export const batchUpdateSchema = z
     welcomeEmailEnabled: z.boolean().optional(),
     paymentReminderEnabled: z.boolean().optional(),
     classReminderEnabled: z.boolean().optional(),
+    whatsappEnabled: z.boolean().optional(),
     isActive: z.boolean().optional(),
   })
   .refine(

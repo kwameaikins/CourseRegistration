@@ -1,8 +1,10 @@
 // Daily reminder evaluation (F1.07, E03–E06), triggered by Vercel Cron at
 // 07:00 UTC (BR-17 — Ghana is UTC+0 year-round, no drift correction needed).
 import { sendEmailOnce } from '@/modules/communications/email-engine';
+import { sendWhatsappOnce } from '@/modules/communications/whatsapp-engine';
 import * as communicationsRepository from '@/modules/communications/repository';
 import type { EmailType, ReminderRunSummary } from '@/modules/communications/types';
+import type { WhatsappMessageType } from '@/lib/supabase/database.types';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -43,6 +45,7 @@ export async function runDailyReminders(now = new Date()): Promise<ReminderRunSu
     skippedDeduplicated: 0,
     skippedPaidSinceQuery: 0,
     skippedInactiveBatch: 0,
+    whatsappSent: 0,
     errors: [],
   };
 
@@ -75,6 +78,19 @@ export async function runDailyReminders(now = new Date()): Promise<ReminderRunSu
         else if (outcome === 'skipped_gated') summary.skippedInactiveBatch += 1;
         else if (outcome === 'failed') {
           summary.errors.push(`${candidate.registrationId}/${reminderType}: send failed`);
+        }
+
+        // WhatsApp reminder alongside the email — its own whatsapp_log dedup
+        // makes re-runs safe; the BR-08 status check above covers both.
+        const whatsappOutcome = await sendWhatsappOnce(
+          candidate.registrationId,
+          reminderType as WhatsappMessageType,
+        );
+        if (whatsappOutcome === 'sent') summary.whatsappSent += 1;
+        else if (whatsappOutcome === 'failed') {
+          summary.errors.push(
+            `${candidate.registrationId}/${reminderType}: whatsapp send failed`,
+          );
         }
       } catch (err) {
         summary.errors.push(`${candidate.registrationId}/${reminderType}: ${String(err)}`);

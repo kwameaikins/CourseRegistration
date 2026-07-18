@@ -15,12 +15,14 @@ const usersServiceMock = {
   getCurrentStaffUser: vi.fn(),
 };
 const sendEmailOnceMock = vi.fn();
+const sendWhatsappOnceMock = vi.fn();
 
 vi.mock('@/modules/registrations/repository', () => registrationsRepositoryMock);
 vi.mock('@/modules/courses/service', () => coursesServiceMock);
 vi.mock('@/modules/users/service', () => usersServiceMock);
 vi.mock('@/modules/communications/service', () => ({
   sendEmailOnce: (...args: unknown[]) => sendEmailOnceMock(...args),
+  sendWhatsappOnce: (...args: unknown[]) => sendWhatsappOnceMock(...args),
 }));
 
 const { createRegistration } = await import('@/modules/registrations/service');
@@ -79,6 +81,7 @@ beforeEach(() => {
     payment_status: 'Unpaid',
   });
   sendEmailOnceMock.mockResolvedValue('sent');
+  sendWhatsappOnceMock.mockResolvedValue('sent');
 });
 
 describe('BR-15 — mandatory DPA consent (T-BR15-01 logic)', () => {
@@ -141,6 +144,7 @@ describe('deep-endpoint orchestration (Document 5, Section 2)', () => {
     expect(sendEmailOnceMock).toHaveBeenCalledWith('reg-1', 'welcome');
     expect(sendEmailOnceMock).toHaveBeenCalledWith('reg-1', 'payment_instruction');
     expect(sendEmailOnceMock).toHaveBeenCalledWith('reg-1', 'reminder_1');
+    expect(sendWhatsappOnceMock).toHaveBeenCalledWith('reg-1', 'welcome');
   });
 
   it('still succeeds when an email send fails (P4.01 — email must not block registration)', async () => {
