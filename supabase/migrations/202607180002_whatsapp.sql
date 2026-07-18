@@ -8,11 +8,21 @@
 -- parameters. Required templates (create in Meta Business Manager, language
 -- 'en', body parameters {{1}}, {{2}}, ...):
 --   course_registration_welcome   {{1}}=participant name, {{2}}=course+cohort,
---                                 {{3}}=start date, {{4}}=course fee GHS
+--                                 {{3}}=start date, {{4}}=course fee GHS,
+--                                 {{5}}=Professional Learning Network group
+--                                 invite link (COMMUNITY_WHATSAPP_LINK env),
+--                                 {{6}}=WhatsApp channel invite link
+--                                 (COMMUNITY_WHATSAPP_CHANNEL_LINK env) —
+--                                 both business-wide, not per-Batch, sent
+--                                 immediately at registration regardless of
+--                                 payment status.
 --   course_payment_reminder       {{1}}=participant name, {{2}}=course+cohort,
 --                                 {{3}}=outstanding balance GHS, {{4}}=start date
 --   course_payment_confirmation   {{1}}=participant name, {{2}}=course+cohort,
---                                 {{3}}=amount paid GHS
+--                                 {{3}}=amount paid GHS, {{4}}=this Batch's
+--                                 course-specific WhatsApp group invite link
+--                                 (Batch.whatsappGroupLink) — sent only once
+--                                 payment is confirmed, per Batch/cohort.
 
 begin;
 

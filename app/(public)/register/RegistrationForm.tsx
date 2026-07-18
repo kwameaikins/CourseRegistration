@@ -10,7 +10,7 @@ import { PaystackCheckout } from '@/components/PaystackCheckout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { formatDate, formatGhs } from '@/lib/utils';
+import { effectiveCourseFee, formatDate, formatGhs } from '@/lib/utils';
 
 interface BatchOption {
   batchId: string;
@@ -18,6 +18,8 @@ interface BatchOption {
   cohortLabel: string;
   startDate: string;
   courseFee: number;
+  discountCutoffDate: string | null;
+  discountedFee: number | null;
 }
 
 const LEAD_SOURCES = [
@@ -29,17 +31,26 @@ const LEAD_SOURCES = [
   'Other',
 ] as const;
 
+const GENDERS = ['Male', 'Female'] as const;
+
 const CONSENT_TEXT =
   'I consent to my personal data (name, email, phone) being stored and used to manage ' +
   'my course registration, payment, and course communications, in line with the Ghana ' +
   'Data Protection Act, 2012 (Act 843). I can request deletion of my data at any time.';
 
-type FieldErrors = Partial<Record<'fullName' | 'email' | 'phone' | 'batchId' | 'leadSource', string>>;
+type FieldErrors = Partial<
+  Record<'firstName' | 'surname' | 'gender' | 'email' | 'phone' | 'batchId' | 'leadSource', string>
+>;
 
 export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[] }) {
-  const [fullName, setFullName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [middleName, setMiddleName] = useState('');
+  const [surname, setSurname] = useState('');
+  const [gender, setGender] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [jobTitle, setJobTitle] = useState('');
+  const [company, setCompany] = useState('');
   const [batchId, setBatchId] = useState('');
   const [leadSource, setLeadSource] = useState('');
   const [consentGiven, setConsentGiven] = useState(false);
@@ -54,11 +65,18 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
   const [paymentStarted, setPaymentStarted] = useState(false);
 
   const selectedBatch = batchOptions.find((option) => option.batchId === batchId) ?? null;
+  const selectedBatchFee = selectedBatch ? effectiveCourseFee(selectedBatch) : null;
+  const selectedBatchHasActiveDiscount =
+    selectedBatch !== null && selectedBatchFee !== selectedBatch.courseFee;
 
   function validateField(field: keyof FieldErrors): string | undefined {
     switch (field) {
-      case 'fullName':
-        return fullName.trim().length < 2 ? 'Please enter your full name.' : undefined;
+      case 'firstName':
+        return firstName.trim().length < 1 ? 'Please enter your first name.' : undefined;
+      case 'surname':
+        return surname.trim().length < 1 ? 'Please enter your surname.' : undefined;
+      case 'gender':
+        return gender ? undefined : 'Please select your gender.';
       case 'email':
         return /.+@.+\..+/.test(email) ? undefined : 'Please enter a valid email address.';
       case 'phone':
@@ -79,7 +97,9 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     const errors: FieldErrors = {};
-    (['fullName', 'email', 'phone', 'batchId', 'leadSource'] as const).forEach((field) => {
+    (
+      ['firstName', 'surname', 'gender', 'email', 'phone', 'batchId', 'leadSource'] as const
+    ).forEach((field) => {
       const fieldError = validateField(field);
       if (fieldError) errors[field] = fieldError;
     });
@@ -94,9 +114,14 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
         {
           method: 'POST',
           body: JSON.stringify({
-            fullName: fullName.trim(),
+            firstName: firstName.trim(),
+            middleName: middleName.trim(),
+            surname: surname.trim(),
+            gender,
             email: email.trim(),
             phone: phone.trim(),
+            jobTitle: jobTitle.trim(),
+            company: company.trim(),
             batchId,
             leadSource,
             consentGiven,
@@ -122,15 +147,13 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
           </h2>
           <p className="mt-2 text-sm">{success.message}</p>
         </div>
-        {selectedBatch && !paymentStarted && (
+        {selectedBatch && selectedBatchFee !== null && !paymentStarted && (
           <div className="space-y-3 border-t pt-4">
-            <p className="text-sm font-medium">
-              Course fee: {formatGhs(selectedBatch.courseFee)}
-            </p>
+            <p className="text-sm font-medium">Course fee: {formatGhs(selectedBatchFee)}</p>
             <PaystackCheckout
               registrationId={success.registrationId}
               participantEmail={email.trim().toLowerCase()}
-              amountGhs={selectedBatch.courseFee}
+              amountGhs={selectedBatchFee}
               onCompleted={() => setPaymentStarted(true)}
             />
             <p className="text-xs text-muted-foreground">
@@ -179,26 +202,83 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
         {fieldErrors.batchId && (
           <p className="text-sm text-destructive">{fieldErrors.batchId}</p>
         )}
-        {selectedBatch && (
-          <p className="text-sm text-muted-foreground">
-            Course fee: {formatGhs(selectedBatch.courseFee)}
-          </p>
+        {selectedBatch && selectedBatchFee !== null && (
+          <div className="text-sm text-muted-foreground">
+            {selectedBatchHasActiveDiscount && selectedBatch.discountCutoffDate ? (
+              <p>
+                <span className="line-through">{formatGhs(selectedBatch.courseFee)}</span>{' '}
+                <span className="font-medium text-emerald-700">
+                  {formatGhs(selectedBatchFee)}
+                </span>{' '}
+                — early-bird price if you register by{' '}
+                {formatDate(selectedBatch.discountCutoffDate)}
+              </p>
+            ) : (
+              <p>Course fee: {formatGhs(selectedBatchFee)}</p>
+            )}
+          </div>
         )}
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="fullName">Full Name</Label>
+        <Label htmlFor="firstName">First Name</Label>
         <Input
-          id="fullName"
-          value={fullName}
-          autoComplete="name"
-          className={fieldErrors.fullName ? 'border-destructive' : undefined}
-          onChange={(event) => setFullName(event.target.value)}
-          onBlur={() => handleBlur('fullName')}
+          id="firstName"
+          value={firstName}
+          autoComplete="given-name"
+          className={fieldErrors.firstName ? 'border-destructive' : undefined}
+          onChange={(event) => setFirstName(event.target.value)}
+          onBlur={() => handleBlur('firstName')}
         />
-        {fieldErrors.fullName && (
-          <p className="text-sm text-destructive">{fieldErrors.fullName}</p>
+        {fieldErrors.firstName && (
+          <p className="text-sm text-destructive">{fieldErrors.firstName}</p>
         )}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="middleName">
+          Middle Name <span className="text-muted-foreground">(optional)</span>
+        </Label>
+        <Input
+          id="middleName"
+          value={middleName}
+          autoComplete="additional-name"
+          onChange={(event) => setMiddleName(event.target.value)}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="surname">Surname</Label>
+        <Input
+          id="surname"
+          value={surname}
+          autoComplete="family-name"
+          className={fieldErrors.surname ? 'border-destructive' : undefined}
+          onChange={(event) => setSurname(event.target.value)}
+          onBlur={() => handleBlur('surname')}
+        />
+        {fieldErrors.surname && (
+          <p className="text-sm text-destructive">{fieldErrors.surname}</p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="gender">Gender</Label>
+        <select
+          id="gender"
+          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+          value={gender}
+          onChange={(event) => setGender(event.target.value)}
+          onBlur={() => handleBlur('gender')}
+        >
+          <option value="">Select gender</option>
+          {GENDERS.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
+        </select>
+        {fieldErrors.gender && <p className="text-sm text-destructive">{fieldErrors.gender}</p>}
       </div>
 
       <div className="space-y-2">
@@ -228,6 +308,30 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
           onBlur={() => handleBlur('phone')}
         />
         {fieldErrors.phone && <p className="text-sm text-destructive">{fieldErrors.phone}</p>}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="jobTitle">
+          Job Title <span className="text-muted-foreground">(optional)</span>
+        </Label>
+        <Input
+          id="jobTitle"
+          value={jobTitle}
+          autoComplete="organization-title"
+          onChange={(event) => setJobTitle(event.target.value)}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="company">
+          Company / Institution <span className="text-muted-foreground">(optional)</span>
+        </Label>
+        <Input
+          id="company"
+          value={company}
+          autoComplete="organization"
+          onChange={(event) => setCompany(event.target.value)}
+        />
       </div>
 
       <div className="space-y-2">

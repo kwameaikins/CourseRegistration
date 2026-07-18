@@ -71,7 +71,10 @@ export async function updateBatchById(
 // exactly the non-sensitive fields the public form displays.
 export async function selectActiveFutureBatchesPublic(): Promise<
   Array<
-    Pick<BatchRow, 'id' | 'cohort_label' | 'start_date' | 'course_fee'> & {
+    Pick<
+      BatchRow,
+      'id' | 'cohort_label' | 'start_date' | 'course_fee' | 'discount_cutoff_date' | 'discounted_fee'
+    > & {
       courses: Pick<CourseRow, 'course_name'> | null;
     }
   >
@@ -79,7 +82,7 @@ export async function selectActiveFutureBatchesPublic(): Promise<
   const supabase = createSupabaseServiceRoleClient();
   const { data: batches, error: batchesError } = await supabase
     .from('batches')
-    .select('id, course_id, cohort_label, start_date, course_fee')
+    .select('id, course_id, cohort_label, start_date, course_fee, discount_cutoff_date, discounted_fee')
     .eq('is_active', true)
     .gte('start_date', new Date().toISOString().slice(0, 10))
     .order('start_date', { ascending: true });
@@ -105,6 +108,8 @@ export async function selectActiveFutureBatchesPublic(): Promise<
     cohort_label: batch.cohort_label,
     start_date: batch.start_date,
     course_fee: batch.course_fee,
+    discount_cutoff_date: batch.discount_cutoff_date,
+    discounted_fee: batch.discounted_fee,
     courses: courseNameById.has(batch.course_id)
       ? { course_name: courseNameById.get(batch.course_id)! }
       : null,

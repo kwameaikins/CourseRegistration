@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { RegistrationEmailContext } from '@/modules/communications/types';
 
@@ -182,7 +182,16 @@ describe('sendWhatsappOnce — gates checked BEFORE reservation', () => {
 });
 
 describe('template mapping', () => {
-  it('maps welcome to the registration-welcome template with fee', () => {
+  const ORIGINAL_ENV = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+  });
+
+  it('maps welcome to the registration-welcome template with fee and community links', () => {
+    process.env.COMMUNITY_WHATSAPP_LINK = 'https://chat.whatsapp.com/pln-group';
+    process.env.COMMUNITY_WHATSAPP_CHANNEL_LINK = 'https://whatsapp.com/channel/abc';
+
     const { templateName, bodyParameters } = templateForMessageType(
       'welcome',
       makeContext(),
@@ -193,6 +202,8 @@ describe('template mapping', () => {
       'ICAG Level 1 Prep (JUL-2026)',
       '2026-07-14',
       'GHS 1,200.00',
+      'https://chat.whatsapp.com/pln-group',
+      'https://whatsapp.com/channel/abc',
     ]);
   });
 
@@ -205,12 +216,13 @@ describe('template mapping', () => {
     expect(bodyParameters[2]).toBe('GHS 800.00');
   });
 
-  it('maps payment_confirmation with the amount paid', () => {
+  it('maps payment_confirmation with the amount paid and the course-specific group link', () => {
     const { templateName, bodyParameters } = templateForMessageType(
       'payment_confirmation',
-      makeContext({ amountPaid: 1200 }),
+      makeContext({ amountPaid: 1200, whatsappGroupLink: 'https://chat.whatsapp.com/course-x' }),
     );
     expect(templateName).toBe('course_payment_confirmation');
     expect(bodyParameters[2]).toBe('GHS 1,200.00');
+    expect(bodyParameters[3]).toBe('https://chat.whatsapp.com/course-x');
   });
 });

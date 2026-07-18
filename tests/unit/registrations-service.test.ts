@@ -34,9 +34,14 @@ const FUTURE_DATE = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
 
 function validInput() {
   return {
-    fullName: 'Ama Owusu',
+    firstName: 'Ama',
+    middleName: null,
+    surname: 'Owusu',
+    gender: 'Female' as const,
     email: 'ama.owusu@example.com',
     phone: '+233241234567',
+    jobTitle: null,
+    company: null,
     batchId: '4c9f6ae2-0000-4000-8000-000000000001',
     leadSource: 'WhatsApp' as const,
     consentGiven: true,
@@ -60,6 +65,8 @@ function activeBatch(overrides: Record<string, unknown> = {}) {
     paymentReminderEnabled: true,
     classReminderEnabled: true,
     isActive: true,
+    discountCutoffDate: null,
+    discountedFee: null,
     ...overrides,
   };
 }
@@ -147,12 +154,70 @@ describe('deep-endpoint orchestration (Document 5, Section 2)', () => {
     expect(sendWhatsappOnceMock).toHaveBeenCalledWith('reg-1', 'welcome');
   });
 
+  it('passes job title and company through to the participant upsert', async () => {
+    await createRegistration({ ...validInput(), jobTitle: 'Finance Manager', company: 'Acme Ltd' });
+
+    expect(registrationsRepositoryMock.findOrCreateParticipant).toHaveBeenCalledWith(
+      expect.objectContaining({ job_title: 'Finance Manager', company: 'Acme Ltd' }),
+    );
+  });
+
+  it('joins first/middle/surname into full_name and passes gender through', async () => {
+    await createRegistration({ ...validInput(), middleName: 'Efua' });
+
+    expect(registrationsRepositoryMock.findOrCreateParticipant).toHaveBeenCalledWith(
+      expect.objectContaining({
+        full_name: 'Ama Efua Owusu',
+        first_name: 'Ama',
+        middle_name: 'Efua',
+        surname: 'Owusu',
+        gender: 'Female',
+      }),
+    );
+  });
+
+  it('omits the middle name from full_name when not given', async () => {
+    await createRegistration(validInput());
+
+    expect(registrationsRepositoryMock.findOrCreateParticipant).toHaveBeenCalledWith(
+      expect.objectContaining({ full_name: 'Ama Owusu' }),
+    );
+  });
+
   it('still succeeds when an email send fails (P4.01 — email must not block registration)', async () => {
     sendEmailOnceMock.mockRejectedValue(new Error('resend down'));
 
     const result = await createRegistration(validInput());
 
     expect(result.registrationId).toBe('reg-1');
+  });
+});
+
+describe('BR-18 addendum — early-registration discount decides the copied fee', () => {
+  it('charges the discounted fee when registering on or before the cutoff', async () => {
+    coursesServiceMock.getBatchByIdSystem.mockResolvedValue(
+      activeBatch({ courseFee: 1200, discountCutoffDate: FUTURE_DATE, discountedFee: 900 }),
+    );
+
+    await createRegistration(validInput());
+
+    expect(registrationsRepositoryMock.insertInitialPayment).toHaveBeenCalledWith({
+      registration_id: 'reg-1',
+      course_fee: 900,
+    });
+  });
+
+  it('charges the regular fee once the discount cutoff has passed', async () => {
+    coursesServiceMock.getBatchByIdSystem.mockResolvedValue(
+      activeBatch({ courseFee: 1200, discountCutoffDate: '2020-01-01', discountedFee: 900 }),
+    );
+
+    await createRegistration(validInput());
+
+    expect(registrationsRepositoryMock.insertInitialPayment).toHaveBeenCalledWith({
+      registration_id: 'reg-1',
+      course_fee: 1200,
+    });
   });
 });
 
@@ -176,6 +241,21 @@ describe('registration input schema', () => {
       leadSource: 'TikTok',
     });
     expect(result.success).toBe(false);
+  });
+
+  it('rejects an unknown gender', () => {
+    const result = registrationInputSchema.safeParse({
+      ...validInput(),
+      gender: 'Other',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('transforms an omitted middle name to null', () => {
+    const input = validInput();
+    delete (input as { middleName?: unknown }).middleName;
+    const parsed = registrationInputSchema.parse(input);
+    expect(parsed.middleName).toBeNull();
   });
 });
 

@@ -21,3 +21,22 @@ export function formatDate(isoDate: string): string {
     year: 'numeric',
   });
 }
+
+// Early-registration discount (Document 5 addendum, 2026-07-18): the
+// discounted fee applies through and including the cutoff date, compared as
+// ISO date strings so no timezone conversion is involved. Shared between the
+// server (fee copied onto the Payment at registration) and the public form
+// (fee preview) so both always agree on today's effective price.
+export function effectiveCourseFee(
+  batch: { courseFee: number; discountCutoffDate: string | null; discountedFee: number | null },
+  todayIso: string = new Date().toISOString().slice(0, 10),
+): number {
+  if (
+    batch.discountCutoffDate !== null &&
+    batch.discountedFee !== null &&
+    todayIso <= batch.discountCutoffDate
+  ) {
+    return batch.discountedFee;
+  }
+  return batch.courseFee;
+}

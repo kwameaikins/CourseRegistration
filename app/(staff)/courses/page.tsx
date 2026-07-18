@@ -34,6 +34,8 @@ interface Batch {
   classReminderEnabled: boolean;
   whatsappEnabled: boolean;
   isActive: boolean;
+  discountCutoffDate: string | null;
+  discountedFee: number | null;
 }
 
 const EMPTY_BATCH_FORM = {
@@ -45,6 +47,8 @@ const EMPTY_BATCH_FORM = {
   zoomLink: '',
   whatsappGroupLink: '',
   facilitatorName: '',
+  discountCutoffDate: '',
+  discountedFee: '',
 };
 
 export default function CourseControlPanelPage() {
@@ -58,6 +62,8 @@ export default function CourseControlPanelPage() {
   const [showCourseForm, setShowCourseForm] = useState(false);
   const [batchForm, setBatchForm] = useState(EMPTY_BATCH_FORM);
   const [batchFormCourseId, setBatchFormCourseId] = useState<string | null>(null);
+  const [editingBatchId, setEditingBatchId] = useState<string | null>(null);
+  const [editBatchForm, setEditBatchForm] = useState(EMPTY_BATCH_FORM);
   const [saving, setSaving] = useState(false);
 
   const reload = useCallback(async () => {
@@ -118,6 +124,8 @@ export default function CourseControlPanelPage() {
           zoomLink: batchForm.zoomLink || null,
           whatsappGroupLink: batchForm.whatsappGroupLink || null,
           facilitatorName: batchForm.facilitatorName,
+          discountCutoffDate: batchForm.discountCutoffDate || null,
+          discountedFee: batchForm.discountedFee ? Number(batchForm.discountedFee) : null,
         }),
       });
       setBatchForm(EMPTY_BATCH_FORM);
@@ -141,6 +149,51 @@ export default function CourseControlPanelPage() {
       await reload();
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to update batch.');
+    }
+  }
+
+  function startEditBatch(batch: Batch) {
+    setEditingBatchId(batch.id);
+    setEditBatchForm({
+      cohortLabel: batch.cohortLabel,
+      courseFee: String(batch.courseFee),
+      startDate: batch.startDate,
+      startTime: batch.startTime,
+      endDate: batch.endDate,
+      zoomLink: batch.zoomLink ?? '',
+      whatsappGroupLink: batch.whatsappGroupLink ?? '',
+      facilitatorName: batch.facilitatorName,
+      discountCutoffDate: batch.discountCutoffDate ?? '',
+      discountedFee: batch.discountedFee !== null ? String(batch.discountedFee) : '',
+    });
+  }
+
+  async function handleUpdateBatch(event: React.FormEvent, batchId: string) {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      await apiFetch(`/api/batches/${batchId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          cohortLabel: editBatchForm.cohortLabel,
+          courseFee: Number(editBatchForm.courseFee),
+          startDate: editBatchForm.startDate,
+          startTime: editBatchForm.startTime,
+          endDate: editBatchForm.endDate,
+          zoomLink: editBatchForm.zoomLink || null,
+          whatsappGroupLink: editBatchForm.whatsappGroupLink || null,
+          facilitatorName: editBatchForm.facilitatorName,
+          discountCutoffDate: editBatchForm.discountCutoffDate || null,
+          discountedFee: editBatchForm.discountedFee ? Number(editBatchForm.discountedFee) : null,
+        }),
+      });
+      setEditingBatchId(null);
+      flashStatus('Batch updated.');
+      await reload();
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to update batch.');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -228,64 +281,244 @@ export default function CourseControlPanelPage() {
             </CardHeader>
             {expanded && (
               <CardContent className="space-y-4">
-                {courseBatches.map((batch) => (
-                  <div key={batch.id} className="rounded-lg border p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <p className="font-medium">{batch.cohortLabel}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {formatDate(batch.startDate)} – {formatDate(batch.endDate)} ·{' '}
-                          {formatGhs(batch.courseFee)} · {batch.facilitatorName}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Label htmlFor={`active-${batch.id}`} className="text-sm">
-                          Active
-                        </Label>
-                        <Switch
-                          id={`active-${batch.id}`}
-                          checked={batch.isActive}
-                          onCheckedChange={(checked) =>
-                            handleBatchToggle(batch, 'isActive', checked)
+                {courseBatches.map((batch) =>
+                  editingBatchId === batch.id ? (
+                    <form
+                      key={batch.id}
+                      onSubmit={(event) => handleUpdateBatch(event, batch.id)}
+                      className="grid grid-cols-2 gap-4 rounded-lg border p-4"
+                    >
+                      <div className="space-y-2">
+                        <Label htmlFor={`edit-cohortLabel-${batch.id}`}>Batch Label</Label>
+                        <Input
+                          id={`edit-cohortLabel-${batch.id}`}
+                          required
+                          value={editBatchForm.cohortLabel}
+                          onChange={(event) =>
+                            setEditBatchForm({ ...editBatchForm, cohortLabel: event.target.value })
                           }
                         />
                       </div>
-                    </div>
-                    {!batch.isActive && (
-                      <p className="mt-2 text-sm text-amber-600">
-                        This batch is inactive — all automated emails for it are stopped.
-                      </p>
-                    )}
-                    <div className="mt-3 border-t pt-3">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        Automation Settings
-                      </p>
-                      <div className="flex flex-wrap gap-6">
-                        {(
-                          [
-                            ['welcomeEmailEnabled', 'Welcome email'],
-                            ['paymentReminderEnabled', 'Payment reminders'],
-                            ['classReminderEnabled', 'Class reminders'],
-                            ['whatsappEnabled', 'WhatsApp messages'],
-                          ] as const
-                        ).map(([field, label]) => (
-                          <div key={field} className="flex items-center gap-2">
+                      <div className="space-y-2">
+                        <Label htmlFor={`edit-courseFee-${batch.id}`}>Course Fee (GHS)</Label>
+                        <Input
+                          id={`edit-courseFee-${batch.id}`}
+                          required
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={editBatchForm.courseFee}
+                          onChange={(event) =>
+                            setEditBatchForm({ ...editBatchForm, courseFee: event.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`edit-startDate-${batch.id}`}>Start Date</Label>
+                        <Input
+                          id={`edit-startDate-${batch.id}`}
+                          required
+                          type="date"
+                          value={editBatchForm.startDate}
+                          onChange={(event) =>
+                            setEditBatchForm({ ...editBatchForm, startDate: event.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`edit-endDate-${batch.id}`}>End Date</Label>
+                        <Input
+                          id={`edit-endDate-${batch.id}`}
+                          required
+                          type="date"
+                          value={editBatchForm.endDate}
+                          onChange={(event) =>
+                            setEditBatchForm({ ...editBatchForm, endDate: event.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`edit-startTime-${batch.id}`}>Start Time</Label>
+                        <Input
+                          id={`edit-startTime-${batch.id}`}
+                          required
+                          type="time"
+                          value={editBatchForm.startTime}
+                          onChange={(event) =>
+                            setEditBatchForm({ ...editBatchForm, startTime: event.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`edit-facilitatorName-${batch.id}`}>
+                          Facilitator Name
+                        </Label>
+                        <Input
+                          id={`edit-facilitatorName-${batch.id}`}
+                          required
+                          value={editBatchForm.facilitatorName}
+                          onChange={(event) =>
+                            setEditBatchForm({
+                              ...editBatchForm,
+                              facilitatorName: event.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`edit-zoomLink-${batch.id}`}>Zoom Link</Label>
+                        <Input
+                          id={`edit-zoomLink-${batch.id}`}
+                          type="url"
+                          placeholder="https://zoom.us/j/…"
+                          value={editBatchForm.zoomLink}
+                          onChange={(event) =>
+                            setEditBatchForm({ ...editBatchForm, zoomLink: event.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`edit-whatsappGroupLink-${batch.id}`}>
+                          WhatsApp Group Link
+                        </Label>
+                        <Input
+                          id={`edit-whatsappGroupLink-${batch.id}`}
+                          type="url"
+                          placeholder="https://chat.whatsapp.com/…"
+                          value={editBatchForm.whatsappGroupLink}
+                          onChange={(event) =>
+                            setEditBatchForm({
+                              ...editBatchForm,
+                              whatsappGroupLink: event.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`edit-discountCutoffDate-${batch.id}`}>
+                          Discount Cutoff Date{' '}
+                          <span className="text-muted-foreground">(optional)</span>
+                        </Label>
+                        <Input
+                          id={`edit-discountCutoffDate-${batch.id}`}
+                          type="date"
+                          value={editBatchForm.discountCutoffDate}
+                          onChange={(event) =>
+                            setEditBatchForm({
+                              ...editBatchForm,
+                              discountCutoffDate: event.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`edit-discountedFee-${batch.id}`}>
+                          Discounted Fee (GHS){' '}
+                          <span className="text-muted-foreground">(optional)</span>
+                        </Label>
+                        <Input
+                          id={`edit-discountedFee-${batch.id}`}
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="Early-bird price"
+                          value={editBatchForm.discountedFee}
+                          onChange={(event) =>
+                            setEditBatchForm({
+                              ...editBatchForm,
+                              discountedFee: event.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="col-span-2 flex gap-3">
+                        <Button type="submit" disabled={saving}>
+                          {saving ? 'Saving…' : 'Save Changes'}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setEditingBatchId(null)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div key={batch.id} className="rounded-lg border p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="font-medium">{batch.cohortLabel}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {formatDate(batch.startDate)} – {formatDate(batch.endDate)} ·{' '}
+                            {formatGhs(batch.courseFee)} · {batch.facilitatorName}
+                          </p>
+                          {batch.discountCutoffDate && batch.discountedFee !== null && (
+                            <p className="text-sm text-emerald-700">
+                              Early bird {formatGhs(batch.discountedFee)} through{' '}
+                              {formatDate(batch.discountCutoffDate)}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-8 px-3"
+                            onClick={() => startEditBatch(batch)}
+                          >
+                            Edit
+                          </Button>
+                          <div className="flex items-center gap-2">
+                            <Label htmlFor={`active-${batch.id}`} className="text-sm">
+                              Active
+                            </Label>
                             <Switch
-                              id={`${field}-${batch.id}`}
-                              checked={batch[field]}
+                              id={`active-${batch.id}`}
+                              checked={batch.isActive}
                               onCheckedChange={(checked) =>
-                                handleBatchToggle(batch, field, checked)
+                                handleBatchToggle(batch, 'isActive', checked)
                               }
                             />
-                            <Label htmlFor={`${field}-${batch.id}`} className="text-sm">
-                              {label}
-                            </Label>
                           </div>
-                        ))}
+                        </div>
+                      </div>
+                      {!batch.isActive && (
+                        <p className="mt-2 text-sm text-amber-600">
+                          This batch is inactive — all automated emails for it are stopped.
+                        </p>
+                      )}
+                      <div className="mt-3 border-t pt-3">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Automation Settings
+                        </p>
+                        <div className="flex flex-wrap gap-6">
+                          {(
+                            [
+                              ['welcomeEmailEnabled', 'Welcome email'],
+                              ['paymentReminderEnabled', 'Payment reminders'],
+                              ['classReminderEnabled', 'Class reminders'],
+                              ['whatsappEnabled', 'WhatsApp messages'],
+                            ] as const
+                          ).map(([field, label]) => (
+                            <div key={field} className="flex items-center gap-2">
+                              <Switch
+                                id={`${field}-${batch.id}`}
+                                checked={batch[field]}
+                                onCheckedChange={(checked) =>
+                                  handleBatchToggle(batch, field, checked)
+                                }
+                              />
+                              <Label htmlFor={`${field}-${batch.id}`} className="text-sm">
+                                {label}
+                              </Label>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ),
+                )}
 
                 {batchFormCourseId === course.id ? (
                   <form
@@ -389,6 +622,35 @@ export default function CourseControlPanelPage() {
                             ...batchForm,
                             whatsappGroupLink: event.target.value,
                           })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="discountCutoffDate">
+                        Discount Cutoff Date <span className="text-muted-foreground">(optional)</span>
+                      </Label>
+                      <Input
+                        id="discountCutoffDate"
+                        type="date"
+                        value={batchForm.discountCutoffDate}
+                        onChange={(event) =>
+                          setBatchForm({ ...batchForm, discountCutoffDate: event.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="discountedFee">
+                        Discounted Fee (GHS) <span className="text-muted-foreground">(optional)</span>
+                      </Label>
+                      <Input
+                        id="discountedFee"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Early-bird price"
+                        value={batchForm.discountedFee}
+                        onChange={(event) =>
+                          setBatchForm({ ...batchForm, discountedFee: event.target.value })
                         }
                       />
                     </div>

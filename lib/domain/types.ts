@@ -5,6 +5,8 @@ export type StaffRole =
   | 'tutor'
   | 'management';
 
+export type Gender = 'Male' | 'Female';
+
 export type RegistrationStatus =
   | 'Registered'
   | 'Confirmed'

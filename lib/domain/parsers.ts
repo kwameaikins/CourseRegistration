@@ -1,4 +1,5 @@
 import type {
+  Gender,
   LeadSource,
   PaymentMethod,
   PaymentStatus,
@@ -41,3 +42,6 @@ export const parseLeadSource = (value: string): LeadSource =>
     ['WhatsApp', 'Facebook', 'LinkedIn', 'Referral', 'Website', 'Other'],
     'lead source',
   );
+
+export const parseGender = (value: string): Gender =>
+  parseMember(value, ['Male', 'Female'], 'gender');

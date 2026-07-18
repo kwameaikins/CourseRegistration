@@ -80,7 +80,13 @@ export async function sendEmailOnce(
     start_time: context.startTime,
     end_date: context.endDate,
     zoom_link: context.zoomLink ?? '',
+    // Course-specific group (Batch.whatsappGroupLink) — meant for the
+    // payment_confirmation template, sent only once payment is confirmed.
     whatsapp_group_link: context.whatsappGroupLink ?? '',
+    // Business-wide community links (not per-Batch) — meant for the
+    // welcome/payment_instruction templates, sent immediately at registration.
+    community_whatsapp_link: process.env.COMMUNITY_WHATSAPP_LINK ?? '',
+    whatsapp_channel_link: process.env.COMMUNITY_WHATSAPP_CHANNEL_LINK ?? '',
     facilitator_name: context.facilitatorName,
   };
 

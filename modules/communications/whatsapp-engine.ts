@@ -30,6 +30,9 @@ export function templateForMessageType(
   const courseLabel = `${context.courseName} (${context.cohortLabel})`;
   switch (messageType) {
     case 'welcome':
+      // Community links are business-wide (not per-Batch), so they come from
+      // env rather than the join context — every participant gets the same
+      // Professional Learning Network group and WhatsApp channel invite.
       return {
         templateName: 'course_registration_welcome',
         bodyParameters: [
@@ -37,15 +40,20 @@ export function templateForMessageType(
           courseLabel,
           context.startDate,
           formatGhs(context.courseFee),
+          process.env.COMMUNITY_WHATSAPP_LINK ?? '',
+          process.env.COMMUNITY_WHATSAPP_CHANNEL_LINK ?? '',
         ],
       };
     case 'payment_confirmation':
+      // The course-specific group link only goes out once payment is
+      // confirmed — it is the Batch's own whatsappGroupLink (Document 5).
       return {
         templateName: 'course_payment_confirmation',
         bodyParameters: [
           context.participantFullName,
           courseLabel,
           formatGhs(context.amountPaid),
+          context.whatsappGroupLink ?? '',
         ],
       };
     default:

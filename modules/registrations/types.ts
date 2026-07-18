@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import type {
+  Gender,
   LeadSource,
   PaymentStatus,
   RegistrationStatus,
@@ -22,6 +23,9 @@ export interface Participant {
   fullName: string;
   email: string;
   phone: string;
+  jobTitle: string | null;
+  company: string | null;
+  gender: Gender | null;
 }
 
 // One row of the staff Registration List (F1.03), joined across the
@@ -32,6 +36,9 @@ export interface RegistrationListRow {
   fullName: string;
   email: string;
   phone: string;
+  jobTitle: string | null;
+  company: string | null;
+  gender: Gender | null;
   courseName: string;
   courseCode: string;
   cohortLabel: string;
@@ -50,10 +57,31 @@ export interface RegistrationListRow {
   verifiedBy?: string | null;
 }
 
+// Optional professional-context fields — collected to help staff segment
+// leads and follow up on corporate sponsorship, never required to register.
+// .nullish() (not .optional()) so an explicit null on the input is accepted
+// too — the field is always stored as string | null downstream.
+const optionalProfessionalText = z
+  .string()
+  .trim()
+  .max(150)
+  .nullish()
+  .transform((value) => (value ? value : null));
+
 export const registrationInputSchema = z.object({
-  fullName: z.string().trim().min(2),
+  firstName: z.string().trim().min(1),
+  middleName: z
+    .string()
+    .trim()
+    .max(100)
+    .nullish()
+    .transform((value) => (value ? value : null)),
+  surname: z.string().trim().min(1),
+  gender: z.enum(['Male', 'Female']),
   email: z.email().transform((value) => value.toLowerCase()),
   phone: z.string().trim().min(10),
+  jobTitle: optionalProfessionalText,
+  company: optionalProfessionalText,
   batchId: z.uuid(),
   leadSource: z.enum(['WhatsApp', 'Facebook', 'LinkedIn', 'Referral', 'Website', 'Other']),
   // BR-15: consent must be literally true; z.literal rejects everything else.

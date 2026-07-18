@@ -40,6 +40,8 @@ function toBatch(row: BatchRow): Batch {
     classReminderEnabled: row.class_reminder_enabled,
     whatsappEnabled: row.whatsapp_enabled,
     isActive: row.is_active,
+    discountCutoffDate: row.discount_cutoff_date,
+    discountedFee: row.discounted_fee === null ? null : Number(row.discounted_fee),
   };
 }
 
@@ -107,6 +109,10 @@ export async function updateBatch(batchId: string, changes: BatchUpdate): Promis
       whatsapp_enabled: changes.whatsappEnabled,
     }),
     ...(changes.isActive !== undefined && { is_active: changes.isActive }),
+    ...(changes.discountCutoffDate !== undefined && {
+      discount_cutoff_date: changes.discountCutoffDate,
+    }),
+    ...(changes.discountedFee !== undefined && { discounted_fee: changes.discountedFee }),
   });
   return toBatch(row);
 }
@@ -121,6 +127,8 @@ export async function getActiveBatchesForPublicForm(): Promise<PublicBatchOption
     cohortLabel: row.cohort_label,
     startDate: row.start_date,
     courseFee: Number(row.course_fee),
+    discountCutoffDate: row.discount_cutoff_date,
+    discountedFee: row.discounted_fee === null ? null : Number(row.discounted_fee),
   }));
 }
 
@@ -147,6 +155,8 @@ function toBatchInsert(input: BatchInput): Database['public']['Tables']['batches
     class_reminder_enabled: input.classReminderEnabled,
     whatsapp_enabled: input.whatsappEnabled,
     is_active: input.isActive,
+    discount_cutoff_date: input.discountCutoffDate ?? null,
+    discounted_fee: input.discountedFee ?? null,
   };
 }
 

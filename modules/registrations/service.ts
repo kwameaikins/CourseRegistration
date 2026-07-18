@@ -1,10 +1,12 @@
 // Registration aggregate business rules (BR-01, BR-02, BR-03, BR-15, BR-19).
 import {
+  parseGender,
   parseLeadSource,
   parsePaymentStatus,
   parseRegistrationStatus,
 } from '@/lib/domain/parsers';
 import { AppError } from '@/lib/errors';
+import { effectiveCourseFee } from '@/lib/utils';
 import * as registrationsRepository from '@/modules/registrations/repository';
 import * as coursesService from '@/modules/courses/service';
 import * as usersService from '@/modules/users/service';
@@ -53,10 +55,22 @@ export async function createRegistration(
     );
   }
 
+  // full_name is derived here so every downstream consumer (email/WhatsApp
+  // templates, staff screens) keeps reading a single display name.
+  const fullName = [input.firstName, input.middleName, input.surname]
+    .filter(Boolean)
+    .join(' ');
+
   const participant = await registrationsRepository.findOrCreateParticipant({
-    full_name: input.fullName,
+    full_name: fullName,
+    first_name: input.firstName,
+    middle_name: input.middleName,
+    surname: input.surname,
+    gender: input.gender,
     email: input.email,
     phone: input.phone,
+    job_title: input.jobTitle,
+    company: input.company,
   });
 
   let registration;
@@ -79,10 +93,12 @@ export async function createRegistration(
     throw err;
   }
 
-  // BR-18: the fee is copied from the Batch at registration time.
+  // BR-18: the fee is copied from the Batch at registration time — the
+  // early-registration discount, if the cutoff hasn't passed yet, decides
+  // the effective fee once and for all here (Document 5 addendum).
   const payment = await registrationsRepository.insertInitialPayment({
     registration_id: registration.id,
-    course_fee: batch.courseFee,
+    course_fee: effectiveCourseFee(batch, todayIso),
   });
 
   // E01, E02, E03 — email failures never fail the registration itself
@@ -107,7 +123,7 @@ export async function createRegistration(
     registrationId: registration.id,
     registrationStatus: parseRegistrationStatus(registration.registration_status),
     paymentStatus: parsePaymentStatus(payment.payment_status),
-    message: `Thank you, ${input.fullName}. Your registration for ${batch.cohortLabel} has been received. Please check your email for payment instructions.`,
+    message: `Thank you, ${fullName}. Your registration for ${batch.cohortLabel} has been received. Please check your email for payment instructions.`,
   };
 }
 
@@ -133,6 +149,9 @@ export async function listRegistrations(filters: RegistrationListFilters): Promi
       fullName: row.participant?.full_name ?? '[unavailable]',
       email: row.participant?.email ?? '',
       phone: row.participant?.phone ?? '',
+      jobTitle: row.participant?.job_title ?? null,
+      company: row.participant?.company ?? null,
+      gender: row.participant?.gender ? parseGender(row.participant.gender) : null,
       courseName: row.course?.course_name ?? '',
       courseCode: row.course?.course_code ?? '',
       cohortLabel: row.batch?.cohort_label ?? '',

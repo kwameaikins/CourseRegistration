@@ -23,6 +23,9 @@ interface RegistrationRow {
   fullName: string;
   email: string;
   phone: string;
+  jobTitle: string | null;
+  company: string | null;
+  gender: 'Male' | 'Female' | null;
   courseName: string;
   cohortLabel: string;
   leadSource: string;
@@ -220,10 +223,22 @@ export default function RegistrationListPage() {
           {rows.map((row) => (
             <TableRow key={row.id}>
               <TableCell>
-                <p className="font-medium">{row.fullName}</p>
+                <p className="font-medium">
+                  {row.fullName}
+                  {row.gender && (
+                    <span className="ml-1 font-normal text-muted-foreground">
+                      ({row.gender})
+                    </span>
+                  )}
+                </p>
                 <p className="text-xs text-muted-foreground">
                   {row.email} · {row.phone}
                 </p>
+                {(row.jobTitle || row.company) && (
+                  <p className="text-xs text-muted-foreground">
+                    {[row.jobTitle, row.company].filter(Boolean).join(', ')}
+                  </p>
+                )}
               </TableCell>
               <TableCell>
                 <p>{row.courseName}</p>

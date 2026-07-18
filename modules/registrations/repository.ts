@@ -20,8 +20,14 @@ type PaymentRow = Database['public']['Tables']['payments']['Row'];
 // registration refreshes the Participant's latest contact details.
 export async function findOrCreateParticipant(input: {
   full_name: string;
+  first_name: string;
+  middle_name: string | null;
+  surname: string;
+  gender: 'Male' | 'Female';
   email: string;
   phone: string;
+  job_title: string | null;
+  company: string | null;
 }): Promise<ParticipantRow> {
   const supabase = createSupabaseServiceRoleClient();
   const { data, error } = await supabase
@@ -30,7 +36,13 @@ export async function findOrCreateParticipant(input: {
       {
         email: input.email,
         full_name: input.full_name,
+        first_name: input.first_name,
+        middle_name: input.middle_name,
+        surname: input.surname,
+        gender: input.gender,
         phone: input.phone,
+        job_title: input.job_title,
+        company: input.company,
         consent_given: true,
         consent_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -78,7 +90,10 @@ export async function insertInitialPayment(input: {
 export async function selectRegistrationList(filters: RegistrationListFilters): Promise<{
   rows: Array<{
     registration: RegistrationRow;
-    participant: Pick<ParticipantRow, 'full_name' | 'email' | 'phone'> | null;
+    participant: Pick<
+      ParticipantRow,
+      'full_name' | 'email' | 'phone' | 'job_title' | 'company' | 'gender'
+    > | null;
     payment: PaymentRow | null;
     batch: { cohort_label: string; course_id: string } | null;
     course: { course_name: string; course_code: string } | null;
@@ -127,7 +142,7 @@ export async function selectRegistrationList(filters: RegistrationListFilters): 
   const [participantsResult, batchesResult, paymentsResult] = await Promise.all([
     supabase
       .from('participants')
-      .select('id, full_name, email, phone')
+      .select('id, full_name, email, phone, job_title, company, gender')
       .in('id', participantIds),
     supabase.from('batches').select('id, cohort_label, course_id').in('id', batchIds),
     supabase.from('payments').select('*').in('registration_id', registrationIds),
@@ -222,12 +237,17 @@ export async function callHardDeleteParticipant(
 }
 
 export async function selectParticipantsForAdmin(): Promise<
-  Array<Pick<ParticipantRow, 'id' | 'full_name' | 'email' | 'phone' | 'deleted_at'>>
+  Array<
+    Pick<
+      ParticipantRow,
+      'id' | 'full_name' | 'email' | 'phone' | 'job_title' | 'company' | 'deleted_at'
+    >
+  >
 > {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from('participants')
-    .select('id, full_name, email, phone, deleted_at')
+    .select('id, full_name, email, phone, job_title, company, deleted_at')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data;
