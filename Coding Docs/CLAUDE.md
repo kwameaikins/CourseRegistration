@@ -120,19 +120,20 @@ npx playwright test          # E2E tests (Section 6, Document 9)
 
 ```
 Week (per PLAN.md):     5 (Tasks 1–5 code-complete; live integrations pending)
-Last completed task:    Supabase project linked and migrations 202607170001 through
-                        202607180003 applied. BR-06 trigger repair is reproducible,
-                        generated database types refreshed, and constrained values
-                        validated at the domain boundary. Database SQL suite reported
-                        passing. 71 unit tests pass; typecheck, lint, and build are green.
-Currently in progress:  Rotate/disable the exposed legacy Supabase service-role key,
-                        then deploy and run live integration/RLS smoke tests.
-Blockers:                (1) Authenticated Supabase dashboard action required to rotate
-                        the exposed legacy key. (2) Paystack/Resend/Sentry credentials
-                        and Meta Business templates/WHATSAPP_* variables are pending.
-                        (3) Vercel deployment, webhook URL, Uptime Robot, and live tests
-                        T-INT-01…06 remain pending. (4) Admin login and remaining five
-                        staff accounts still need role-routing smoke tests.
+Last completed task:    Production is live at reg.knowsia.com and /api/health returns
+                        status: ok. Google OAuth application flow added: login button,
+                        PKCE callback/code exchange, safe redirect validation, and clear
+                        inactive-staff handling. 73 unit tests pass; typecheck, lint,
+                        and production build are green.
+Currently in progress:  Configure Google Cloud OAuth + Supabase Google provider, create
+                        the first active Admin staff_users row, and live-test role routing.
+Blockers:                (1) Google client ID/secret and hosted provider configuration.
+                        (2) Supabase Auth has users but public.staff_users is empty, so
+                        no authenticated identity currently has application access.
+                        (3) Exposed server keys must be revoked after an unexposed
+                        replacement is deployed. (4) Paystack/Resend/Sentry credentials,
+                        Meta templates/WHATSAPP_* variables, webhook URL, Uptime Robot,
+                        and remaining live tests T-INT-01…06 are pending.
                         See Doc 4 EC-07/EC-08/EC-09/EC-10 for design resolutions.
 Pivot-or-persevere gate status: Not yet reached (needs live Paystack test)
 ```

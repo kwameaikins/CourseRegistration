@@ -23,13 +23,15 @@ function LoginForm() {
   const [errorMessage, setErrorMessage] = useState<string | null>(
     searchParams.get('error') === 'inactive'
       ? 'This account is inactive. Contact your administrator.'
-      : null,
+      : searchParams.get('error') === 'oauth'
+        ? 'Google sign-in could not be completed. Please try again.'
+        : null,
   );
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState<'password' | 'google' | null>(null);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    setSubmitting(true);
+    setSubmitting('password');
     setErrorMessage(null);
 
     const supabase = createSupabaseBrowserClient();
@@ -37,12 +39,30 @@ function LoginForm() {
 
     if (error) {
       setErrorMessage('Invalid email or password.');
-      setSubmitting(false);
+      setSubmitting(null);
       return;
     }
     // The root page redirects to the role's default landing page.
     router.push('/');
     router.refresh();
+  }
+
+  async function handleGoogleSignIn() {
+    setSubmitting('google');
+    setErrorMessage(null);
+
+    const supabase = createSupabaseBrowserClient();
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin + '/auth/callback',
+      },
+    });
+
+    if (error) {
+      setErrorMessage('Google sign-in could not be started. Please try again.');
+      setSubmitting(null);
+    }
   }
 
   return (
@@ -81,8 +101,27 @@ function LoginForm() {
                 onChange={(event) => setPassword(event.target.value)}
               />
             </div>
-            <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting ? 'Signing in…' : 'Sign In'}
+            <Button type="submit" className="w-full" disabled={submitting !== null}>
+              {submitting === 'password' ? 'Signing in…' : 'Sign In'}
+            </Button>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+              </div>
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              disabled={submitting !== null}
+              onClick={handleGoogleSignIn}
+            >
+              {submitting === 'google' ? 'Connecting to Google…' : 'Sign in with Google'}
             </Button>
           </form>
         </CardContent>

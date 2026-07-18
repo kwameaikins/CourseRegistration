@@ -42,11 +42,20 @@
 
 **Provider: Supabase Auth. Confidence: High (DEC-005).**
 
-Staff Users authenticate via email + password against Supabase Auth. There is no
-self-service sign-up — accounts are created exclusively by an Admin via
-`POST /api/users` (Document 5, Section 11). This is intentional: the System has exactly
-6 known staff members, and open registration would be a security surface with no
-corresponding benefit (P11.02 — via negativa, remove what is not needed).
+Staff Users authenticate through Supabase Auth using email + password or Google OAuth.
+Authentication alone never grants application access: every session must map to an active
+`public.staff_users` row with a valid role. There is no self-service application access —
+staff profiles are created exclusively by an Admin via `POST /api/users` (Document 5,
+Section 11). A Google identity without a linked active staff profile is redirected to the
+inactive-account message.
+
+**Hosted Google OAuth configuration:** Google Authorized JavaScript origin
+`https://reg.knowsia.com`; Google Authorized redirect URI
+`https://nvaqkeffxsuaidkguekz.supabase.co/auth/v1/callback`; Supabase Site URL
+`https://reg.knowsia.com`; Supabase Redirect URLs include
+`https://reg.knowsia.com/auth/callback`, the production Vercel alias callback, and the
+localhost callback used for development. The Google client secret is stored only in the
+Supabase Google provider configuration, never in this repository or Vercel.
 
 ```mermaid
 sequenceDiagram
@@ -55,7 +64,7 @@ sequenceDiagram
     participant SA as Supabase Auth
     participant DB as Supabase Postgres (RLS)
 
-    S->>SA: Login (email + password)
+    S->>SA: Login (email + password or Google OAuth)
     SA-->>S: Session (JWT access token + refresh token, httpOnly cookie)
     S->>N: Request to /dashboard
     N->>SA: Validate session cookie
