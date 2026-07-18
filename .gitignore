@@ -9,6 +9,7 @@ out/
 .env
 .env.*
 !.env.local.example
+client_secret_*.apps.googleusercontent.com.json
 
 # Test and tool output
 coverage/
