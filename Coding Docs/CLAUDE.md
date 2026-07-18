@@ -125,15 +125,12 @@ Last completed task:    Production is live at reg.knowsia.com and /api/health re
                         PKCE callback/code exchange, safe redirect validation, and clear
                         inactive-staff handling. 73 unit tests pass; typecheck, lint,
                         and production build are green.
-Currently in progress:  Configure Google Cloud OAuth + Supabase Google provider, create
-                        the first active Admin staff_users row, and live-test role routing.
-Blockers:                (1) Google client ID/secret and hosted provider configuration.
-                        (2) Supabase Auth has users but public.staff_users is empty, so
-                        no authenticated identity currently has application access.
-                        (3) Exposed server keys must be revoked after an unexposed
-                        replacement is deployed. (4) Paystack/Resend/Sentry credentials,
+Currently in progress:  Confirm the first Google-authenticated Admin reaches the dashboard,
+                        then create the remaining staff accounts and test role routing.
+Blockers:                (1) Exposed server keys must be revoked after an unexposed
+                        replacement is deployed. (2) Paystack/Resend/Sentry credentials,
                         Meta templates/WHATSAPP_* variables, webhook URL, Uptime Robot,
-                        and remaining live tests T-INT-01…06 are pending.
+                        remaining staff accounts, and live tests T-INT-01…06 are pending.
                         See Doc 4 EC-07/EC-08/EC-09/EC-10 for design resolutions.
 Pivot-or-persevere gate status: Not yet reached (needs live Paystack test)
 ```

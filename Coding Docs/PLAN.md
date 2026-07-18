@@ -17,13 +17,13 @@ actionable version of that document, meant to be edited as work happens, not jus
 - [x] Full migrations written and applied (`202607170001_foundation.sql`, `202607180002_whatsapp.sql`, `202607180003_fix_registration_confirmation_trigger.sql`)
 - [x] RLS policies written (same migration; includes `public_insert_payment` addition — see Doc 4, EC-07)
 - [x] PostgREST grants written (same migration)
-- [ ] First real Admin account created and can log in *(Auth account exists; active `staff_users` Admin row and login smoke test pending)*
+- [ ] First real Admin account created and can log in *(active Admin row created; post-link dashboard smoke test pending)*
 - [x] Course Control Panel screen built (F1.02) — Admin can create a Course and Batch
 - [x] Staff User Management screen built (US-A05)
 - [ ] Remaining 5 staff accounts created *(via the Users screen once live)*
 - [x] Middleware route protection implemented (`/docs/06_Security_and_Authentication.md`, Section 3)
 - [x] Google OAuth application flow implemented (`/auth/callback`, PKCE code exchange, safe redirect validation)
-- [ ] Google Cloud OAuth client + Supabase Google provider configured and live sign-in tested *(external)*
+- [x] Google Cloud OAuth client + Supabase Google provider configured; live Google authentication verified
 - [ ] Manual smoke test: all 6 roles log in and land on correct default page
 - [ ] **RLS test cases T-RLS-01 through T-RLS-07 run and passing** — database SQL suite passed; API-level T-RLS-03 and anonymous-access T-RLS-06 still need live verification
 
