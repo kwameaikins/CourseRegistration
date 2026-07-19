@@ -4,7 +4,7 @@
 // server-side code (registration orchestration, payment status changes,
 // cron, webhook).
 import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
-import type { EmailType, WhatsappMessageType } from '@/lib/domain/types';
+import type { EmailType, SmsMessageType, WhatsappMessageType } from '@/lib/domain/types';
 import type { Database } from '@/lib/supabase/database.types';
 import type { RegistrationEmailContext } from '@/modules/communications/types';
 
@@ -68,6 +68,37 @@ export async function updateWhatsappLogEntry(
   const supabase = createSupabaseServiceRoleClient();
   const { error } = await supabase
     .from('whatsapp_log')
+    .update(changes)
+    .match({ registration_id: registrationId, message_type: messageType });
+  if (error) throw error;
+}
+
+// SMS analog of reserveWhatsappLogSlot — same reservation-before-send
+// idempotency guarantee, backed by unique(registration_id, message_type).
+export async function reserveSmsLogSlot(
+  registrationId: string,
+  messageType: SmsMessageType,
+): Promise<'reserved' | 'duplicate'> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase.from('sms_log').insert({
+    registration_id: registrationId,
+    message_type: messageType,
+    success: false,
+    sent_at: new Date().toISOString(),
+  });
+  if (error?.code === '23505') return 'duplicate';
+  if (error) throw error;
+  return 'reserved';
+}
+
+export async function updateSmsLogEntry(
+  registrationId: string,
+  messageType: SmsMessageType,
+  changes: { success: boolean; error_message?: string | null },
+): Promise<void> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase
+    .from('sms_log')
     .update(changes)
     .match({ registration_id: registrationId, message_type: messageType });
   if (error) throw error;
@@ -150,6 +181,7 @@ export async function selectRegistrationEmailContext(
     paymentReminderEnabled: batch.payment_reminder_enabled,
     classReminderEnabled: batch.class_reminder_enabled,
     whatsappEnabled: batch.whatsapp_enabled,
+    smsEnabled: batch.sms_enabled,
   };
 }
 

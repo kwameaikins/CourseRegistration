@@ -47,6 +47,7 @@ your summary of it.
 - **Framework:** Next.js 14+, App Router, TypeScript strict mode
 - **Database/Auth:** Supabase (PostgreSQL + Auth + Row Level Security)
 - **Email:** Resend
+- **SMS:** Arkesel (approved 2026-07-19; ~GHS 0.029/SMS pay-as-you-go — the one accepted exception to the budget rule)
 - **Payments:** Paystack (Card + MTN MoMo)
 - **UI:** Shadcn/ui + Tailwind CSS (components copied in via CLI, not npm-installed)
 - **Hosting:** Vercel (including Vercel Cron for scheduled jobs)
@@ -120,18 +121,30 @@ npx playwright test          # E2E tests (Section 6, Document 9)
 
 ```
 Week (per PLAN.md):     5 (Tasks 1–5 code-complete; live integrations pending)
-Last completed task:    Production is live at reg.knowsia.com and /api/health returns
-                        status: ok. Google OAuth application flow added: login button,
-                        PKCE callback/code exchange, safe redirect validation, and clear
-                        inactive-staff handling. 73 unit tests pass; typecheck, lint,
-                        and production build are green.
-Currently in progress:  Confirm the first Google-authenticated Admin reaches the dashboard,
-                        then create the remaining staff accounts and test role routing.
-Blockers:                (1) Exposed server keys must be revoked after an unexposed
-                        replacement is deployed. (2) Paystack/Resend/Sentry credentials,
-                        Meta templates/WHATSAPP_* variables, webhook URL, Uptime Robot,
-                        remaining staff accounts, and live tests T-INT-01…06 are pending.
-                        See Doc 4 EC-07/EC-08/EC-09/EC-10 for design resolutions.
+Last completed task:    (2026-07-19) knowsia.com DNS-verified in Resend; live test send
+                        returned 200. Root-caused two live issues: (1) no registration
+                        emails — email_templates table was EMPTY, every send exited
+                        skipped_no_template; seeded 7 Phase 1 templates × 2 courses
+                        directly in Supabase (payment_instruction has no real bank
+                        details yet — founder must edit). (2) two successful GHS 1.00
+                        Paystack MoMo charges (refs REG-f7660596…, REG-d10b3f56…) never
+                        reached the app — webhook URL not yet configured in Paystack
+                        dashboard; both payments since reconciled to Paid (founder-
+                        approved) with confirmation emails sent — webhook URL still
+                        needs configuring. Also fixed confirmation message to show Course
+                        name not cohort label (Doc 1/5 drift). SMS integration built
+                        (Arkesel — Doc 7 Section 8, PLAN Task 3): sms_log migration
+                        applied to linked project; engine, per-batch toggle and wiring
+                        mirror WhatsApp; dormant until ARKESEL_* env vars are set.
+                        95 unit tests, tsc + lint green; NONE of today's code deployed.
+Currently in progress:  External setup checklist (see the process guide given to founder
+                        2026-07-19): Resend DNS records, Vercel env vars, Paystack webhook
+                        URL, Sentry DSN, Uptime Robot, Meta WhatsApp, staff accounts, then
+                        live tests T-INT-01…06.
+Blockers:                (1) Exposed legacy server keys must be revoked after an unexposed
+                        replacement is deployed. (2) .env holds Paystack LIVE keys, but the Week 2 gate calls for
+                        a TEST-mode end-to-end payment first — get test keys or accept a
+                        small real charge deliberately. See Doc 4 EC-07…EC-10.
 Pivot-or-persevere gate status: Not yet reached (needs live Paystack test)
 ```
 

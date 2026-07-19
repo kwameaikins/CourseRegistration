@@ -59,6 +59,7 @@ export interface RegistrationEmailContext {
   paymentReminderEnabled: boolean;
   classReminderEnabled: boolean;
   whatsappEnabled: boolean;
+  smsEnabled: boolean;
 }
 
 export interface ReminderRunSummary {
@@ -69,5 +70,6 @@ export interface ReminderRunSummary {
   skippedPaidSinceQuery: number;
   skippedInactiveBatch: number;
   whatsappSent: number;
+  smsSent: number;
   errors: string[];
 }

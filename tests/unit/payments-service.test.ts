@@ -9,12 +9,14 @@ const usersServiceMock = {
 };
 const sendEmailOnceMock = vi.fn();
 const sendWhatsappOnceMock = vi.fn();
+const sendSmsOnceMock = vi.fn();
 
 vi.mock('@/modules/payments/repository', () => paymentsRepositoryMock);
 vi.mock('@/modules/users/service', () => usersServiceMock);
 vi.mock('@/modules/communications/service', () => ({
   sendEmailOnce: (...args: unknown[]) => sendEmailOnceMock(...args),
   sendWhatsappOnce: (...args: unknown[]) => sendWhatsappOnceMock(...args),
+  sendSmsOnce: (...args: unknown[]) => sendSmsOnceMock(...args),
 }));
 
 const { updatePaymentByStaff } = await import('@/modules/payments/service');

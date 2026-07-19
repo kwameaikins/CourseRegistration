@@ -45,6 +45,7 @@ function makeContext(overrides: Partial<RegistrationEmailContext> = {}): Registr
     paymentReminderEnabled: true,
     classReminderEnabled: true,
     whatsappEnabled: true,
+    smsEnabled: true,
     ...overrides,
   };
 }

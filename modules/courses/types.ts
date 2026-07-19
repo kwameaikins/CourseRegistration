@@ -23,6 +23,7 @@ export interface Batch {
   paymentReminderEnabled: boolean;
   classReminderEnabled: boolean;
   whatsappEnabled: boolean;
+  smsEnabled: boolean;
   isActive: boolean;
   // Early-registration discount (Document 5 addendum, 2026-07-18): a
   // registrant on or before discountCutoffDate pays discountedFee instead
@@ -88,6 +89,7 @@ export const batchInputSchema = z
     paymentReminderEnabled: z.boolean().default(true),
     classReminderEnabled: z.boolean().default(true),
     whatsappEnabled: z.boolean().default(true),
+    smsEnabled: z.boolean().default(true),
     isActive: z.boolean().default(true),
     discountCutoffDate: discountCutoffDateField,
     discountedFee: discountedFeeField,
@@ -136,6 +138,7 @@ export const batchUpdateSchema = z
     paymentReminderEnabled: z.boolean().optional(),
     classReminderEnabled: z.boolean().optional(),
     whatsappEnabled: z.boolean().optional(),
+    smsEnabled: z.boolean().optional(),
     isActive: z.boolean().optional(),
     // Paired-nullability and discountedFee<=courseFee are DB-enforced
     // (discount_fields_set_together, discounted_fee_below_course_fee) —

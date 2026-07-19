@@ -57,6 +57,7 @@ function makeContext(
     paymentReminderEnabled: true,
     classReminderEnabled: true,
     whatsappEnabled: true,
+    smsEnabled: true,
     ...overrides,
   };
 }

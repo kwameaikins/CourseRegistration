@@ -19,6 +19,7 @@
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | June 2026 | Initial specification — Paystack, Resend, Supabase, Uptime Robot, Sentry |
+| 1.1 | 2026-07-19 | Added Section 8 — Arkesel SMS integration (founder-approved scope addition; WhatsApp Cloud API remains documented in `supabase/migrations/202607180002_whatsapp.sql`) |
 
 ---
 
@@ -31,6 +32,7 @@
 5. [Sentry Integration](#5-sentry-integration)
 6. [Idempotency Standard Across All Integrations](#6-idempotency-standard-across-all-integrations)
 7. [Ready for Development Checklist](#7-ready-for-development-checklist)
+8. [Arkesel SMS Integration](#8-arkesel-sms-integration)
 
 ---
 
@@ -292,6 +294,56 @@ duplicate-deliver:
       integrations capable of retry or duplicate delivery.
 □ 10. Next document to read: Document 8 — UI/UX Screen Specification.
 ```
+
+---
+
+## 8. Arkesel SMS Integration
+
+**Added 2026-07-19 (founder-approved scope addition).** Key-moment SMS mirroring the
+WhatsApp engine: welcome (at registration), the four payment reminders, and payment
+confirmation. SMS runs alongside email and WhatsApp — each channel has its own log
+table and its own send-once guarantee, so any channel can fail or be unconfigured
+without affecting the others.
+
+### 8.1 Provider and Cost
+
+Arkesel (arkesel.com) — chosen 2026-07-19 as the lowest-cost Ghana provider
+(~GHS 0.029/SMS at the smallest credit tier; GHS 20 minimum purchase). This is the
+first recurring cost against the GHS 0/month budget, accepted explicitly by the
+founder. One SMS segment is 160 characters; bodies in `sms-engine.ts` are kept short
+deliberately because each extra segment consumes another credit.
+
+### 8.2 Setup Requirements (manual, before SMS go-live)
+
+1. Create an Arkesel account (free, no card required; free test credits included).
+2. Register a sender ID (e.g. `Knowsia`) in the Arkesel dashboard — approval is
+   required before live sends.
+3. Set `ARKESEL_API_KEY` and `ARKESEL_SENDER_ID` in Vercel env vars (and locally).
+   While unset, `isSmsConfigured()` gates all sending — every send returns
+   `skipped_not_configured` without reserving a log slot, so enabling credentials
+   later never finds permanently blocked messages.
+
+### 8.3 Client Implementation
+
+`lib/arkesel/client.ts` — POST `https://sms.arkesel.com/api/v2/sms/send` with the
+`api-key` header. Phone normalization is shared with the WhatsApp client (Ghana-aware,
+E.164 without `+`). Arkesel can return HTTP 200 with `{"status": "error"}` (bad sender
+ID, insufficient balance) — the client treats that as a send failure so `sms_log`
+records it instead of a false success.
+
+### 8.4 Message Bodies
+
+Composed in `modules/communications/sms-engine.ts` (no server-side template approval
+step exists at Arkesel, unlike WhatsApp's Meta-hosted templates). All four reminders
+share one body; deduplication is per `message_type`, so each still sends at most once.
+
+### 8.5 Idempotency and Gates
+
+Identical to the WhatsApp engine (BR-07 analog): gates (batch active, per-batch
+`sms_enabled` toggle, payment-reminder toggle for reminders, soft-deleted participant,
+usable phone) are all checked BEFORE reserving the `sms_log` slot; the
+`unique(registration_id, message_type)` constraint makes concurrent duplicate sends
+impossible. See migration `202607190006_sms.sql`.
 
 ---
 

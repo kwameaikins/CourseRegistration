@@ -70,6 +70,11 @@ export async function updatePaymentByStaff(
     } catch (err) {
       console.error('[payment_confirmation whatsapp]', err);
     }
+    try {
+      await communicationsService.sendSmsOnce(registrationId, 'payment_confirmation');
+    } catch (err) {
+      console.error('[payment_confirmation sms]', err);
+    }
   }
 
   // BR-06's trigger has already advanced the Registration by the time the

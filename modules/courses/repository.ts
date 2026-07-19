@@ -116,6 +116,19 @@ export async function selectActiveFutureBatchesPublic(): Promise<
   }));
 }
 
+// System-context course read used by the public registration orchestration,
+// where no staff session exists.
+export async function selectCourseByIdSystem(courseId: string): Promise<CourseRow | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('courses')
+    .select('*')
+    .eq('id', courseId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 // System-context batch read used by the public registration orchestration and
 // the webhook/cron paths, where no staff session exists.
 export async function selectBatchByIdSystem(batchId: string): Promise<BatchRow | null> {

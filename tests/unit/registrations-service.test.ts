@@ -9,6 +9,7 @@ const registrationsRepositoryMock = {
 };
 const coursesServiceMock = {
   getBatchByIdSystem: vi.fn(),
+  getCourseByIdSystem: vi.fn(),
 };
 const usersServiceMock = {
   requireRole: vi.fn(),
@@ -16,6 +17,7 @@ const usersServiceMock = {
 };
 const sendEmailOnceMock = vi.fn();
 const sendWhatsappOnceMock = vi.fn();
+const sendSmsOnceMock = vi.fn();
 
 vi.mock('@/modules/registrations/repository', () => registrationsRepositoryMock);
 vi.mock('@/modules/courses/service', () => coursesServiceMock);
@@ -23,6 +25,7 @@ vi.mock('@/modules/users/service', () => usersServiceMock);
 vi.mock('@/modules/communications/service', () => ({
   sendEmailOnce: (...args: unknown[]) => sendEmailOnceMock(...args),
   sendWhatsappOnce: (...args: unknown[]) => sendWhatsappOnceMock(...args),
+  sendSmsOnce: (...args: unknown[]) => sendSmsOnceMock(...args),
 }));
 
 const { createRegistration } = await import('@/modules/registrations/service');
@@ -74,6 +77,12 @@ function activeBatch(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   coursesServiceMock.getBatchByIdSystem.mockResolvedValue(activeBatch());
+  coursesServiceMock.getCourseByIdSystem.mockResolvedValue({
+    id: 'course-1',
+    courseCode: 'AI05',
+    courseName: 'AI-Powered Financial Reporting and Modeling',
+    createdAt: '2026-07-01T00:00:00Z',
+  });
   registrationsRepositoryMock.findOrCreateParticipant.mockResolvedValue({
     id: 'participant-1',
     email: 'ama.owusu@example.com',
@@ -89,6 +98,7 @@ beforeEach(() => {
   });
   sendEmailOnceMock.mockResolvedValue('sent');
   sendWhatsappOnceMock.mockResolvedValue('sent');
+  sendSmsOnceMock.mockResolvedValue('sent');
 });
 
 describe('BR-15 — mandatory DPA consent (T-BR15-01 logic)', () => {

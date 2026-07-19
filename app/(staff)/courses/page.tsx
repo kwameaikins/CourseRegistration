@@ -33,6 +33,7 @@ interface Batch {
   paymentReminderEnabled: boolean;
   classReminderEnabled: boolean;
   whatsappEnabled: boolean;
+  smsEnabled: boolean;
   isActive: boolean;
   discountCutoffDate: string | null;
   discountedFee: number | null;
@@ -499,6 +500,7 @@ export default function CourseControlPanelPage() {
                               ['paymentReminderEnabled', 'Payment reminders'],
                               ['classReminderEnabled', 'Class reminders'],
                               ['whatsappEnabled', 'WhatsApp messages'],
+                              ['smsEnabled', 'SMS messages'],
                             ] as const
                           ).map(([field, label]) => (
                             <div key={field} className="flex items-center gap-2">

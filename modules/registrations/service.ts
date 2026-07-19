@@ -119,11 +119,22 @@ export async function createRegistration(
     console.error('[registration whatsapp welcome]', err);
   }
 
+  // SMS welcome — same non-blocking posture.
+  try {
+    await communicationsService.sendSmsOnce(registration.id, 'welcome');
+  } catch (err) {
+    console.error('[registration sms welcome]', err);
+  }
+
+  // The confirmation names the Course, not the Batch (Document 1, F1.01
+  // step 5; Document 5 example). Cohort label is only the fallback.
+  const course = await coursesService.getCourseByIdSystem(batch.courseId);
+
   return {
     registrationId: registration.id,
     registrationStatus: parseRegistrationStatus(registration.registration_status),
     paymentStatus: parsePaymentStatus(payment.payment_status),
-    message: `Thank you, ${fullName}. Your registration for ${batch.cohortLabel} has been received. Please check your email for payment instructions.`,
+    message: `Thank you, ${fullName}. Your registration for ${course?.courseName ?? batch.cohortLabel} has been received. Please check your email for payment instructions.`,
   };
 }
 

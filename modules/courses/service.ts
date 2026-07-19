@@ -39,6 +39,7 @@ function toBatch(row: BatchRow): Batch {
     paymentReminderEnabled: row.payment_reminder_enabled,
     classReminderEnabled: row.class_reminder_enabled,
     whatsappEnabled: row.whatsapp_enabled,
+    smsEnabled: row.sms_enabled,
     isActive: row.is_active,
     discountCutoffDate: row.discount_cutoff_date,
     discountedFee: row.discounted_fee === null ? null : Number(row.discounted_fee),
@@ -108,6 +109,7 @@ export async function updateBatch(batchId: string, changes: BatchUpdate): Promis
     ...(changes.whatsappEnabled !== undefined && {
       whatsapp_enabled: changes.whatsappEnabled,
     }),
+    ...(changes.smsEnabled !== undefined && { sms_enabled: changes.smsEnabled }),
     ...(changes.isActive !== undefined && { is_active: changes.isActive }),
     ...(changes.discountCutoffDate !== undefined && {
       discount_cutoff_date: changes.discountCutoffDate,
@@ -138,6 +140,13 @@ export async function getBatchByIdSystem(batchId: string): Promise<Batch | null>
   return row ? toBatch(row) : null;
 }
 
+// Exposed to the registrations module for the confirmation message, which
+// names the Course, not the Batch (Document 1, Section F1.01 step 5).
+export async function getCourseByIdSystem(courseId: string): Promise<Course | null> {
+  const row = await coursesRepository.selectCourseByIdSystem(courseId);
+  return row ? toCourse(row) : null;
+}
+
 function toBatchInsert(input: BatchInput): Database['public']['Tables']['batches']['Insert'] {
   return {
     course_id: input.courseId,
@@ -154,6 +163,7 @@ function toBatchInsert(input: BatchInput): Database['public']['Tables']['batches
     payment_reminder_enabled: input.paymentReminderEnabled,
     class_reminder_enabled: input.classReminderEnabled,
     whatsapp_enabled: input.whatsappEnabled,
+    sms_enabled: input.smsEnabled,
     is_active: input.isActive,
     discount_cutoff_date: input.discountCutoffDate ?? null,
     discounted_fee: input.discountedFee ?? null,

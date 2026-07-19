@@ -99,6 +99,11 @@ export async function processWebhookEvent(payload: unknown): Promise<WebhookOutc
     } catch (err) {
       console.error('[paystack webhook payment_confirmation whatsapp]', err);
     }
+    try {
+      await communicationsService.sendSmsOnce(registrationId, 'payment_confirmation');
+    } catch (err) {
+      console.error('[paystack webhook payment_confirmation sms]', err);
+    }
   }
 
   return { status: 'processed', paymentStatus: parsePaymentStatus(updated.payment_status) };

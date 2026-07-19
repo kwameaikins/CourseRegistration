@@ -38,6 +38,9 @@ export type WhatsappMessageType =
   | 'reminder_4'
   | 'payment_confirmation';
 
+// SMS mirrors the WhatsApp key-moment set (same dedup semantics, sms_log).
+export type SmsMessageType = WhatsappMessageType;
+
 export type EmailType =
   | 'welcome'
   | 'payment_instruction'

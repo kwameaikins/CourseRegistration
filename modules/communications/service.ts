@@ -2,6 +2,7 @@
 // module may call directly (Document 2, Section 9).
 export { sendEmailOnce, renderTemplateBody } from '@/modules/communications/email-engine';
 export { sendWhatsappOnce } from '@/modules/communications/whatsapp-engine';
+export { sendSmsOnce } from '@/modules/communications/sms-engine';
 export { runDailyReminders } from '@/modules/communications/reminder-scheduler';
 export type { EmailType, ReminderRunSummary } from '@/modules/communications/types';
-export type { WhatsappMessageType } from '@/lib/domain/types';
+export type { SmsMessageType, WhatsappMessageType } from '@/lib/domain/types';

@@ -2,9 +2,10 @@
 // 07:00 UTC (BR-17 — Ghana is UTC+0 year-round, no drift correction needed).
 import { sendEmailOnce } from '@/modules/communications/email-engine';
 import { sendWhatsappOnce } from '@/modules/communications/whatsapp-engine';
+import { sendSmsOnce } from '@/modules/communications/sms-engine';
 import * as communicationsRepository from '@/modules/communications/repository';
 import type { EmailType, ReminderRunSummary } from '@/modules/communications/types';
-import type { WhatsappMessageType } from '@/lib/domain/types';
+import type { SmsMessageType, WhatsappMessageType } from '@/lib/domain/types';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -46,6 +47,7 @@ export async function runDailyReminders(now = new Date()): Promise<ReminderRunSu
     skippedPaidSinceQuery: 0,
     skippedInactiveBatch: 0,
     whatsappSent: 0,
+    smsSent: 0,
     errors: [],
   };
 
@@ -90,6 +92,18 @@ export async function runDailyReminders(now = new Date()): Promise<ReminderRunSu
         else if (whatsappOutcome === 'failed') {
           summary.errors.push(
             `${candidate.registrationId}/${reminderType}: whatsapp send failed`,
+          );
+        }
+
+        // SMS reminder alongside — its own sms_log dedup makes re-runs safe.
+        const smsOutcome = await sendSmsOnce(
+          candidate.registrationId,
+          reminderType as SmsMessageType,
+        );
+        if (smsOutcome === 'sent') summary.smsSent += 1;
+        else if (smsOutcome === 'failed') {
+          summary.errors.push(
+            `${candidate.registrationId}/${reminderType}: sms send failed`,
           );
         }
       } catch (err) {

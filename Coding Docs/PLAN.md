@@ -61,8 +61,8 @@ dashboard). Automate the webhook as a fast-follow in Week 6. **Do not let this b
 
 *Dependency note: this week depends on Week 2's payment status changes existing to trigger confirmation emails.*
 
-- [ ] Resend account set up *(external)*
-- [ ] **Sending domain DNS verification started — flag: up to 48h propagation, start Day 11 at the latest, ideally Week 1** *(external)*
+- [x] Resend account set up *(external — done 2026-07-19; send-only API key in `.env`, from-address `reg@knowsia.com`)*
+- [x] Sending domain DNS verified *(external — done 2026-07-19; live test send from `reg@knowsia.com` to founder inbox returned 200, message id `7519e4ea-91eb-4614-b33e-384490fc4c19`)*
 - [x] Email engine built (F1.06) — template rendering + `sendEmailOnce`
 - [x] BR-07 reservation-before-send pattern implemented (log row inserted BEFORE Resend call)
 - [x] Welcome email (E01) sending on registration
@@ -92,6 +92,19 @@ dashboard). Automate the webhook as a fast-follow in Week 6. **Do not let this b
 - [ ] *(external)* `WHATSAPP_ACCESS_TOKEN` + `WHATSAPP_PHONE_NUMBER_ID` set in Vercel
 - [ ] Live test: registration triggers WhatsApp welcome; duplicate cron run sends zero duplicates
 
+### SMS notifications via Arkesel (scope addition, approved 2026-07-19 — see Doc 7, Section 8)
+
+- [x] `sms_log` migration + per-batch SMS toggle (`202607190006_sms.sql`) — applied to linked project
+- [x] Arkesel API client (`lib/arkesel/client.ts`), Ghana phone normalization shared with WhatsApp
+- [x] `sendSmsOnce` engine — BR-07-style dedup, gates before reservation, graceful skip when unconfigured; bodies composed in code (kept under ~2 SMS segments)
+- [x] Wired: welcome on registration, reminders in daily cron, confirmation on payment → Paid (manual + webhook)
+- [x] Unit tests (12) for dedup ordering, gating, body composition (`tests/unit/sms-engine.test.ts`)
+- [x] Courses screen: "SMS messages" toggle under Automation Settings
+- [ ] *(external)* Arkesel account created; sender ID (e.g. "Knowsia") registered and approved
+- [ ] *(external)* GHS credit purchased (~GHS 20 minimum; ~0.029/SMS) — first recurring cost, founder-accepted
+- [ ] *(external)* `ARKESEL_API_KEY` + `ARKESEL_SENDER_ID` set in Vercel (and uncommented in local `.env`)
+- [ ] Live test: registration triggers SMS welcome; duplicate cron run sends zero duplicate SMS
+
 ---
 
 ## Task 4 — Dashboard, Compliance, Tutor View
@@ -119,7 +132,7 @@ dashboard). Automate the webhook as a fast-follow in Week 6. **Do not let this b
 ## Task 5 — Testing, Fixes, Go-Live (Buffer Week)
 
 - [ ] Full Test Specification run (`/docs/09_Test_Specification.md`) — all BR, integration, RLS test cases
-  - [x] Unit level: 73 Vitest tests passing (`npm run test`) — BR-03/04/07/08/13/14/15/19 logic, webhook, email and WhatsApp engines, dashboard
+  - [x] Unit level: 95 Vitest tests passing (`npm run test`) — BR-03/04/07/08/13/14/15/19 logic, webhook, email, WhatsApp and SMS engines, dashboard
   - [x] Database level: `supabase/tests/database_test_suite.sql` passed against the linked project; BR-06 repair is captured in migration `202607180003`
   - [ ] Live integration: T-INT-01…06 once deployed with real keys
 - [ ] Load test run — 10 concurrent registrations, no corruption (Section 7, Document 9)
