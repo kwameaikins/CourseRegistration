@@ -2,7 +2,17 @@ import type { ErrorEvent as SentryErrorEvent } from '@sentry/nextjs';
 
 // Ghana DPA data minimisation (Document 7, Section 5.3): participant PII is
 // scrubbed from every event before it leaves the application.
-const SCRUBBED_FIELDS = ['email', 'phone', 'fullName', 'full_name'] as const;
+const SCRUBBED_FIELDS = [
+  'email',
+  'phone',
+  'fullName',
+  'full_name',
+  'firstName',
+  'first_name',
+  'middleName',
+  'middle_name',
+  'surname',
+] as const;
 
 export function scrubPiiBeforeSend(event: SentryErrorEvent): SentryErrorEvent {
   const requestData = event.request?.data;
