@@ -1,4 +1,5 @@
 import type {
+  EmailType,
   Gender,
   LeadSource,
   PaymentMethod,
@@ -34,6 +35,27 @@ export const parsePaymentMethod = (value: string): PaymentMethod =>
     value,
     ['Paystack Card', 'MTN MoMo', 'Bank Transfer', 'Cash', 'Other'],
     'payment method',
+  );
+
+export const parseEmailType = (value: string): EmailType =>
+  parseMember(
+    value,
+    [
+      'welcome',
+      'payment_instruction',
+      'reminder_1',
+      'reminder_2',
+      'reminder_3',
+      'reminder_4',
+      'payment_confirmation',
+      'class_reminder_24h',
+      'class_reminder_2h',
+      'zoom_link',
+      'whatsapp_invite',
+      'post_training_thankyou',
+      'upsell',
+    ],
+    'email type',
   );
 
 export const parseLeadSource = (value: string): LeadSource =>

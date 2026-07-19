@@ -20,6 +20,8 @@
 |---|---|---|
 | 1.0 | June 2026 | Initial specification — Paystack, Resend, Supabase, Uptime Robot, Sentry |
 | 1.1 | 2026-07-19 | Added Section 8 — Arkesel SMS integration (founder-approved scope addition; WhatsApp Cloud API remains documented in `supabase/migrations/202607180002_whatsapp.sql`) |
+| 1.2 | 2026-07-19 | Added Section 9 — Zoom attendance integration; Section 10 — Anthropic (Claude) Admin assistant (both founder-approved scope additions) |
+| 1.3 | 2026-07-19 | Added Section 11 — Vapi agentic voice calls (founder-approved, all six use cases) |
 
 ---
 
@@ -33,6 +35,9 @@
 6. [Idempotency Standard Across All Integrations](#6-idempotency-standard-across-all-integrations)
 7. [Ready for Development Checklist](#7-ready-for-development-checklist)
 8. [Arkesel SMS Integration](#8-arkesel-sms-integration)
+9. [Zoom Attendance Integration](#9-zoom-attendance-integration)
+10. [Anthropic Claude — Admin Assistant](#10-anthropic-claude--admin-assistant)
+11. [Vapi — Agentic Voice Calls](#11-vapi--agentic-voice-calls)
 
 ---
 
@@ -344,6 +349,157 @@ Identical to the WhatsApp engine (BR-07 analog): gates (batch active, per-batch
 usable phone) are all checked BEFORE reserving the `sms_log` slot; the
 `unique(registration_id, message_type)` constraint makes concurrent duplicate sends
 impossible. See migration `202607190006_sms.sql`.
+
+---
+
+## 9. Zoom Attendance Integration
+
+**Added 2026-07-19 (founder-approved, "Option 2").** Automatic attendance tracking for
+Zoom-delivered classes via per-participant registration links.
+
+### 9.1 Flow
+
+1. Admin sets a Batch's **Zoom Meeting ID** (Courses screen) — the meeting must be
+   created in Zoom with **registration required**.
+2. When a payment reaches **Paid**, the app registers the Participant with the meeting
+   via the Zoom API (`modules/attendance/service.ts → ensureZoomRegistration`). Zoom
+   returns a **personal join link**, stored in `zoom_registrants`
+   (unique per Registration — idempotent), and the `zoom_link` email is sent with it.
+   The `{{zoom_link}}` placeholder always prefers the personal link when one exists.
+3. A daily Vercel Cron (`/api/cron/attendance`, 21:00 UTC) pulls the participant report
+   for every in-progress Batch and upserts `attendance` rows
+   (`unique(registration_id, session_date)` — re-runs are safe). Matching is by the
+   registered email, which is exact because participants join through personal links.
+4. Admin/Management review per-Batch attendance on the **Attendance** screen.
+
+### 9.2 Setup Requirements (manual, before attendance go-live)
+
+1. Zoom **Pro** plan or above (required for participant reports).
+2. Create a **Server-to-Server OAuth** app at marketplace.zoom.us (Develop → Build App)
+   with scopes `meeting:write:registrant` and `report:read:list_meeting_participants`.
+3. Set `ZOOM_ACCOUNT_ID`, `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET` in Vercel env vars.
+   While unset, `isZoomConfigured()` gates everything — no calls, no errors.
+4. Create each class meeting in Zoom with **Registration: Required**, then paste its
+   numeric meeting ID into the Batch.
+
+### 9.3 Client Implementation
+
+`lib/zoom/client.ts` — account-credentials token grant (cached ~1h),
+`POST /meetings/{id}/registrants` (auto-approve), and the paginated
+`GET /report/meetings/{id}/participants` report. Cost: GHS 0 (API included in the Zoom
+plan already used to host classes).
+
+---
+
+## 10. Anthropic Claude — Admin Assistant
+
+**Added 2026-07-19 (founder-approved).** A chat assistant on the Admin **Assistant**
+screen that operates the system through the same service functions the screens use.
+
+### 10.1 Design
+
+- `POST /api/assistant` (admin-only) runs the Anthropic SDK **tool runner**
+  (`claude-opus-4-8`, adaptive thinking) over typed tools: list/create courses,
+  list/create/update batches, list/create/update staff users, dashboard summary,
+  list/save email templates.
+- Every tool call goes through the existing module services, so validation, module
+  boundaries, role checks, and RLS apply exactly as they do for manual actions. The
+  admin's session cookies flow into the services — the assistant cannot do anything
+  the signed-in admin could not do by hand.
+- The route returns the reply plus the list of executed tool actions, which the UI
+  displays for transparency.
+
+### 10.2 Setup and Cost
+
+Set `ANTHROPIC_API_KEY` in Vercel (console.anthropic.com). While unset, the endpoint
+returns a clear "not configured" message. Pay-per-use: typically well under GHS 1 per
+admin request at this scale — an accepted exception to the GHS 0/month budget, like SMS.
+
+---
+
+## 11. Vapi — Agentic Voice Calls
+
+**Added 2026-07-19 (founder-approved, all six use cases).** AI voice calls in
+Ghanaian English over a local caller ID, via Vapi (vapi.ai).
+
+### 11.1 Call Types and Triggers
+
+Dispatched by the daily 07:00 cron; every call carries a Vapi `schedulePlan`
+so dialing happens at 10:00 Ghana time, never at cron time. One call per
+Registration per type — the `call_log` unique pair is reserved BEFORE dialing
+(BR-07 analog). Soft-deleted participants are never called.
+
+| Type | Trigger |
+|---|---|
+| `payment_followup` | Unpaid, registered 3+ days ago, batch not started, reminders enabled |
+| `bank_transfer_chase` | Part Payment with start date ≤ 3 days away |
+| `no_show_recovery` | Paid but absent from yesterday's session (needs Zoom attendance) |
+| `feedback_voice` | No feedback response 3 days after end_date; answers write into the same `feedback` table as the web form |
+| `upsell` | Feedback course-interest matches an open future batch the participant isn't on |
+| `inbound` | Calls to the business line (catalog Q&A, SMS the registration link, human-callback requests) |
+
+### 11.2 Architecture Split
+
+The **assistant** (voice, persona, model, first message, analysis schema)
+lives in the Vapi dashboard so the founder can tune it without deploys. The
+**app** supplies per-call context via `assistantOverrides.variableValues`,
+correlates results by call id, and receives outcomes on
+`/api/webhooks/vapi` (end-of-call reports: summary, transcript, structured
+data) and `/api/voice/tools` (live tool calls: `get_course_catalog`,
+`send_registration_link`, `request_human_callback`). Both endpoints are
+authenticated by the `x-vapi-secret` header. Staff review everything on the
+**Calls** screen (admin, finance, management), including human-follow-up
+flags, promised payment dates, and captured bank references.
+
+### 11.3 Setup Requirements (manual, before voice go-live)
+
+1. Create a Vapi account and buy/import a **Ghana caller ID** number.
+2. Create an **outbound assistant** with: the system prompt below; a
+   `structuredData` analysis schema with fields `promised_payment_date`
+   (YYYY-MM-DD), `bank_reference`, `needs_human_followup` (bool),
+   `overall_rating`/`facilitator_rating`/`recommend_rating` (1–5),
+   `improvement_text`, `testimonial_consent` (bool),
+   `interested_courses` (string array); Server URL
+   `https://reg.knowsia.com/api/webhooks/vapi` with the shared secret; and
+   the three custom tools pointed at
+   `https://reg.knowsia.com/api/voice/tools`.
+3. Optionally create an **inbound assistant** on the same number with the
+   same tools for the inbound line.
+4. Set `VAPI_API_KEY`, `VAPI_PHONE_NUMBER_ID`, `VAPI_OUTBOUND_ASSISTANT_ID`,
+   `VAPI_WEBHOOK_SECRET` in Vercel. While unset, `isVoiceConfigured()` gates
+   all dialing.
+5. **Verify the wire shapes on the first pilot call** — Vapi's webhook payload
+   fields occasionally shift between versions; the handlers read defensively,
+   but the first live call should be checked end to end on the Calls screen.
+
+**Suggested outbound system prompt** (paste into the Vapi assistant; the
+`{{variables}}` are injected per call):
+
+> You are Akosua, a warm, professional assistant calling on behalf of
+> Knowsia, a Ghanaian training business. Speak natural Ghanaian English,
+> keep the call under 3 minutes, and never pressure anyone.
+> The call type is {{call_type}} for {{participant_name}}, course
+> {{course_name}} ({{cohort_label}}), starting {{start_date}}, fee
+> {{course_fee}}, outstanding balance {{balance}}.
+> payment_followup: gently remind them their seat isn't confirmed until
+> payment; offer card/Mobile Money (they can use the link on the
+> registration page) or bank transfer; if they promise to pay, note the
+> date. bank_transfer_chase: ask if the transfer went through and record
+> the transaction reference. no_show_recovery: we missed them in
+> yesterday's session — ask if everything is okay and how we can help them
+> join the next one. feedback_voice: ask four short questions — overall
+> rating 1–5, facilitator rating 1–5, how likely to recommend 1–5, and
+> what we should improve; ask permission to use their comments as a
+> testimonial. upsell: they expressed interest in {{pitch_course_name}} —
+> the {{pitch_cohort_label}} batch starts {{pitch_start_date}} at
+> {{pitch_fee}}; offer to send the registration link by SMS.
+> If anything needs a human, say the team will call back and flag it.
+> If the person is busy or uninterested, thank them warmly and end the call.
+
+### 11.4 Cost
+
+~US$0.05–0.15/minute all-in. Targeted triggers only (never a blast channel);
+accepted budget exception like SMS and the assistant.
 
 ---
 

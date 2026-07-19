@@ -1,8 +1,13 @@
 import { captureToSentry, errorResponse, successResponse } from '@/lib/errors';
 import * as communicationsService from '@/modules/communications/service';
+import * as feedbackService from '@/modules/feedback/service';
+import * as voiceService from '@/modules/voice/service';
 
 // GET /api/cron/reminders — F1.07 (E03–E06), triggered daily at 07:00 UTC by
-// Vercel Cron (BR-17). Idempotent: re-running never duplicates a send (BR-07).
+// Vercel Cron (BR-17). Also dispatches post-course feedback requests for
+// batches that ended yesterday (Vercel Hobby caps cron jobs at two, both
+// taken — reminders and attendance). Idempotent throughout: re-running never
+// duplicates a send (BR-07).
 export async function GET(request: Request) {
   // CRON_SECRET is validated before any processing (Document 5, Section 8).
   const authorization = request.headers.get('authorization');
@@ -12,7 +17,11 @@ export async function GET(request: Request) {
 
   try {
     const summary = await communicationsService.runDailyReminders();
-    return successResponse(summary);
+    const feedback = await feedbackService.runFeedbackRequestDispatch();
+    // Voice calls are dispatched now but dialed inside the 10:00 Ghana
+    // calling window via Vapi schedulePlan.
+    const voice = await voiceService.runVoiceCallDispatch();
+    return successResponse({ ...summary, feedback, voice });
   } catch (err) {
     // A failed cron run affects many participants at once — must be visible
     // immediately (Document 7, Section 5.2).

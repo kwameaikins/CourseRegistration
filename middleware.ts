@@ -72,6 +72,11 @@ export const config = {
     '/courses/:path*',
     '/users/:path*',
     '/my-courses/:path*',
+    '/attendance/:path*',
+    '/course-feedback/:path*',
+    '/calls/:path*',
+    '/messaging/:path*',
+    '/assistant/:path*',
     '/follow-up/:path*',
   ],
 };

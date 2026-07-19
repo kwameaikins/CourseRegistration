@@ -3,6 +3,7 @@
 // INSERT policy for any staff role — writes happen only from trusted
 // server-side code (registration orchestration, payment status changes,
 // cron, webhook).
+import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import type { EmailType, SmsMessageType, WhatsappMessageType } from '@/lib/domain/types';
 import type { Database } from '@/lib/supabase/database.types';
@@ -119,6 +120,42 @@ export async function selectTemplate(
   return data;
 }
 
+// Admin messaging editor reads/writes (F-MSG, founder-approved 2026-07-19).
+// These run on the RLS-enforced server client — the admin_manage policy on
+// email_templates is the security boundary.
+export async function selectTemplatesForCourse(
+  courseId: string,
+): Promise<EmailTemplateRow[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('email_templates')
+    .select('*')
+    .eq('course_id', courseId)
+    .order('email_type');
+  if (error) throw error;
+  return data;
+}
+
+export async function upsertTemplate(row: {
+  course_id: string;
+  email_type: string;
+  subject: string;
+  body: string;
+  is_active: boolean;
+}): Promise<EmailTemplateRow> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('email_templates')
+    .upsert(
+      { ...row, updated_at: new Date().toISOString() },
+      { onConflict: 'course_id,email_type' },
+    )
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
 // Joined read across registrations/participants/batches/courses/payments for
 // template rendering and send-time gate checks.
 export async function selectRegistrationEmailContext(
@@ -156,6 +193,14 @@ export async function selectRegistrationEmailContext(
     .maybeSingle();
   if (!course) return null;
 
+  // Personal Zoom join link (attendance Option 2) — when the participant was
+  // registered with Zoom, their unique link supersedes the shared batch link.
+  const { data: zoomRegistrant } = await supabase
+    .from('zoom_registrants')
+    .select('join_url')
+    .eq('registration_id', registrationId)
+    .maybeSingle();
+
   return {
     registrationId,
     participantFullName: participant.full_name,
@@ -173,7 +218,7 @@ export async function selectRegistrationEmailContext(
     startDate: batch.start_date,
     startTime: batch.start_time,
     endDate: batch.end_date,
-    zoomLink: batch.zoom_link,
+    zoomLink: zoomRegistrant?.join_url ?? batch.zoom_link,
     whatsappGroupLink: batch.whatsapp_group_link,
     facilitatorName: batch.facilitator_name,
     batchIsActive: batch.is_active,

@@ -47,7 +47,10 @@ your summary of it.
 - **Framework:** Next.js 14+, App Router, TypeScript strict mode
 - **Database/Auth:** Supabase (PostgreSQL + Auth + Row Level Security)
 - **Email:** Resend
-- **SMS:** Arkesel (approved 2026-07-19; ~GHS 0.029/SMS pay-as-you-go — the one accepted exception to the budget rule)
+- **SMS:** Arkesel (approved 2026-07-19; ~GHS 0.029/SMS pay-as-you-go — accepted budget exception)
+- **Attendance:** Zoom Server-to-Server OAuth (approved 2026-07-19; free with existing Zoom plan)
+- **Admin assistant:** Anthropic Claude API (approved 2026-07-19; pay-per-use — accepted budget exception)
+- **Voice calls:** Vapi (approved 2026-07-19; ~$0.05–0.15/min, targeted triggers only — accepted budget exception)
 - **Payments:** Paystack (Card + MTN MoMo)
 - **UI:** Shadcn/ui + Tailwind CSS (components copied in via CLI, not npm-installed)
 - **Hosting:** Vercel (including Vercel Cron for scheduled jobs)
@@ -133,10 +136,29 @@ Last completed task:    (2026-07-19) knowsia.com DNS-verified in Resend; live te
                         approved) with confirmation emails sent — webhook URL still
                         needs configuring. Also fixed confirmation message to show Course
                         name not cohort label (Doc 1/5 drift). SMS integration built
-                        (Arkesel — Doc 7 Section 8, PLAN Task 3): sms_log migration
-                        applied to linked project; engine, per-batch toggle and wiring
-                        mirror WhatsApp; dormant until ARKESEL_* env vars are set.
-                        95 unit tests, tsc + lint green; NONE of today's code deployed.
+                        (Arkesel — Doc 7 Section 8; deployed; founder added real API
+                        key + sender ID locally, Vercel env vars still pending). Then
+                        three features built in one pass (all founder-approved, Doc 7
+                        Sections 9–10, PLAN Task 3): (1) Zoom attendance "Option 2" —
+                        migration 202607190007 applied, personal join links on Paid,
+                        nightly report sync cron 21:00 UTC, Attendance screen;
+                        (2) Admin Messaging screen editing all email templates
+                        (16 rows seeded incl. zoom_link); (3) Admin AI assistant
+                        (claude-opus-4-8 tool runner over existing services) at
+                        /assistant. (4) Post-course feedback app: public form at
+                        /feedback/<registration-uuid>, dispatch via 07:00 cron
+                        day after batch end_date (post_training_thankyou email,
+                        certificate-for-feedback incentive), review screen at
+                        /course-feedback; migration 202607190008 applied.
+                        (5) Agentic voice calls via Vapi (Doc 7 Section 11):
+                        all six call types, call_log migration 202607190009
+                        applied, dispatch in 07:00 cron with 10:00 Ghana
+                        calling window, webhook + tools endpoints, Calls
+                        review screen; dormant until VAPI_* env vars set.
+                        113 unit tests, tsc + lint + next build green;
+                        this batch NOT yet committed/deployed. Founder put a
+                        real ANTHROPIC_API_KEY in local .env — still needed in
+                        Vercel, along with ARKESEL_*, ZOOM_*, VAPI_* vars.
 Currently in progress:  External setup checklist (see the process guide given to founder
                         2026-07-19): Resend DNS records, Vercel env vars, Paystack webhook
                         URL, Sentry DSN, Uptime Robot, Meta WhatsApp, staff accounts, then

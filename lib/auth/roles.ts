@@ -17,6 +17,11 @@ export const ROLE_ROUTES: Record<string, StaffRole[]> = {
   '/courses': ['admin'],
   '/users': ['admin'],
   '/my-courses': ['tutor'],
+  '/attendance': ['admin', 'management'],
+  '/course-feedback': ['admin', 'management'],
+  '/calls': ['admin', 'finance', 'management'],
+  '/messaging': ['admin'],
+  '/assistant': ['admin'],
   '/follow-up': ['admin', 'marketing'], // Phase 2
 };
 
@@ -38,15 +43,26 @@ export const NAV_ITEMS_BY_ROLE: Record<StaffRole, { href: string; label: string 
     { href: '/registrations', label: 'Registrations' },
     { href: '/payments', label: 'Payments' },
     { href: '/courses', label: 'Courses' },
+    { href: '/attendance', label: 'Attendance' },
+    { href: '/course-feedback', label: 'Feedback' },
+    { href: '/calls', label: 'Calls' },
+    { href: '/messaging', label: 'Messaging' },
+    { href: '/assistant', label: 'Assistant' },
     { href: '/users', label: 'Users' },
   ],
   finance: [
     { href: '/payments', label: 'Payments' },
     { href: '/registrations', label: 'Registrations' },
+    { href: '/calls', label: 'Calls' },
   ],
   marketing: [{ href: '/registrations', label: 'Registrations' }],
   tutor: [{ href: '/my-courses', label: 'My Courses' }],
-  management: [{ href: '/dashboard', label: 'Dashboard' }],
+  management: [
+    { href: '/dashboard', label: 'Dashboard' },
+    { href: '/attendance', label: 'Attendance' },
+    { href: '/course-feedback', label: 'Feedback' },
+    { href: '/calls', label: 'Calls' },
+  ],
 };
 
 export function isStaffRole(value: string | null | undefined): value is StaffRole {

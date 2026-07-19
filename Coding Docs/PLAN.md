@@ -105,6 +105,48 @@ dashboard). Automate the webhook as a fast-follow in Week 6. **Do not let this b
 - [ ] *(external)* `ARKESEL_API_KEY` + `ARKESEL_SENDER_ID` set in Vercel (and uncommented in local `.env`)
 - [ ] Live test: registration triggers SMS welcome; duplicate cron run sends zero duplicate SMS
 
+### Zoom attendance (scope addition, approved 2026-07-19 — Doc 7, Section 9)
+
+- [x] Migration `202607190007_zoom_attendance.sql` (batches.zoom_meeting_id, zoom_registrants, attendance + RLS) — applied to linked project
+- [x] Zoom S2S OAuth client (`lib/zoom/client.ts`) — token cache, registrant creation, participant reports
+- [x] `modules/attendance` — ensureZoomRegistration on payment → Paid (manual + webhook), runAttendanceSync
+- [x] `zoom_link` email sends the personal join link ({{zoom_link}} prefers it); default templates seeded
+- [x] Cron `/api/cron/attendance` daily 21:00 UTC (`vercel.json`) — idempotent upserts
+- [x] Courses screen: Zoom Meeting ID field per batch; Attendance screen (admin + management)
+- [ ] *(external)* Zoom Server-to-Server OAuth app created; `ZOOM_ACCOUNT_ID/CLIENT_ID/CLIENT_SECRET` in Vercel
+- [ ] *(external)* Class meetings created in Zoom with Registration: Required; meeting IDs set on batches
+- [ ] Live test: payment → personal link email; after a session, attendance rows appear
+
+### Admin messaging editor + AI assistant (scope addition, approved 2026-07-19 — Doc 7, Section 10)
+
+- [x] Messaging screen (admin): write/edit per-course templates for all 13 email types, active toggles
+- [x] `/api/templates` GET/PUT (admin), upsert via RLS-enforced admin policy
+- [x] Assistant screen (admin): Claude tool-runner over existing services (courses, batches, users, templates, dashboard)
+- [ ] *(external)* `ANTHROPIC_API_KEY` set in Vercel (assistant returns "not configured" until then)
+
+### Post-course feedback (scope addition, approved 2026-07-19 — supersedes the F2.05 email-only plan)
+
+- [x] Migration `202607190008_feedback.sql` (feedback table, 1-per-registration, RLS admin/management read) — applied to linked project
+- [x] Public form `/feedback/<registration-uuid>` (token = unguessable Registration UUID; no login): 3 ratings, improvement text, testimonial consent, anonymity option, course interests
+- [x] `post_training_thankyou` email dispatched by the daily 07:00 cron to Paid registrations of batches that ended yesterday ({{feedback_link}} placeholder; BR-07 dedup; certificate-for-feedback incentive in the seeded template)
+- [x] Staff review screen `/course-feedback` (admin + management): response rate, average ratings, testimonials, course interests
+- [x] DPA: erased participants' links go dark; anonymous comments hide the name; tutors have no feedback read access
+- [x] Unit tests (7) — dispatch timing/dedup, duplicate submission, deleted-participant gate, rating validation
+- [ ] Live test: end a batch (or set end_date to yesterday), run the cron, submit via the emailed link, confirm it appears on the review screen
+
+### Agentic voice calls via Vapi (scope addition, approved 2026-07-19 — Doc 7, Section 11)
+
+- [x] Migration `202607190009_voice_calls.sql` (call_log, one call per registration per type, RLS admin/finance/management) — applied to linked project
+- [x] Vapi client (`lib/vapi/client.ts`) — outbound calls with schedulePlan (10:00 Ghana calling window), secret validation
+- [x] `modules/voice` — candidate queries + dispatch for all 5 outbound types (payment_followup, bank_transfer_chase, no_show_recovery, feedback_voice, upsell), reserve-before-dial dedup, deleted-participant and bad-phone gates
+- [x] Webhook `/api/webhooks/vapi` — end-of-call reports: transcript, summary, promised payment dates, bank references, human-followup flags; voice feedback writes into the feedback table
+- [x] Tools `/api/voice/tools` — inbound/outbound agent tools: course catalog, SMS registration link, human-callback requests
+- [x] Dispatch wired into the 07:00 cron; Calls review screen (admin, finance, management) with transcripts and follow-up queue
+- [x] Unit tests (10) — window scheduling, reserve-before-dial, dedup, gates, webhook ingestion
+- [ ] *(external)* Vapi account + Ghana caller ID + outbound assistant configured per Doc 7 §11.3 (system prompt + structuredData schema + server URLs)
+- [ ] *(external)* `VAPI_API_KEY`, `VAPI_PHONE_NUMBER_ID`, `VAPI_OUTBOUND_ASSISTANT_ID`, `VAPI_WEBHOOK_SECRET` in Vercel
+- [ ] Pilot: one batch, payment_followup only (temporarily leave other assistants unconfigured), verify wire shapes end-to-end on the Calls screen, measure paid-conversion of called vs not-called
+
 ---
 
 ## Task 4 — Dashboard, Compliance, Tutor View

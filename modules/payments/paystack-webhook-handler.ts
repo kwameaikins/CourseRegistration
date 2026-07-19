@@ -4,6 +4,7 @@ import { parsePaymentStatus } from '@/lib/domain/parsers';
 import { pesewasToGhs } from '@/lib/paystack/client';
 import * as paymentsRepository from '@/modules/payments/repository';
 import * as communicationsService from '@/modules/communications/service';
+import * as attendanceService from '@/modules/attendance/service';
 import {
   paystackWebhookSchema,
   type WebhookOutcome,
@@ -103,6 +104,12 @@ export async function processWebhookEvent(payload: unknown): Promise<WebhookOutc
       await communicationsService.sendSmsOnce(registrationId, 'payment_confirmation');
     } catch (err) {
       console.error('[paystack webhook payment_confirmation sms]', err);
+    }
+    // Zoom attendance Option 2: a confirmed seat gets a personal join link.
+    try {
+      await attendanceService.ensureZoomRegistration(registrationId);
+    } catch (err) {
+      console.error('[paystack webhook zoom registration]', err);
     }
   }
 

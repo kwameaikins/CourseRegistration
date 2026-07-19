@@ -27,6 +27,7 @@ interface Batch {
   startTime: string;
   endDate: string;
   zoomLink: string | null;
+  zoomMeetingId: string | null;
   whatsappGroupLink: string | null;
   facilitatorName: string;
   welcomeEmailEnabled: boolean;
@@ -46,6 +47,7 @@ const EMPTY_BATCH_FORM = {
   startTime: '09:00',
   endDate: '',
   zoomLink: '',
+  zoomMeetingId: '',
   whatsappGroupLink: '',
   facilitatorName: '',
   discountCutoffDate: '',
@@ -123,6 +125,7 @@ export default function CourseControlPanelPage() {
           startTime: batchForm.startTime,
           endDate: batchForm.endDate,
           zoomLink: batchForm.zoomLink || null,
+          zoomMeetingId: batchForm.zoomMeetingId || null,
           whatsappGroupLink: batchForm.whatsappGroupLink || null,
           facilitatorName: batchForm.facilitatorName,
           discountCutoffDate: batchForm.discountCutoffDate || null,
@@ -162,6 +165,7 @@ export default function CourseControlPanelPage() {
       startTime: batch.startTime,
       endDate: batch.endDate,
       zoomLink: batch.zoomLink ?? '',
+      zoomMeetingId: batch.zoomMeetingId ?? '',
       whatsappGroupLink: batch.whatsappGroupLink ?? '',
       facilitatorName: batch.facilitatorName,
       discountCutoffDate: batch.discountCutoffDate ?? '',
@@ -182,6 +186,7 @@ export default function CourseControlPanelPage() {
           startTime: editBatchForm.startTime,
           endDate: editBatchForm.endDate,
           zoomLink: editBatchForm.zoomLink || null,
+          zoomMeetingId: editBatchForm.zoomMeetingId || null,
           whatsappGroupLink: editBatchForm.whatsappGroupLink || null,
           facilitatorName: editBatchForm.facilitatorName,
           discountCutoffDate: editBatchForm.discountCutoffDate || null,
@@ -375,6 +380,22 @@ export default function CourseControlPanelPage() {
                           value={editBatchForm.zoomLink}
                           onChange={(event) =>
                             setEditBatchForm({ ...editBatchForm, zoomLink: event.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`edit-zoomMeetingId-${batch.id}`}>
+                          Zoom Meeting ID (attendance)
+                        </Label>
+                        <Input
+                          id={`edit-zoomMeetingId-${batch.id}`}
+                          placeholder="829 1234 5678"
+                          value={editBatchForm.zoomMeetingId}
+                          onChange={(event) =>
+                            setEditBatchForm({
+                              ...editBatchForm,
+                              zoomMeetingId: event.target.value,
+                            })
                           }
                         />
                       </div>
@@ -609,6 +630,17 @@ export default function CourseControlPanelPage() {
                         value={batchForm.zoomLink}
                         onChange={(event) =>
                           setBatchForm({ ...batchForm, zoomLink: event.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="zoomMeetingId">Zoom Meeting ID (attendance)</Label>
+                      <Input
+                        id="zoomMeetingId"
+                        placeholder="829 1234 5678"
+                        value={batchForm.zoomMeetingId}
+                        onChange={(event) =>
+                          setBatchForm({ ...batchForm, zoomMeetingId: event.target.value })
                         }
                       />
                     </div>

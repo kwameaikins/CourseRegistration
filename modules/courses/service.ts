@@ -32,6 +32,7 @@ function toBatch(row: BatchRow): Batch {
     startTime: row.start_time,
     endDate: row.end_date,
     zoomLink: row.zoom_link,
+    zoomMeetingId: row.zoom_meeting_id,
     whatsappGroupLink: row.whatsapp_group_link,
     facilitatorName: row.facilitator_name,
     facilitatorStaffId: row.facilitator_staff_id,
@@ -88,6 +89,7 @@ export async function updateBatch(batchId: string, changes: BatchUpdate): Promis
     ...(changes.startTime !== undefined && { start_time: changes.startTime }),
     ...(changes.endDate !== undefined && { end_date: changes.endDate }),
     ...(changes.zoomLink !== undefined && { zoom_link: changes.zoomLink }),
+    ...(changes.zoomMeetingId !== undefined && { zoom_meeting_id: changes.zoomMeetingId }),
     ...(changes.whatsappGroupLink !== undefined && {
       whatsapp_group_link: changes.whatsappGroupLink,
     }),
@@ -156,6 +158,7 @@ function toBatchInsert(input: BatchInput): Database['public']['Tables']['batches
     start_time: input.startTime,
     end_date: input.endDate,
     zoom_link: input.zoomLink ?? null,
+    zoom_meeting_id: input.zoomMeetingId ?? null,
     whatsapp_group_link: input.whatsappGroupLink ?? null,
     facilitator_name: input.facilitatorName,
     facilitator_staff_id: input.facilitatorStaffId ?? null,

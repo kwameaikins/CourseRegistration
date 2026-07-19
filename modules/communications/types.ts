@@ -1,6 +1,46 @@
+import { z } from 'zod';
+
 import type { EmailType } from '@/lib/domain/types';
 
 export type { EmailType };
+
+// Every email type the database CHECK constraint accepts — the messaging
+// editor exposes all of them (Phase 2 types can be authored ahead of time).
+export const ALL_EMAIL_TYPES: readonly EmailType[] = [
+  'welcome',
+  'payment_instruction',
+  'reminder_1',
+  'reminder_2',
+  'reminder_3',
+  'reminder_4',
+  'payment_confirmation',
+  'class_reminder_24h',
+  'class_reminder_2h',
+  'zoom_link',
+  'whatsapp_invite',
+  'post_training_thankyou',
+  'upsell',
+] as const;
+
+export const templateUpsertSchema = z.object({
+  courseId: z.uuid(),
+  emailType: z.enum(ALL_EMAIL_TYPES as [EmailType, ...EmailType[]]),
+  subject: z.string().trim().min(1).max(500),
+  body: z.string().trim().min(1).max(50000),
+  isActive: z.boolean(),
+});
+
+export type TemplateUpsertInput = z.infer<typeof templateUpsertSchema>;
+
+export interface EmailTemplateView {
+  id: string;
+  courseId: string;
+  emailType: EmailType;
+  subject: string;
+  body: string;
+  isActive: boolean;
+  updatedAt: string;
+}
 
 // The 7 Phase 1 email types (E01–E07). Phase 2 types exist in the database
 // CHECK constraint but have no sending logic yet.

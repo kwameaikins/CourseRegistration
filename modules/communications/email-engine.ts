@@ -88,6 +88,10 @@ export async function sendEmailOnce(
     community_whatsapp_link: process.env.COMMUNITY_WHATSAPP_LINK ?? '',
     whatsapp_channel_link: process.env.COMMUNITY_WHATSAPP_CHANNEL_LINK ?? '',
     facilitator_name: context.facilitatorName,
+    // Public per-Registration feedback form (the unguessable Registration
+    // UUID is the access token) — meant for the post_training_thankyou
+    // template, dispatched the morning after the Batch end_date.
+    feedback_link: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com'}/feedback/${registrationId}`,
   };
 
   try {

@@ -4,5 +4,14 @@ export { sendEmailOnce, renderTemplateBody } from '@/modules/communications/emai
 export { sendWhatsappOnce } from '@/modules/communications/whatsapp-engine';
 export { sendSmsOnce } from '@/modules/communications/sms-engine';
 export { runDailyReminders } from '@/modules/communications/reminder-scheduler';
-export type { EmailType, ReminderRunSummary } from '@/modules/communications/types';
+export {
+  getTemplatesForCourse,
+  saveTemplate,
+} from '@/modules/communications/template-admin';
+export type {
+  EmailTemplateView,
+  EmailType,
+  ReminderRunSummary,
+  TemplateUpsertInput,
+} from '@/modules/communications/types';
 export type { SmsMessageType, WhatsappMessageType } from '@/lib/domain/types';

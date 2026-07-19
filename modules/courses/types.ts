@@ -16,6 +16,9 @@ export interface Batch {
   startTime: string;
   endDate: string;
   zoomLink: string | null;
+  // Numeric Zoom meeting ID (registration-required meeting) — enables
+  // personal join links and attendance sync when set.
+  zoomMeetingId: string | null;
   whatsappGroupLink: string | null;
   facilitatorName: string;
   facilitatorStaffId: string | null;
@@ -73,6 +76,20 @@ const discountCutoffDateField = z
   .optional();
 const discountedFeeField = z.number().min(0).nullable().optional();
 
+// Zoom meeting IDs are 9–11 digits, often typed with spaces (e.g. "829 XXX").
+const zoomMeetingIdField = z
+  .string()
+  .trim()
+  .refine((value) => value === '' || /^[\d ]{9,15}$/.test(value), {
+    message: 'Zoom Meeting ID must be the numeric meeting ID',
+  })
+  .transform((value) => {
+    const digits = value.replace(/\s/g, '');
+    return digits === '' ? null : digits;
+  })
+  .nullable()
+  .optional();
+
 export const batchInputSchema = z
   .object({
     courseId: z.uuid(),
@@ -82,6 +99,7 @@ export const batchInputSchema = z
     startTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
     endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     zoomLink: httpsUrl,
+    zoomMeetingId: zoomMeetingIdField,
     whatsappGroupLink: httpsUrl,
     facilitatorName: z.string().trim().min(2),
     facilitatorStaffId: z.uuid().nullable().optional(),
@@ -131,6 +149,7 @@ export const batchUpdateSchema = z
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .optional(),
     zoomLink: httpsUrl,
+    zoomMeetingId: zoomMeetingIdField,
     whatsappGroupLink: httpsUrl,
     facilitatorName: z.string().trim().min(2).optional(),
     facilitatorStaffId: z.uuid().nullable().optional(),

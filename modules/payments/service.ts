@@ -4,6 +4,7 @@ import { AppError } from '@/lib/errors';
 import * as paymentsRepository from '@/modules/payments/repository';
 import * as usersService from '@/modules/users/service';
 import * as communicationsService from '@/modules/communications/service';
+import * as attendanceService from '@/modules/attendance/service';
 import type { Payment, PaymentUpdate } from '@/modules/payments/types';
 import type { Database } from '@/lib/supabase/database.types';
 
@@ -74,6 +75,12 @@ export async function updatePaymentByStaff(
       await communicationsService.sendSmsOnce(registrationId, 'payment_confirmation');
     } catch (err) {
       console.error('[payment_confirmation sms]', err);
+    }
+    // Zoom attendance Option 2: a confirmed seat gets a personal join link.
+    try {
+      await attendanceService.ensureZoomRegistration(registrationId);
+    } catch (err) {
+      console.error('[payment_confirmation zoom registration]', err);
     }
   }
 

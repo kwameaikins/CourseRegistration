@@ -39,6 +39,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      attendance: {
+        Row: {
+          created_at: string
+          duration_minutes: number
+          id: string
+          join_time: string | null
+          leave_time: string | null
+          registration_id: string
+          session_date: string
+        }
+        Insert: {
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          join_time?: string | null
+          leave_time?: string | null
+          registration_id: string
+          session_date: string
+        }
+        Update: {
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          join_time?: string | null
+          leave_time?: string | null
+          registration_id?: string
+          session_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       batches: {
         Row: {
           class_reminder_enabled: boolean
@@ -62,6 +100,7 @@ export type Database = {
           whatsapp_enabled: boolean
           whatsapp_group_link: string | null
           zoom_link: string | null
+          zoom_meeting_id: string | null
         }
         Insert: {
           class_reminder_enabled?: boolean
@@ -85,6 +124,7 @@ export type Database = {
           whatsapp_enabled?: boolean
           whatsapp_group_link?: string | null
           zoom_link?: string | null
+          zoom_meeting_id?: string | null
         }
         Update: {
           class_reminder_enabled?: boolean
@@ -108,6 +148,7 @@ export type Database = {
           whatsapp_enabled?: boolean
           whatsapp_group_link?: string | null
           zoom_link?: string | null
+          zoom_meeting_id?: string | null
         }
         Relationships: [
           {
@@ -122,6 +163,62 @@ export type Database = {
             columns: ["facilitator_staff_id"]
             isOneToOne: false
             referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      call_log: {
+        Row: {
+          bank_reference: string | null
+          call_type: string
+          created_at: string
+          ended_at: string | null
+          id: string
+          needs_human_followup: boolean
+          phone: string
+          promised_payment_date: string | null
+          registration_id: string | null
+          status: string
+          summary: string | null
+          transcript: string | null
+          vapi_call_id: string | null
+        }
+        Insert: {
+          bank_reference?: string | null
+          call_type: string
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          needs_human_followup?: boolean
+          phone?: string
+          promised_payment_date?: string | null
+          registration_id?: string | null
+          status?: string
+          summary?: string | null
+          transcript?: string | null
+          vapi_call_id?: string | null
+        }
+        Update: {
+          bank_reference?: string | null
+          call_type?: string
+          created_at?: string
+          ended_at?: string | null
+          id?: string
+          needs_human_followup?: boolean
+          phone?: string
+          promised_payment_date?: string | null
+          registration_id?: string | null
+          status?: string
+          summary?: string | null
+          transcript?: string | null
+          vapi_call_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_log_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
             referencedColumns: ["id"]
           },
         ]
@@ -175,6 +272,53 @@ export type Database = {
             columns: ["deleted_by_staff_id"]
             isOneToOne: false
             referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feedback: {
+        Row: {
+          comments_anonymous: boolean
+          facilitator_rating: number
+          id: string
+          improvement_text: string | null
+          interested_courses: string | null
+          overall_rating: number
+          recommend_rating: number
+          registration_id: string
+          submitted_at: string
+          testimonial_consent: boolean
+        }
+        Insert: {
+          comments_anonymous?: boolean
+          facilitator_rating: number
+          id?: string
+          improvement_text?: string | null
+          interested_courses?: string | null
+          overall_rating: number
+          recommend_rating: number
+          registration_id: string
+          submitted_at?: string
+          testimonial_consent?: boolean
+        }
+        Update: {
+          comments_anonymous?: boolean
+          facilitator_rating?: number
+          id?: string
+          improvement_text?: string | null
+          interested_courses?: string | null
+          overall_rating?: number
+          recommend_rating?: number
+          registration_id?: string
+          submitted_at?: string
+          testimonial_consent?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
             referencedColumns: ["id"]
           },
         ]
@@ -519,6 +663,38 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "whatsapp_log_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      zoom_registrants: {
+        Row: {
+          created_at: string
+          id: string
+          join_url: string
+          registration_id: string
+          zoom_registrant_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          join_url: string
+          registration_id: string
+          zoom_registrant_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          join_url?: string
+          registration_id?: string
+          zoom_registrant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoom_registrants_registration_id_fkey"
             columns: ["registration_id"]
             isOneToOne: false
             referencedRelation: "registrations"
