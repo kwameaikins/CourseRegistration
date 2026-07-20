@@ -105,6 +105,7 @@ async function sendCertificateEmail(row: CertificateRow): Promise<boolean> {
     subject: `Your Knowsia certificate — ${row.course_title}`,
     html: `
 <div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#1a1a2e;max-width:600px;margin:0 auto;">
+<p style="margin-bottom:24px;"><img src="${APP_URL()}/knowsia-logo.png" alt="Knowsia" width="140" style="display:block;" /></p>
 <p>Dear ${row.recipient_name},</p>
 <p>Congratulations! Your Certificate of Competence for <strong>${row.course_title}</strong> has been issued.</p>
 <p style="margin:24px 0;"><a href="${downloadUrlFor(row.id)}" style="background:#4B21A8;color:#ffffff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;">Download your certificate (PDF)</a></p>

@@ -8,6 +8,7 @@ import { use, useEffect, useState } from 'react';
 import { apiFetch } from '@/components/api-client';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { KnowsiaHeader } from '@/components/KnowsiaHeader';
 
 interface FormContext {
   courseName: string;
@@ -148,7 +149,8 @@ export default function FeedbackPage({
 
   return (
     <main className="mx-auto max-w-xl px-4 py-10">
-      <h1 className="text-2xl font-bold">Course Feedback</h1>
+      <KnowsiaHeader />
+      <h1 className="mt-6 text-2xl font-bold">Course Feedback</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         {context.participantFirstName ? `${context.participantFirstName}, thank` : 'Thank'}{' '}
         you for completing <strong>{context.courseName}</strong> ({context.cohortLabel}).

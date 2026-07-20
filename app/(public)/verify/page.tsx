@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { KnowsiaHeader } from '@/components/KnowsiaHeader';
 
 export default function VerifyLandingPage() {
   const router = useRouter();
@@ -24,10 +25,10 @@ export default function VerifyLandingPage() {
   return (
     <main className="mx-auto max-w-xl px-4 py-16">
       <div className="rounded-xl border-4 border-[#4B21A8] p-8 text-center">
-        <p className="text-2xl font-bold">
-          knowsia<span className="text-[#F49E20]">.</span>
-        </p>
-        <h1 className="mt-2 text-lg font-semibold uppercase tracking-wide">
+        <div className="flex justify-center">
+          <KnowsiaHeader />
+        </div>
+        <h1 className="mt-4 text-lg font-semibold uppercase tracking-wide">
           Certificate Verification
         </h1>
         <p className="mt-4 text-sm text-muted-foreground">

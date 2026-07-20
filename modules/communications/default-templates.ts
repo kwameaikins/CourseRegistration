@@ -12,8 +12,13 @@ import type { EmailType } from '@/lib/domain/types';
 
 const CONTACT = 'info.knowsia@gmail.com';
 
+// Logo is referenced by public URL, not inlined — email clients (Gmail,
+// Outlook) strip or mishandle base64 <img> data URIs far more often than a
+// plain hosted URL. Served from public/knowsia-logo.png.
+const LOGO_URL = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com'}/knowsia-logo.png`;
+
 const wrap = (inner: string): string =>
-  `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#1a1a2e;max-width:600px;margin:0 auto;">${inner}<p style="margin-top:28px;">Warm regards,<br/><strong>The Knowsia Team</strong></p></div>`;
+  `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#1a1a2e;max-width:600px;margin:0 auto;"><p style="margin-bottom:24px;"><img src="${LOGO_URL}" alt="Knowsia" width="140" style="display:block;" /></p>${inner}<p style="margin-top:28px;">Warm regards,<br/><strong>The Knowsia Team</strong></p></div>`;
 
 export const DEFAULT_TEMPLATES: ReadonlyArray<{
   emailType: EmailType;

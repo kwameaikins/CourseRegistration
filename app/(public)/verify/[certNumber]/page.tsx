@@ -2,6 +2,7 @@
 // the QR code / link printed on every certificate. Server-rendered; shows
 // only what the certificate itself already displays.
 import * as certificatesService from '@/modules/certificates/service';
+import { KnowsiaHeader } from '@/components/KnowsiaHeader';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,10 +19,10 @@ export default async function VerifyPage({
   return (
     <main className="mx-auto max-w-xl px-4 py-16">
       <div className="rounded-xl border-4 border-[#4B21A8] p-8 text-center">
-        <p className="text-2xl font-bold">
-          knowsia<span className="text-[#F49E20]">.</span>
-        </p>
-        <h1 className="mt-2 text-lg font-semibold uppercase tracking-wide">
+        <div className="flex justify-center">
+          <KnowsiaHeader />
+        </div>
+        <h1 className="mt-4 text-lg font-semibold uppercase tracking-wide">
           Certificate Verification
         </h1>
 

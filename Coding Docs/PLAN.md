@@ -169,7 +169,11 @@ dashboard). Automate the webhook as a fast-follow in Week 6. **Do not let this b
 - [x] Catalog imported: 10 new courses created from the founder's CSV (AI01–03, CA01–04, FR01–02, IA01), ESG1 updated; 90 default template rows seeded for the new courses
 - [x] Batch certificate issuance prefills hours/description/CPD from the course
 - [x] Course-code policy clarified: codes identify distinct course types within each family; AI01, AI02, AI03, and AI05 are all valid AI courses and remain available
-- [ ] Still pending from the review: batch capacity (max seats) + session-days schedule, registration 360� view, dashboard attendance/feedback/certificate metrics
+- [x] Public `/verify` landing page (no certificate number in the URL) — was a 404; now offers a lookup form so an employer typing the bare URL can search
+- [x] "View our courses → reg.knowsia.com/register" lead-gen line added to both `/verify` and `/verify/<number>` footers — turns every verification into a registration lead
+- [ ] Still pending from the review: batch capacity (max seats) + session-days schedule, registration 360-degree view, dashboard attendance/feedback/certificate metrics
+- [x] Brand assets wired in: `app/icon.png` (favicon, from the icon-only mark), `public/knowsia-logo.png` (real lockup on the register/feedback/verify page headers via `components/KnowsiaHeader.tsx`), and a hosted-URL logo header on transactional + certificate delivery emails (new course templates and the certificate email; existing already-seeded template bodies were left untouched to avoid clobbering founder edits)
+- [ ] Not yet used: remaining assets — shirt mockups, vertical/stacked logo variant (no current use case)
 
 ---
 

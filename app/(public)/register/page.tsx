@@ -1,5 +1,6 @@
 import * as coursesService from '@/modules/courses/service';
 import { RegistrationForm } from '@/app/(public)/register/RegistrationForm';
+import { KnowsiaHeader } from '@/components/KnowsiaHeader';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,7 +11,8 @@ export default async function RegisterPage() {
 
   return (
     <main className="mx-auto max-w-lg px-4 py-10">
-      <h1 className="text-2xl font-semibold">Course Registration</h1>
+      <KnowsiaHeader />
+      <h1 className="mt-6 text-2xl font-semibold">Course Registration</h1>
       <p className="mt-2 text-sm text-muted-foreground">
         Register for an upcoming course intake. Payment instructions will be emailed to
         you after registration.

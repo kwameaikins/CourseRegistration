@@ -170,22 +170,27 @@ Last completed task:    (2026-07-19) knowsia.com DNS-verified in Resend; live te
                         ANTHROPIC_API_KEY in local .env — still needed in
                         Vercel with ARKESEL_*, ZOOM_*, VAPI_* vars.
 Latest (2026-07-20):    Course/catalog hardening shipped: course certificate
-                        metadata + editing, default-template auto-seed on
-                        course creation, 11-course catalog imported (10 new +
+                        metadata (hours/description/CPD) + editing UI,
+                        default-template auto-seed on course creation
+                        (insert-only), 11-course catalog imported (10 new +
                         ESG1 updated; AI05/AI02 overlap needs founder call),
-                        101 legacy certs imported w/ serial floors from the
-                        AppScript counter, DPA cert scrub in soft delete
-                        (migration 202607200011). 123 tests green.
-Latest (2026-07-20):    Course catalog & cert metadata batch: courses carry
-                        certificate hours/description/CPD + serial floor;
-                        template auto-seed on course creation (insert-only);
-                        course edit UI/API; 11-course catalog imported (90
-                        templates seeded); numbering = max(registry, floor)+1
-                        (next AI01 = KNS-AI01-2026-0067); batch-issue
-                        prefill; DPA soft-delete now scrubs certificates;
-                        real signatures embedded in the certificate PDF
-                        (visual parity confirmed against the Canva original).
-                        123 tests, tsc + lint + build green.
+                        101 legacy certs imported, numbering =
+                        max(registry, AppScript floor)+1 (next AI01 =
+                        KNS-AI01-2026-0067), batch-issue prefill, DPA
+                        soft-delete now scrubs certificates (migration
+                        202607200011), real signatures embedded in the
+                        certificate PDF (visual parity confirmed against the
+                        Canva original). Added a `/verify` landing page (bare
+                        URL 404'd before) with a lookup form, plus a "View our
+                        courses" lead-gen link on both verify pages. Wired in
+                        the real Knowsia brand assets: `app/icon.png`
+                        favicon, `public/knowsia-logo.png` lockup on the
+                        register/feedback/verify page headers via
+                        `components/KnowsiaHeader.tsx`, and a hosted-URL logo
+                        header on new-course default email templates + the
+                        certificate delivery email (existing seeded template
+                        bodies deliberately left untouched). 123 tests,
+                        tsc + lint + build green.
 Currently in progress:  External setup checklist (see the process guide given to founder
                         2026-07-19): Resend DNS records, Vercel env vars, Paystack webhook
                         URL, Sentry DSN, Uptime Robot, Meta WhatsApp, staff accounts, then
