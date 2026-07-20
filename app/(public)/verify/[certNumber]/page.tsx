@@ -65,7 +65,10 @@ export default async function VerifyPage({
         )}
       </div>
       <p className="mt-6 text-center text-xs text-muted-foreground">
-        Knowsia — practical professional training. reg.knowsia.com
+        Knowsia — practical professional training ·{' '}
+        <a href="/register" className="font-medium text-[#4B21A8] underline">
+          View our courses → reg.knowsia.com/register
+        </a>
       </p>
     </main>
   );
