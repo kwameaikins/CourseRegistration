@@ -27,3 +27,6 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# Founder brand asset dumps (logo is inlined at lib/certificates/logo.ts)
+KNOWSIA ASSETS/

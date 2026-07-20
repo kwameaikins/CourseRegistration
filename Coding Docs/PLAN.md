@@ -147,6 +147,19 @@ dashboard). Automate the webhook as a fast-follow in Week 6. **Do not let this b
 - [ ] *(external)* `VAPI_API_KEY`, `VAPI_PHONE_NUMBER_ID`, `VAPI_OUTBOUND_ASSISTANT_ID`, `VAPI_WEBHOOK_SECRET` in Vercel
 - [ ] Pilot: one batch, payment_followup only (temporarily leave other assistants unconfigured), verify wire shapes end-to-end on the Calls screen, measure paid-conversion of called vs not-called
 
+### Certificate system (scope addition, approved 2026-07-19 — replaces the Google Sheets + AppScript registry)
+
+- [x] Migration `202607190010_certificates.sql` (registry table, one per registration for batch issues, RLS admin manage + management read) — applied to linked project
+- [x] Numbering `KNS-<COURSECODE>-<YEAR>-<NNNN>` (founder-chosen prefix), serial per course per year, unique-constraint collision guard; custom numbers supported for legacy KNW backfill
+- [x] PDF generated on demand with pdf-lib matching the Certificate of Competence design (purple border, orange name, QR code → verification URL); no file storage — download links work forever
+- [x] Public verification page `/verify/<number>` (valid / revoked / not found) — QR on every certificate points here
+- [x] Certificates screen (admin): batch issuance with auto-computed eligibility (Paid + feedback; attendance % shown for judgment, admin selects rows), manual issuance (incl. legacy backfill + optional email), registry list with PDF/verify/revoke
+- [x] Delivery email with download link, verification link, and LinkedIn guidance
+- [x] Unit tests (9) — numbering/serial continuation, legacy custom numbers, eligibility, batch issue + email, verification states, PDF magic-bytes smoke test
+- [ ] Known gap: handwritten signature images not embedded (typeset signatories instead) — drop signature PNGs in later for pixel-parity with the Canva design
+- [ ] Known gap (DPA): soft-deleted participants' certificates keep recipient_name — extend the erasure function to revoke + scrub linked certificates
+- [ ] Backfill: import the legacy Google Sheets registry via manual issuance with custom KNW numbers (or ask Claude to script it from a CSV export)
+
 ---
 
 ## Task 4 — Dashboard, Compliance, Tutor View

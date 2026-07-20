@@ -155,10 +155,17 @@ Last completed task:    (2026-07-19) knowsia.com DNS-verified in Resend; live te
                         applied, dispatch in 07:00 cron with 10:00 Ghana
                         calling window, webhook + tools endpoints, Calls
                         review screen; dormant until VAPI_* env vars set.
-                        113 unit tests, tsc + lint + next build green;
-                        this batch NOT yet committed/deployed. Founder put a
-                        real ANTHROPIC_API_KEY in local .env — still needed in
-                        Vercel, along with ARKESEL_*, ZOOM_*, VAPI_* vars.
+                        Features 1-5 committed 45d69fe and deployed.
+                        (6) Certificate system (PLAN Task 3): KNS-numbered
+                        registry replacing the Google Sheets/AppScript one,
+                        on-demand pdf-lib generation matching the Certificate
+                        of Competence design, QR-coded /verify page, batch
+                        issuance (Paid + feedback eligibility, admin-approved)
+                        + manual issuance with legacy KNW backfill, delivery
+                        email; migration 202607190010 applied. 122 unit
+                        tests, tsc + lint + next build green; certificates
+                        NOT yet committed. ANTHROPIC_API_KEY in local .env —
+                        still needed in Vercel with ARKESEL_*, ZOOM_*, VAPI_*.
 Currently in progress:  External setup checklist (see the process guide given to founder
                         2026-07-19): Resend DNS records, Vercel env vars, Paystack webhook
                         URL, Sentry DSN, Uptime Robot, Meta WhatsApp, staff accounts, then

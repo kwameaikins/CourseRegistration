@@ -167,6 +167,72 @@ export type Database = {
           },
         ]
       }
+      certificates: {
+        Row: {
+          certificate_number: string
+          course_title: string
+          cpd_credit: string
+          created_at: string
+          description: string
+          hours: number
+          id: string
+          issued_by: string | null
+          issued_date: string
+          recipient_email: string | null
+          recipient_name: string
+          registration_id: string | null
+          revoked: boolean
+          revoked_reason: string | null
+        }
+        Insert: {
+          certificate_number: string
+          course_title: string
+          cpd_credit?: string
+          created_at?: string
+          description?: string
+          hours?: number
+          id?: string
+          issued_by?: string | null
+          issued_date?: string
+          recipient_email?: string | null
+          recipient_name: string
+          registration_id?: string | null
+          revoked?: boolean
+          revoked_reason?: string | null
+        }
+        Update: {
+          certificate_number?: string
+          course_title?: string
+          cpd_credit?: string
+          created_at?: string
+          description?: string
+          hours?: number
+          id?: string
+          issued_by?: string | null
+          issued_date?: string
+          recipient_email?: string | null
+          recipient_name?: string
+          registration_id?: string | null
+          revoked?: boolean
+          revoked_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "certificates_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "certificates_issued_by_fkey"
+            columns: ["issued_by"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       call_log: {
         Row: {
           bank_reference: string | null

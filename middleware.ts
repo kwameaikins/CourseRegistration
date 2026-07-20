@@ -75,6 +75,7 @@ export const config = {
     '/attendance/:path*',
     '/course-feedback/:path*',
     '/calls/:path*',
+    '/certificates/:path*',
     '/messaging/:path*',
     '/assistant/:path*',
     '/follow-up/:path*',

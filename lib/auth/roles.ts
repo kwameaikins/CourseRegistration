@@ -20,6 +20,7 @@ export const ROLE_ROUTES: Record<string, StaffRole[]> = {
   '/attendance': ['admin', 'management'],
   '/course-feedback': ['admin', 'management'],
   '/calls': ['admin', 'finance', 'management'],
+  '/certificates': ['admin'],
   '/messaging': ['admin'],
   '/assistant': ['admin'],
   '/follow-up': ['admin', 'marketing'], // Phase 2
@@ -45,6 +46,7 @@ export const NAV_ITEMS_BY_ROLE: Record<StaffRole, { href: string; label: string 
     { href: '/courses', label: 'Courses' },
     { href: '/attendance', label: 'Attendance' },
     { href: '/course-feedback', label: 'Feedback' },
+    { href: '/certificates', label: 'Certificates' },
     { href: '/calls', label: 'Calls' },
     { href: '/messaging', label: 'Messaging' },
     { href: '/assistant', label: 'Assistant' },
