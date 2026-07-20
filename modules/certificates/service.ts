@@ -60,8 +60,10 @@ export function buildCertificateNumber(
 
 async function nextCertificateNumber(courseCode: string, issuedDate: string): Promise<string> {
   const year = Number(issuedDate.slice(0, 4));
-  const prefix = `${CERT_PREFIX}-${courseCode.toUpperCase()}-${year}-`;
-  const maxSerial = await certificatesRepository.selectMaxSerial(prefix);
+  const maxSerial = await certificatesRepository.selectMaxSerialForCourseYear(
+    courseCode.toUpperCase(),
+    year,
+  );
   return buildCertificateNumber(courseCode, year, maxSerial + 1);
 }
 

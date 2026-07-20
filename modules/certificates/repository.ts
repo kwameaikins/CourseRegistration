@@ -35,20 +35,25 @@ export async function insertCertificate(
   return { outcome: 'inserted', row: data };
 }
 
-// Highest existing serial for a KNS-<CODE>-<YEAR>- prefix, for numbering.
-export async function selectMaxSerial(prefix: string): Promise<number> {
+// Highest existing serial for a course code + year across ALL prefixes
+// (KNS and the legacy KNW registry), so new numbers continue the historic
+// count — after KNW-AI01-2026-0065 comes KNS-AI01-2026-0066.
+export async function selectMaxSerialForCourseYear(
+  courseCode: string,
+  year: number,
+): Promise<number> {
   const supabase = createSupabaseServiceRoleClient();
   const { data, error } = await supabase
     .from('certificates')
     .select('certificate_number')
-    .like('certificate_number', `${prefix}%`)
-    .order('certificate_number', { ascending: false })
-    .limit(1);
+    .like('certificate_number', `%-${courseCode}-${year}-%`);
   if (error) throw error;
-  const latest = data?.[0]?.certificate_number;
-  if (!latest) return 0;
-  const serial = Number.parseInt(latest.slice(prefix.length), 10);
-  return Number.isNaN(serial) ? 0 : serial;
+  let max = 0;
+  for (const row of data ?? []) {
+    const serial = Number.parseInt(row.certificate_number.split('-').pop() ?? '', 10);
+    if (!Number.isNaN(serial) && serial > max) max = serial;
+  }
+  return max;
 }
 
 export async function selectCertificateById(id: string): Promise<CertificateRow | null> {

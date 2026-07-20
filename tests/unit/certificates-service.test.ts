@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const repositoryMock = {
   selectCertificates: vi.fn(),
   insertCertificate: vi.fn(),
-  selectMaxSerial: vi.fn(),
+  selectMaxSerialForCourseYear: vi.fn(),
   selectCertificateById: vi.fn(),
   selectCertificateByNumber: vi.fn(),
   updateCertificate: vi.fn(),
@@ -42,7 +42,7 @@ function candidate(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  repositoryMock.selectMaxSerial.mockResolvedValue(35);
+  repositoryMock.selectMaxSerialForCourseYear.mockResolvedValue(35);
   repositoryMock.insertCertificate.mockImplementation(async (row) => ({
     outcome: 'inserted',
     row: {
@@ -64,7 +64,8 @@ describe('certificate numbering', () => {
     expect(buildCertificateNumber('ai01', 2026, 36)).toBe('KNS-AI01-2026-0036');
   });
 
-  it('continues the serial from the highest existing number', async () => {
+  it('continues the serial across prefixes — after legacy KNW-…-0065 comes KNS-…-0066', async () => {
+    repositoryMock.selectMaxSerialForCourseYear.mockResolvedValue(65);
     await issueManual(
       {
         recipientName: 'Nicholina Nyumutei',
@@ -78,9 +79,9 @@ describe('certificate numbering', () => {
       },
       'staff-1',
     );
-    expect(repositoryMock.selectMaxSerial).toHaveBeenCalledWith('KNS-AI01-2026-');
+    expect(repositoryMock.selectMaxSerialForCourseYear).toHaveBeenCalledWith('AI01', 2026);
     expect(repositoryMock.insertCertificate).toHaveBeenCalledWith(
-      expect.objectContaining({ certificate_number: 'KNS-AI01-2026-0036' }),
+      expect.objectContaining({ certificate_number: 'KNS-AI01-2026-0066' }),
     );
   });
 
@@ -102,7 +103,7 @@ describe('certificate numbering', () => {
     expect(repositoryMock.insertCertificate).toHaveBeenCalledWith(
       expect.objectContaining({ certificate_number: 'KNW-AI01-2026-0036' }),
     );
-    expect(repositoryMock.selectMaxSerial).not.toHaveBeenCalled();
+    expect(repositoryMock.selectMaxSerialForCourseYear).not.toHaveBeenCalled();
   });
 });
 
