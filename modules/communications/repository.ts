@@ -136,6 +136,23 @@ export async function selectTemplatesForCourse(
   return data;
 }
 
+// Insert-only variant for default-template seeding (service-role: runs
+// inside course creation, where the new row must exist regardless of the
+// caller's template policies). Never overwrites an existing template.
+export async function insertTemplateIfMissing(row: {
+  course_id: string;
+  email_type: string;
+  subject: string;
+  body: string;
+  is_active: boolean;
+}): Promise<'inserted' | 'exists'> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase.from('email_templates').insert(row);
+  if (error?.code === '23505') return 'exists';
+  if (error) throw error;
+  return 'inserted';
+}
+
 export async function upsertTemplate(row: {
   course_id: string;
   email_type: string;

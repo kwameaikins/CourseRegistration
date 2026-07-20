@@ -56,6 +56,20 @@ export async function selectMaxSerialForCourseYear(
   return max;
 }
 
+// Serial floor from the legacy AppScript counter (courses table) — some
+// paper certificates predate the exported registry, so numbering takes
+// max(registry, floor) for 2026.
+export async function selectCourseSerialFloor(courseCode: string): Promise<number> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('courses')
+    .select('certificate_serial_floor')
+    .eq('course_code', courseCode)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.certificate_serial_floor ?? 0;
+}
+
 export async function selectCertificateById(id: string): Promise<CertificateRow | null> {
   const supabase = createSupabaseServiceRoleClient();
   const { data, error } = await supabase
@@ -94,6 +108,9 @@ export async function updateCertificate(
 export async function selectBatchIssueContext(batchId: string): Promise<{
   courseCode: string;
   courseTitle: string;
+  defaultHours: number;
+  defaultDescription: string;
+  defaultCpdCredit: string;
   candidates: Array<{
     registrationId: string;
     participantName: string;
@@ -118,7 +135,7 @@ export async function selectBatchIssueContext(batchId: string): Promise<{
 
   const { data: course } = await supabase
     .from('courses')
-    .select('course_code, course_name')
+    .select('course_code, course_name, certificate_hours, certificate_description, cpd_credit')
     .eq('id', batch.course_id)
     .maybeSingle();
   if (!course) return null;
@@ -128,8 +145,15 @@ export async function selectBatchIssueContext(batchId: string): Promise<{
     .select('id, participant_id')
     .eq('batch_id', batchId);
   if (regError) throw regError;
+  const courseDefaults = {
+    courseCode: course.course_code,
+    courseTitle: course.course_name,
+    defaultHours: course.certificate_hours,
+    defaultDescription: course.certificate_description,
+    defaultCpdCredit: course.cpd_credit,
+  };
   if (!registrations || registrations.length === 0) {
-    return { courseCode: course.course_code, courseTitle: course.course_name, candidates: [] };
+    return { ...courseDefaults, candidates: [] };
   }
   const registrationIds = registrations.map((r) => r.id);
 
@@ -179,8 +203,7 @@ export async function selectBatchIssueContext(batchId: string): Promise<{
   }
 
   return {
-    courseCode: course.course_code,
-    courseTitle: course.course_name,
+    ...courseDefaults,
     candidates: registrations.map((registration) => {
       const participant = participantById.get(registration.participant_id);
       return {

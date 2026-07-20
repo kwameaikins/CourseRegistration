@@ -4,6 +4,13 @@ export interface Course {
   id: string;
   courseCode: string;
   courseName: string;
+  // Certificate metadata (Doc review 2026-07-20): set once per course,
+  // prefilled into batch issuance instead of retyped per run.
+  certificateHours: number;
+  certificateDescription: string;
+  cpdCredit: string;
+  // Highest 2026 serial already used per the legacy AppScript counter.
+  certificateSerialFloor: number;
   createdAt: string;
 }
 
@@ -50,7 +57,20 @@ export interface PublicBatchOption {
 export const courseInputSchema = z.object({
   courseCode: z.string().trim().min(2),
   courseName: z.string().trim().min(2),
+  certificateHours: z.number().int().min(0).max(1000).default(0),
+  certificateDescription: z.string().trim().max(600).default(''),
+  cpdCredit: z.string().trim().max(50).default('TBD'),
 });
+
+// course_code is immutable — it is baked into issued certificate numbers.
+export const courseUpdateSchema = z.object({
+  courseName: z.string().trim().min(2).optional(),
+  certificateHours: z.number().int().min(0).max(1000).optional(),
+  certificateDescription: z.string().trim().max(600).optional(),
+  cpdCredit: z.string().trim().max(50).optional(),
+});
+
+export type CourseUpdate = z.infer<typeof courseUpdateSchema>;
 
 const httpsUrl = z
   .string()

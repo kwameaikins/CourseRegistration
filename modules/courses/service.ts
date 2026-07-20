@@ -1,12 +1,16 @@
 // Business rules for the Course aggregate (Course + Batch + Email Templates).
 import { AppError } from '@/lib/errors';
 import * as coursesRepository from '@/modules/courses/repository';
+// Permitted cross-module call: communications is the shared generic
+// subdomain every module may use (Document 2, Section 9).
+import { seedDefaultTemplatesForCourse } from '@/modules/communications/default-templates';
 import type {
   Batch,
   BatchInput,
   BatchUpdate,
   Course,
   CourseInput,
+  CourseUpdate,
   PublicBatchOption,
 } from '@/modules/courses/types';
 import type { Database } from '@/lib/supabase/database.types';
@@ -18,6 +22,10 @@ function toCourse(row: Database['public']['Tables']['courses']['Row']): Course {
     id: row.id,
     courseCode: row.course_code,
     courseName: row.course_name,
+    certificateHours: row.certificate_hours,
+    certificateDescription: row.certificate_description,
+    cpdCredit: row.cpd_credit,
+    certificateSerialFloor: row.certificate_serial_floor,
     createdAt: row.created_at,
   };
 }
@@ -53,12 +61,15 @@ export async function getCourses(): Promise<Course[]> {
 }
 
 export async function createCourse(input: CourseInput): Promise<Course> {
+  let row;
   try {
-    const row = await coursesRepository.insertCourse({
+    row = await coursesRepository.insertCourse({
       course_code: input.courseCode,
       course_name: input.courseName,
+      certificate_hours: input.certificateHours,
+      certificate_description: input.certificateDescription,
+      cpd_credit: input.cpdCredit,
     });
-    return toCourse(row);
   } catch (err) {
     if (isPostgresUniqueViolation(err)) {
       throw new AppError(
@@ -69,6 +80,30 @@ export async function createCourse(input: CourseInput): Promise<Course> {
     }
     throw err;
   }
+
+  // A course without templates silently sends no email at all — seed the
+  // defaults immediately so that failure mode cannot recur. A seeding error
+  // must not fail course creation (the Messaging screen can recover).
+  try {
+    await seedDefaultTemplatesForCourse(row.id);
+  } catch (err) {
+    console.error('[course template seed]', err);
+  }
+  return toCourse(row);
+}
+
+export async function updateCourse(courseId: string, changes: CourseUpdate): Promise<Course> {
+  const row = await coursesRepository.updateCourseById(courseId, {
+    ...(changes.courseName !== undefined && { course_name: changes.courseName }),
+    ...(changes.certificateHours !== undefined && {
+      certificate_hours: changes.certificateHours,
+    }),
+    ...(changes.certificateDescription !== undefined && {
+      certificate_description: changes.certificateDescription,
+    }),
+    ...(changes.cpdCredit !== undefined && { cpd_credit: changes.cpdCredit }),
+  });
+  return toCourse(row);
 }
 
 export async function getBatches(courseId?: string): Promise<Batch[]> {

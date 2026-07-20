@@ -291,22 +291,34 @@ export type Database = {
       }
       courses: {
         Row: {
+          certificate_description: string
+          certificate_hours: number
+          certificate_serial_floor: number
           course_code: string
           course_name: string
+          cpd_credit: string
           created_at: string
           id: string
           updated_at: string
         }
         Insert: {
+          certificate_description?: string
+          certificate_hours?: number
+          certificate_serial_floor?: number
           course_code: string
           course_name: string
+          cpd_credit?: string
           created_at?: string
           id?: string
           updated_at?: string
         }
         Update: {
+          certificate_description?: string
+          certificate_hours?: number
+          certificate_serial_floor?: number
           course_code?: string
           course_name?: string
+          cpd_credit?: string
           created_at?: string
           id?: string
           updated_at?: string

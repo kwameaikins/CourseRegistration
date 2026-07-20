@@ -16,7 +16,18 @@ interface Course {
   id: string;
   courseCode: string;
   courseName: string;
+  certificateHours: number;
+  certificateDescription: string;
+  cpdCredit: string;
 }
+
+const EMPTY_COURSE_FORM = {
+  courseCode: '',
+  courseName: '',
+  certificateHours: '',
+  certificateDescription: '',
+  cpdCredit: 'TBD',
+};
 
 interface Batch {
   id: string;
@@ -61,8 +72,10 @@ export default function CourseControlPanelPage() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const [newCourse, setNewCourse] = useState({ courseCode: '', courseName: '' });
+  const [newCourse, setNewCourse] = useState(EMPTY_COURSE_FORM);
   const [showCourseForm, setShowCourseForm] = useState(false);
+  const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
+  const [editCourseForm, setEditCourseForm] = useState(EMPTY_COURSE_FORM);
   const [batchForm, setBatchForm] = useState(EMPTY_BATCH_FORM);
   const [batchFormCourseId, setBatchFormCourseId] = useState<string | null>(null);
   const [editingBatchId, setEditingBatchId] = useState<string | null>(null);
@@ -98,14 +111,54 @@ export default function CourseControlPanelPage() {
     try {
       await apiFetch('/api/courses', {
         method: 'POST',
-        body: JSON.stringify(newCourse),
+        body: JSON.stringify({
+          courseCode: newCourse.courseCode,
+          courseName: newCourse.courseName,
+          certificateHours: Number(newCourse.certificateHours || 0),
+          certificateDescription: newCourse.certificateDescription,
+          cpdCredit: newCourse.cpdCredit || 'TBD',
+        }),
       });
-      setNewCourse({ courseCode: '', courseName: '' });
+      setNewCourse(EMPTY_COURSE_FORM);
       setShowCourseForm(false);
-      flashStatus('Course created.');
+      flashStatus('Course created (default email templates seeded).');
       await reload();
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to create course.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function startCourseEdit(course: Course) {
+    setEditingCourseId(course.id);
+    setEditCourseForm({
+      courseCode: course.courseCode,
+      courseName: course.courseName,
+      certificateHours: course.certificateHours ? String(course.certificateHours) : '',
+      certificateDescription: course.certificateDescription ?? '',
+      cpdCredit: course.cpdCredit || 'TBD',
+    });
+  }
+
+  async function handleUpdateCourse(event: React.FormEvent, courseId: string) {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      await apiFetch(`/api/courses/${courseId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          courseName: editCourseForm.courseName,
+          certificateHours: Number(editCourseForm.certificateHours || 0),
+          certificateDescription: editCourseForm.certificateDescription,
+          cpdCredit: editCourseForm.cpdCredit || 'TBD',
+        }),
+      });
+      setEditingCourseId(null);
+      flashStatus('Course updated.');
+      await reload();
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to update course.');
     } finally {
       setSaving(false);
     }
@@ -255,6 +308,45 @@ export default function CourseControlPanelPage() {
                   }
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="certificateHours">Certificate Hours</Label>
+                <Input
+                  id="certificateHours"
+                  type="number"
+                  min={0}
+                  className="w-28"
+                  placeholder="20"
+                  value={newCourse.certificateHours}
+                  onChange={(event) =>
+                    setNewCourse({ ...newCourse, certificateHours: event.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cpdCredit">CPD Credit</Label>
+                <Input
+                  id="cpdCredit"
+                  className="w-28"
+                  value={newCourse.cpdCredit}
+                  onChange={(event) =>
+                    setNewCourse({ ...newCourse, cpdCredit: event.target.value })
+                  }
+                />
+              </div>
+              <div className="w-full space-y-2">
+                <Label htmlFor="certificateDescription">
+                  Certificate Description (appears on the certificate)
+                </Label>
+                <textarea
+                  id="certificateDescription"
+                  className="min-h-16 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                  placeholder="covering the practical use of …"
+                  value={newCourse.certificateDescription}
+                  onChange={(event) =>
+                    setNewCourse({ ...newCourse, certificateDescription: event.target.value })
+                  }
+                />
+              </div>
               <Button type="submit" disabled={saving}>
                 {saving ? 'Saving…' : 'Create Course'}
               </Button>
@@ -287,6 +379,88 @@ export default function CourseControlPanelPage() {
             </CardHeader>
             {expanded && (
               <CardContent className="space-y-4">
+                {editingCourseId === course.id ? (
+                  <form
+                    onSubmit={(event) => handleUpdateCourse(event, course.id)}
+                    className="grid grid-cols-2 gap-4 rounded-lg border bg-muted/30 p-4"
+                  >
+                    <div className="space-y-2">
+                      <Label htmlFor={`edit-courseName-${course.id}`}>Course Name</Label>
+                      <Input
+                        id={`edit-courseName-${course.id}`}
+                        required
+                        value={editCourseForm.courseName}
+                        onChange={(event) =>
+                          setEditCourseForm({ ...editCourseForm, courseName: event.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="flex gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor={`edit-certHours-${course.id}`}>Certificate Hours</Label>
+                        <Input
+                          id={`edit-certHours-${course.id}`}
+                          type="number"
+                          min={0}
+                          value={editCourseForm.certificateHours}
+                          onChange={(event) =>
+                            setEditCourseForm({
+                              ...editCourseForm,
+                              certificateHours: event.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`edit-cpd-${course.id}`}>CPD Credit</Label>
+                        <Input
+                          id={`edit-cpd-${course.id}`}
+                          value={editCourseForm.cpdCredit}
+                          onChange={(event) =>
+                            setEditCourseForm({ ...editCourseForm, cpdCredit: event.target.value })
+                          }
+                        />
+                      </div>
+                    </div>
+                    <div className="col-span-2 space-y-2">
+                      <Label htmlFor={`edit-certDesc-${course.id}`}>Certificate Description</Label>
+                      <textarea
+                        id={`edit-certDesc-${course.id}`}
+                        className="min-h-16 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                        value={editCourseForm.certificateDescription}
+                        onChange={(event) =>
+                          setEditCourseForm({
+                            ...editCourseForm,
+                            certificateDescription: event.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="col-span-2 flex gap-2">
+                      <Button type="submit" disabled={saving}>
+                        {saving ? 'Saving…' : 'Save Course'}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setEditingCourseId(null)}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="flex items-center justify-between rounded-lg border bg-muted/30 px-4 py-2 text-sm">
+                    <span className="text-muted-foreground">
+                      Certificate: {course.certificateHours || '—'} hours · CPD{' '}
+                      {course.cpdCredit || 'TBD'}
+                      {course.certificateDescription ? '' : ' · no description set'}
+                    </span>
+                    <Button variant="outline" onClick={() => startCourseEdit(course)}>
+                      Edit course
+                    </Button>
+                  </div>
+                )}
                 {courseBatches.map((batch) =>
                   editingBatchId === batch.id ? (
                     <form

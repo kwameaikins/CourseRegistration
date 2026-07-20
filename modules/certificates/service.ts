@@ -60,11 +60,13 @@ export function buildCertificateNumber(
 
 async function nextCertificateNumber(courseCode: string, issuedDate: string): Promise<string> {
   const year = Number(issuedDate.slice(0, 4));
-  const maxSerial = await certificatesRepository.selectMaxSerialForCourseYear(
-    courseCode.toUpperCase(),
-    year,
-  );
-  return buildCertificateNumber(courseCode, year, maxSerial + 1);
+  const code = courseCode.toUpperCase();
+  const registryMax = await certificatesRepository.selectMaxSerialForCourseYear(code, year);
+  // The legacy AppScript counter recorded serials for certificates that
+  // never made it into the registry export (e.g. CA01 stands at 20 with no
+  // rows). The floor applies to the 2026 sequence only.
+  const floor = year === 2026 ? await certificatesRepository.selectCourseSerialFloor(code) : 0;
+  return buildCertificateNumber(code, year, Math.max(registryMax, floor) + 1);
 }
 
 async function insertWithNumberRetry(
@@ -151,6 +153,9 @@ export async function issueManual(
 export async function getBatchIssueContext(batchId: string): Promise<{
   courseCode: string;
   courseTitle: string;
+  defaultHours: number;
+  defaultDescription: string;
+  defaultCpdCredit: string;
   candidates: BatchIssueCandidate[];
 } | null> {
   const context = await certificatesRepository.selectBatchIssueContext(batchId);
@@ -158,6 +163,9 @@ export async function getBatchIssueContext(batchId: string): Promise<{
   return {
     courseCode: context.courseCode,
     courseTitle: context.courseTitle,
+    defaultHours: context.defaultHours,
+    defaultDescription: context.defaultDescription,
+    defaultCpdCredit: context.defaultCpdCredit,
     candidates: context.candidates
       .filter((candidate) => !candidate.participantDeleted)
       .map((candidate) => ({

@@ -103,13 +103,22 @@ export default function CertificatesPage() {
     setSelectedIds(new Set());
     if (!batchId) return;
     try {
-      const data = await apiFetch<{ candidates: Candidate[] }>(
-        `/api/certificates/batch?batchId=${encodeURIComponent(batchId)}`,
-      );
+      const data = await apiFetch<{
+        candidates: Candidate[];
+        defaultHours: number;
+        defaultDescription: string;
+        defaultCpdCredit: string;
+      }>(`/api/certificates/batch?batchId=${encodeURIComponent(batchId)}`);
       setCandidates(data.candidates);
       setSelectedIds(
         new Set(data.candidates.filter((c) => c.eligible).map((c) => c.registrationId)),
       );
+      // Prefill from the course's certificate metadata (editable per run).
+      setBatchForm({
+        hours: data.defaultHours ? String(data.defaultHours) : '',
+        description: data.defaultDescription,
+        cpdCredit: data.defaultCpdCredit || 'TBD',
+      });
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to load eligibility.');
     }

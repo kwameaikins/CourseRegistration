@@ -158,7 +158,18 @@ dashboard). Automate the webhook as a fast-follow in Week 6. **Do not let this b
 - [x] Unit tests (9) — numbering/serial continuation, legacy custom numbers, eligibility, batch issue + email, verification states, PDF magic-bytes smoke test
 - [ ] Known gap: handwritten signature images not embedded (typeset signatories instead) — drop signature PNGs in later for pixel-parity with the Canva design
 - [ ] Known gap (DPA): soft-deleted participants' certificates keep recipient_name — extend the erasure function to revoke + scrub linked certificates
-- [ ] Backfill: import the legacy Google Sheets registry via manual issuance with custom KNW numbers (or ask Claude to script it from a CSV export)
+- [x] Backfill: all 101 legacy registry certificates imported (original KNW numbers, 1 revoked); verification live for all three states
+- [x] Serials continue across prefixes AND respect the legacy AppScript counter as a floor (`courses.certificate_serial_floor` from the catalog CSV — e.g. next AI01 = KNS-AI01-2026-0067, next CA01 = KNS-CA01-2026-0021)
+
+### Course/catalog hardening (system review, approved 2026-07-20)
+
+- [x] Migration `202607200011` — courses carry certificate metadata (hours, description, CPD credit) + serial floor; `fn_soft_delete_participant` now revokes and scrubs the erased participant's certificates (DPA gap closed)
+- [x] Default email templates auto-seed on course creation (insert-only, never overwrites edits) — the "new course silently sends no email" trap is closed
+- [x] Course editing on the Courses screen (name + certificate fields; course code immutable — baked into cert numbers); `PATCH /api/courses/[id]`
+- [x] Catalog imported: 10 new courses created from the founder's CSV (AI01–03, CA01–04, FR01–02, IA01), ESG1 updated; 90 default template rows seeded for the new courses
+- [x] Batch certificate issuance prefills hours/description/CPD from the course
+- [ ] Open question for founder: AI05 ("…Reporting and Modeling", has the live JUL 2026 batch) overlaps legacy AI02 ("…Reporting and Analysis") — decide which code is canonical for future batches
+- [ ] Still pending from the review: batch capacity (max seats) + session-days schedule, registration 360° view, dashboard attendance/feedback/certificate metrics, signature PNGs for the certificate PDF (founder uploading)
 
 ---
 

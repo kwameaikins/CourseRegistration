@@ -169,6 +169,13 @@ Last completed task:    (2026-07-19) knowsia.com DNS-verified in Resend; live te
                         tests, tsc + lint + next build green.
                         ANTHROPIC_API_KEY in local .env — still needed in
                         Vercel with ARKESEL_*, ZOOM_*, VAPI_* vars.
+Latest (2026-07-20):    Course/catalog hardening shipped: course certificate
+                        metadata + editing, default-template auto-seed on
+                        course creation, 11-course catalog imported (10 new +
+                        ESG1 updated; AI05/AI02 overlap needs founder call),
+                        101 legacy certs imported w/ serial floors from the
+                        AppScript counter, DPA cert scrub in soft delete
+                        (migration 202607200011). 123 tests green.
 Currently in progress:  External setup checklist (see the process guide given to founder
                         2026-07-19): Resend DNS records, Vercel env vars, Paystack webhook
                         URL, Sentry DSN, Uptime Robot, Meta WhatsApp, staff accounts, then

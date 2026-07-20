@@ -21,11 +21,29 @@ export async function selectCourses(): Promise<CourseRow[]> {
 export async function insertCourse(course: {
   course_code: string;
   course_name: string;
+  certificate_hours: number;
+  certificate_description: string;
+  cpd_credit: string;
 }): Promise<CourseRow> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from('courses')
     .insert(course)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateCourseById(
+  courseId: string,
+  changes: Database['public']['Tables']['courses']['Update'],
+): Promise<CourseRow> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('courses')
+    .update({ ...changes, updated_at: new Date().toISOString() })
+    .eq('id', courseId)
     .select()
     .single();
   if (error) throw error;

@@ -4,6 +4,7 @@ const repositoryMock = {
   selectCertificates: vi.fn(),
   insertCertificate: vi.fn(),
   selectMaxSerialForCourseYear: vi.fn(),
+  selectCourseSerialFloor: vi.fn(),
   selectCertificateById: vi.fn(),
   selectCertificateByNumber: vi.fn(),
   updateCertificate: vi.fn(),
@@ -43,6 +44,7 @@ function candidate(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   repositoryMock.selectMaxSerialForCourseYear.mockResolvedValue(35);
+  repositoryMock.selectCourseSerialFloor.mockResolvedValue(0);
   repositoryMock.insertCertificate.mockImplementation(async (row) => ({
     outcome: 'inserted',
     row: {
@@ -82,6 +84,28 @@ describe('certificate numbering', () => {
     expect(repositoryMock.selectMaxSerialForCourseYear).toHaveBeenCalledWith('AI01', 2026);
     expect(repositoryMock.insertCertificate).toHaveBeenCalledWith(
       expect.objectContaining({ certificate_number: 'KNS-AI01-2026-0066' }),
+    );
+  });
+
+  it('respects the legacy AppScript counter as a serial floor (CA01 case)', async () => {
+    // Registry export has no CA01 rows, but the counter says 20 were issued.
+    repositoryMock.selectMaxSerialForCourseYear.mockResolvedValue(0);
+    repositoryMock.selectCourseSerialFloor.mockResolvedValue(20);
+    await issueManual(
+      {
+        recipientName: 'Ama Owusu',
+        courseCode: 'CA01',
+        courseTitle: 'Practical Accounting with Sage 50',
+        description: '',
+        hours: 10,
+        cpdCredit: 'TBD',
+        issuedDate: '2026-07-20',
+        sendEmail: false,
+      },
+      'staff-1',
+    );
+    expect(repositoryMock.insertCertificate).toHaveBeenCalledWith(
+      expect.objectContaining({ certificate_number: 'KNS-CA01-2026-0021' }),
     );
   });
 
