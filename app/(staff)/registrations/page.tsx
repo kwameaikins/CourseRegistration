@@ -17,6 +17,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { formatDate, formatGhs } from '@/lib/utils';
+import { RegistrationDetailDialog } from '@/app/(staff)/registrations/RegistrationDetailDialog';
 
 interface RegistrationRow {
   id: string;
@@ -72,6 +73,7 @@ export default function RegistrationListPage() {
 
   const [editingNotesId, setEditingNotesId] = useState<string | null>(null);
   const [notesDraft, setNotesDraft] = useState('');
+  const [viewingRegistrationId, setViewingRegistrationId] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -217,6 +219,7 @@ export default function RegistrationListPage() {
             <TableHead>Balance</TableHead>
             <TableHead>Registered</TableHead>
             <TableHead>Notes</TableHead>
+            <TableHead />
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -282,10 +285,26 @@ export default function RegistrationListPage() {
                   </button>
                 )}
               </TableCell>
+              <TableCell>
+                <button
+                  type="button"
+                  className="text-sm font-medium text-primary underline-offset-2 hover:underline"
+                  onClick={() => setViewingRegistrationId(row.id)}
+                >
+                  View
+                </button>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
+
+      {viewingRegistrationId && (
+        <RegistrationDetailDialog
+          registrationId={viewingRegistrationId}
+          onClose={() => setViewingRegistrationId(null)}
+        />
+      )}
 
       {rows.length === 0 && <p className="text-muted-foreground">No registrations found.</p>}
     </div>

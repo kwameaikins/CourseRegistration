@@ -15,6 +15,7 @@ import * as usersService from '@/modules/users/service';
 import * as communicationsService from '@/modules/communications/service';
 import type {
   CreateRegistrationResult,
+  Registration360,
   RegistrationInput,
   RegistrationListFilters,
   RegistrationListRow,
@@ -222,6 +223,152 @@ function shapeRowForRole(row: RegistrationListRow, role: StaffRole): Registratio
     shaped.balance = 0;
   }
   return shaped;
+}
+
+// Registration 360° view (system review, approved 2026-07-20): one detail
+// read pulling together everything every module knows about a Registration.
+// Same allowed roles as the list (a role that can see the row can open it).
+export async function getRegistration360(registrationId: string): Promise<Registration360> {
+  const staffUser = await usersService.requireRole(['admin', 'finance', 'marketing', 'tutor']);
+
+  const data = await registrationsRepository.selectRegistration360(registrationId);
+  if (!data) {
+    throw new AppError('NOT_FOUND', 'Registration not found.', 404);
+  }
+
+  const view: Registration360 = {
+    registration: {
+      id: data.registration.id,
+      registrationStatus: parseRegistrationStatus(data.registration.registration_status),
+      leadSource: parseLeadSource(data.registration.lead_source),
+      notes: data.registration.notes,
+      registeredAt: data.registration.registered_at,
+    },
+    participant: data.participant
+      ? {
+          fullName: data.participant.full_name,
+          email: data.participant.email,
+          phone: data.participant.phone,
+          jobTitle: data.participant.job_title,
+          company: data.participant.company,
+          gender: data.participant.gender ? parseGender(data.participant.gender) : null,
+          deleted: data.participant.deleted_at !== null,
+        }
+      : null,
+    course: data.batch
+      ? {
+          courseName: data.course?.course_name ?? '',
+          courseCode: data.course?.course_code ?? '',
+          cohortLabel: data.batch.cohort_label,
+          startDate: data.batch.start_date,
+          endDate: data.batch.end_date,
+          facilitatorName: data.batch.facilitator_name,
+        }
+      : null,
+    payment: data.payment
+      ? {
+          paymentStatus: parsePaymentStatus(data.payment.payment_status),
+          courseFee: Number(data.payment.course_fee),
+          amountPaid: Number(data.payment.amount_paid),
+          balance: Number(data.payment.balance),
+          paymentMethod: data.payment.payment_method,
+          transactionId: data.payment.transaction_id,
+          paymentNotes: data.payment.payment_notes,
+          verifiedBy: data.verifiedByName,
+          paymentDate: data.payment.payment_date,
+        }
+      : null,
+  };
+
+  return shapeRegistration360ForRole(view, data, staffUser.role);
+}
+
+// Mirrors each joined table's own RLS scope (Document 3), made explicit here
+// because the repository read runs on the service-role client and several
+// tables are scoped narrower than the union of roles that use this screen:
+// email_log/whatsapp_log/sms_log/zoom_registrants are admin-only,
+// attendance/feedback are admin+management, certificates read is
+// admin+management, call_log is admin+finance+management.
+function shapeRegistration360ForRole(
+  view: Registration360,
+  data: NonNullable<
+    Awaited<ReturnType<typeof registrationsRepository.selectRegistration360>>
+  >,
+  role: StaffRole,
+): Registration360 {
+  // Payment audit fields: same rule as the list (Document 5, Section 3).
+  if (view.payment && role !== 'admin' && role !== 'finance') {
+    delete view.payment.paymentMethod;
+    delete view.payment.transactionId;
+    delete view.payment.paymentNotes;
+    delete view.payment.verifiedBy;
+    delete view.payment.paymentDate;
+  }
+  if (view.payment && role === 'tutor') {
+    view.payment = null;
+  }
+
+  if (role === 'admin') {
+    view.messages = {
+      email: data.emailLog.map((row) => ({
+        type: row.email_type,
+        sentAt: row.sent_at,
+        success: row.success,
+        error: row.error_message,
+      })),
+      whatsapp: data.whatsappLog.map((row) => ({
+        type: row.message_type,
+        sentAt: row.sent_at,
+        success: row.success,
+        error: row.error_message,
+      })),
+      sms: data.smsLog.map((row) => ({
+        type: row.message_type,
+        sentAt: row.sent_at,
+        success: row.success,
+        error: row.error_message,
+      })),
+    };
+    view.zoom = data.zoomRegistrant
+      ? { joinUrl: data.zoomRegistrant.join_url, registeredAt: data.zoomRegistrant.created_at }
+      : null;
+    view.attendance = data.attendance.map((row) => ({
+      sessionDate: row.session_date,
+      joinTime: row.join_time,
+      leaveTime: row.leave_time,
+      durationMinutes: row.duration_minutes,
+    }));
+    view.feedback = data.feedback
+      ? {
+          overallRating: data.feedback.overall_rating,
+          facilitatorRating: data.feedback.facilitator_rating,
+          recommendRating: data.feedback.recommend_rating,
+          improvementText: data.feedback.improvement_text,
+          testimonialConsent: data.feedback.testimonial_consent,
+          submittedAt: data.feedback.submitted_at,
+        }
+      : null;
+    view.certificates = data.certificates.map((cert) => ({
+      id: cert.id,
+      certificateNumber: cert.certificate_number,
+      issuedDate: cert.issued_date,
+      revoked: cert.revoked,
+    }));
+  }
+
+  // Finance can already view /calls — carry that same visibility here.
+  if (role === 'admin' || role === 'finance') {
+    view.calls = data.calls.map((call) => ({
+      id: call.id,
+      callType: call.call_type,
+      status: call.status,
+      summary: call.summary,
+      needsHumanFollowup: call.needs_human_followup,
+      createdAt: call.created_at,
+    }));
+  }
+
+  return view;
 }
 
 export async function updateNotes(registrationId: string, notes: string | null): Promise<void> {

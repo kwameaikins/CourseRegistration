@@ -115,6 +115,82 @@ export const registrationListFiltersSchema = z.object({
 
 export type RegistrationListFilters = z.infer<typeof registrationListFiltersSchema>;
 
+// Registration 360° view (system review, approved 2026-07-20). Sections
+// beyond `registration`/`participant`/`payment` are omitted entirely (not
+// present as empty arrays) when the viewing role isn't permitted to see
+// them — see `shapeRegistration360ForRole` for exactly which role sees what.
+export interface Registration360 {
+  registration: {
+    id: string;
+    registrationStatus: RegistrationStatus;
+    leadSource: LeadSource;
+    notes: string | null;
+    registeredAt: string;
+  };
+  participant: {
+    fullName: string;
+    email: string;
+    phone: string;
+    jobTitle: string | null;
+    company: string | null;
+    gender: Gender | null;
+    deleted: boolean;
+  } | null;
+  course: {
+    courseName: string;
+    courseCode: string;
+    cohortLabel: string;
+    startDate: string;
+    endDate: string;
+    facilitatorName: string;
+  } | null;
+  payment: {
+    paymentStatus: PaymentStatus;
+    courseFee: number;
+    amountPaid: number;
+    balance: number;
+    paymentMethod?: string | null;
+    transactionId?: string | null;
+    paymentNotes?: string | null;
+    verifiedBy?: string | null;
+    paymentDate?: string | null;
+  } | null;
+  messages?: {
+    email: Array<{ type: string; sentAt: string; success: boolean; error: string | null }>;
+    whatsapp: Array<{ type: string; sentAt: string; success: boolean; error: string | null }>;
+    sms: Array<{ type: string; sentAt: string; success: boolean; error: string | null }>;
+  };
+  zoom?: { joinUrl: string; registeredAt: string } | null;
+  attendance?: Array<{
+    sessionDate: string;
+    joinTime: string | null;
+    leaveTime: string | null;
+    durationMinutes: number;
+  }>;
+  feedback?: {
+    overallRating: number;
+    facilitatorRating: number;
+    recommendRating: number;
+    improvementText: string | null;
+    testimonialConsent: boolean;
+    submittedAt: string;
+  } | null;
+  certificates?: Array<{
+    id: string;
+    certificateNumber: string;
+    issuedDate: string;
+    revoked: boolean;
+  }>;
+  calls?: Array<{
+    id: string;
+    callType: string;
+    status: string;
+    summary: string | null;
+    needsHumanFollowup: boolean;
+    createdAt: string;
+  }>;
+}
+
 export interface CreateRegistrationResult {
   registrationId: string;
   registrationStatus: RegistrationStatus;

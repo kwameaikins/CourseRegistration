@@ -113,7 +113,7 @@ dashboard). Automate the webhook as a fast-follow in Week 6. **Do not let this b
 - [x] `zoom_link` email sends the personal join link ({{zoom_link}} prefers it); default templates seeded
 - [x] Cron `/api/cron/attendance` daily 21:00 UTC (`vercel.json`) — idempotent upserts
 - [x] Courses screen: Zoom Meeting ID field per batch; Attendance screen (admin + management)
-- [ ] *(external)* Zoom Server-to-Server OAuth app created; `ZOOM_ACCOUNT_ID/CLIENT_ID/CLIENT_SECRET` in Vercel
+- [x] *(external)* Zoom Server-to-Server OAuth app created; `ZOOM_ACCOUNT_ID/CLIENT_ID/CLIENT_SECRET` in Vercel — confirmed by founder 2026-07-20
 - [ ] *(external)* Class meetings created in Zoom with Registration: Required; meeting IDs set on batches
 - [ ] Live test: payment → personal link email; after a session, attendance rows appear
 
@@ -122,7 +122,7 @@ dashboard). Automate the webhook as a fast-follow in Week 6. **Do not let this b
 - [x] Messaging screen (admin): write/edit per-course templates for all 13 email types, active toggles
 - [x] `/api/templates` GET/PUT (admin), upsert via RLS-enforced admin policy
 - [x] Assistant screen (admin): Claude tool-runner over existing services (courses, batches, users, templates, dashboard)
-- [ ] *(external)* `ANTHROPIC_API_KEY` set in Vercel (assistant returns "not configured" until then)
+- [x] *(external)* `ANTHROPIC_API_KEY` set in Vercel — confirmed by founder 2026-07-20
 
 ### Post-course feedback (scope addition, approved 2026-07-19 — supersedes the F2.05 email-only plan)
 
@@ -171,9 +171,18 @@ dashboard). Automate the webhook as a fast-follow in Week 6. **Do not let this b
 - [x] Course-code policy clarified: codes identify distinct course types within each family; AI01, AI02, AI03, and AI05 are all valid AI courses and remain available
 - [x] Public `/verify` landing page (no certificate number in the URL) — was a 404; now offers a lookup form so an employer typing the bare URL can search
 - [x] "View our courses → reg.knowsia.com/register" lead-gen line added to both `/verify` and `/verify/<number>` footers — turns every verification into a registration lead
-- [ ] Still pending from the review: batch capacity (max seats) + session-days schedule, registration 360-degree view, dashboard attendance/feedback/certificate metrics
 - [x] Brand assets wired in: `app/icon.png` (favicon, from the icon-only mark), `public/knowsia-logo.png` (real lockup on the register/feedback/verify page headers via `components/KnowsiaHeader.tsx`), and a hosted-URL logo header on transactional + certificate delivery emails (new course templates and the certificate email; existing already-seeded template bodies were left untouched to avoid clobbering founder edits)
 - [ ] Not yet used: remaining assets — shirt mockups, vertical/stacked logo variant (no current use case)
+- [ ] Still pending from the review: batch capacity (max seats) + session-days schedule, dashboard attendance/feedback/certificate metrics
+
+### Registration 360° view (system review item, approved 2026-07-20)
+
+- [x] `GET /api/registrations/[id]` — aggregating read across every module that touches a Registration (participant, course/batch, payment, email/WhatsApp/SMS logs, Zoom registrant, attendance, feedback, certificates, voice calls); repository runs on the service-role client (several joined tables' own RLS is admin/management-only), with the *real* role-based shaping made explicit in `shapeRegistration360ForRole` (Document 5 Section 3 rules extended to every new module)
+- [x] Role visibility: Admin sees everything; Finance sees payment audit fields + Calls (matches its existing `/calls` access) but no comms logs/attendance/feedback/certificates; Marketing sees Payment Status only (no audit fields) and no engagement sections; Tutor sees no payment section at all — sections the role can't see are omitted from the response entirely, not returned empty
+- [x] "View" action added to the Registrations list opening `RegistrationDetailDialog` — participant, course, payment, a merged chronological message timeline (Email/WhatsApp/SMS badges), Zoom registration, attendance sessions, feedback ratings, certificates, and calls, each section only rendered when the API included it
+- [x] Soft-deleted participants show a DPA-erasure notice instead of their (scrubbed) PII
+- [x] Unit tests (6) — not-found, and role-shaping for admin/finance/marketing/tutor, deleted-participant flag
+- [ ] Live test: open a real registration as each of admin/finance/marketing and confirm the visible sections match the rule above
 
 ---
 

@@ -124,81 +124,67 @@ npx playwright test          # E2E tests (Section 6, Document 9)
 
 ```
 Week (per PLAN.md):     5 (Tasks 1–5 code-complete; live integrations pending)
-Last completed task:    (2026-07-19) knowsia.com DNS-verified in Resend; live test send
-                        returned 200. Root-caused two live issues: (1) no registration
-                        emails — email_templates table was EMPTY, every send exited
-                        skipped_no_template; seeded 7 Phase 1 templates × 2 courses
-                        directly in Supabase (payment_instruction has no real bank
-                        details yet — founder must edit). (2) two successful GHS 1.00
-                        Paystack MoMo charges (refs REG-f7660596…, REG-d10b3f56…) never
-                        reached the app — webhook URL not yet configured in Paystack
-                        dashboard; both payments since reconciled to Paid (founder-
-                        approved) with confirmation emails sent — webhook URL still
-                        needs configuring. Also fixed confirmation message to show Course
-                        name not cohort label (Doc 1/5 drift). SMS integration built
-                        (Arkesel — Doc 7 Section 8; deployed; founder added real API
-                        key + sender ID locally, Vercel env vars still pending). Then
-                        three features built in one pass (all founder-approved, Doc 7
-                        Sections 9–10, PLAN Task 3): (1) Zoom attendance "Option 2" —
-                        migration 202607190007 applied, personal join links on Paid,
-                        nightly report sync cron 21:00 UTC, Attendance screen;
-                        (2) Admin Messaging screen editing all email templates
-                        (16 rows seeded incl. zoom_link); (3) Admin AI assistant
-                        (claude-opus-4-8 tool runner over existing services) at
-                        /assistant. (4) Post-course feedback app: public form at
-                        /feedback/<registration-uuid>, dispatch via 07:00 cron
-                        day after batch end_date (post_training_thankyou email,
-                        certificate-for-feedback incentive), review screen at
-                        /course-feedback; migration 202607190008 applied.
-                        (5) Agentic voice calls via Vapi (Doc 7 Section 11):
-                        all six call types, call_log migration 202607190009
-                        applied, dispatch in 07:00 cron with 10:00 Ghana
-                        calling window, webhook + tools endpoints, Calls
-                        review screen; dormant until VAPI_* env vars set.
-                        Features 1-5 committed 45d69fe and deployed.
-                        (6) Certificate system (PLAN Task 3): KNS-numbered
-                        registry replacing the Google Sheets/AppScript one,
-                        on-demand pdf-lib generation matching the Certificate
-                        of Competence design, QR-coded /verify page, batch
-                        issuance (Paid + feedback eligibility, admin-approved)
-                        + manual issuance with legacy KNW backfill, delivery
-                        email; migration 202607190010 applied; real brand
-                        lockup embedded in the PDF (lib/certificates/logo.ts,
-                        cropped from founder's KNOWSIA ASSETS drop, folder
-                        gitignored). Committed d371ce5 and deployed. 122 unit
-                        tests, tsc + lint + next build green.
-                        ANTHROPIC_API_KEY in local .env — still needed in
-                        Vercel with ARKESEL_*, ZOOM_*, VAPI_* vars.
-Latest (2026-07-20):    Course/catalog hardening shipped: course certificate
-                        metadata (hours/description/CPD) + editing UI,
-                        default-template auto-seed on course creation
-                        (insert-only), 11-course catalog imported (10 new +
-                        ESG1 updated; AI05/AI02 overlap needs founder call),
-                        101 legacy certs imported, numbering =
-                        max(registry, AppScript floor)+1 (next AI01 =
-                        KNS-AI01-2026-0067), batch-issue prefill, DPA
-                        soft-delete now scrubs certificates (migration
-                        202607200011), real signatures embedded in the
-                        certificate PDF (visual parity confirmed against the
-                        Canva original). Added a `/verify` landing page (bare
-                        URL 404'd before) with a lookup form, plus a "View our
-                        courses" lead-gen link on both verify pages. Wired in
-                        the real Knowsia brand assets: `app/icon.png`
-                        favicon, `public/knowsia-logo.png` lockup on the
-                        register/feedback/verify page headers via
-                        `components/KnowsiaHeader.tsx`, and a hosted-URL logo
-                        header on new-course default email templates + the
-                        certificate delivery email (existing seeded template
-                        bodies deliberately left untouched). 123 tests,
-                        tsc + lint + build green.
-Currently in progress:  External setup checklist (see the process guide given to founder
-                        2026-07-19): Resend DNS records, Vercel env vars, Paystack webhook
-                        URL, Sentry DSN, Uptime Robot, Meta WhatsApp, staff accounts, then
-                        live tests T-INT-01…06.
-Blockers:                (1) Exposed legacy server keys must be revoked after an unexposed
-                        replacement is deployed. (2) .env holds Paystack LIVE keys, but the Week 2 gate calls for
-                        a TEST-mode end-to-end payment first — get test keys or accept a
-                        small real charge deliberately. See Doc 4 EC-07…EC-10.
+
+Built & deployed (all committed, tests/tsc/lint/build green throughout):
+  Phase 1 core — registration, Paystack payments + webhook, email engine
+    (7 types), Resend DNS-verified and live.
+  WhatsApp (Meta Cloud API) — dormant until WHATSAPP_ACCESS_TOKEN +
+    WHATSAPP_PHONE_NUMBER_ID are set and templates are Meta-approved.
+  SMS (Arkesel) — dormant until ARKESEL_API_KEY + ARKESEL_SENDER_ID are
+    set in Vercel (founder has them locally).
+  Zoom attendance ("Option 2") — personal join links on payment → Paid,
+    nightly 21:00 UTC report sync, Attendance screen. ANTHROPIC_API_KEY
+    and Zoom credentials confirmed set in Vercel as of 2026-07-20 —
+    treat as live pending a real end-to-end check.
+  Admin Messaging screen — edit every per-course email template in-app.
+  Admin AI Assistant (/assistant) — claude-opus-4-8 tool runner over
+    courses/batches/users/templates/dashboard.
+  Post-course feedback — public form at /feedback/<registration-uuid>,
+    dispatch via the 07:00 cron the day after a batch's end_date,
+    review screen at /course-feedback.
+  Agentic voice calls (Vapi) — six call types, 10:00 Ghana calling
+    window, webhook + tools endpoints, Calls review screen; dormant
+    until VAPI_* vars are set and the Vapi assistant is configured.
+  Certificate system — replaces the Google Sheets/AppScript registry.
+    KNS-<CODE>-<YEAR>-<NNNN> numbering continuing the legacy AppScript
+    counter as a floor; on-demand pdf-lib generation with the real
+    logo + both signatories embedded; QR-coded /verify/<number> (plus
+    a /verify landing page with a lookup form); batch issuance
+    (Paid + feedback eligibility, admin-approved) and manual issuance
+    with legacy KNW backfill; all 101 legacy certificates imported.
+  Course/catalog hardening — courses carry certificate metadata
+    (hours/description/CPD) + editable via the Courses screen; default
+    email templates auto-seed on course creation (closes the
+    "new course silently sends no email" trap for good); 11-course
+    catalog imported from the founder's CSV.
+  Brand assets — real logo as favicon + on all public page headers
+    (components/KnowsiaHeader.tsx) + email headers; "View our courses"
+    lead-gen link on both verify pages.
+  Registration 360° view — "View" action on the Registrations list
+    opens a detail dialog aggregating payment, every message channel,
+    Zoom, attendance, feedback, certificates, and calls for one
+    Registration; role-shaped per Document 5 Section 3 (Admin sees all,
+    Finance sees payment audit + Calls, Marketing sees Payment Status
+    only, Tutor sees no payment section) — sections omitted from the
+    API response entirely when the role can't see them, not just hidden
+    client-side. `GET /api/registrations/[id]`.
+
+Open decisions (founder):
+  - AI05 ("...Reporting and Modeling") vs AI02 ("...Reporting and
+    Analysis") are near-duplicate courses — pick a canonical one.
+  - Exposed legacy Supabase service_role key still needs rotation.
+  - .env holds Paystack LIVE keys; Week 2 gate wants a TEST-mode
+    end-to-end run first — get test keys or accept a deliberate small
+    live charge (Doc 4 EC-07…EC-10).
+
+Still open from the original Week 4/5 checklist: Sentry DSN live-fired,
+Uptime Robot monitor, remaining staff accounts, live RLS pass for
+Tutor, load test, manual pre-launch checklist, final go-live.
+
+Feature backlog (lower priority, not yet built): batch capacity (max
+seats) + session-days schedule, dashboard attendance/feedback/
+certificate metrics.
+
 Pivot-or-persevere gate status: Not yet reached (needs live Paystack test)
 ```
 

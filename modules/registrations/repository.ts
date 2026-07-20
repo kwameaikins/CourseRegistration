@@ -201,6 +201,154 @@ export async function selectRegistrationList(filters: RegistrationListFilters): 
   return { rows, total: count ?? rows.length };
 }
 
+// Registration 360° view (system review, approved 2026-07-20): one
+// aggregating read across every module that touches a Registration —
+// payment, every message channel, Zoom attendance, feedback, certificates,
+// and voice calls. Runs on the service-role client (same posture as the
+// certificates/voice repositories) because several of the joined tables'
+// own RLS policies are scoped narrower than the roles that may legitimately
+// view a registration's payment/engagement history (e.g. email_log is
+// admin-only, attendance is admin+management-only) — the service layer
+// applies the real role-based shaping explicitly instead of leaning on
+// per-table RLS, so the shaping logic is visible in one place rather than
+// split across ten migrations.
+export async function selectRegistration360(registrationId: string): Promise<{
+  registration: RegistrationRow;
+  participant: ParticipantRow | null;
+  payment: PaymentRow | null;
+  batch: Database['public']['Tables']['batches']['Row'] | null;
+  course: { course_name: string; course_code: string } | null;
+  verifiedByName: string | null;
+  emailLog: Array<{
+    email_type: string;
+    sent_at: string;
+    success: boolean;
+    error_message: string | null;
+  }>;
+  whatsappLog: Array<{
+    message_type: string;
+    sent_at: string;
+    success: boolean;
+    error_message: string | null;
+  }>;
+  smsLog: Array<{
+    message_type: string;
+    sent_at: string;
+    success: boolean;
+    error_message: string | null;
+  }>;
+  zoomRegistrant: { join_url: string; created_at: string } | null;
+  attendance: Array<{
+    session_date: string;
+    join_time: string | null;
+    leave_time: string | null;
+    duration_minutes: number;
+  }>;
+  feedback: Database['public']['Tables']['feedback']['Row'] | null;
+  certificates: Array<Database['public']['Tables']['certificates']['Row']>;
+  calls: Array<Database['public']['Tables']['call_log']['Row']>;
+} | null> {
+  const supabase = createSupabaseServiceRoleClient();
+
+  const { data: registration, error: registrationError } = await supabase
+    .from('registrations')
+    .select('*')
+    .eq('id', registrationId)
+    .maybeSingle();
+  if (registrationError) throw registrationError;
+  if (!registration) return null;
+
+  const [
+    { data: participant },
+    { data: batch },
+    { data: payment },
+    { data: emailLog },
+    { data: whatsappLog },
+    { data: smsLog },
+    { data: zoomRegistrant },
+    { data: attendance },
+    { data: feedback },
+    { data: certificates },
+    { data: calls },
+  ] = await Promise.all([
+    supabase.from('participants').select('*').eq('id', registration.participant_id).maybeSingle(),
+    supabase.from('batches').select('*').eq('id', registration.batch_id).maybeSingle(),
+    supabase.from('payments').select('*').eq('registration_id', registrationId).maybeSingle(),
+    supabase
+      .from('email_log')
+      .select('email_type, sent_at, success, error_message')
+      .eq('registration_id', registrationId)
+      .order('sent_at', { ascending: true }),
+    supabase
+      .from('whatsapp_log')
+      .select('message_type, sent_at, success, error_message')
+      .eq('registration_id', registrationId)
+      .order('sent_at', { ascending: true }),
+    supabase
+      .from('sms_log')
+      .select('message_type, sent_at, success, error_message')
+      .eq('registration_id', registrationId)
+      .order('sent_at', { ascending: true }),
+    supabase
+      .from('zoom_registrants')
+      .select('join_url, created_at')
+      .eq('registration_id', registrationId)
+      .maybeSingle(),
+    supabase
+      .from('attendance')
+      .select('session_date, join_time, leave_time, duration_minutes')
+      .eq('registration_id', registrationId)
+      .order('session_date', { ascending: true }),
+    supabase.from('feedback').select('*').eq('registration_id', registrationId).maybeSingle(),
+    supabase
+      .from('certificates')
+      .select('*')
+      .eq('registration_id', registrationId)
+      .order('issued_date', { ascending: false }),
+    supabase
+      .from('call_log')
+      .select('*')
+      .eq('registration_id', registrationId)
+      .order('created_at', { ascending: false }),
+  ]);
+
+  const course = batch
+    ? await supabase
+        .from('courses')
+        .select('course_name, course_code')
+        .eq('id', batch.course_id)
+        .maybeSingle()
+        .then((res) => res.data)
+    : null;
+
+  let verifiedByName: string | null = null;
+  if (payment?.verified_by) {
+    const { data: staff } = await supabase
+      .from('staff_users')
+      .select('full_name')
+      .eq('id', payment.verified_by)
+      .maybeSingle();
+    verifiedByName = staff?.full_name ?? null;
+  }
+
+  return {
+    registration,
+    participant,
+    payment,
+    batch,
+    course,
+    verifiedByName,
+    emailLog: emailLog ?? [],
+    whatsappLog: whatsappLog ?? [],
+    smsLog: smsLog ?? [],
+    zoomRegistrant,
+    attendance: attendance ?? [],
+    feedback,
+    certificates: certificates ?? [],
+    calls: calls ?? [],
+  };
+}
+
 export async function updateRegistrationNotes(
   registrationId: string,
   notes: string | null,

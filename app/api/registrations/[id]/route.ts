@@ -7,6 +7,22 @@ const notesUpdateSchema = z.object({
   notes: z.string().trim().max(2000).nullable(),
 });
 
+// GET /api/registrations/[id] — the Registration 360° view (system review,
+// approved 2026-07-20): every module's data for one Registration, shaped by
+// role in the service layer (see `shapeRegistration360ForRole`).
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await params;
+    const view = await registrationsService.getRegistration360(id);
+    return successResponse(view);
+  } catch (err) {
+    return handleRouteError(err);
+  }
+}
+
 // PATCH /api/registrations/[id] — inline Notes editing on the Registration
 // List (F1.03; admin and marketing only, per Document 8 Section 4).
 export async function PATCH(
