@@ -224,6 +224,11 @@ describe('verification and download', () => {
     expect(fileName).toBe('KNS-AI01-2026-0036.pdf');
     // %PDF magic bytes prove a real document was produced.
     expect(String.fromCharCode(...bytes.slice(0, 4))).toBe('%PDF');
+    const pdfContents = Buffer.from(bytes).toString('latin1');
+    // Logo, QR code, and both handwritten signatory signatures are embedded
+    // (>= 4 image objects; alpha channels may add SMask image objects, so an
+    // exact count would be brittle across encoders).
+    expect((pdfContents.match(/\/Subtype \/Image/g) ?? []).length).toBeGreaterThanOrEqual(4);
   });
 
   it('refuses to generate a PDF for a revoked certificate', async () => {

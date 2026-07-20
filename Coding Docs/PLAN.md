@@ -156,8 +156,8 @@ dashboard). Automate the webhook as a fast-follow in Week 6. **Do not let this b
 - [x] Certificates screen (admin): batch issuance with auto-computed eligibility (Paid + feedback; attendance % shown for judgment, admin selects rows), manual issuance (incl. legacy backfill + optional email), registry list with PDF/verify/revoke
 - [x] Delivery email with download link, verification link, and LinkedIn guidance
 - [x] Unit tests (9) — numbering/serial continuation, legacy custom numbers, eligibility, batch issue + email, verification states, PDF magic-bytes smoke test
-- [ ] Known gap: handwritten signature images not embedded (typeset signatories instead) — drop signature PNGs in later for pixel-parity with the Canva design
-- [ ] Known gap (DPA): soft-deleted participants' certificates keep recipient_name — extend the erasure function to revoke + scrub linked certificates
+- [x] Handwritten signatures for Isaac Adjin Bonney and Stephen Kwame Aikins embedded (inlined base64 in `lib/certificates/signatures.ts`, bundle-safe on Vercel) — visual parity with the Canva original confirmed
+- [x] DPA gap closed: `fn_soft_delete_participant` revokes + scrubs the erased participant's certificates (migration `202607200011`)
 - [x] Backfill: all 101 legacy registry certificates imported (original KNW numbers, 1 revoked); verification live for all three states
 - [x] Serials continue across prefixes AND respect the legacy AppScript counter as a floor (`courses.certificate_serial_floor` from the catalog CSV — e.g. next AI01 = KNS-AI01-2026-0067, next CA01 = KNS-CA01-2026-0021)
 
@@ -168,8 +168,8 @@ dashboard). Automate the webhook as a fast-follow in Week 6. **Do not let this b
 - [x] Course editing on the Courses screen (name + certificate fields; course code immutable — baked into cert numbers); `PATCH /api/courses/[id]`
 - [x] Catalog imported: 10 new courses created from the founder's CSV (AI01–03, CA01–04, FR01–02, IA01), ESG1 updated; 90 default template rows seeded for the new courses
 - [x] Batch certificate issuance prefills hours/description/CPD from the course
-- [ ] Open question for founder: AI05 ("…Reporting and Modeling", has the live JUL 2026 batch) overlaps legacy AI02 ("…Reporting and Analysis") — decide which code is canonical for future batches
-- [ ] Still pending from the review: batch capacity (max seats) + session-days schedule, registration 360° view, dashboard attendance/feedback/certificate metrics, signature PNGs for the certificate PDF (founder uploading)
+- [x] Course-code policy clarified: codes identify distinct course types within each family; AI01, AI02, AI03, and AI05 are all valid AI courses and remain available
+- [ ] Still pending from the review: batch capacity (max seats) + session-days schedule, registration 360� view, dashboard attendance/feedback/certificate metrics
 
 ---
 

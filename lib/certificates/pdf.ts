@@ -3,14 +3,18 @@
 // purple course title, QR-coded verification) in code with pdf-lib —
 // generated on demand from the registry row, no file storage.
 //
-// The real brand lockup is embedded (lib/certificates/logo.ts). Remaining
-// gap vs the legacy Canva design: handwritten signature images are not
-// embedded; signatory names, credentials, and titles render in type.
-// Drop-in upgrade later: embed signature PNGs the same way as the logo.
+// The real brand lockup and both handwritten signatures are inlined as
+// base64 (logo.ts, signatures.ts) so the serverless PDF generator has no
+// filesystem asset dependency at runtime — full visual parity with the
+// legacy Canva design.
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import QRCode from 'qrcode';
 
 import { KNOWSIA_LOGO_PNG_BASE64 } from '@/lib/certificates/logo';
+import {
+  SIGNATURE_AIKINS_PNG_BASE64,
+  SIGNATURE_BONNEY_PNG_BASE64,
+} from '@/lib/certificates/signatures';
 
 const PURPLE = rgb(75 / 255, 33 / 255, 168 / 255);
 const ORANGE = rgb(244 / 255, 158 / 255, 32 / 255);
@@ -161,38 +165,50 @@ export async function generateCertificatePdf(
   // Issued date + CPD credit row.
   page.drawText(`Issued:  ${formatDate(data.issuedDate)}`, {
     x: 110,
-    y: y(470),
+    y: y(452),
     size: 12,
     font: helvetica,
     color: INK,
   });
   page.drawText(`CPD Credit:  ${data.cpdCredit}`, {
     x: 372,
-    y: y(470),
+    y: y(452),
     size: 12,
     font: helvetica,
     color: INK,
   });
 
-  // Signatories (typeset — signature images can be embedded later).
+  // Signatories with the supplied handwritten signatures directly above the
+  // typeset names, as in the legacy design (no rule line).
+  const isaacSignature = await doc.embedPng(
+    Buffer.from(SIGNATURE_BONNEY_PNG_BASE64, 'base64'),
+  );
+  const stephenSignature = await doc.embedPng(
+    Buffer.from(SIGNATURE_AIKINS_PNG_BASE64, 'base64'),
+  );
   const signatory = (
     name: string,
     title: string,
     centerAt: number,
+    signature: typeof isaacSignature,
   ) => {
-    page.drawLine({
-      start: { x: centerAt - 110, y: y(505) },
-      end: { x: centerAt + 110, y: y(505) },
-      color: GREY,
-      thickness: 0.8,
+    // pdf-lib's y is the image BOTTOM edge: the signature sits fully above
+    // the name (baseline y(522)), flourishes reaching toward the Issued row.
+    const signatureHeight = 52;
+    const signatureWidth = signatureHeight * (signature.width / signature.height);
+    page.drawImage(signature, {
+      x: centerAt - signatureWidth / 2,
+      y: y(509),
+      width: signatureWidth,
+      height: signatureHeight,
     });
     const nameWidth = bold.widthOfTextAtSize(name, 12);
     page.drawText(name, { x: centerAt - nameWidth / 2, y: y(522), size: 12, font: bold, color: INK });
     const titleWidth = helvetica.widthOfTextAtSize(title, 10);
     page.drawText(title, { x: centerAt - titleWidth / 2, y: y(537), size: 10, font: helvetica, color: GREY });
   };
-  signatory('Isaac Adjin Bonney (CA,CPFA,CFIP)', 'Board Chair', 235);
-  signatory('Stephen Kwame Aikins, CA', 'Programme Director', 607);
+  signatory('Isaac Adjin Bonney (CA,CPFA,CFIP)', 'Board Chair', 235, isaacSignature);
+  signatory('Stephen Kwame Aikins, CA', 'Programme Director', 607, stephenSignature);
 
   // Verification footer.
   const verifyLine = `Verify: ${data.verifyUrl}`;
