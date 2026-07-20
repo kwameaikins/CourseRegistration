@@ -162,10 +162,13 @@ Last completed task:    (2026-07-19) knowsia.com DNS-verified in Resend; live te
                         of Competence design, QR-coded /verify page, batch
                         issuance (Paid + feedback eligibility, admin-approved)
                         + manual issuance with legacy KNW backfill, delivery
-                        email; migration 202607190010 applied. 122 unit
-                        tests, tsc + lint + next build green; certificates
-                        NOT yet committed. ANTHROPIC_API_KEY in local .env —
-                        still needed in Vercel with ARKESEL_*, ZOOM_*, VAPI_*.
+                        email; migration 202607190010 applied; real brand
+                        lockup embedded in the PDF (lib/certificates/logo.ts,
+                        cropped from founder's KNOWSIA ASSETS drop, folder
+                        gitignored). Committed d371ce5 and deployed. 122 unit
+                        tests, tsc + lint + next build green.
+                        ANTHROPIC_API_KEY in local .env — still needed in
+                        Vercel with ARKESEL_*, ZOOM_*, VAPI_* vars.
 Currently in progress:  External setup checklist (see the process guide given to founder
                         2026-07-19): Resend DNS records, Vercel env vars, Paystack webhook
                         URL, Sentry DSN, Uptime Robot, Meta WhatsApp, staff accounts, then
