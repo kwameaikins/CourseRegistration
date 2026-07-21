@@ -24,20 +24,25 @@ function toPayment(row: Database['public']['Tables']['payments']['Row']): Paymen
   };
 }
 
-// F1.04 manual payment update (Document 5, Section 6).
-export async function updatePaymentByStaff(
-  registrationId: string,
-  update: PaymentUpdate,
-): Promise<{
+type PaymentUpdateResult = {
   registrationId: string;
   amountPaid: number;
   balance: number;
   paymentStatus: Payment['paymentStatus'];
   registrationStatus: 'Registered' | 'Confirmed' | 'Attended' | 'Cancelled';
   verifiedBy: string;
-}> {
-  const staffUser = await usersService.requireRole(['finance', 'admin']);
+};
 
+// Shared write+comms body for a manual payment update. Exported (unlike
+// updatePaymentByStaff's role gate) so callers that have already authorized
+// the write at a broader entry point — e.g. bulk import, which allows
+// marketing/management to set amountPaid as part of adding a row — can apply
+// a payment without re-requiring finance/admin here.
+export async function applyPaymentUpdate(
+  registrationId: string,
+  update: PaymentUpdate,
+  verifiedByStaff: { id: string; fullName: string; role: string },
+): Promise<PaymentUpdateResult> {
   const existing = await paymentsRepository.selectPaymentByRegistrationId(registrationId);
   if (!existing) {
     throw new AppError('NOT_FOUND', 'No payment record exists for this registration.', 404);
@@ -54,7 +59,7 @@ export async function updatePaymentByStaff(
       ? new Date(update.paymentDate).toISOString()
       : new Date().toISOString(),
     payment_notes: update.paymentNotes ?? existing.payment_notes,
-    verified_by: staffUser.id,
+    verified_by: verifiedByStaff.id,
   });
 
   // E07: confirmation email only when the status transitioned to Paid in
@@ -93,6 +98,19 @@ export async function updatePaymentByStaff(
     balance: payment.balance,
     paymentStatus: payment.paymentStatus,
     registrationStatus: payment.paymentStatus === 'Paid' ? 'Confirmed' : 'Registered',
-    verifiedBy: `${staffUser.fullName} (${staffUser.role})`,
+    verifiedBy: `${verifiedByStaff.fullName} (${verifiedByStaff.role})`,
   };
+}
+
+// F1.04 manual payment update (Document 5, Section 6).
+export async function updatePaymentByStaff(
+  registrationId: string,
+  update: PaymentUpdate,
+): Promise<PaymentUpdateResult> {
+  const staffUser = await usersService.requireRole(['finance', 'admin']);
+  return applyPaymentUpdate(registrationId, update, {
+    id: staffUser.id,
+    fullName: staffUser.fullName,
+    role: staffUser.role,
+  });
 }

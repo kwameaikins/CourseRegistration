@@ -197,3 +197,60 @@ export interface CreateRegistrationResult {
   paymentStatus: PaymentStatus;
   message: string;
 }
+
+// Bulk import (staff backfill of registrations collected outside the
+// system, e.g. a Google Form) — one Batch, one Payment Method, one Lead
+// Source for the whole run; per-row amountPaid drives each row's payment.
+export const bulkImportRowSchema = z.object({
+  firstName: z.string().trim().min(1),
+  middleName: z
+    .string()
+    .trim()
+    .max(100)
+    .nullish()
+    .transform((value) => (value ? value : null)),
+  surname: z.string().trim().min(1),
+  gender: z.enum(['Male', 'Female']),
+  email: z.email().transform((value) => value.toLowerCase()),
+  phone: z.string().trim().min(10),
+  jobTitle: optionalProfessionalText,
+  company: optionalProfessionalText,
+  amountPaid: z.coerce.number().min(0).default(0),
+});
+
+export type BulkImportRow = z.infer<typeof bulkImportRowSchema>;
+
+export const bulkImportRequestSchema = z.object({
+  batchId: z.uuid(),
+  leadSource: z
+    .enum(['WhatsApp', 'Facebook', 'LinkedIn', 'Referral', 'Website', 'Other'])
+    .default('Other'),
+  paymentMethod: z.enum(['Paystack Card', 'MTN MoMo', 'Bank Transfer', 'Cash', 'Other']),
+  notesSuffix: z.string().trim().max(200).nullish(),
+  // Staff-facing confirmation that consent was already captured on the
+  // original form — mirrors BR-15's server-side consent enforcement, just
+  // attested once for the whole run instead of per public-form submission.
+  consentConfirmed: z.literal(true),
+  rows: z.array(bulkImportRowSchema).min(1).max(300),
+});
+
+export type BulkImportRequest = z.infer<typeof bulkImportRequestSchema>;
+
+export interface BulkImportRowResult {
+  index: number;
+  email: string;
+  status: 'created' | 'duplicate' | 'error';
+  message?: string;
+  paymentStatus?: PaymentStatus;
+}
+
+export interface BulkImportResult {
+  results: BulkImportRowResult[];
+  summary: {
+    created: number;
+    duplicates: number;
+    errors: number;
+    paid: number;
+    unpaid: number;
+  };
+}

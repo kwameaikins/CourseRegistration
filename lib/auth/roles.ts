@@ -12,6 +12,11 @@ export const STAFF_ROLES: readonly StaffRole[] = [
 // convenience layer — RLS is the actual security boundary.
 export const ROLE_ROUTES: Record<string, StaffRole[]> = {
   '/dashboard': ['admin', 'management'],
+  // More specific than '/registrations' below — must come first: the
+  // middleware's route match is a `find()` over startsWith, so the first
+  // matching entry wins and a shorter prefix declared earlier would shadow
+  // this one for every /registrations/import request.
+  '/registrations/import': ['admin', 'finance', 'marketing', 'management'],
   '/registrations': ['admin', 'finance', 'marketing'],
   '/payments': ['admin', 'finance'],
   '/courses': ['admin'],
@@ -42,6 +47,7 @@ export const NAV_ITEMS_BY_ROLE: Record<StaffRole, { href: string; label: string 
   admin: [
     { href: '/dashboard', label: 'Dashboard' },
     { href: '/registrations', label: 'Registrations' },
+    { href: '/registrations/import', label: 'Import Registrations' },
     { href: '/payments', label: 'Payments' },
     { href: '/courses', label: 'Courses' },
     { href: '/attendance', label: 'Attendance' },
@@ -55,12 +61,17 @@ export const NAV_ITEMS_BY_ROLE: Record<StaffRole, { href: string; label: string 
   finance: [
     { href: '/payments', label: 'Payments' },
     { href: '/registrations', label: 'Registrations' },
+    { href: '/registrations/import', label: 'Import Registrations' },
     { href: '/calls', label: 'Calls' },
   ],
-  marketing: [{ href: '/registrations', label: 'Registrations' }],
+  marketing: [
+    { href: '/registrations', label: 'Registrations' },
+    { href: '/registrations/import', label: 'Import Registrations' },
+  ],
   tutor: [{ href: '/my-courses', label: 'My Courses' }],
   management: [
     { href: '/dashboard', label: 'Dashboard' },
+    { href: '/registrations/import', label: 'Import Registrations' },
     { href: '/attendance', label: 'Attendance' },
     { href: '/course-feedback', label: 'Feedback' },
     { href: '/calls', label: 'Calls' },

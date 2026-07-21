@@ -13,7 +13,14 @@ import * as usersService from '@/modules/users/service';
 // The one permitted direct cross-module call: communications is the shared
 // generic subdomain every module may use (Document 2, Section 9).
 import * as communicationsService from '@/modules/communications/service';
+// Bulk import applies payments as part of adding a row — see
+// bulkImportRegistrations for why it calls the un-gated helper directly
+// instead of the finance/admin-only updatePaymentByStaff.
+import * as paymentsService from '@/modules/payments/service';
 import type {
+  BulkImportRequest,
+  BulkImportResult,
+  BulkImportRowResult,
   CreateRegistrationResult,
   Registration360,
   RegistrationInput,
@@ -137,6 +144,131 @@ export async function createRegistration(
     paymentStatus: parsePaymentStatus(payment.payment_status),
     message: `Thank you, ${fullName}. Your registration for ${course?.courseName ?? batch.cohortLabel} has been received. Please check your email for payment instructions.`,
   };
+}
+
+// Bulk import — staff backfill of registrations collected outside the
+// system (e.g. a Google Form), some already paid, some not. Deliberately
+// skips BR-01/BR-19's "batch must be Active and not yet started" gate:
+// these are historical entries for a cohort that may already be running or
+// closed. Unlike createRegistration, failures are per-row (duplicates,
+// bad data) rather than aborting the whole run.
+export async function bulkImportRegistrations(
+  input: BulkImportRequest,
+): Promise<BulkImportResult> {
+  const staffUser = await usersService.requireRole([
+    'admin',
+    'finance',
+    'marketing',
+    'management',
+  ]);
+
+  const batch = await coursesService.getBatchByIdSystem(input.batchId);
+  if (!batch) {
+    throw new AppError('INVALID_BATCH', 'That course intake does not exist.', 400);
+  }
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const courseFee = effectiveCourseFee(batch, todayIso);
+  const notesSuffix = input.notesSuffix?.trim() || `Imported from Google Form — ${todayIso}`;
+
+  const results: BulkImportRowResult[] = [];
+  const summary = { created: 0, duplicates: 0, errors: 0, paid: 0, unpaid: 0 };
+
+  for (let index = 0; index < input.rows.length; index++) {
+    const row = input.rows[index];
+    try {
+      const fullName = [row.firstName, row.middleName, row.surname]
+        .filter(Boolean)
+        .join(' ');
+
+      const participant = await registrationsRepository.findOrCreateParticipant({
+        full_name: fullName,
+        first_name: row.firstName,
+        middle_name: row.middleName,
+        surname: row.surname,
+        gender: row.gender,
+        email: row.email,
+        phone: row.phone,
+        job_title: row.jobTitle,
+        company: row.company,
+      });
+
+      let registration;
+      try {
+        registration = await registrationsRepository.insertRegistration({
+          participant_id: participant.id,
+          batch_id: input.batchId,
+          lead_source: input.leadSource,
+          consent_given: true,
+        });
+      } catch (err) {
+        if (isUniqueViolation(err)) {
+          results.push({ index, email: row.email, status: 'duplicate', message: 'Already registered for this course intake.' });
+          summary.duplicates++;
+          continue;
+        }
+        throw err;
+      }
+
+      await registrationsRepository.insertInitialPayment({
+        registration_id: registration.id,
+        course_fee: courseFee,
+      });
+
+      await registrationsRepository.updateRegistrationNotes(registration.id, notesSuffix);
+
+      // Same non-blocking comms posture as createRegistration — a
+      // messaging failure never fails the import row itself.
+      for (const emailType of ['welcome', 'payment_instruction', 'reminder_1'] as const) {
+        try {
+          await communicationsService.sendEmailOnce(registration.id, emailType);
+        } catch (err) {
+          console.error(`[bulk import email ${emailType}]`, err);
+        }
+      }
+      try {
+        await communicationsService.sendWhatsappOnce(registration.id, 'welcome');
+      } catch (err) {
+        console.error('[bulk import whatsapp welcome]', err);
+      }
+      try {
+        await communicationsService.sendSmsOnce(registration.id, 'welcome');
+      } catch (err) {
+        console.error('[bulk import sms welcome]', err);
+      }
+
+      let paymentStatus: RegistrationListRow['paymentStatus'] = 'Unpaid';
+      if (row.amountPaid > 0) {
+        const paymentResult = await paymentsService.applyPaymentUpdate(
+          registration.id,
+          {
+            amountPaid: row.amountPaid,
+            paymentMethod: input.paymentMethod,
+            transactionId: null,
+            paymentDate: null,
+            paymentNotes: 'Bulk import',
+          },
+          { id: staffUser.id, fullName: staffUser.fullName, role: staffUser.role },
+        );
+        paymentStatus = paymentResult.paymentStatus;
+      }
+
+      results.push({ index, email: row.email, status: 'created', paymentStatus });
+      summary.created++;
+      if (paymentStatus === 'Unpaid') summary.unpaid++;
+      else summary.paid++;
+    } catch (err) {
+      console.error('[bulk import row]', err);
+      results.push({
+        index,
+        email: row.email,
+        status: 'error',
+        message: err instanceof AppError ? err.message : 'Unexpected error creating this row.',
+      });
+      summary.errors++;
+    }
+  }
+
+  return { results, summary };
 }
 
 // F1.03 list with role-based field shaping (Document 5, Section 3). RLS
