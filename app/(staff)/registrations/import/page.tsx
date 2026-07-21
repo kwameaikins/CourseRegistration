@@ -71,6 +71,20 @@ function normalizeGender(raw: string): 'Male' | 'Female' | null {
   return null;
 }
 
+// Google Forms' "number"-type fields silently drop a leading 0, so a
+// Ghanaian mobile number like 0245121941 commonly comes through as
+// 245121941 (9 digits) — restore it so it passes the same min-10 rule the
+// public registration form applies, and so it normalizes correctly later
+// when WhatsApp/SMS actually send to it (see normalizeWhatsappPhone).
+function normalizePhone(raw: string): string {
+  const trimmed = raw.trim();
+  const digitsOnly = trimmed.replace(/\D/g, '');
+  if (digitsOnly.length === 9 && !trimmed.startsWith('+')) {
+    return `0${digitsOnly}`;
+  }
+  return trimmed;
+}
+
 interface MappedRow {
   rowIndex: number;
   firstName: string;
@@ -96,7 +110,7 @@ function buildMappedRows(dataRows: string[][], map: ColumnMap): MappedRow[] {
     const firstName = get(row, 'firstName');
     const surname = get(row, 'surname');
     const email = get(row, 'email').toLowerCase();
-    const phone = get(row, 'phone');
+    const phone = normalizePhone(get(row, 'phone'));
     const genderRaw = get(row, 'gender');
     const gender = normalizeGender(genderRaw);
     const amountPaidRaw = get(row, 'amountPaid').replace(/[^0-9.]/g, '');
