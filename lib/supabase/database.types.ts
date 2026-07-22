@@ -407,6 +407,53 @@ export type Database = {
           },
         ]
       }
+      manual_deletion_log: {
+        Row: {
+          id: string
+          entity_type: string
+          participant_id: string
+          participant_name: string
+          registration_id: string | null
+          course_name: string | null
+          cohort_label: string | null
+          reason: string | null
+          deleted_by_staff_id: string | null
+          deleted_at: string
+        }
+        Insert: {
+          id?: string
+          entity_type: string
+          participant_id: string
+          participant_name: string
+          registration_id?: string | null
+          course_name?: string | null
+          cohort_label?: string | null
+          reason?: string | null
+          deleted_by_staff_id?: string | null
+          deleted_at?: string
+        }
+        Update: {
+          id?: string
+          entity_type?: string
+          participant_id?: string
+          participant_name?: string
+          registration_id?: string | null
+          course_name?: string | null
+          cohort_label?: string | null
+          reason?: string | null
+          deleted_by_staff_id?: string | null
+          deleted_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manual_deletion_log_deleted_by_staff_id_fkey"
+            columns: ["deleted_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_log: {
         Row: {
           email_type: string
@@ -936,6 +983,22 @@ export type Database = {
       }
       fn_soft_delete_participant: {
         Args: { participant_id_to_delete: string }
+        Returns: undefined
+      }
+      fn_delete_registration_immediately: {
+        Args: {
+          registration_id_to_delete: string
+          deleting_staff_id: string
+          reason: string | null
+        }
+        Returns: undefined
+      }
+      fn_delete_participant_immediately: {
+        Args: {
+          participant_id_to_delete: string
+          deleting_staff_id: string
+          reason: string | null
+        }
         Returns: undefined
       }
     }

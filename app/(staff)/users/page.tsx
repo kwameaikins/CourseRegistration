@@ -60,6 +60,9 @@ export default function StaffUserManagementPage() {
   const [deletionTarget, setDeletionTarget] = useState<ParticipantRow | null>(null);
   const [deletionReason, setDeletionReason] = useState('');
   const [hardDeleteTarget, setHardDeleteTarget] = useState<ParticipantRow | null>(null);
+  const [immediateDeleteTarget, setImmediateDeleteTarget] = useState<ParticipantRow | null>(null);
+  const [immediateDeleteReason, setImmediateDeleteReason] = useState('');
+  const [immediateDeleting, setImmediateDeleting] = useState(false);
 
   const reload = useCallback(async () => {
     try {
@@ -160,6 +163,25 @@ export default function StaffUserManagementPage() {
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Hard delete failed.');
       setHardDeleteTarget(null);
+    }
+  }
+
+  async function handleImmediateDelete() {
+    if (!immediateDeleteTarget) return;
+    setImmediateDeleting(true);
+    try {
+      await apiFetch(`/api/participants/${immediateDeleteTarget.id}/delete-immediately`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: immediateDeleteReason.trim() }),
+      });
+      flashStatus('Participant and all their registrations permanently deleted.');
+      setImmediateDeleteTarget(null);
+      setImmediateDeleteReason('');
+      await reload();
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Delete failed.');
+    } finally {
+      setImmediateDeleting(false);
     }
   }
 
@@ -319,6 +341,46 @@ export default function StaffUserManagementPage() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Delete Test / Mistaken Data</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Permanently and immediately removes a Participant and every one of their
+            Registrations and Payments — for a wrongly-entered person or test data, not a
+            data-subject erasure request. Unlike Participant Data Deletion above, there is
+            no 30-day wait and financial records are not preserved.
+          </p>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {participants.map((participant) => (
+                <TableRow key={participant.id}>
+                  <TableCell>{participant.full_name}</TableCell>
+                  <TableCell>{participant.email}</TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setImmediateDeleteTarget(participant)}
+                    >
+                      Delete immediately
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
       <Dialog
         open={deactivationTarget !== null}
         onOpenChange={(open) => !open && setDeactivationTarget(null)}
@@ -400,6 +462,44 @@ export default function StaffUserManagementPage() {
             </Button>
             <Button variant="destructive" onClick={handleHardDelete}>
               Permanently delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={immediateDeleteTarget !== null}
+        onOpenChange={(open) => !open && setImmediateDeleteTarget(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Permanently delete {immediateDeleteTarget?.full_name}?
+            </DialogTitle>
+            <DialogDescription>
+              This removes the Participant and every one of their Registrations and
+              Payments entirely, right now. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="immediateDeleteReason">Reason (required, recorded)</Label>
+            <Input
+              id="immediateDeleteReason"
+              placeholder="e.g. Test participant created during staging setup"
+              value={immediateDeleteReason}
+              onChange={(event) => setImmediateDeleteReason(event.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImmediateDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={immediateDeleteReason.trim().length < 3 || immediateDeleting}
+              onClick={handleImmediateDelete}
+            >
+              {immediateDeleting ? 'Deleting…' : 'Permanently delete'}
             </Button>
           </DialogFooter>
         </DialogContent>

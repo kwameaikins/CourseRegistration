@@ -10,15 +10,21 @@ import { useEffect, useState } from 'react';
 
 import { apiFetch } from '@/components/api-client';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { formatDate, formatGhs } from '@/lib/utils';
 
 interface Registration360 {
+  canDelete: boolean;
   registration: {
     id: string;
     registrationStatus: string;
@@ -118,10 +124,17 @@ function channelBadge(channel: 'Email' | 'WhatsApp' | 'SMS') {
 export function RegistrationDetailDialog(props: {
   registrationId: string;
   onClose: () => void;
+  // Called after a successful delete so the parent list can refresh —
+  // optional so this dialog still works from callers that don't care.
+  onDeleted?: () => void;
 }) {
   const [data, setData] = useState<Registration360 | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -143,6 +156,24 @@ export function RegistrationDetailDialog(props: {
       cancelled = true;
     };
   }, [props.registrationId]);
+
+  async function handleDelete() {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await apiFetch(`/api/registrations/${props.registrationId}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ reason: deleteReason.trim() }),
+      });
+      setConfirmingDelete(false);
+      props.onDeleted?.();
+      props.onClose();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete registration.');
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   const messageTimeline = data?.messages
     ? [
@@ -438,9 +469,61 @@ export function RegistrationDetailDialog(props: {
                 </ul>
               </Section>
             )}
+
+            {data.canDelete && (
+              <Section title="Danger zone">
+                <p className="mb-2 text-sm text-muted-foreground">
+                  Permanently delete this Registration and its Payment record — for a
+                  wrongly-entered or test row, not a data-subject erasure request (use
+                  Participant Data Deletion on the Staff Users screen for that).
+                </p>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setConfirmingDelete(true)}
+                >
+                  Delete this registration
+                </Button>
+              </Section>
+            )}
           </div>
         )}
       </DialogContent>
+
+      <Dialog open={confirmingDelete} onOpenChange={(open) => !open && setConfirmingDelete(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Permanently delete this registration?</DialogTitle>
+            <DialogDescription>
+              This removes the registration and its payment record entirely — attendance,
+              messages, certificates, and Zoom registration for it are removed too. This
+              cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="deleteReason">Reason (required, recorded)</Label>
+            <Input
+              id="deleteReason"
+              placeholder="e.g. Duplicate test entry from staging run"
+              value={deleteReason}
+              onChange={(event) => setDeleteReason(event.target.value)}
+            />
+          </div>
+          {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmingDelete(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleteReason.trim().length < 3 || deleting}
+              onClick={handleDelete}
+            >
+              {deleting ? 'Deleting…' : 'Permanently delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

@@ -60,6 +60,12 @@ export default function RegistrationListPage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [savedToast, setSavedToast] = useState(false);
+  const [deletedToast, setDeletedToast] = useState(false);
+
+  function flashDeleted() {
+    setDeletedToast(true);
+    setTimeout(() => setDeletedToast(false), 2500);
+  }
 
   const [filters, setFilters] = useState({
     courseId: '',
@@ -135,6 +141,11 @@ export default function RegistrationListPage() {
       )}
       {savedToast && (
         <p className="rounded-md bg-emerald-50 p-2 text-sm text-emerald-700">Saved</p>
+      )}
+      {deletedToast && (
+        <p className="rounded-md bg-emerald-50 p-2 text-sm text-emerald-700">
+          Registration deleted.
+        </p>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
@@ -303,6 +314,10 @@ export default function RegistrationListPage() {
         <RegistrationDetailDialog
           registrationId={viewingRegistrationId}
           onClose={() => setViewingRegistrationId(null)}
+          onDeleted={() => {
+            flashDeleted();
+            void reload();
+          }}
         />
       )}
 

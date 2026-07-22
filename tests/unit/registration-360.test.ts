@@ -106,12 +106,13 @@ describe('getRegistration360 — not found', () => {
 });
 
 describe('getRegistration360 — role shaping', () => {
-  it('admin sees payment audit fields and every engagement section', async () => {
+  it('admin sees payment audit fields, every engagement section, and canDelete', async () => {
     usersServiceMock.requireRole.mockResolvedValue({ id: 'staff-1', role: 'admin' });
     repositoryMock.selectRegistration360.mockResolvedValue(fullFixture());
 
     const view = await getRegistration360('reg-1');
 
+    expect(view.canDelete).toBe(true);
     expect(view.payment?.paymentMethod).toBe('MTN MoMo');
     expect(view.payment?.verifiedBy).toBe('Finance Officer');
     expect(view.messages?.email).toHaveLength(1);
@@ -123,12 +124,13 @@ describe('getRegistration360 — role shaping', () => {
     expect(view.calls).toHaveLength(1);
   });
 
-  it('finance sees payment audit fields and calls, but no messages/attendance/feedback/certificates', async () => {
+  it('finance sees payment audit fields and calls, but no messages/attendance/feedback/certificates, and cannot delete', async () => {
     usersServiceMock.requireRole.mockResolvedValue({ id: 'staff-2', role: 'finance' });
     repositoryMock.selectRegistration360.mockResolvedValue(fullFixture());
 
     const view = await getRegistration360('reg-1');
 
+    expect(view.canDelete).toBe(false);
     expect(view.payment?.paymentMethod).toBe('MTN MoMo');
     expect(view.payment?.verifiedBy).toBe('Finance Officer');
     expect(view.calls).toHaveLength(1);

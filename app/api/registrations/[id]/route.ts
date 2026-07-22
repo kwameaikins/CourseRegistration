@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { AppError, handleRouteError, successResponse } from '@/lib/errors';
 import * as registrationsService from '@/modules/registrations/service';
+import { manualDeletionRequestSchema } from '@/modules/registrations/types';
 
 const notesUpdateSchema = z.object({
   notes: z.string().trim().max(2000).nullable(),
@@ -37,6 +38,27 @@ export async function PATCH(
     }
     await registrationsService.updateNotes(id, parsed.data.notes);
     return successResponse({ registrationId: id });
+  } catch (err) {
+    return handleRouteError(err);
+  }
+}
+
+// DELETE /api/registrations/[id] — admin-only, immediate hard delete of a
+// wrongly-entered or test Registration (founder-approved 2026-07-22).
+// Distinct from the DPA participant-erasure flow: no cooling-off period,
+// and the Payment row is removed rather than preserved.
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await params;
+    const parsed = manualDeletionRequestSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      throw new AppError('VALIDATION_ERROR', 'A reason for the deletion is required.', 400);
+    }
+    await registrationsService.deleteRegistration(id, parsed.data.reason);
+    return successResponse({ registrationId: id, deleted: true });
   } catch (err) {
     return handleRouteError(err);
   }

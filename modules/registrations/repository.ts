@@ -412,3 +412,36 @@ export async function selectParticipantsForAdmin(): Promise<
   if (error) throw error;
   return data;
 }
+
+// Immediate hard-delete of wrongly-entered/test data (founder-approved
+// 2026-07-22) — deliberately separate from the DPA erasure flow above.
+// SECURITY DEFINER functions verify the caller is an active Admin
+// internally, called via the session client so auth.uid() resolves to the
+// calling staff member.
+export async function callDeleteRegistrationImmediately(
+  registrationId: string,
+  staffId: string,
+  reason: string | null,
+): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc('fn_delete_registration_immediately', {
+    registration_id_to_delete: registrationId,
+    deleting_staff_id: staffId,
+    reason,
+  });
+  if (error) throw error;
+}
+
+export async function callDeleteParticipantImmediately(
+  participantId: string,
+  staffId: string,
+  reason: string | null,
+): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.rpc('fn_delete_participant_immediately', {
+    participant_id_to_delete: participantId,
+    deleting_staff_id: staffId,
+    reason,
+  });
+  if (error) throw error;
+}

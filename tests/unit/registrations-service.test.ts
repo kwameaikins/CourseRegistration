@@ -7,6 +7,8 @@ const registrationsRepositoryMock = {
   insertRegistration: vi.fn(),
   insertInitialPayment: vi.fn(),
   updateRegistrationNotes: vi.fn(),
+  callDeleteRegistrationImmediately: vi.fn(),
+  callDeleteParticipantImmediately: vi.fn(),
 };
 const coursesServiceMock = {
   getBatchByIdSystem: vi.fn(),
@@ -33,9 +35,8 @@ vi.mock('@/modules/communications/service', () => ({
   sendSmsOnce: (...args: unknown[]) => sendSmsOnceMock(...args),
 }));
 
-const { createRegistration, bulkImportRegistrations } = await import(
-  '@/modules/registrations/service'
-);
+const { createRegistration, bulkImportRegistrations, deleteRegistration, deleteParticipantImmediately } =
+  await import('@/modules/registrations/service');
 const { registrationInputSchema } = await import('@/modules/registrations/types');
 
 const FUTURE_DATE = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
@@ -405,6 +406,56 @@ describe('bulkImportRegistrations — backfill of registrations collected outsid
     expect(registrationsRepositoryMock.updateRegistrationNotes).toHaveBeenCalledWith(
       'reg-1',
       'Imported from Google Form',
+    );
+  });
+});
+
+describe('deleteRegistration — immediate hard delete of wrongly-entered/test data', () => {
+  beforeEach(() => {
+    usersServiceMock.requireRole.mockResolvedValue({
+      id: 'staff-admin-1',
+      fullName: 'Ama Admin',
+      role: 'admin',
+    });
+    registrationsRepositoryMock.callDeleteRegistrationImmediately.mockResolvedValue(undefined);
+  });
+
+  it('requires the admin role', async () => {
+    await deleteRegistration('reg-1', 'Duplicate test entry');
+    expect(usersServiceMock.requireRole).toHaveBeenCalledWith(['admin']);
+  });
+
+  it('passes the calling staff id (not any client-supplied value) and the reason through', async () => {
+    await deleteRegistration('reg-1', 'Duplicate test entry');
+    expect(registrationsRepositoryMock.callDeleteRegistrationImmediately).toHaveBeenCalledWith(
+      'reg-1',
+      'staff-admin-1',
+      'Duplicate test entry',
+    );
+  });
+});
+
+describe('deleteParticipantImmediately — immediate hard delete distinct from the DPA flow', () => {
+  beforeEach(() => {
+    usersServiceMock.requireRole.mockResolvedValue({
+      id: 'staff-admin-1',
+      fullName: 'Ama Admin',
+      role: 'admin',
+    });
+    registrationsRepositoryMock.callDeleteParticipantImmediately.mockResolvedValue(undefined);
+  });
+
+  it('requires the admin role', async () => {
+    await deleteParticipantImmediately('participant-1', 'Test participant from staging');
+    expect(usersServiceMock.requireRole).toHaveBeenCalledWith(['admin']);
+  });
+
+  it('passes the calling staff id and the reason through', async () => {
+    await deleteParticipantImmediately('participant-1', 'Test participant from staging');
+    expect(registrationsRepositoryMock.callDeleteParticipantImmediately).toHaveBeenCalledWith(
+      'participant-1',
+      'staff-admin-1',
+      'Test participant from staging',
     );
   });
 });

@@ -118,11 +118,20 @@ export const registrationListFiltersSchema = z.object({
 
 export type RegistrationListFilters = z.infer<typeof registrationListFiltersSchema>;
 
+// Immediate hard-delete of wrongly-entered/test data (founder-approved
+// 2026-07-22) — reason is mandatory for the audit trail, same convention as
+// the DPA soft-delete request.
+export const manualDeletionRequestSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+});
+export type ManualDeletionRequest = z.infer<typeof manualDeletionRequestSchema>;
+
 // Registration 360° view (system review, approved 2026-07-20). Sections
 // beyond `registration`/`participant`/`payment` are omitted entirely (not
 // present as empty arrays) when the viewing role isn't permitted to see
 // them — see `shapeRegistration360ForRole` for exactly which role sees what.
 export interface Registration360 {
+  canDelete: boolean;
   registration: {
     id: string;
     registrationStatus: RegistrationStatus;

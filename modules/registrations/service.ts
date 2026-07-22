@@ -389,6 +389,11 @@ export async function getRegistration360(registrationId: string): Promise<Regist
   }
 
   const view: Registration360 = {
+    // Admin-only, immediate hard delete (founder-approved 2026-07-22) —
+    // computed here so the client can show/hide the action without
+    // guessing the viewer's role; the service layer is still authoritative
+    // (deleteRegistration re-checks the role itself).
+    canDelete: staffUser.role === 'admin',
     registration: {
       id: data.registration.id,
       registrationStatus: parseRegistrationStatus(data.registration.registration_status),
@@ -558,4 +563,39 @@ export async function hardDeleteParticipant(participantId: string): Promise<void
 export async function listParticipantsForDeletionScreen() {
   await usersService.requireRole(['admin']);
   return registrationsRepository.selectParticipantsForAdmin();
+}
+
+// Immediate hard-delete of a wrongly-entered/test Registration
+// (founder-approved 2026-07-22) — admin only, no cooling-off period, unlike
+// the DPA erasure flow above (which is for data-subject requests and
+// deliberately preserves financial records). Deletes the Payment row too
+// (payments.registration_id is on delete restrict); every other child table
+// already cascades on registrations.id.
+export async function deleteRegistration(
+  registrationId: string,
+  reason: string | null,
+): Promise<void> {
+  const staffUser = await usersService.requireRole(['admin']);
+  await registrationsRepository.callDeleteRegistrationImmediately(
+    registrationId,
+    staffUser.id,
+    reason,
+  );
+}
+
+// Immediate hard-delete of a wrongly-entered/test Participant, including
+// every one of their Registrations and Payments — admin only, no
+// cooling-off period. Distinct from hardDeleteParticipant (DPA Step 2),
+// which requires a prior 30-day-old soft delete and refuses to run at all
+// while financial records exist.
+export async function deleteParticipantImmediately(
+  participantId: string,
+  reason: string | null,
+): Promise<void> {
+  const staffUser = await usersService.requireRole(['admin']);
+  await registrationsRepository.callDeleteParticipantImmediately(
+    participantId,
+    staffUser.id,
+    reason,
+  );
 }
