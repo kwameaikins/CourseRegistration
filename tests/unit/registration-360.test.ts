@@ -43,6 +43,10 @@ function fullFixture() {
       transaction_id: 'REG-reg-1-123',
       payment_notes: 'Confirmed via webhook',
       payment_date: '2026-07-02T10:00:00Z',
+      original_fee: null as string | null,
+      discount_amount: '0.00',
+      discount_reason: null as string | null,
+      discount_granted_at: null as string | null,
     },
     batch: {
       cohort_label: 'JUL-2026',
@@ -53,6 +57,7 @@ function fullFixture() {
     },
     course: { course_name: 'ICAG Level 1 Prep', course_code: 'ICAG-L1' },
     verifiedByName: 'Finance Officer',
+    discountGrantedByName: null as string | null,
     emailLog: [
       { email_type: 'welcome', sent_at: '2026-07-01T09:05:00Z', success: true, error_message: null },
     ],
@@ -157,6 +162,31 @@ describe('getRegistration360 — role shaping', () => {
     expect(view.payment).toBeNull();
     expect(view.messages).toBeUndefined();
     expect(view.calls).toBeUndefined();
+  });
+
+  it('admin/finance see discount audit fields; marketing/tutor do not', async () => {
+    const fixture = fullFixture();
+    fixture.payment.original_fee = '1500.00';
+    fixture.payment.discount_amount = '300.00';
+    fixture.payment.discount_reason = 'Corporate sponsorship partial waiver';
+    fixture.payment.discount_granted_at = '2026-07-05T10:00:00Z';
+    fixture.discountGrantedByName = 'Ama Admin';
+
+    usersServiceMock.requireRole.mockResolvedValue({ id: 'staff-1', role: 'admin' });
+    repositoryMock.selectRegistration360.mockResolvedValue(fixture);
+    const adminView = await getRegistration360('reg-1');
+    expect(adminView.payment?.originalFee).toBe(1500);
+    expect(adminView.payment?.discountAmount).toBe(300);
+    expect(adminView.payment?.discountReason).toBe('Corporate sponsorship partial waiver');
+    expect(adminView.payment?.discountGrantedByName).toBe('Ama Admin');
+
+    usersServiceMock.requireRole.mockResolvedValue({ id: 'staff-3', role: 'marketing' });
+    repositoryMock.selectRegistration360.mockResolvedValue(fixture);
+    const marketingView = await getRegistration360('reg-1');
+    expect(marketingView.payment?.originalFee).toBeUndefined();
+    expect(marketingView.payment?.discountAmount).toBeUndefined();
+    expect(marketingView.payment?.discountReason).toBeUndefined();
+    expect(marketingView.payment?.discountGrantedByName).toBeUndefined();
   });
 
   it('marks a soft-deleted participant so the UI can hide their PII', async () => {

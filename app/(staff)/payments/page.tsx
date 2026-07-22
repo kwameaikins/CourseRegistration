@@ -36,6 +36,7 @@ interface RegistrationRow {
   cohortLabel: string;
   paymentStatus: 'Unpaid' | 'Part Payment' | 'Paid';
   courseFee: number;
+  originalFee: number | null;
   amountPaid: number;
   balance: number;
   paymentMethod: string | null;
@@ -67,6 +68,11 @@ export default function PaymentTrackingPage() {
   const [confirmTarget, setConfirmTarget] = useState<RegistrationRow | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [recentlySavedId, setRecentlySavedId] = useState<string | null>(null);
+  const [discountTarget, setDiscountTarget] = useState<RegistrationRow | null>(null);
+  const [discountAmount, setDiscountAmount] = useState('');
+  const [discountReason, setDiscountReason] = useState('');
+  const [discountError, setDiscountError] = useState<string | null>(null);
+  const [savingDiscount, setSavingDiscount] = useState(false);
 
   const reload = useCallback(async () => {
     try {
@@ -175,6 +181,55 @@ export default function PaymentTrackingPage() {
     void savePayment(row);
   }
 
+  function openDiscountDialog(row: RegistrationRow) {
+    setDiscountTarget(row);
+    setDiscountAmount('');
+    setDiscountReason('');
+    setDiscountError(null);
+  }
+
+  // Preview only — the service layer is authoritative on whether this
+  // actually requires admin (founder-approved 2026-07-22: finance and admin
+  // can both grant a partial discount; only admin may grant one that zeroes
+  // the remaining balance).
+  function discountPreview(row: RegistrationRow): {
+    amount: number;
+    valid: boolean;
+    newFee: number;
+    newBalance: number;
+    isFullWaiver: boolean;
+  } {
+    const amount = Number(discountAmount);
+    const valid =
+      discountAmount !== '' &&
+      Number.isFinite(amount) &&
+      amount > 0 &&
+      discountReason.trim().length >= 3;
+    const newFee = Math.max(row.courseFee - amount, 0);
+    const newBalance = newFee - row.amountPaid;
+    return { amount, valid, newFee, newBalance, isFullWaiver: newBalance <= 0 };
+  }
+
+  async function saveDiscount() {
+    if (!discountTarget) return;
+    const { amount, valid } = discountPreview(discountTarget);
+    if (!valid) return;
+    setSavingDiscount(true);
+    setDiscountError(null);
+    try {
+      await apiFetch(`/api/payments/${discountTarget.id}/discount`, {
+        method: 'POST',
+        body: JSON.stringify({ discountAmount: amount, reason: discountReason.trim() }),
+      });
+      setDiscountTarget(null);
+      await reload();
+    } catch (err) {
+      setDiscountError(err instanceof Error ? err.message : 'Failed to apply discount.');
+    } finally {
+      setSavingDiscount(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -221,7 +276,18 @@ export default function PaymentTrackingPage() {
                   <p className="text-xs text-muted-foreground">{row.cohortLabel}</p>
                 </TableCell>
                 <TableCell>{statusBadge(row.paymentStatus)}</TableCell>
-                <TableCell>{formatGhs(row.courseFee)}</TableCell>
+                <TableCell>
+                  {row.originalFee !== null && row.originalFee > row.courseFee ? (
+                    <div>
+                      <p className="text-xs text-muted-foreground line-through">
+                        {formatGhs(row.originalFee)}
+                      </p>
+                      <p className="font-medium text-emerald-700">{formatGhs(row.courseFee)}</p>
+                    </div>
+                  ) : (
+                    formatGhs(row.courseFee)
+                  )}
+                </TableCell>
                 <TableCell>{formatGhs(row.amountPaid)}</TableCell>
                 <TableCell className={row.balance < 0 ? 'text-amber-600' : undefined}>
                   {formatGhs(row.balance)}
@@ -285,6 +351,14 @@ export default function PaymentTrackingPage() {
                     <p className="text-xs text-muted-foreground">
                       Verified by: {row.verifiedBy ?? 'Auto-filled on save'}
                     </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => openDiscountDialog(row)}
+                    >
+                      Apply discount
+                    </Button>
                   </div>
                 </TableCell>
               </TableRow>
@@ -317,7 +391,11 @@ export default function PaymentTrackingPage() {
             <Label htmlFor="paymentNotes">Payment notes (optional)</Label>
             <Input
               id="paymentNotes"
-              placeholder="Confirmed against GCB statement…"
+              placeholder={
+                confirmTarget && draftFor(confirmTarget).paymentMethod === 'MTN MoMo'
+                  ? 'e.g. Sent to personal number 0530531328 (or MoMo Pay 143735)'
+                  : 'Confirmed against GCB statement…'
+              }
               value={confirmTarget ? draftFor(confirmTarget).paymentNotes : ''}
               onChange={(event) =>
                 confirmTarget && setDraft(confirmTarget.id, { paymentNotes: event.target.value })
@@ -333,6 +411,79 @@ export default function PaymentTrackingPage() {
               disabled={savingId !== null}
             >
               Confirm payment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={discountTarget !== null}
+        onOpenChange={(open) => !open && setDiscountTarget(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Apply discount</DialogTitle>
+            <DialogDescription>
+              {discountTarget
+                ? `Grant an additional discount for ${discountTarget.fullName}. Current fee: ${formatGhs(discountTarget.courseFee)}.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {discountTarget && (
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="discountAmount">Discount amount (GHS)</Label>
+                <Input
+                  id="discountAmount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={discountAmount}
+                  onChange={(event) => setDiscountAmount(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="discountReason">Reason (required, for the audit trail)</Label>
+                <Input
+                  id="discountReason"
+                  placeholder="e.g. Corporate sponsorship partial waiver"
+                  value={discountReason}
+                  onChange={(event) => setDiscountReason(event.target.value)}
+                />
+              </div>
+              {(() => {
+                const preview = discountPreview(discountTarget);
+                if (discountAmount === '') return null;
+                return (
+                  <div className="rounded-md bg-muted/30 p-3 text-sm">
+                    <p>New fee: {formatGhs(preview.newFee)}</p>
+                    <p>New balance: {formatGhs(Math.max(preview.newBalance, 0))}</p>
+                    {preview.isFullWaiver && (
+                      <p className="mt-1 text-amber-600">
+                        This fully waives the remaining balance — only an admin can confirm this.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
+              {discountError && (
+                <p role="alert" className="text-sm text-destructive">
+                  {discountError}
+                </p>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDiscountTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={saveDiscount}
+              disabled={
+                savingDiscount || !discountTarget || !discountPreview(discountTarget).valid
+              }
+            >
+              {savingDiscount ? 'Saving…' : 'Apply discount'}
             </Button>
           </DialogFooter>
         </DialogContent>

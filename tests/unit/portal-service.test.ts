@@ -12,12 +12,27 @@ const repositoryMock = {
   revokeSession: vi.fn(),
   selectAllActiveParticipants: vi.fn(),
   selectPortalDashboardData: vi.fn(),
+  selectParticipantIdForRegistration: vi.fn(),
+  insertLoginToken: vi.fn(),
+  consumeLoginToken: vi.fn(),
+};
+const paymentsRepositoryMock = {
+  selectPaymentSummaryByTransactionIdSystem: vi.fn(),
 };
 
 vi.mock('@/modules/portal/repository', () => repositoryMock);
+vi.mock('@/modules/payments/repository', () => paymentsRepositoryMock);
 
-const { login, changePin, ensureParticipantAuth, backfillParticipantAuth, requirePortalSession } =
-  await import('@/modules/portal/service');
+const {
+  login,
+  changePin,
+  ensureParticipantAuth,
+  backfillParticipantAuth,
+  requirePortalSession,
+  getPortalDashboard,
+  issuePortalLoginToken,
+  exchangeLoginToken,
+} = await import('@/modules/portal/service');
 const { hashPin } = await import('@/lib/portal-auth/pin');
 
 const PARTICIPANT = {
@@ -208,5 +223,177 @@ describe('backfillParticipantAuth', () => {
       'p-2',
       expect.any(String),
     );
+  });
+});
+
+// System review, 2026-07-22 — the Zoom join link must only ever be shown
+// once payment_status is Paid, regardless of whether a personal registrant
+// link or the batch's shared classroom link would otherwise be available.
+describe('getPortalDashboard — Zoom link visibility gate', () => {
+  function dashboardRow(overrides: Record<string, unknown> = {}) {
+    return {
+      registration: {
+        id: 'reg-1',
+        batch_id: 'batch-1',
+        registration_status: 'Confirmed',
+        registered_at: '2026-07-01T09:00:00Z',
+      },
+      batch: {
+        cohort_label: 'JUL-2026',
+        start_date: '2026-08-01',
+        start_time: '09:00',
+        end_date: '2026-08-05',
+        facilitator_name: 'Mr. Asante',
+        zoom_link: 'https://zoom.us/j/shared-classroom',
+      },
+      course: { course_name: 'ICAG Level 1 Prep', course_code: 'ICAG-L1' },
+      payment: {
+        payment_status: 'Unpaid',
+        course_fee: '1200.00',
+        original_fee: null,
+        amount_paid: '0.00',
+        balance: '1200.00',
+      },
+      zoomRegistrant: null,
+      attendance: [],
+      certificates: [],
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [dashboardRow()],
+    });
+  });
+
+  it('hides the shared classroom link for an Unpaid registration even with no registrant record', async () => {
+    const dashboard = await getPortalDashboard('session-1');
+    expect(dashboard.registrations[0].zoomLink).toBeNull();
+  });
+
+  it('hides the shared classroom link for a Part Payment registration', async () => {
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [
+        dashboardRow({
+          payment: {
+            payment_status: 'Part Payment',
+            course_fee: '1200.00',
+            original_fee: null,
+            amount_paid: '400.00',
+            balance: '800.00',
+          },
+        }),
+      ],
+    });
+    const dashboard = await getPortalDashboard('session-1');
+    expect(dashboard.registrations[0].zoomLink).toBeNull();
+  });
+
+  it('shows the personal join link once Paid, ahead of the shared classroom link', async () => {
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [
+        dashboardRow({
+          payment: {
+            payment_status: 'Paid',
+            course_fee: '1200.00',
+            original_fee: null,
+            amount_paid: '1200.00',
+            balance: '0.00',
+          },
+          zoomRegistrant: { join_url: 'https://zoom.us/j/personal-link' },
+        }),
+      ],
+    });
+    const dashboard = await getPortalDashboard('session-1');
+    expect(dashboard.registrations[0].zoomLink).toBe('https://zoom.us/j/personal-link');
+  });
+
+  it('falls back to the shared classroom link when Paid but no personal registrant exists', async () => {
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [
+        dashboardRow({
+          payment: {
+            payment_status: 'Paid',
+            course_fee: '1200.00',
+            original_fee: null,
+            amount_paid: '1200.00',
+            balance: '0.00',
+          },
+        }),
+      ],
+    });
+    const dashboard = await getPortalDashboard('session-1');
+    expect(dashboard.registrations[0].zoomLink).toBe('https://zoom.us/j/shared-classroom');
+  });
+});
+
+describe('issuePortalLoginToken', () => {
+  it('mints a ~5-minute token for the participant behind the registration', async () => {
+    repositoryMock.selectParticipantIdForRegistration.mockResolvedValue('participant-1');
+    await issuePortalLoginToken('reg-1');
+
+    expect(repositoryMock.insertLoginToken).toHaveBeenCalledTimes(1);
+    const [participantId, registrationId, expiresAt] =
+      repositoryMock.insertLoginToken.mock.calls[0];
+    expect(participantId).toBe('participant-1');
+    expect(registrationId).toBe('reg-1');
+    const minutesUntilExpiry = (new Date(expiresAt).getTime() - Date.now()) / 60000;
+    expect(minutesUntilExpiry).toBeGreaterThan(4);
+    expect(minutesUntilExpiry).toBeLessThanOrEqual(5);
+  });
+
+  it('does nothing when the registration cannot be resolved to a participant', async () => {
+    repositoryMock.selectParticipantIdForRegistration.mockResolvedValue(null);
+    await issuePortalLoginToken('reg-missing');
+    expect(repositoryMock.insertLoginToken).not.toHaveBeenCalled();
+  });
+});
+
+describe('exchangeLoginToken', () => {
+  it('returns pending when no payment matches the reference', async () => {
+    paymentsRepositoryMock.selectPaymentSummaryByTransactionIdSystem.mockResolvedValue(null);
+    const result = await exchangeLoginToken('REG-unknown-123');
+    expect(result).toEqual({ status: 'pending' });
+  });
+
+  it('returns pending when the matched payment is not yet Paid', async () => {
+    paymentsRepositoryMock.selectPaymentSummaryByTransactionIdSystem.mockResolvedValue({
+      registrationId: 'reg-1',
+      paymentStatus: 'Part Payment',
+    });
+    const result = await exchangeLoginToken('REG-reg-1-123');
+    expect(result).toEqual({ status: 'pending' });
+    expect(repositoryMock.consumeLoginToken).not.toHaveBeenCalled();
+  });
+
+  it('returns invalid when Paid but no live token exists to redeem', async () => {
+    paymentsRepositoryMock.selectPaymentSummaryByTransactionIdSystem.mockResolvedValue({
+      registrationId: 'reg-1',
+      paymentStatus: 'Paid',
+    });
+    repositoryMock.consumeLoginToken.mockResolvedValue(null);
+    const result = await exchangeLoginToken('REG-reg-1-123');
+    expect(result).toEqual({ status: 'invalid' });
+  });
+
+  it('mints a session on the first exchange and is single-use on a second attempt', async () => {
+    paymentsRepositoryMock.selectPaymentSummaryByTransactionIdSystem.mockResolvedValue({
+      registrationId: 'reg-1',
+      paymentStatus: 'Paid',
+    });
+    repositoryMock.consumeLoginToken.mockResolvedValueOnce({ participantId: 'participant-1' });
+    repositoryMock.insertSession.mockResolvedValue({ id: 'session-9', participant_id: 'participant-1' });
+
+    const first = await exchangeLoginToken('REG-reg-1-123');
+    expect(first).toMatchObject({ status: 'ok', sessionId: 'session-9' });
+
+    repositoryMock.consumeLoginToken.mockResolvedValueOnce(null);
+    const second = await exchangeLoginToken('REG-reg-1-123');
+    expect(second).toEqual({ status: 'invalid' });
   });
 });

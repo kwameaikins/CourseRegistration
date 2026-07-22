@@ -34,6 +34,17 @@ export const paymentUpdateSchema = z.object({
 
 export type PaymentUpdate = z.infer<typeof paymentUpdateSchema>;
 
+// Staff-granted discretionary discount / fee waiver (founder-approved
+// 2026-07-22). This only supports granting MORE discount on top of any
+// already granted — no product requirement asked for reversing a discount,
+// so undo is intentionally out of scope for this pass.
+export const paymentDiscountSchema = z.object({
+  discountAmount: z.number().positive(),
+  reason: z.string().trim().min(3).max(500),
+});
+
+export type PaymentDiscountInput = z.infer<typeof paymentDiscountSchema>;
+
 // Paystack charge.success payload — shape validated before any field is read
 // (Document 6, Section 7).
 export const paystackWebhookSchema = z.object({

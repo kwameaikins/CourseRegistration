@@ -168,6 +168,59 @@ export async function revokeSession(sessionId: string): Promise<void> {
   if (error) throw error;
 }
 
+// Portal auto-login token support (founder-approved 2026-07-22) — see the
+// portal_login_tokens migration header for the trust model.
+export async function selectParticipantIdForRegistration(
+  registrationId: string,
+): Promise<string | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('registrations')
+    .select('participant_id')
+    .eq('id', registrationId)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.participant_id ?? null;
+}
+
+export async function insertLoginToken(
+  participantId: string,
+  registrationId: string,
+  expiresAt: string,
+): Promise<{ id: string }> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('portal_login_tokens')
+    .insert({ participant_id: participantId, registration_id: registrationId, expires_at: expiresAt })
+    .select('id')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// Atomic single-statement consume — race-safe by construction: two
+// concurrent exchange requests for the same registration can never both
+// succeed, because the second UPDATE's WHERE clause no longer matches once
+// the first has set consumed_at. In the ordinary case there is at most one
+// live token per registration (minting is guarded by webhook idempotency);
+// if a retry ever produced more than one, consuming all of them together is
+// harmless since they all resolve to the same participant.
+export async function consumeLoginToken(
+  registrationId: string,
+): Promise<{ participantId: string } | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('portal_login_tokens')
+    .update({ consumed_at: new Date().toISOString() })
+    .eq('registration_id', registrationId)
+    .is('consumed_at', null)
+    .gt('expires_at', new Date().toISOString())
+    .select('participant_id');
+  if (error) throw error;
+  if (!data || data.length === 0) return null;
+  return { participantId: data[0].participant_id };
+}
+
 // Everything the portal dashboard needs about one Participant, across every
 // Registration they have — service-role client, explicit participant_id
 // scoping (never trusts a client-supplied id past the session lookup).

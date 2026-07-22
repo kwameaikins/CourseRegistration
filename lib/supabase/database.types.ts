@@ -616,7 +616,12 @@ export type Database = {
           balance: number | null
           course_fee: number
           created_at: string
+          discount_amount: number
+          discount_granted_at: string | null
+          discount_granted_by: string | null
+          discount_reason: string | null
           id: string
+          original_fee: number | null
           payment_date: string | null
           payment_method: string | null
           payment_notes: string | null
@@ -631,7 +636,12 @@ export type Database = {
           balance?: number | null
           course_fee: number
           created_at?: string
+          discount_amount?: number
+          discount_granted_at?: string | null
+          discount_granted_by?: string | null
+          discount_reason?: string | null
           id?: string
+          original_fee?: number | null
           payment_date?: string | null
           payment_method?: string | null
           payment_notes?: string | null
@@ -646,7 +656,12 @@ export type Database = {
           balance?: number | null
           course_fee?: number
           created_at?: string
+          discount_amount?: number
+          discount_granted_at?: string | null
+          discount_granted_by?: string | null
+          discount_reason?: string | null
           id?: string
+          original_fee?: number | null
           payment_date?: string | null
           payment_method?: string | null
           payment_notes?: string | null
@@ -669,6 +684,55 @@ export type Database = {
             columns: ["verified_by"]
             isOneToOne: false
             referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_discount_granted_by_fkey"
+            columns: ["discount_granted_by"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      portal_login_tokens: {
+        Row: {
+          id: string
+          participant_id: string
+          registration_id: string
+          expires_at: string
+          consumed_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          participant_id: string
+          registration_id: string
+          expires_at: string
+          consumed_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          participant_id?: string
+          registration_id?: string
+          expires_at?: string
+          consumed_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "portal_login_tokens_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "participants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "portal_login_tokens_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
             referencedColumns: ["id"]
           },
         ]

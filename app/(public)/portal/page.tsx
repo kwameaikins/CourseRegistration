@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { apiFetch } from '@/components/api-client';
+import { AddToLinkedInButton } from '@/components/AddToLinkedInButton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { KnowsiaHeader } from '@/components/KnowsiaHeader';
@@ -26,6 +27,7 @@ interface DashboardRegistration {
   zoomLink: string | null;
   paymentStatus: string;
   courseFee: number;
+  originalFee: number;
   amountPaid: number;
   balance: number;
   attendance: Array<{
@@ -139,7 +141,16 @@ export default function PortalDashboardPage() {
             <div className="mt-4 grid grid-cols-3 gap-3 rounded-md bg-muted/30 p-3 text-sm">
               <div>
                 <p className="text-muted-foreground">Course Fee</p>
-                <p className="font-medium">{formatGhs(reg.courseFee)}</p>
+                {reg.originalFee > reg.courseFee ? (
+                  <>
+                    <p className="text-xs text-muted-foreground line-through">
+                      {formatGhs(reg.originalFee)}
+                    </p>
+                    <p className="font-medium text-emerald-700">{formatGhs(reg.courseFee)}</p>
+                  </>
+                ) : (
+                  <p className="font-medium">{formatGhs(reg.courseFee)}</p>
+                )}
               </div>
               <div>
                 <p className="text-muted-foreground">Amount Paid</p>
@@ -176,20 +187,27 @@ export default function PortalDashboardPage() {
                 </p>
                 <ul className="space-y-1 text-sm">
                   {reg.certificates.map((cert) => (
-                    <li key={cert.id}>
+                    <li key={cert.id} className="flex flex-wrap items-center gap-x-3">
                       {cert.revoked ? (
                         <span className="text-destructive">
                           {cert.certificateNumber} (revoked)
                         </span>
                       ) : (
-                        <a
-                          href={`/api/certificates/download/${cert.id}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-primary underline-offset-2 hover:underline"
-                        >
-                          {cert.certificateNumber} — download PDF
-                        </a>
+                        <>
+                          <a
+                            href={`/api/certificates/download/${cert.id}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary underline-offset-2 hover:underline"
+                          >
+                            {cert.certificateNumber} — download PDF
+                          </a>
+                          <AddToLinkedInButton
+                            certificateName={reg.courseName}
+                            issuedDate={cert.issuedDate}
+                            certificateNumber={cert.certificateNumber}
+                          />
+                        </>
                       )}
                     </li>
                   ))}

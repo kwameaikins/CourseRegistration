@@ -53,6 +53,11 @@ interface Registration360 {
     paymentNotes?: string | null;
     verifiedBy?: string | null;
     paymentDate?: string | null;
+    originalFee?: number | null;
+    discountAmount?: number;
+    discountReason?: string | null;
+    discountGrantedByName?: string | null;
+    discountGrantedAt?: string | null;
   } | null;
   messages?: {
     email: Array<{ type: string; sentAt: string; success: boolean; error: string | null }>;
@@ -255,7 +260,19 @@ export function RegistrationDetailDialog(props: {
                   </p>
                   <p>
                     <span className="text-muted-foreground">Fee:</span>{' '}
-                    {formatGhs(data.payment.courseFee)}
+                    {data.payment.originalFee != null &&
+                    data.payment.originalFee > data.payment.courseFee ? (
+                      <>
+                        <span className="line-through text-muted-foreground">
+                          {formatGhs(data.payment.originalFee)}
+                        </span>{' '}
+                        <span className="font-medium text-emerald-700">
+                          {formatGhs(data.payment.courseFee)}
+                        </span>
+                      </>
+                    ) : (
+                      formatGhs(data.payment.courseFee)
+                    )}
                   </p>
                   <p>
                     <span className="text-muted-foreground">Paid:</span>{' '}
@@ -287,6 +304,29 @@ export function RegistrationDetailDialog(props: {
                           {data.payment.paymentNotes}
                         </p>
                       )}
+                      {data.payment.discountAmount !== undefined &&
+                        data.payment.discountAmount > 0 && (
+                          <div className="col-span-2 rounded bg-muted/50 p-2">
+                            <p>
+                              <span className="text-muted-foreground">Discount granted:</span>{' '}
+                              {formatGhs(data.payment.discountAmount)}
+                            </p>
+                            {data.payment.discountReason && (
+                              <p>
+                                <span className="text-muted-foreground">Reason:</span>{' '}
+                                {data.payment.discountReason}
+                              </p>
+                            )}
+                            {data.payment.discountGrantedByName && (
+                              <p>
+                                <span className="text-muted-foreground">Granted by:</span>{' '}
+                                {data.payment.discountGrantedByName}
+                                {data.payment.discountGrantedAt &&
+                                  ` on ${formatDate(data.payment.discountGrantedAt)}`}
+                              </p>
+                            )}
+                          </div>
+                        )}
                     </>
                   )}
                 </div>

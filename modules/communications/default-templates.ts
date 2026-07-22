@@ -11,6 +11,9 @@ import * as communicationsRepository from '@/modules/communications/repository';
 import type { EmailType } from '@/lib/domain/types';
 
 const CONTACT = 'info.knowsia@gmail.com';
+const MOMO_PERSONAL = '0530531328';
+const MOMO_MERCHANT_CODE = '143735';
+const PORTAL_LOGIN_URL = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com'}/portal/login`;
 
 // Logo is referenced by public URL, not inlined — email clients (Gmail,
 // Outlook) strip or mishandle base64 <img> data URIs far more often than a
@@ -49,7 +52,10 @@ export const DEFAULT_TEMPLATES: ReadonlyArray<{
 <p>To confirm your seat for <strong>{{course_name}}</strong> ({{cohort_label}}), please complete payment of <strong>GHS {{course_fee}}</strong> using any of the options below.</p>
 <p><strong>1. Pay online (Card or Mobile Money)</strong><br/>
 Use the <em>Pay now</em> button shown on the registration page after you registered, and you will receive instant confirmation.</p>
-<p><strong>2. Bank transfer</strong><br/>
+<p><strong>2. MTN Mobile Money</strong><br/>
+Send to our personal MoMo number <strong>${MOMO_PERSONAL}</strong>, or our MoMo Pay merchant code <strong>${MOMO_MERCHANT_CODE}</strong>.<br/>
+<em>After paying, send your MoMo transaction reference to ${CONTACT} so we can confirm your payment.</em></p>
+<p><strong>3. Bank transfer</strong><br/>
 Reply to this email or write to ${CONTACT} and we will send you our bank account details.<br/>
 <em>After making a bank transfer, send your transaction reference number to ${CONTACT} so we can confirm your payment.</em></p>
 <p>Your registration is only fully confirmed once payment is received.</p>`),
@@ -61,7 +67,7 @@ Reply to this email or write to ${CONTACT} and we will send you our bank account
 <p>Dear {{participant_name}},</p>
 <p>This is a friendly reminder that your registration for <strong>{{course_name}}</strong> ({{cohort_label}}) is awaiting payment.</p>
 <p>Outstanding balance: <strong>GHS {{balance}}</strong></p>
-<p>Seats are limited and are confirmed in order of payment. You can pay by card or Mobile Money online, or by bank transfer — see your payment instructions email, or write to ${CONTACT}.</p>`),
+<p>Seats are limited and are confirmed in order of payment. You can pay by card online, by MTN Mobile Money (personal number ${MOMO_PERSONAL} or MoMo Pay merchant code ${MOMO_MERCHANT_CODE}), or by bank transfer — see your payment instructions email, or write to ${CONTACT}.</p>`),
   },
   {
     emailType: 'reminder_2',
@@ -71,7 +77,7 @@ Reply to this email or write to ${CONTACT} and we will send you our bank account
 <p>We noticed your payment for <strong>{{course_name}}</strong> ({{cohort_label}}) is still pending.</p>
 <p>Outstanding balance: <strong>GHS {{balance}}</strong><br/>
 Course starts: {{start_date}} at {{start_time}}</p>
-<p>To keep your seat, please complete payment at your earliest convenience. If you have already paid by bank transfer, kindly send your transaction reference to ${CONTACT} so we can confirm it.</p>`),
+<p>To keep your seat, please complete payment at your earliest convenience — by card, MTN Mobile Money (${MOMO_PERSONAL} or MoMo Pay ${MOMO_MERCHANT_CODE}), or bank transfer. If you have already paid, kindly send your transaction reference to ${CONTACT} so we can confirm it.</p>`),
   },
   {
     emailType: 'reminder_3',
@@ -79,7 +85,7 @@ Course starts: {{start_date}} at {{start_time}}</p>
     body: wrap(`
 <p>Dear {{participant_name}},</p>
 <p><strong>{{course_name}}</strong> ({{cohort_label}}) begins on <strong>{{start_date}} at {{start_time}}</strong> — just two days away.</p>
-<p>Our records show an outstanding balance of <strong>GHS {{balance}}</strong>. Please complete your payment now so your seat and course materials are ready for you on day one.</p>
+<p>Our records show an outstanding balance of <strong>GHS {{balance}}</strong>. Please complete your payment now — by card, MTN Mobile Money (${MOMO_PERSONAL} or MoMo Pay ${MOMO_MERCHANT_CODE}), or bank transfer — so your seat and course materials are ready for you on day one.</p>
 <p>Questions or already paid? Write to ${CONTACT}.</p>`),
   },
   {
@@ -88,7 +94,7 @@ Course starts: {{start_date}} at {{start_time}}</p>
     body: wrap(`
 <p>Dear {{participant_name}},</p>
 <p><strong>{{course_name}}</strong> ({{cohort_label}}) starts <strong>today at {{start_time}}</strong>.</p>
-<p>Our records still show an outstanding balance of <strong>GHS {{balance}}</strong>. Complete your payment this morning to join the class.</p>
+<p>Our records still show an outstanding balance of <strong>GHS {{balance}}</strong>. Complete your payment this morning — by card, MTN Mobile Money (${MOMO_PERSONAL} or MoMo Pay ${MOMO_MERCHANT_CODE}), or bank transfer — to join the class.</p>
 <p>If you have already paid, please send your transaction reference to ${CONTACT} right away so we can confirm you before the session begins.</p>`),
   },
   {
@@ -117,6 +123,7 @@ Course starts: {{start_date}} at {{start_time}}</p>
   <li>Facilitator: {{facilitator_name}}</li>
   <li>The Zoom link and WhatsApp group invitation will be shared with you before the start date.</li>
 </ul>
+<p>View your receipt, class Zoom link, and certificates anytime — log in to your <a href="${PORTAL_LOGIN_URL}">student portal</a> with your email or phone number and PIN.</p>
 <p>If anything on this receipt looks incorrect, contact us at ${CONTACT}.</p>`),
   },
   {

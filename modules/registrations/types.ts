@@ -47,6 +47,9 @@ export interface RegistrationListRow {
   registrationStatus: RegistrationStatus;
   paymentStatus: PaymentStatus;
   courseFee: number;
+  // Pre-discount fee snapshot; null when no staff discount has ever been
+  // granted (courseFee IS the original fee in that case).
+  originalFee: number | null;
   amountPaid: number;
   balance: number;
   registeredAt: string;
@@ -154,6 +157,11 @@ export interface Registration360 {
     paymentNotes?: string | null;
     verifiedBy?: string | null;
     paymentDate?: string | null;
+    originalFee?: number | null;
+    discountAmount?: number;
+    discountReason?: string | null;
+    discountGrantedByName?: string | null;
+    discountGrantedAt?: string | null;
   } | null;
   messages?: {
     email: Array<{ type: string; sentAt: string; success: boolean; error: string | null }>;

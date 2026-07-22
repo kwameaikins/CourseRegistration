@@ -320,6 +320,9 @@ export async function listRegistrations(filters: RegistrationListFilters): Promi
       registrationStatus: parseRegistrationStatus(row.registration.registration_status),
       paymentStatus: parsePaymentStatus(row.payment?.payment_status ?? 'Unpaid'),
       courseFee: Number(row.payment?.course_fee ?? 0),
+      originalFee: row.payment?.original_fee !== null && row.payment?.original_fee !== undefined
+        ? Number(row.payment.original_fee)
+        : null,
       amountPaid: Number(row.payment?.amount_paid ?? 0),
       balance: Number(row.payment?.balance ?? 0),
       registeredAt: row.registration.registered_at,
@@ -367,6 +370,7 @@ function shapeRowForRole(row: RegistrationListRow, role: StaffRole): Registratio
     // Tutor: no payment fields at all (Document 5, Section 3).
     delete shaped.paymentMethod;
     shaped.courseFee = 0;
+    shaped.originalFee = null;
     shaped.amountPaid = 0;
     shaped.balance = 0;
   }
@@ -424,6 +428,11 @@ export async function getRegistration360(registrationId: string): Promise<Regist
           paymentNotes: data.payment.payment_notes,
           verifiedBy: data.verifiedByName,
           paymentDate: data.payment.payment_date,
+          originalFee: data.payment.original_fee !== null ? Number(data.payment.original_fee) : null,
+          discountAmount: Number(data.payment.discount_amount),
+          discountReason: data.payment.discount_reason,
+          discountGrantedByName: data.discountGrantedByName,
+          discountGrantedAt: data.payment.discount_granted_at,
         }
       : null,
   };
@@ -451,6 +460,11 @@ function shapeRegistration360ForRole(
     delete view.payment.paymentNotes;
     delete view.payment.verifiedBy;
     delete view.payment.paymentDate;
+    delete view.payment.originalFee;
+    delete view.payment.discountAmount;
+    delete view.payment.discountReason;
+    delete view.payment.discountGrantedByName;
+    delete view.payment.discountGrantedAt;
   }
   if (view.payment && role === 'tutor') {
     view.payment = null;

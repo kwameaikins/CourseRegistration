@@ -8,12 +8,16 @@ const repositoryMock = {
 const sendEmailOnceMock = vi.fn();
 const sendWhatsappOnceMock = vi.fn();
 const sendSmsOnceMock = vi.fn();
+const issuePortalLoginTokenMock = vi.fn();
 
 vi.mock('@/modules/payments/repository', () => repositoryMock);
 vi.mock('@/modules/communications/service', () => ({
   sendEmailOnce: (...args: unknown[]) => sendEmailOnceMock(...args),
   sendWhatsappOnce: (...args: unknown[]) => sendWhatsappOnceMock(...args),
   sendSmsOnce: (...args: unknown[]) => sendSmsOnceMock(...args),
+}));
+vi.mock('@/modules/portal/service', () => ({
+  issuePortalLoginToken: (...args: unknown[]) => issuePortalLoginTokenMock(...args),
 }));
 
 const { processWebhookEvent } = await import(
@@ -50,6 +54,7 @@ beforeEach(() => {
     payment_status: 'Paid',
   });
   sendEmailOnceMock.mockResolvedValue('sent');
+  issuePortalLoginTokenMock.mockResolvedValue(undefined);
 });
 
 describe('BR-14 — webhook idempotency (T-BR14-01 logic)', () => {
@@ -133,5 +138,30 @@ describe('event and channel handling', () => {
       'reg-1',
       expect.objectContaining({ amount_paid: 1200 }), // 400 + 800
     );
+  });
+});
+
+describe('portal auto-login token minting', () => {
+  it('mints a portal login token when the payment transitions to Paid', async () => {
+    await processWebhookEvent(chargeSuccessPayload());
+    expect(issuePortalLoginTokenMock).toHaveBeenCalledWith('reg-1');
+  });
+
+  it('does not mint a token when the event is ignored or unmatched', async () => {
+    await processWebhookEvent({ event: 'transfer.success', data: { reference: 'X', amount: 100 } });
+    await processWebhookEvent(chargeSuccessPayload({ metadata: null }));
+    expect(issuePortalLoginTokenMock).not.toHaveBeenCalled();
+  });
+
+  it('does not mint a token for an already-processed (idempotent) event', async () => {
+    repositoryMock.selectPaymentByTransactionIdSystem.mockResolvedValue({ id: 'pay-1' });
+    await processWebhookEvent(chargeSuccessPayload());
+    expect(issuePortalLoginTokenMock).not.toHaveBeenCalled();
+  });
+
+  it('a token-mint failure does not fail webhook processing', async () => {
+    issuePortalLoginTokenMock.mockRejectedValue(new Error('db unreachable'));
+    const outcome = await processWebhookEvent(chargeSuccessPayload());
+    expect(outcome).toEqual({ status: 'processed', paymentStatus: 'Paid' });
   });
 });

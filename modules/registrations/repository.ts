@@ -219,6 +219,7 @@ export async function selectRegistration360(registrationId: string): Promise<{
   batch: Database['public']['Tables']['batches']['Row'] | null;
   course: { course_name: string; course_code: string } | null;
   verifiedByName: string | null;
+  discountGrantedByName: string | null;
   emailLog: Array<{
     email_type: string;
     sent_at: string;
@@ -331,6 +332,16 @@ export async function selectRegistration360(registrationId: string): Promise<{
     verifiedByName = staff?.full_name ?? null;
   }
 
+  let discountGrantedByName: string | null = null;
+  if (payment?.discount_granted_by) {
+    const { data: staff } = await supabase
+      .from('staff_users')
+      .select('full_name')
+      .eq('id', payment.discount_granted_by)
+      .maybeSingle();
+    discountGrantedByName = staff?.full_name ?? null;
+  }
+
   return {
     registration,
     participant,
@@ -338,6 +349,7 @@ export async function selectRegistration360(registrationId: string): Promise<{
     batch,
     course,
     verifiedByName,
+    discountGrantedByName,
     emailLog: emailLog ?? [],
     whatsappLog: whatsappLog ?? [],
     smsLog: smsLog ?? [],

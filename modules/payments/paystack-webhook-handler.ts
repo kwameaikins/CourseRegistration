@@ -3,8 +3,8 @@
 import { parsePaymentStatus } from '@/lib/domain/parsers';
 import { pesewasToGhs } from '@/lib/paystack/client';
 import * as paymentsRepository from '@/modules/payments/repository';
-import * as communicationsService from '@/modules/communications/service';
-import * as attendanceService from '@/modules/attendance/service';
+import * as paymentsService from '@/modules/payments/service';
+import * as portalService from '@/modules/portal/service';
 import {
   paystackWebhookSchema,
   type WebhookOutcome,
@@ -90,26 +90,16 @@ export async function processWebhookEvent(payload: unknown): Promise<WebhookOutc
   }
 
   if (updated.payment_status === 'Paid') {
+    await paymentsService.runPaidTransitionSideEffects(registrationId);
+    // Auto-login (founder-approved 2026-07-22): this is the only Paid
+    // transition with a live browser waiting on the other end (the
+    // participant's own checkout), so mint a one-time token it can exchange
+    // for a portal session. Non-blocking — a mint failure must never fail
+    // webhook processing (Paystack would retry the whole event).
     try {
-      await communicationsService.sendEmailOnce(registrationId, 'payment_confirmation');
+      await portalService.issuePortalLoginToken(registrationId);
     } catch (err) {
-      console.error('[paystack webhook payment_confirmation email]', err);
-    }
-    try {
-      await communicationsService.sendWhatsappOnce(registrationId, 'payment_confirmation');
-    } catch (err) {
-      console.error('[paystack webhook payment_confirmation whatsapp]', err);
-    }
-    try {
-      await communicationsService.sendSmsOnce(registrationId, 'payment_confirmation');
-    } catch (err) {
-      console.error('[paystack webhook payment_confirmation sms]', err);
-    }
-    // Zoom attendance Option 2: a confirmed seat gets a personal join link.
-    try {
-      await attendanceService.ensureZoomRegistration(registrationId);
-    } catch (err) {
-      console.error('[paystack webhook zoom registration]', err);
+      console.error('[paystack webhook portal login token]', err);
     }
   }
 

@@ -43,7 +43,10 @@ export function PaystackCheckout(props: {
   registrationId: string;
   participantEmail: string;
   amountGhs: number;
-  onCompleted: () => void;
+  // Reference is the same value sent to Paystack as `ref` — the caller can
+  // use it to exchange for a portal login token once the webhook confirms
+  // payment (founder-approved 2026-07-22 auto-login).
+  onCompleted: (reference: string) => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -53,19 +56,20 @@ export function PaystackCheckout(props: {
     setErrorMessage(null);
     try {
       const paystack = await loadPaystackScript();
+      const reference = `REG-${props.registrationId}-${Date.now()}`; // unique per attempt
       const handler = paystack.setup({
         key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,
         email: props.participantEmail,
         // GHS to pesewas conversion (Document 7, Section 1.1).
         amount: Math.round(props.amountGhs * 100),
         currency: 'GHS',
-        ref: `REG-${props.registrationId}-${Date.now()}`, // unique per attempt
+        ref: reference,
         metadata: {
           registration_id: props.registrationId, // REQUIRED — webhook match key
         },
         channels: ['card', 'mobile_money'], // Paystack Card + MTN MoMo
         callback: () => {
-          props.onCompleted();
+          props.onCompleted(reference);
         },
         onClose: () => {
           setLoading(false);

@@ -24,6 +24,19 @@ export type PortalLoginResult =
   | { status: 'invalid' }
   | { status: 'locked' };
 
+export const exchangeLoginTokenSchema = z.object({
+  reference: z.string().trim().min(1).max(200),
+});
+export type ExchangeLoginTokenInput = z.infer<typeof exchangeLoginTokenSchema>;
+
+// Deliberately 200/"ok state" rather than AppError for pending/invalid —
+// these are normal, expected outcomes while a webhook is still in flight,
+// not error conditions the client needs to distinguish by HTTP status.
+export type PortalExchangeLoginTokenResult =
+  | { status: 'ok'; sessionId: string; expiresAt: string }
+  | { status: 'pending' }
+  | { status: 'invalid' };
+
 export interface PortalDashboardRegistration {
   registrationId: string;
   courseName: string;
@@ -34,12 +47,17 @@ export interface PortalDashboardRegistration {
   startTime: string;
   endDate: string;
   facilitatorName: string;
-  // Personal join link when this participant has been individually
-  // registered on Zoom (Paid + attendance module ran), else the course's
-  // shared classroom link, else null (not set up).
+  // Null until payment_status is Paid (system review, 2026-07-22) — an
+  // unpaid registrant must never see the classroom link. Once Paid: the
+  // personal join link when this participant has been individually
+  // registered on Zoom, else the course's shared classroom link, else null
+  // (Zoom not set up yet).
   zoomLink: string | null;
   paymentStatus: string;
   courseFee: number;
+  // Equal to courseFee when no staff discount has ever been granted;
+  // otherwise the pre-discount fee, shown struck-through in the UI.
+  originalFee: number;
   amountPaid: number;
   balance: number;
   attendance: Array<{

@@ -3,7 +3,8 @@
 // F1.01 — mobile-first, single-column form (Document 8, Section 2).
 // Inline validation on blur; submit disabled until DPA consent is checked;
 // on a duplicate-registration error the form retains its values.
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 import { apiFetch } from '@/components/api-client';
 import { PaystackCheckout } from '@/components/PaystackCheckout';
@@ -42,7 +43,12 @@ type FieldErrors = Partial<
   Record<'firstName' | 'surname' | 'gender' | 'email' | 'phone' | 'batchId' | 'leadSource', string>
 >;
 
+const LOGIN_TOKEN_POLL_INTERVAL_MS = 2000;
+const LOGIN_TOKEN_POLL_TIMEOUT_MS = 60000;
+
 export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[] }) {
+  const router = useRouter();
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [firstName, setFirstName] = useState('');
   const [middleName, setMiddleName] = useState('');
   const [surname, setSurname] = useState('');
@@ -92,6 +98,40 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
 
   function handleBlur(field: keyof FieldErrors) {
     setFieldErrors((errors) => ({ ...errors, [field]: validateField(field) }));
+  }
+
+  // Founder-approved 2026-07-22: after a self-serve Paystack payment, poll
+  // for the webhook to confirm it and mint a portal login token, then log
+  // the participant straight into their dashboard — no PIN step. The
+  // reference is unguessable (generated client-side, never handed back by
+  // the server), so this polling is just politeness/backoff, not a security
+  // control. If it never resolves (webhook delayed, or the participant paid
+  // by bank transfer/MoMo instead), the existing "payment received" message
+  // stays up and the payment_confirmation email already links to
+  // /portal/login as a fallback.
+  function handlePaymentCompleted(reference: string) {
+    setPaymentStarted(true);
+    const startedAt = Date.now();
+    pollTimerRef.current = setInterval(async () => {
+      if (Date.now() - startedAt > LOGIN_TOKEN_POLL_TIMEOUT_MS) {
+        if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+        return;
+      }
+      try {
+        const result = await apiFetch<{ status: 'ok' | 'pending' | 'invalid' }>(
+          '/api/portal/exchange-login-token',
+          { method: 'POST', body: JSON.stringify({ reference }) },
+        );
+        if (result.status === 'ok') {
+          if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+          router.push('/portal');
+        } else if (result.status === 'invalid') {
+          if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+        }
+      } catch {
+        // Transient network error — let the next poll tick try again.
+      }
+    }, LOGIN_TOKEN_POLL_INTERVAL_MS);
   }
 
   async function handleSubmit(event: React.FormEvent) {
@@ -154,18 +194,24 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
               registrationId={success.registrationId}
               participantEmail={email.trim().toLowerCase()}
               amountGhs={selectedBatchFee}
-              onCompleted={() => setPaymentStarted(true)}
+              onCompleted={handlePaymentCompleted}
             />
             <p className="text-xs text-muted-foreground">
-              You can also pay later by bank transfer — details are in the payment
-              instructions email we just sent you.
+              You can also pay later by bank transfer or MTN Mobile Money (0530531328, or
+              MoMo Pay merchant code 143735) — details are in the payment instructions
+              email we just sent you.
             </p>
           </div>
         )}
         {paymentStarted && (
           <p className="rounded-md bg-emerald-50 p-3 text-sm text-emerald-700">
-            Payment received — thank you! A confirmation email is on its way once the
-            payment is verified.
+            Payment received — thank you! We&apos;re confirming it now and will take you to
+            your student portal automatically. A confirmation email is also on its way —
+            it links to{' '}
+            <a href="/portal/login" className="underline">
+              your portal login
+            </a>{' '}
+            in case you need it.
           </p>
         )}
       </div>
