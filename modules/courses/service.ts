@@ -4,6 +4,7 @@ import * as coursesRepository from '@/modules/courses/repository';
 // Permitted cross-module call: communications is the shared generic
 // subdomain every module may use (Document 2, Section 9).
 import { seedDefaultTemplatesForCourse } from '@/modules/communications/default-templates';
+import { createZoomMeeting, isZoomMeetingCreateConfigured } from '@/lib/zoom/client';
 import type {
   Batch,
   BatchInput,
@@ -26,6 +27,8 @@ function toCourse(row: Database['public']['Tables']['courses']['Row']): Course {
     certificateDescription: row.certificate_description,
     cpdCredit: row.cpd_credit,
     certificateSerialFloor: row.certificate_serial_floor,
+    zoomLink: row.zoom_link,
+    zoomMeetingId: row.zoom_meeting_id,
     createdAt: row.created_at,
   };
 }
@@ -61,6 +64,23 @@ export async function getCourses(): Promise<Course[]> {
 }
 
 export async function createCourse(input: CourseInput): Promise<Course> {
+  // One persistent "classroom" Zoom meeting per Course (system review,
+  // 2026-07-22) — every Batch inherits it, rather than each cohort getting
+  // its own meeting. A Zoom failure must never block creating the course;
+  // staff can set the link manually via course edit as a fallback.
+  let zoomFields: { zoom_link: string | null; zoom_meeting_id: string | null } = {
+    zoom_link: null,
+    zoom_meeting_id: null,
+  };
+  if (isZoomMeetingCreateConfigured()) {
+    try {
+      const meeting = await createZoomMeeting(input.courseName);
+      zoomFields = { zoom_link: meeting.joinUrl, zoom_meeting_id: meeting.meetingId };
+    } catch (err) {
+      console.error('[course zoom meeting create]', err);
+    }
+  }
+
   let row;
   try {
     row = await coursesRepository.insertCourse({
@@ -69,6 +89,7 @@ export async function createCourse(input: CourseInput): Promise<Course> {
       certificate_hours: input.certificateHours,
       certificate_description: input.certificateDescription,
       cpd_credit: input.cpdCredit,
+      ...zoomFields,
     });
   } catch (err) {
     if (isPostgresUniqueViolation(err)) {
@@ -102,6 +123,8 @@ export async function updateCourse(courseId: string, changes: CourseUpdate): Pro
       certificate_description: changes.certificateDescription,
     }),
     ...(changes.cpdCredit !== undefined && { cpd_credit: changes.cpdCredit }),
+    ...(changes.zoomLink !== undefined && { zoom_link: changes.zoomLink }),
+    ...(changes.zoomMeetingId !== undefined && { zoom_meeting_id: changes.zoomMeetingId }),
   });
   return toCourse(row);
 }
@@ -111,8 +134,36 @@ export async function getBatches(courseId?: string): Promise<Batch[]> {
   return rows.map(toBatch);
 }
 
+// Batches inherit the parent Course's Zoom meeting at creation time (system
+// review, 2026-07-22) — no longer a per-batch manual field. If the course
+// has no Zoom meeting yet (created before this existed, Zoom wasn't
+// configured yet, or the course-creation call failed), lazily create it
+// now on the course's first Batch and save it back onto the Course, so
+// every later Batch of the same course reuses that same meeting.
 export async function createBatch(input: BatchInput): Promise<Batch> {
-  const row = await coursesRepository.insertBatch(toBatchInsert(input));
+  const course = await coursesRepository.selectCourseByIdSystem(input.courseId);
+  let zoomLink = course?.zoom_link ?? null;
+  let zoomMeetingId = course?.zoom_meeting_id ?? null;
+
+  if (!zoomLink && !zoomMeetingId && course && isZoomMeetingCreateConfigured()) {
+    try {
+      const meeting = await createZoomMeeting(course.course_name);
+      zoomLink = meeting.joinUrl;
+      zoomMeetingId = meeting.meetingId;
+      await coursesRepository.updateCourseById(course.id, {
+        zoom_link: zoomLink,
+        zoom_meeting_id: zoomMeetingId,
+      });
+    } catch (err) {
+      console.error('[batch zoom meeting lazy create]', err);
+    }
+  }
+
+  const row = await coursesRepository.insertBatch({
+    ...toBatchInsert(input),
+    zoom_link: zoomLink,
+    zoom_meeting_id: zoomMeetingId,
+  });
   return toBatch(row);
 }
 
@@ -123,8 +174,6 @@ export async function updateBatch(batchId: string, changes: BatchUpdate): Promis
     ...(changes.startDate !== undefined && { start_date: changes.startDate }),
     ...(changes.startTime !== undefined && { start_time: changes.startTime }),
     ...(changes.endDate !== undefined && { end_date: changes.endDate }),
-    ...(changes.zoomLink !== undefined && { zoom_link: changes.zoomLink }),
-    ...(changes.zoomMeetingId !== undefined && { zoom_meeting_id: changes.zoomMeetingId }),
     ...(changes.whatsappGroupLink !== undefined && {
       whatsapp_group_link: changes.whatsappGroupLink,
     }),
@@ -192,8 +241,6 @@ function toBatchInsert(input: BatchInput): Database['public']['Tables']['batches
     start_date: input.startDate,
     start_time: input.startTime,
     end_date: input.endDate,
-    zoom_link: input.zoomLink ?? null,
-    zoom_meeting_id: input.zoomMeetingId ?? null,
     whatsapp_group_link: input.whatsappGroupLink ?? null,
     facilitator_name: input.facilitatorName,
     facilitator_staff_id: input.facilitatorStaffId ?? null,

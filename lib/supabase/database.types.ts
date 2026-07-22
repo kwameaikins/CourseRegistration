@@ -300,6 +300,8 @@ export type Database = {
           created_at: string
           id: string
           updated_at: string
+          zoom_link: string | null
+          zoom_meeting_id: string | null
         }
         Insert: {
           certificate_description?: string
@@ -311,6 +313,8 @@ export type Database = {
           created_at?: string
           id?: string
           updated_at?: string
+          zoom_link?: string | null
+          zoom_meeting_id?: string | null
         }
         Update: {
           certificate_description?: string
@@ -322,6 +326,8 @@ export type Database = {
           created_at?: string
           id?: string
           updated_at?: string
+          zoom_link?: string | null
+          zoom_meeting_id?: string | null
         }
         Relationships: []
       }
@@ -530,6 +536,79 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      participant_auth: {
+        Row: {
+          participant_id: string
+          pin_hash: string
+          must_change_pin: boolean
+          failed_attempts: number
+          locked_until: string | null
+          last_login_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          participant_id: string
+          pin_hash: string
+          must_change_pin?: boolean
+          failed_attempts?: number
+          locked_until?: string | null
+          last_login_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          participant_id?: string
+          pin_hash?: string
+          must_change_pin?: boolean
+          failed_attempts?: number
+          locked_until?: string | null
+          last_login_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "participant_auth_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: true
+            referencedRelation: "participants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      participant_sessions: {
+        Row: {
+          id: string
+          participant_id: string
+          created_at: string
+          expires_at: string
+          revoked_at: string | null
+        }
+        Insert: {
+          id?: string
+          participant_id: string
+          created_at?: string
+          expires_at: string
+          revoked_at?: string | null
+        }
+        Update: {
+          id?: string
+          participant_id?: string
+          created_at?: string
+          expires_at?: string
+          revoked_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "participant_sessions_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "participants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payments: {
         Row: {

@@ -11,6 +11,10 @@ import * as voiceService from '@/modules/voice/service';
 //   get_course_catalog      → open batches with fees and start dates
 //   send_registration_link  → SMS the registration URL to a phone number
 //   request_human_callback  → flags a call for a human to return
+//   lookup_customer         → looks up a participant + their registrations/
+//                             payment status by email or phone (the "CRM"
+//                             for the sales follow-up agent, system review
+//                             2026-07-22)
 export async function POST(request: Request) {
   if (!isValidVapiSecret(request.headers.get('x-vapi-secret'))) {
     return errorResponse({ code: 'UNAUTHENTICATED', message: 'Invalid webhook secret.' }, 401);
@@ -79,6 +83,18 @@ async function runTool(name: string, args: Record<string, unknown>): Promise<str
             'Register for a Knowsia course here: https://reg.knowsia.com/register - Knowsia',
         });
         return 'Registration link sent by SMS.';
+      }
+      case 'lookup_customer': {
+        const identifier =
+          typeof args.identifier === 'string'
+            ? args.identifier
+            : typeof args.phone === 'string'
+              ? args.phone
+              : typeof args.email === 'string'
+                ? args.email
+                : '';
+        if (!identifier) return 'An email or phone number is required to look up a customer.';
+        return voiceService.lookupCustomerForAgent(identifier);
       }
       case 'request_human_callback': {
         const phone = typeof args.phone === 'string' ? args.phone : '';

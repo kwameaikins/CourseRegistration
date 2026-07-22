@@ -2,9 +2,11 @@
 //
 // Uses a Server-to-Server OAuth app (marketplace.zoom.us → Develop →
 // Server-to-Server OAuth) with scopes: meeting:write:registrant,
-// report:read:list_meeting_participants (Pro plan required for reports).
-// Required env vars: ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, ZOOM_CLIENT_SECRET.
-// When unset (pre-setup, local dev), isZoomConfigured() gates all calls.
+// report:read:list_meeting_participants (Pro plan required for reports),
+// and meeting:write (course-level meeting auto-creation, system review
+// 2026-07-22). Required env vars: ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID,
+// ZOOM_CLIENT_SECRET, ZOOM_HOST_EMAIL. When unset (pre-setup, local dev),
+// isZoomConfigured() gates all calls.
 
 const ZOOM_API_BASE = 'https://api.zoom.us/v2';
 const ZOOM_TOKEN_URL = 'https://zoom.us/oauth/token';
@@ -15,6 +17,13 @@ export function isZoomConfigured(): boolean {
       process.env.ZOOM_CLIENT_ID &&
       process.env.ZOOM_CLIENT_SECRET,
   );
+}
+
+// Meeting auto-create additionally needs a host — a distinct check so the
+// existing registrant/report calls keep working even if ZOOM_HOST_EMAIL
+// hasn't been set yet.
+export function isZoomMeetingCreateConfigured(): boolean {
+  return isZoomConfigured() && Boolean(process.env.ZOOM_HOST_EMAIL);
 }
 
 // Account-credentials tokens last 1 hour; cache with a safety margin so a
@@ -81,6 +90,37 @@ export async function addMeetingRegistrant(params: {
     },
   );
   return { registrantId: data.registrant_id, joinUrl: data.join_url };
+}
+
+// Creates one persistent "classroom" meeting for a Course (system review,
+// 2026-07-22) — type 3 (recurring, no fixed time) so the same meeting ID/
+// link stays valid indefinitely and every Batch of the Course can reuse it,
+// rather than a fresh meeting per cohort. Hosted under ZOOM_HOST_EMAIL,
+// the Zoom user tied to this app's Server-to-Server OAuth account.
+export async function createZoomMeeting(
+  topic: string,
+): Promise<{ meetingId: string; joinUrl: string }> {
+  const hostEmail = process.env.ZOOM_HOST_EMAIL;
+  if (!hostEmail) {
+    throw new Error('ZOOM_HOST_EMAIL is not configured.');
+  }
+  const data = await zoomFetch<{ id: number; join_url: string }>(
+    `/users/${encodeURIComponent(hostEmail)}/meetings`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        topic,
+        type: 3,
+        settings: {
+          approval_type: 0,
+          registration_type: 1,
+          waiting_room: false,
+          join_before_host: true,
+        },
+      }),
+    },
+  );
+  return { meetingId: String(data.id), joinUrl: data.join_url };
 }
 
 export interface ZoomParticipantRecord {

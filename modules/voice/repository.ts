@@ -106,6 +106,118 @@ async function selectCallContexts(registrationIds: string[]): Promise<
 
 export { selectCallContexts };
 
+// Customer lookup for the sales-follow-up agent's lookup_customer tool
+// (system review, 2026-07-22) — the "CRM" this custom-tool talks to is this
+// app's own participants/registrations data. Same email-or-last-9-digits
+// matching as the student portal's login lookup (modules/portal/repository).
+export async function selectCustomerSummaryByIdentifier(identifier: string): Promise<{
+  fullName: string;
+  email: string;
+  phone: string;
+  jobTitle: string | null;
+  company: string | null;
+  registrations: Array<{
+    courseName: string;
+    cohortLabel: string;
+    registrationStatus: string;
+    paymentStatus: string;
+    balance: number;
+  }>;
+} | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const trimmed = identifier.trim();
+
+  type ParticipantRow = {
+    id: string;
+    full_name: string;
+    email: string;
+    phone: string;
+    job_title: string | null;
+    company: string | null;
+    deleted_at: string | null;
+  };
+  let participant: ParticipantRow | null = null;
+
+  if (trimmed.includes('@')) {
+    const { data, error } = await supabase
+      .from('participants')
+      .select('id, full_name, email, phone, job_title, company, deleted_at')
+      .eq('email', trimmed.toLowerCase())
+      .limit(1);
+    if (error) throw error;
+    participant = data[0] ?? null;
+  } else {
+    const digits = trimmed.replace(/\D/g, '');
+    const last9 = digits.slice(-9);
+    if (last9.length === 9) {
+      const { data, error } = await supabase
+        .from('participants')
+        .select('id, full_name, email, phone, job_title, company, deleted_at')
+        .ilike('phone', `%${last9}`)
+        .limit(1);
+      if (error) throw error;
+      participant = data[0] ?? null;
+    }
+  }
+
+  if (!participant || participant.deleted_at !== null) return null;
+
+  const { data: registrations, error: regError } = await supabase
+    .from('registrations')
+    .select('id, batch_id, registration_status')
+    .eq('participant_id', participant.id);
+  if (regError) throw regError;
+
+  const base = {
+    fullName: participant.full_name,
+    email: participant.email,
+    phone: participant.phone,
+    jobTitle: participant.job_title,
+    company: participant.company,
+  };
+  if (registrations.length === 0) return { ...base, registrations: [] };
+
+  const batchIds = [...new Set(registrations.map((r) => r.batch_id))];
+  const registrationIds = registrations.map((r) => r.id);
+
+  const [batchesResult, paymentsResult] = await Promise.all([
+    supabase.from('batches').select('id, course_id, cohort_label').in('id', batchIds),
+    supabase
+      .from('payments')
+      .select('registration_id, payment_status, balance')
+      .in('registration_id', registrationIds),
+  ]);
+  if (batchesResult.error) throw batchesResult.error;
+  if (paymentsResult.error) throw paymentsResult.error;
+
+  const courseIds = [...new Set(batchesResult.data.map((b) => b.course_id))];
+  const { data: courses, error: coursesError } = await supabase
+    .from('courses')
+    .select('id, course_name')
+    .in('id', courseIds);
+  if (coursesError) throw coursesError;
+
+  const batchById = new Map(batchesResult.data.map((b) => [b.id, b]));
+  const courseById = new Map(courses.map((c) => [c.id, c]));
+  const paymentByRegId = new Map(paymentsResult.data.map((p) => [p.registration_id, p]));
+
+  return {
+    ...base,
+    registrations: registrations.map((r) => {
+      const batch = batchById.get(r.batch_id);
+      const course = batch ? courseById.get(batch.course_id) : null;
+      const payment = paymentByRegId.get(r.id);
+      return {
+        courseName: course?.course_name ?? '',
+        cohortLabel: batch?.cohort_label ?? '',
+        registrationStatus: r.registration_status,
+        paymentStatus: payment?.payment_status ?? 'Unpaid',
+        balance: Number(payment?.balance ?? 0),
+      };
+    }),
+  };
+}
+
 // 1. payment_followup — Unpaid, registered 3+ days ago, batch active with
 // payment reminders on and not yet started.
 export async function selectPaymentFollowupRegistrations(

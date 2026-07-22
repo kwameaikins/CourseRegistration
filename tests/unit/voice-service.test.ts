@@ -12,6 +12,7 @@ const repositoryMock = {
   selectCallLogByVapiId: vi.fn(),
   insertInboundCallLog: vi.fn(),
   selectRecentCalls: vi.fn(),
+  selectCustomerSummaryByIdentifier: vi.fn(),
 };
 const clientMock = {
   isVoiceConfigured: vi.fn(),
@@ -33,9 +34,8 @@ vi.mock('@/modules/feedback/service', () => ({
   submitFeedback: (...args: unknown[]) => submitFeedbackMock(...args),
 }));
 
-const { callingWindowStart, handleEndOfCallReport, runVoiceCallDispatch } = await import(
-  '@/modules/voice/service'
-);
+const { callingWindowStart, handleEndOfCallReport, runVoiceCallDispatch, lookupCustomerForAgent } =
+  await import('@/modules/voice/service');
 
 function context(overrides: Record<string, unknown> = {}) {
   return {
@@ -247,5 +247,54 @@ describe('handleEndOfCallReport', () => {
     });
     expect(outcome).toBe('unknown_call');
     expect(repositoryMock.updateCallLog).not.toHaveBeenCalled();
+  });
+});
+
+describe('lookupCustomerForAgent — the sales-follow-up agent\'s CRM lookup tool', () => {
+  it('returns a generic not-found message when no participant matches', async () => {
+    repositoryMock.selectCustomerSummaryByIdentifier.mockResolvedValue(null);
+    const result = await lookupCustomerForAgent('nobody@example.com');
+    expect(result).toBe('No customer found with that email or phone number.');
+  });
+
+  it('summarizes the profile and every registration in one spoken-friendly string', async () => {
+    repositoryMock.selectCustomerSummaryByIdentifier.mockResolvedValue({
+      fullName: 'Ama Owusu',
+      email: 'ama@example.com',
+      phone: '0245121941',
+      jobTitle: 'Finance Manager',
+      company: 'Acme Ltd',
+      registrations: [
+        {
+          courseName: 'AI-Powered Financial Reporting',
+          cohortLabel: 'JUL-2026',
+          registrationStatus: 'Registered',
+          paymentStatus: 'Unpaid',
+          balance: 1200,
+        },
+      ],
+    });
+
+    const result = await lookupCustomerForAgent('0245121941');
+
+    expect(result).toContain('Ama Owusu');
+    expect(result).toContain('Finance Manager');
+    expect(result).toContain('Acme Ltd');
+    expect(result).toContain('AI-Powered Financial Reporting');
+    expect(result).toContain('balance owing GHS 1200');
+  });
+
+  it('reports no registrations on file rather than an empty summary', async () => {
+    repositoryMock.selectCustomerSummaryByIdentifier.mockResolvedValue({
+      fullName: 'Kofi Mensah',
+      email: 'kofi@example.com',
+      phone: '0207654321',
+      jobTitle: null,
+      company: null,
+      registrations: [],
+    });
+
+    const result = await lookupCustomerForAgent('kofi@example.com');
+    expect(result).toContain('No course registrations on file.');
   });
 });

@@ -24,6 +24,8 @@ export async function insertCourse(course: {
   certificate_hours: number;
   certificate_description: string;
   cpd_credit: string;
+  zoom_link?: string | null;
+  zoom_meeting_id?: string | null;
 }): Promise<CourseRow> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase

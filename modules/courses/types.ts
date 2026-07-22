@@ -11,6 +11,12 @@ export interface Course {
   cpdCredit: string;
   // Highest 2026 serial already used per the legacy AppScript counter.
   certificateSerialFloor: number;
+  // Persistent "classroom" Zoom meeting (system review, 2026-07-22):
+  // auto-created once per Course; every Batch inherits it at creation time
+  // rather than each cohort getting its own meeting. Editable here as a
+  // manual fallback if auto-create failed or wasn't configured yet.
+  zoomLink: string | null;
+  zoomMeetingId: string | null;
   createdAt: string;
 }
 
@@ -62,16 +68,6 @@ export const courseInputSchema = z.object({
   cpdCredit: z.string().trim().max(50).default('TBD'),
 });
 
-// course_code is immutable — it is baked into issued certificate numbers.
-export const courseUpdateSchema = z.object({
-  courseName: z.string().trim().min(2).optional(),
-  certificateHours: z.number().int().min(0).max(1000).optional(),
-  certificateDescription: z.string().trim().max(600).optional(),
-  cpdCredit: z.string().trim().max(50).optional(),
-});
-
-export type CourseUpdate = z.infer<typeof courseUpdateSchema>;
-
 const httpsUrl = z
   .string()
   .trim()
@@ -81,20 +77,6 @@ const httpsUrl = z
   .transform((value) => (value === '' ? null : value))
   .nullable()
   .optional();
-
-// Same wrapping order as httpsUrl above: transform runs only for a present
-// value, so an omitted key stays `undefined` (batchUpdateSchema's "field not
-// touched by this PATCH" signal) while an explicit null or empty string
-// becomes `null` ("clear the discount").
-const discountCutoffDateField = z
-  .string()
-  .refine((value) => value === '' || /^\d{4}-\d{2}-\d{2}$/.test(value), {
-    message: 'Discount Cutoff Date must be a valid date (YYYY-MM-DD)',
-  })
-  .transform((value) => (value === '' ? null : value))
-  .nullable()
-  .optional();
-const discountedFeeField = z.number().min(0).nullable().optional();
 
 // Zoom meeting IDs are 9–11 digits, often typed with spaces (e.g. "829 XXX").
 const zoomMeetingIdField = z
@@ -110,6 +92,33 @@ const zoomMeetingIdField = z
   .nullable()
   .optional();
 
+// course_code is immutable — it is baked into issued certificate numbers.
+export const courseUpdateSchema = z.object({
+  courseName: z.string().trim().min(2).optional(),
+  certificateHours: z.number().int().min(0).max(1000).optional(),
+  certificateDescription: z.string().trim().max(600).optional(),
+  cpdCredit: z.string().trim().max(50).optional(),
+  // Manual fallback/override for the auto-created course meeting.
+  zoomLink: httpsUrl,
+  zoomMeetingId: zoomMeetingIdField,
+});
+
+export type CourseUpdate = z.infer<typeof courseUpdateSchema>;
+
+// Same wrapping order as httpsUrl above: transform runs only for a present
+// value, so an omitted key stays `undefined` (batchUpdateSchema's "field not
+// touched by this PATCH" signal) while an explicit null or empty string
+// becomes `null` ("clear the discount").
+const discountCutoffDateField = z
+  .string()
+  .refine((value) => value === '' || /^\d{4}-\d{2}-\d{2}$/.test(value), {
+    message: 'Discount Cutoff Date must be a valid date (YYYY-MM-DD)',
+  })
+  .transform((value) => (value === '' ? null : value))
+  .nullable()
+  .optional();
+const discountedFeeField = z.number().min(0).nullable().optional();
+
 export const batchInputSchema = z
   .object({
     courseId: z.uuid(),
@@ -118,8 +127,6 @@ export const batchInputSchema = z
     startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     startTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
     endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    zoomLink: httpsUrl,
-    zoomMeetingId: zoomMeetingIdField,
     whatsappGroupLink: httpsUrl,
     facilitatorName: z.string().trim().min(2),
     facilitatorStaffId: z.uuid().nullable().optional(),
@@ -168,8 +175,6 @@ export const batchUpdateSchema = z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .optional(),
-    zoomLink: httpsUrl,
-    zoomMeetingId: zoomMeetingIdField,
     whatsappGroupLink: httpsUrl,
     facilitatorName: z.string().trim().min(2).optional(),
     facilitatorStaffId: z.uuid().nullable().optional(),

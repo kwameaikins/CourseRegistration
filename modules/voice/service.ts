@@ -247,6 +247,34 @@ export async function recordInboundCall(input: {
   });
 }
 
+// lookup_customer tool for the Vapi sales-follow-up agent (system review,
+// 2026-07-22) — this app's registrations data IS the "CRM" the agent looks
+// customers up in. Returns a short natural-language summary (matching the
+// other tool handlers' string-return convention) rather than raw JSON,
+// since it feeds straight into the assistant's spoken response.
+export async function lookupCustomerForAgent(identifier: string): Promise<string> {
+  const summary = await voiceRepository.selectCustomerSummaryByIdentifier(identifier);
+  if (!summary) return 'No customer found with that email or phone number.';
+
+  const profile =
+    `${summary.fullName}, ${summary.email}, ${summary.phone}` +
+    (summary.jobTitle ? `, ${summary.jobTitle}` : '') +
+    (summary.company ? ` at ${summary.company}` : '');
+
+  const registrationsText =
+    summary.registrations.length === 0
+      ? 'No course registrations on file.'
+      : summary.registrations
+          .map(
+            (r) =>
+              `${r.courseName} (${r.cohortLabel}): ${r.registrationStatus}, payment ${r.paymentStatus}` +
+              (r.balance > 0 ? `, balance owing GHS ${r.balance}` : ''),
+          )
+          .join('. ');
+
+  return `${profile}. ${registrationsText}`;
+}
+
 // Staff review (RLS enforces admin/finance/management).
 export async function getRecentCalls(limit = 100): Promise<CallLogView[]> {
   const rows = await voiceRepository.selectRecentCalls(limit);
