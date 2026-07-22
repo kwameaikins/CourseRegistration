@@ -33,6 +33,7 @@ function makeContext(
   return {
     registrationId: 'reg-1',
     participantFullName: 'Ama Owusu',
+    participantFirstName: 'Ama',
     participantEmail: 'ama@example.com',
     participantPhone: '+233241234567',
     participantDeleted: false,
@@ -165,7 +166,7 @@ describe('sendSmsOnce — gates checked BEFORE reservation', () => {
 describe('SMS body composition', () => {
   it('welcome names the course, fee, and points to the email instructions', () => {
     const body = smsBodyForMessageType('welcome', makeContext());
-    expect(body).toContain('Ama Owusu');
+    expect(body).toContain('Hi Ama,');
     expect(body).toContain('ICAG Level 1 Prep (JUL-2026)');
     expect(body).toContain('GHS 1,200.00');
     expect(body).toContain('email');

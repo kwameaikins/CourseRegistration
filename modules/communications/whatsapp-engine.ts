@@ -36,7 +36,7 @@ export function templateForMessageType(
       return {
         templateName: 'course_registration_welcome',
         bodyParameters: [
-          context.participantFullName,
+          context.participantFirstName,
           courseLabel,
           context.startDate,
           formatGhs(context.courseFee),
@@ -50,7 +50,7 @@ export function templateForMessageType(
       return {
         templateName: 'course_payment_confirmation',
         bodyParameters: [
-          context.participantFullName,
+          context.participantFirstName,
           courseLabel,
           formatGhs(context.amountPaid),
           context.whatsappGroupLink ?? '',
@@ -62,7 +62,7 @@ export function templateForMessageType(
       return {
         templateName: 'course_payment_reminder',
         bodyParameters: [
-          context.participantFullName,
+          context.participantFirstName,
           courseLabel,
           formatGhs(context.balance),
           context.startDate,

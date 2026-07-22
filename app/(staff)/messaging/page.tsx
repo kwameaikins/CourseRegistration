@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { SentMessagesLog } from '@/app/(staff)/messaging/SentMessagesLog';
 
 interface Course {
   id: string;
@@ -54,6 +55,7 @@ interface DraftTemplate {
 }
 
 export default function MessagingPage() {
+  const [activeTab, setActiveTab] = useState<'templates' | 'log'>('templates');
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState('');
   const [drafts, setDrafts] = useState<Record<string, DraftTemplate>>({});
@@ -137,10 +139,34 @@ export default function MessagingPage() {
       <div>
         <h1 className="text-2xl font-bold">Messaging</h1>
         <p className="text-sm text-muted-foreground">
-          Edit the automated emails sent for each course. Placeholders are replaced at send
-          time: <code className="text-xs">{PLACEHOLDERS}</code>
+          Edit the automated emails sent for each course, or review everything already sent.
         </p>
       </div>
+
+      <div className="flex gap-1 border-b">
+        <button
+          type="button"
+          onClick={() => setActiveTab('templates')}
+          className={`px-3 py-2 text-sm font-medium ${activeTab === 'templates' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground'}`}
+        >
+          Templates
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('log')}
+          className={`px-3 py-2 text-sm font-medium ${activeTab === 'log' ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground'}`}
+        >
+          Sent Messages
+        </button>
+      </div>
+
+      {activeTab === 'log' && <SentMessagesLog />}
+
+      {activeTab === 'templates' && (
+      <>
+      <p className="text-sm text-muted-foreground">
+        Placeholders are replaced at send time: <code className="text-xs">{PLACEHOLDERS}</code>
+      </p>
 
       <div className="max-w-md space-y-2">
         <Label htmlFor="course">Course</Label>
@@ -242,6 +268,8 @@ export default function MessagingPage() {
             );
           })}
         </div>
+      )}
+      </>
       )}
     </div>
   );

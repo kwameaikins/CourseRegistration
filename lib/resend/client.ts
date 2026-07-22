@@ -9,13 +9,21 @@ function getResendClient(): Resend {
   return resendClient;
 }
 
+// RESEND_FROM_EMAIL is configured as a bare address; without a display name
+// Gmail falls back to showing the local part ("reg") as the sender name
+// instead of the brand, so it's added here rather than depending on every
+// env value being pre-formatted as "Name <address>".
+function formatFromAddress(rawFromEmail: string): string {
+  return rawFromEmail.includes('<') ? rawFromEmail : `Knowsia <${rawFromEmail}>`;
+}
+
 export async function sendTransactionalEmail(params: {
   to: string;
   subject: string;
   html: string;
 }): Promise<void> {
   const { error } = await getResendClient().emails.send({
-    from: process.env.RESEND_FROM_EMAIL!,
+    from: formatFromAddress(process.env.RESEND_FROM_EMAIL!),
     to: params.to,
     subject: params.subject,
     html: params.html,

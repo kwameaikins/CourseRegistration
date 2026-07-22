@@ -23,6 +23,7 @@ function makeContext(overrides: Partial<RegistrationEmailContext> = {}): Registr
   return {
     registrationId: 'reg-1',
     participantFullName: 'Ama Owusu',
+    participantFirstName: 'Ama',
     participantEmail: 'ama@example.com',
     participantPhone: '+233241234567',
     participantDeleted: false,

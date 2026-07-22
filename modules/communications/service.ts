@@ -8,9 +8,12 @@ export {
   getTemplatesForCourse,
   saveTemplate,
 } from '@/modules/communications/template-admin';
+export { getMessageLog } from '@/modules/communications/message-log';
 export type {
   EmailTemplateView,
   EmailType,
+  MessageLogFilters,
+  MessageLogRow,
   ReminderRunSummary,
   TemplateUpsertInput,
 } from '@/modules/communications/types';

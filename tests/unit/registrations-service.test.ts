@@ -359,6 +359,26 @@ describe('bulkImportRegistrations — backfill of registrations collected outsid
     expect(result.summary.paid).toBe(1);
   });
 
+  it('defaults course_fee to the batch effective fee, but honors a per-row override for early-discount payers', async () => {
+    await bulkImportRegistrations(
+      validBulkRequest({
+        rows: [
+          validBulkRow({ email: 'full-price@example.com', amountPaid: 1200 }),
+          validBulkRow({ email: 'early-bird@example.com', amountPaid: 900, courseFee: 900 }),
+        ],
+      }),
+    );
+
+    expect(registrationsRepositoryMock.insertInitialPayment).toHaveBeenNthCalledWith(1, {
+      registration_id: 'reg-1',
+      course_fee: 1200,
+    });
+    expect(registrationsRepositoryMock.insertInitialPayment).toHaveBeenNthCalledWith(2, {
+      registration_id: 'reg-1',
+      course_fee: 900,
+    });
+  });
+
   it('records a duplicate row and continues importing the remaining rows (does not abort the batch)', async () => {
     registrationsRepositoryMock.insertRegistration
       .mockRejectedValueOnce({ code: '23505' })

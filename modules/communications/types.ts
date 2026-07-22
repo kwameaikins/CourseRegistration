@@ -77,6 +77,11 @@ export const EMAIL_TYPE_TOGGLE: Partial<
 export interface RegistrationEmailContext {
   registrationId: string;
   participantFullName: string;
+  // Used to address the participant in message greetings ("Hi {{first
+  // name}}") — friendlier than the full name and what founders asked for
+  // (system review, 2026-07-22). participantFullName is kept for anything
+  // that still needs the complete name.
+  participantFirstName: string;
   participantEmail: string;
   participantPhone: string;
   participantDeleted: boolean;
@@ -112,4 +117,30 @@ export interface ReminderRunSummary {
   whatsappSent: number;
   smsSent: number;
   errors: string[];
+}
+
+// Sent-message log (admin review screen) — a merged, reverse-chronological
+// feed across email_log/whatsapp_log/sms_log. Admin-only, same visibility
+// rule as the Registration 360 view's message history.
+export const messageLogFiltersSchema = z.object({
+  channel: z.enum(['email', 'whatsapp', 'sms']).optional(),
+  status: z.enum(['success', 'failed']).optional(),
+  search: z.string().trim().max(200).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
+});
+
+export type MessageLogFilters = z.infer<typeof messageLogFiltersSchema>;
+
+export interface MessageLogRow {
+  channel: 'email' | 'whatsapp' | 'sms';
+  messageType: string;
+  sentAt: string;
+  success: boolean;
+  errorMessage: string | null;
+  registrationId: string;
+  participantName: string;
+  participantEmail: string;
+  courseName: string;
+  cohortLabel: string;
 }

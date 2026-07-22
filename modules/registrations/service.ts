@@ -17,6 +17,9 @@ import * as communicationsService from '@/modules/communications/service';
 // bulkImportRegistrations for why it calls the un-gated helper directly
 // instead of the finance/admin-only updatePaymentByStaff.
 import * as paymentsService from '@/modules/payments/service';
+// Permitted cross-module call, same posture as communications: every new/
+// returning registrant gets student-portal access (system review, 2026-07-22).
+import { ensureParticipantAuth } from '@/modules/portal/service';
 import type {
   BulkImportRequest,
   BulkImportResult,
@@ -80,6 +83,13 @@ export async function createRegistration(
     job_title: input.jobTitle,
     company: input.company,
   });
+
+  // Student portal access — never blocks registration on failure.
+  try {
+    await ensureParticipantAuth(participant.id, input.phone);
+  } catch (err) {
+    console.error('[registration portal auth provision]', err);
+  }
 
   let registration;
   try {
@@ -167,7 +177,7 @@ export async function bulkImportRegistrations(
     throw new AppError('INVALID_BATCH', 'That course intake does not exist.', 400);
   }
   const todayIso = new Date().toISOString().slice(0, 10);
-  const courseFee = effectiveCourseFee(batch, todayIso);
+  const defaultCourseFee = effectiveCourseFee(batch, todayIso);
   const notesSuffix = input.notesSuffix?.trim() || `Imported from Google Form — ${todayIso}`;
 
   const results: BulkImportRowResult[] = [];
@@ -192,6 +202,12 @@ export async function bulkImportRegistrations(
         company: row.company,
       });
 
+      try {
+        await ensureParticipantAuth(participant.id, row.phone);
+      } catch (err) {
+        console.error('[bulk import portal auth provision]', err);
+      }
+
       let registration;
       try {
         registration = await registrationsRepository.insertRegistration({
@@ -211,7 +227,7 @@ export async function bulkImportRegistrations(
 
       await registrationsRepository.insertInitialPayment({
         registration_id: registration.id,
-        course_fee: courseFee,
+        course_fee: row.courseFee ?? defaultCourseFee,
       });
 
       await registrationsRepository.updateRegistrationNotes(registration.id, notesSuffix);

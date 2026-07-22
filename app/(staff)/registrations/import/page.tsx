@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { parseCsv } from '@/lib/csv';
+import { effectiveCourseFee } from '@/lib/utils';
 
 interface Course {
   id: string;
@@ -23,6 +24,9 @@ interface Batch {
   courseId: string;
   cohortLabel: string;
   startDate: string;
+  courseFee: number;
+  discountCutoffDate: string | null;
+  discountedFee: number | null;
 }
 
 const TARGET_FIELDS = [
@@ -151,6 +155,14 @@ export default function ImportRegistrationsPage() {
   const [dataRows, setDataRows] = useState<string[][]>([]);
   const [columnMap, setColumnMap] = useState<ColumnMap>({});
   const [excludedRows, setExcludedRows] = useState<Set<number>>(new Set());
+  // Per-row override for the fee this person actually owed — needed because
+  // a backfilled row's "today" is long after the batch's discount cutoff, so
+  // the fee that would otherwise be auto-derived (effectiveCourseFee) is
+  // wrong for anyone who paid the early-bird price back when they originally
+  // registered. Defaults to the batch's current effective fee; edit it down
+  // for early-discount rows so amountPaid vs. courseFee comes out as Paid
+  // instead of Part Payment.
+  const [courseFeeOverrides, setCourseFeeOverrides] = useState<Record<number, number>>({});
 
   const [leadSource, setLeadSource] = useState('Other');
   const [paymentMethod, setPaymentMethod] = useState('Cash');
@@ -201,9 +213,13 @@ export default function ImportRegistrationsPage() {
       setDataRows(rest);
       setColumnMap(guessColumnMap(headerRow));
       setExcludedRows(new Set());
+      setCourseFeeOverrides({});
     };
     reader.readAsText(file);
   }
+
+  const selectedBatch = batches.find((batch) => batch.id === batchId) ?? null;
+  const defaultCourseFee = selectedBatch ? effectiveCourseFee(selectedBatch) : 0;
 
   const mappedRows = useMemo(() => buildMappedRows(dataRows, columnMap), [dataRows, columnMap]);
   const includedRows = mappedRows.filter(
@@ -217,6 +233,14 @@ export default function ImportRegistrationsPage() {
       else next.add(rowIndex);
       return next;
     });
+  }
+
+  function courseFeeFor(rowIndex: number): number {
+    return courseFeeOverrides[rowIndex] ?? defaultCourseFee;
+  }
+
+  function setCourseFeeFor(rowIndex: number, fee: number) {
+    setCourseFeeOverrides((prev) => ({ ...prev, [rowIndex]: fee }));
   }
 
   async function submitImport() {
@@ -257,6 +281,7 @@ export default function ImportRegistrationsPage() {
             jobTitle: row.jobTitle || null,
             company: row.company || null,
             amountPaid: row.amountPaid,
+            courseFee: courseFeeFor(row.rowIndex),
           })),
         }),
       });
@@ -373,6 +398,15 @@ export default function ImportRegistrationsPage() {
           <h2 className="font-medium">
             4. Preview ({includedRows.length} of {mappedRows.length} will be imported)
           </h2>
+          {selectedBatch && (
+            <p className="text-xs text-muted-foreground">
+              Course fee defaults to {defaultCourseFee} for every row (the batch&apos;s current
+              fee — the early-registration discount window has likely already closed for a
+              backfill). If someone actually paid the discounted price, edit their row&apos;s
+              course fee down to match what they paid, so they come out as Paid rather than Part
+              Payment.
+            </p>
+          )}
           <div className="max-h-96 overflow-auto">
             <table className="w-full text-left text-sm">
               <thead>
@@ -382,6 +416,7 @@ export default function ImportRegistrationsPage() {
                   <th className="p-2">Email</th>
                   <th className="p-2">Phone</th>
                   <th className="p-2">Amount paid</th>
+                  <th className="p-2">Course fee</th>
                   <th className="p-2">Status</th>
                 </tr>
               </thead>
@@ -405,6 +440,18 @@ export default function ImportRegistrationsPage() {
                       <td className="p-2">{row.email}</td>
                       <td className="p-2">{row.phone}</td>
                       <td className="p-2">{row.amountPaid > 0 ? row.amountPaid : '—'}</td>
+                      <td className="p-2">
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          className="h-8 w-24"
+                          value={courseFeeFor(row.rowIndex)}
+                          onChange={(event) =>
+                            setCourseFeeFor(row.rowIndex, Number(event.target.value) || 0)
+                          }
+                        />
+                      </td>
                       <td className="p-2">
                         {hasErrors ? (
                           <span className="text-xs text-destructive">{row.errors.join('; ')}</span>

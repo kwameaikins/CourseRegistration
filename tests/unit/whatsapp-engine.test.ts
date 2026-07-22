@@ -35,6 +35,7 @@ function makeContext(
   return {
     registrationId: 'reg-1',
     participantFullName: 'Ama Owusu',
+    participantFirstName: 'Ama',
     participantEmail: 'ama@example.com',
     participantPhone: '+233241234567',
     participantDeleted: false,
@@ -199,7 +200,7 @@ describe('template mapping', () => {
     );
     expect(templateName).toBe('course_registration_welcome');
     expect(bodyParameters).toEqual([
-      'Ama Owusu',
+      'Ama',
       'ICAG Level 1 Prep (JUL-2026)',
       '2026-07-14',
       'GHS 1,200.00',

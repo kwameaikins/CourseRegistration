@@ -216,6 +216,12 @@ export const bulkImportRowSchema = z.object({
   jobTitle: optionalProfessionalText,
   company: optionalProfessionalText,
   amountPaid: z.coerce.number().min(0).default(0),
+  // Backfilled rows are imported long after a batch's discount cutoff has
+  // passed, so the fee that would normally be auto-derived from today's
+  // date is wrong for anyone who actually paid the early-bird price at the
+  // time they originally registered. Optional per-row override; falls back
+  // to the batch's current effective fee when omitted.
+  courseFee: z.coerce.number().min(0).optional(),
 });
 
 export type BulkImportRow = z.infer<typeof bulkImportRowSchema>;

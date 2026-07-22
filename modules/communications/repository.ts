@@ -7,7 +7,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import type { EmailType, SmsMessageType, WhatsappMessageType } from '@/lib/domain/types';
 import type { Database } from '@/lib/supabase/database.types';
-import type { RegistrationEmailContext } from '@/modules/communications/types';
+import type { MessageLogFilters, MessageLogRow, RegistrationEmailContext } from '@/modules/communications/types';
 
 type EmailTemplateRow = Database['public']['Tables']['email_templates']['Row'];
 
@@ -191,7 +191,7 @@ export async function selectRegistrationEmailContext(
   const [{ data: participant }, { data: batch }, { data: payment }] = await Promise.all([
     supabase
       .from('participants')
-      .select('full_name, email, phone, deleted_at')
+      .select('full_name, first_name, email, phone, deleted_at')
       .eq('id', registration.participant_id)
       .maybeSingle(),
     supabase.from('batches').select('*').eq('id', registration.batch_id).maybeSingle(),
@@ -221,6 +221,10 @@ export async function selectRegistrationEmailContext(
   return {
     registrationId,
     participantFullName: participant.full_name,
+    // first_name is nullable (backfilled column; also cleared on DPA soft
+    // delete) — fall back to the first word of full_name so a legacy row
+    // never breaks the greeting placeholder.
+    participantFirstName: participant.first_name ?? participant.full_name.split(' ')[0],
     participantEmail: participant.email,
     participantPhone: participant.phone,
     participantDeleted: participant.deleted_at !== null,
@@ -307,4 +311,152 @@ export async function selectCurrentPaymentStatus(
     .maybeSingle();
   if (error) throw error;
   return data?.payment_status ?? null;
+}
+
+// Sent-message log (admin review screen). Each of the three log tables is
+// small/moderate for this system's scale, so rather than a cross-table SQL
+// UNION (not expressible through the Supabase JS client without an RPC),
+// each channel is fetched independently — capped and pre-filtered by
+// success status at the DB level — then merged and joined to
+// registration/participant/course context in app code, mirroring
+// selectRegistrationList's join pattern. Search and pagination are applied
+// after the merge since they depend on the joined participant fields.
+const MESSAGE_LOG_FETCH_CAP = 500;
+
+type RawLogEntry = Omit<MessageLogRow, 'participantName' | 'participantEmail' | 'courseName' | 'cohortLabel'>;
+
+async function fetchEmailLogEntries(status?: 'success' | 'failed'): Promise<RawLogEntry[]> {
+  const supabase = createSupabaseServiceRoleClient();
+  let query = supabase
+    .from('email_log')
+    .select('registration_id, email_type, sent_at, success, error_message')
+    .order('sent_at', { ascending: false })
+    .limit(MESSAGE_LOG_FETCH_CAP);
+  if (status) query = query.eq('success', status === 'success');
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    channel: 'email' as const,
+    messageType: row.email_type,
+    sentAt: row.sent_at,
+    success: row.success,
+    errorMessage: row.error_message,
+    registrationId: row.registration_id,
+  }));
+}
+
+async function fetchWhatsappLogEntries(status?: 'success' | 'failed'): Promise<RawLogEntry[]> {
+  const supabase = createSupabaseServiceRoleClient();
+  let query = supabase
+    .from('whatsapp_log')
+    .select('registration_id, message_type, sent_at, success, error_message')
+    .order('sent_at', { ascending: false })
+    .limit(MESSAGE_LOG_FETCH_CAP);
+  if (status) query = query.eq('success', status === 'success');
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    channel: 'whatsapp' as const,
+    messageType: row.message_type,
+    sentAt: row.sent_at,
+    success: row.success,
+    errorMessage: row.error_message,
+    registrationId: row.registration_id,
+  }));
+}
+
+async function fetchSmsLogEntries(status?: 'success' | 'failed'): Promise<RawLogEntry[]> {
+  const supabase = createSupabaseServiceRoleClient();
+  let query = supabase
+    .from('sms_log')
+    .select('registration_id, message_type, sent_at, success, error_message')
+    .order('sent_at', { ascending: false })
+    .limit(MESSAGE_LOG_FETCH_CAP);
+  if (status) query = query.eq('success', status === 'success');
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    channel: 'sms' as const,
+    messageType: row.message_type,
+    sentAt: row.sent_at,
+    success: row.success,
+    errorMessage: row.error_message,
+    registrationId: row.registration_id,
+  }));
+}
+
+export async function selectMessageLog(
+  filters: MessageLogFilters,
+): Promise<{ rows: MessageLogRow[]; total: number }> {
+  const supabase = createSupabaseServiceRoleClient();
+
+  const fetchers = filters.channel
+    ? [
+        { email: fetchEmailLogEntries, whatsapp: fetchWhatsappLogEntries, sms: fetchSmsLogEntries }[
+          filters.channel
+        ],
+      ]
+    : [fetchEmailLogEntries, fetchWhatsappLogEntries, fetchSmsLogEntries];
+
+  const perChannel = await Promise.all(fetchers.map((fetcher) => fetcher(filters.status)));
+  const combined = perChannel.flat();
+  if (combined.length === 0) return { rows: [], total: 0 };
+
+  const registrationIds = [...new Set(combined.map((entry) => entry.registrationId))];
+  const { data: registrations, error: registrationsError } = await supabase
+    .from('registrations')
+    .select('id, participant_id, batch_id')
+    .in('id', registrationIds);
+  if (registrationsError) throw registrationsError;
+
+  const participantIds = [...new Set(registrations.map((r) => r.participant_id))];
+  const batchIds = [...new Set(registrations.map((r) => r.batch_id))];
+
+  const [participantsResult, batchesResult] = await Promise.all([
+    supabase.from('participants').select('id, full_name, email').in('id', participantIds),
+    supabase.from('batches').select('id, cohort_label, course_id').in('id', batchIds),
+  ]);
+  if (participantsResult.error) throw participantsResult.error;
+  if (batchesResult.error) throw batchesResult.error;
+
+  const courseIds = [...new Set(batchesResult.data.map((b) => b.course_id))];
+  const { data: courses, error: coursesError } = await supabase
+    .from('courses')
+    .select('id, course_name')
+    .in('id', courseIds);
+  if (coursesError) throw coursesError;
+
+  const registrationById = new Map(registrations.map((r) => [r.id, r]));
+  const participantById = new Map(participantsResult.data.map((p) => [p.id, p]));
+  const batchById = new Map(batchesResult.data.map((b) => [b.id, b]));
+  const courseById = new Map(courses.map((c) => [c.id, c]));
+
+  let rows: MessageLogRow[] = combined.map((entry) => {
+    const registration = registrationById.get(entry.registrationId);
+    const participant = registration ? participantById.get(registration.participant_id) : null;
+    const batch = registration ? batchById.get(registration.batch_id) : null;
+    const course = batch ? courseById.get(batch.course_id) : null;
+    return {
+      ...entry,
+      participantName: participant?.full_name ?? '[unavailable]',
+      participantEmail: participant?.email ?? '',
+      courseName: course?.course_name ?? '',
+      cohortLabel: batch?.cohort_label ?? '',
+    };
+  });
+
+  rows.sort((a, b) => (a.sentAt < b.sentAt ? 1 : a.sentAt > b.sentAt ? -1 : 0));
+
+  if (filters.search) {
+    const needle = filters.search.toLowerCase();
+    rows = rows.filter(
+      (row) =>
+        row.participantName.toLowerCase().includes(needle) ||
+        row.participantEmail.toLowerCase().includes(needle),
+    );
+  }
+
+  const total = rows.length;
+  const offset = (filters.page - 1) * filters.limit;
+  return { rows: rows.slice(offset, offset + filters.limit), total };
 }

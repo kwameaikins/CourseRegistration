@@ -67,7 +67,7 @@ export async function sendEmailOnce(
   if (reservation === 'duplicate') return 'skipped_duplicate';
 
   const placeholderData: Record<string, string> = {
-    participant_name: context.participantFullName,
+    participant_name: context.participantFirstName,
     full_name: context.participantFullName,
     course_name: context.courseName,
     course_code: context.courseCode,

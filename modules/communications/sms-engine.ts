@@ -26,13 +26,13 @@ export function smsBodyForMessageType(
   switch (messageType) {
     case 'welcome':
       return (
-        `Hi ${context.participantFullName}, we received your registration for ` +
+        `Hi ${context.participantFirstName}, we received your registration for ` +
         `${context.courseName} (${context.cohortLabel}). Fee: ${formatGhs(context.courseFee)}. ` +
         `Payment instructions have been sent to your email. - Knowsia`
       );
     case 'payment_confirmation':
       return (
-        `Hi ${context.participantFullName}, your payment of ${formatGhs(context.amountPaid)} for ` +
+        `Hi ${context.participantFirstName}, your payment of ${formatGhs(context.amountPaid)} for ` +
         `${context.courseName} is received. Your seat is confirmed. ` +
         `Starts ${context.startDate} at ${context.startTime}. - Knowsia`
       );
@@ -40,7 +40,7 @@ export function smsBodyForMessageType(
       // All four payment reminders share one body; dedup is per
       // message_type, so each still sends at most once.
       return (
-        `Hi ${context.participantFullName}, ${formatGhs(context.balance)} is outstanding for ` +
+        `Hi ${context.participantFirstName}, ${formatGhs(context.balance)} is outstanding for ` +
         `${context.courseName} starting ${context.startDate}. ` +
         `Kindly complete payment to secure your seat. - Knowsia`
       );
