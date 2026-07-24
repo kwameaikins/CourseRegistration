@@ -60,10 +60,17 @@ export interface RegistrationListRow {
   verifiedBy?: string | null;
 }
 
-// Optional professional-context fields — collected to help staff segment
-// leads and follow up on corporate sponsorship, never required to register.
-// .nullish() (not .optional()) so an explicit null on the input is accepted
-// too — the field is always stored as string | null downstream.
+// Professional-context fields — collected to help staff segment leads and
+// follow up on corporate sponsorship. Required on the public form (founder
+// decision, 2026-07-24): a registrant with no current job/company enters
+// "N/A" rather than leaving the field blank.
+const requiredProfessionalText = z.string().trim().min(1).max(150);
+
+// Optional variant, kept for bulk import (staff backfill of historical
+// registrations collected outside the system) where the source data may
+// genuinely have this field blank. .nullish() (not .optional()) so an
+// explicit null on the input is accepted too — the field is always stored
+// as string | null downstream.
 const optionalProfessionalText = z
   .string()
   .trim()
@@ -83,8 +90,8 @@ export const registrationInputSchema = z.object({
   gender: z.enum(['Male', 'Female']),
   email: z.email().transform((value) => value.toLowerCase()),
   phone: z.string().trim().min(10),
-  jobTitle: optionalProfessionalText,
-  company: optionalProfessionalText,
+  jobTitle: requiredProfessionalText,
+  company: requiredProfessionalText,
   batchId: z.uuid(),
   leadSource: z.enum(['WhatsApp', 'Facebook', 'LinkedIn', 'Referral', 'Website', 'Other']),
   // BR-15: consent must be literally true; z.literal rejects everything else.

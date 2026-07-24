@@ -224,8 +224,52 @@ export async function consumeLoginToken(
 // Everything the portal dashboard needs about one Participant, across every
 // Registration they have — service-role client, explicit participant_id
 // scoping (never trusts a client-supplied id past the session lookup).
+// Self-service name correction (founder request, 2026-07-24): a certificate
+// is only ever as correct as participants.full_name at the moment staff pick
+// issuance candidates (see certificates/repository.ts), so letting the
+// participant fix a typo themselves — before that moment — fixes it on the
+// certificate too, with no staff involvement.
+// Support for the retroactive certificate rename (system review,
+// 2026-07-24) — every Registration this participant has ever made, so the
+// caller can push the corrected name onto any certificate already issued.
+export async function selectRegistrationIdsForParticipant(
+  participantId: string,
+): Promise<string[]> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('registrations')
+    .select('id')
+    .eq('participant_id', participantId);
+  if (error) throw error;
+  return (data ?? []).map((row) => row.id);
+}
+
+export async function updateParticipantName(
+  participantId: string,
+  changes: { first_name: string; middle_name: string | null; surname: string; full_name: string },
+): Promise<void> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase
+    .from('participants')
+    .update({
+      first_name: changes.first_name,
+      middle_name: changes.middle_name,
+      surname: changes.surname,
+      full_name: changes.full_name,
+    })
+    .eq('id', participantId);
+  if (error) throw error;
+}
+
 export async function selectPortalDashboardData(participantId: string): Promise<{
-  participant: { full_name: string; email: string; phone: string } | null;
+  participant: {
+    full_name: string;
+    first_name: string | null;
+    middle_name: string | null;
+    surname: string | null;
+    email: string;
+    phone: string;
+  } | null;
   registrations: Array<{
     registration: Database['public']['Tables']['registrations']['Row'];
     batch: Database['public']['Tables']['batches']['Row'] | null;
@@ -250,7 +294,7 @@ export async function selectPortalDashboardData(participantId: string): Promise<
 
   const { data: participant, error: participantError } = await supabase
     .from('participants')
-    .select('full_name, email, phone')
+    .select('full_name, first_name, middle_name, surname, email, phone')
     .eq('id', participantId)
     .maybeSingle();
   if (participantError) throw participantError;

@@ -4,15 +4,29 @@
 // registrant might ask staff about: registration status, payment/balance,
 // class schedule + Zoom join link, attendance, and certificates, across
 // every course they've registered for.
-import { useEffect, useState } from 'react';
+//
+// Pay Now (fix, 2026-07-24): previously the only way to pay was the
+// one-time "Pay now" button shown right after registering — if the
+// participant left before paying, that link was gone for good; revisiting
+// /register just produced a "you're already registered" dead end. The
+// portal is durable (the participant already has an account from
+// registration, log in any time with email/phone + PIN), so it is the
+// right place to offer payment for as long as a balance remains.
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { apiFetch } from '@/components/api-client';
 import { AddToLinkedInButton } from '@/components/AddToLinkedInButton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { KnowsiaHeader } from '@/components/KnowsiaHeader';
+import { PaystackCheckout } from '@/components/PaystackCheckout';
 import { formatDate, formatGhs } from '@/lib/utils';
+
+const PAYMENT_POLL_INTERVAL_MS = 3000;
+const PAYMENT_POLL_TIMEOUT_MS = 60000;
 
 interface DashboardRegistration {
   registrationId: string;
@@ -41,6 +55,9 @@ interface DashboardRegistration {
 
 interface Dashboard {
   fullName: string;
+  firstName: string;
+  middleName: string | null;
+  surname: string;
   email: string;
   phone: string;
   mustChangePin: boolean;
@@ -57,9 +74,24 @@ export default function PortalDashboardPage() {
   const router = useRouter();
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [loading, setLoading] = useState(true);
+  // Which registration currently has the Paystack widget open — only one
+  // at a time, since only one iframe can be open.
+  const [payingRegistrationId, setPayingRegistrationId] = useState<string | null>(null);
+  // Which registration is waiting on webhook confirmation after checkout.
+  const [confirmingRegistrationId, setConfirmingRegistrationId] = useState<string | null>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    apiFetch<Dashboard>('/api/portal/me')
+  // Self-service name correction (founder request, 2026-07-24) — see
+  // /api/portal/update-name. Certificates are only ever as correct as
+  // whatever full_name says at issuance time, so this is how a participant
+  // fixes a typo, a legal-name change, etc. before that happens.
+  const [editingName, setEditingName] = useState(false);
+  const [nameForm, setNameForm] = useState({ firstName: '', middleName: '', surname: '' });
+  const [nameSaving, setNameSaving] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
+
+  const loadDashboard = useCallback(() => {
+    return apiFetch<Dashboard>('/api/portal/me')
       .then((data) => {
         if (data.mustChangePin) {
           router.push('/portal/change-pin');
@@ -67,13 +99,77 @@ export default function PortalDashboardPage() {
         }
         setDashboard(data);
       })
-      .catch(() => router.push('/portal/login'))
-      .finally(() => setLoading(false));
+      .catch(() => router.push('/portal/login'));
   }, [router]);
+
+  useEffect(() => {
+    loadDashboard().finally(() => setLoading(false));
+    return () => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    };
+  }, [loadDashboard]);
 
   async function handleLogout() {
     await apiFetch('/api/portal/logout', { method: 'POST' }).catch(() => undefined);
     router.push('/portal/login');
+  }
+
+  function handleStartEditingName() {
+    if (!dashboard) return;
+    setNameForm({
+      firstName: dashboard.firstName,
+      middleName: dashboard.middleName ?? '',
+      surname: dashboard.surname,
+    });
+    setNameError(null);
+    setEditingName(true);
+  }
+
+  async function handleSaveName(event: React.FormEvent) {
+    event.preventDefault();
+    setNameSaving(true);
+    setNameError(null);
+    try {
+      await apiFetch('/api/portal/update-name', {
+        method: 'POST',
+        body: JSON.stringify(nameForm),
+      });
+      await loadDashboard();
+      setEditingName(false);
+    } catch (err) {
+      setNameError(err instanceof Error ? err.message : 'Could not save your name.');
+    } finally {
+      setNameSaving(false);
+    }
+  }
+
+  // Same non-authoritative polling posture as the registration page's
+  // auto-login: the webhook is the source of truth, this just refreshes the
+  // screen once it lands instead of making the participant reload manually.
+  function handlePaymentCompleted(registrationId: string) {
+    setPayingRegistrationId(null);
+    setConfirmingRegistrationId(registrationId);
+    const previousStatus = dashboard?.registrations.find(
+      (reg) => reg.registrationId === registrationId,
+    )?.paymentStatus;
+    const startedAt = Date.now();
+    pollTimerRef.current = setInterval(async () => {
+      if (Date.now() - startedAt > PAYMENT_POLL_TIMEOUT_MS) {
+        if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+        setConfirmingRegistrationId(null);
+        return;
+      }
+      const updated = await apiFetch<Dashboard>('/api/portal/me').catch(() => null);
+      if (!updated) return; // transient network error — next tick tries again
+      setDashboard(updated);
+      const updatedRegistration = updated.registrations.find(
+        (reg) => reg.registrationId === registrationId,
+      );
+      if (updatedRegistration && updatedRegistration.paymentStatus !== previousStatus) {
+        if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+        setConfirmingRegistrationId(null);
+      }
+    }, PAYMENT_POLL_INTERVAL_MS);
   }
 
   if (loading) {
@@ -89,18 +185,98 @@ export default function PortalDashboardPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-10">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <KnowsiaHeader />
-        <Button variant="outline" onClick={handleLogout}>
+        <Button variant="outline" className="h-11" onClick={handleLogout}>
           Log out
         </Button>
       </div>
 
       <div className="mt-6">
-        <h1 className="text-2xl font-semibold">Welcome, {dashboard.fullName}</h1>
-        <p className="text-sm text-muted-foreground">
-          {dashboard.email} · {dashboard.phone}
-        </p>
+        {editingName ? (
+          <form onSubmit={handleSaveName} className="max-w-md space-y-3 rounded-lg border p-4">
+            <p className="text-sm font-medium">
+              Confirm your name as it should appear on your certificate
+            </p>
+            {nameError && (
+              <p role="alert" className="text-sm text-destructive">
+                {nameError}
+              </p>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="editFirstName">First Name</Label>
+              <Input
+                id="editFirstName"
+                required
+                className="h-11"
+                value={nameForm.firstName}
+                onChange={(event) =>
+                  setNameForm((form) => ({ ...form, firstName: event.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editMiddleName">
+                Middle Name <span className="text-muted-foreground">(optional)</span>
+              </Label>
+              <Input
+                id="editMiddleName"
+                className="h-11"
+                value={nameForm.middleName}
+                onChange={(event) =>
+                  setNameForm((form) => ({ ...form, middleName: event.target.value }))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editSurname">Surname</Label>
+              <Input
+                id="editSurname"
+                required
+                className="h-11"
+                value={nameForm.surname}
+                onChange={(event) =>
+                  setNameForm((form) => ({ ...form, surname: event.target.value }))
+                }
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button type="submit" className="h-11" disabled={nameSaving}>
+                {nameSaving ? 'Saving…' : 'Save name'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11"
+                disabled={nameSaving}
+                onClick={() => setEditingName(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        ) : (
+          <>
+            <h1 className="text-2xl font-semibold">
+              Welcome, {dashboard.fullName}{' '}
+              <button
+                type="button"
+                onClick={handleStartEditingName}
+                className="text-sm font-medium text-primary underline-offset-2 hover:underline"
+              >
+                Not your name / edit
+              </button>
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              {dashboard.email} · {dashboard.phone}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              This is the name that appears on your certificate. If you spot a mistake, you
+              can fix it here anytime — including on a certificate you already have, since
+              it updates automatically.
+            </p>
+          </>
+        )}
       </div>
 
       <div className="mt-8 space-y-6">
@@ -128,7 +304,7 @@ export default function PortalDashboardPage() {
                 href={reg.zoomLink}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-4 inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                className="mt-4 inline-flex min-h-11 items-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
               >
                 Join Zoom Class →
               </a>
@@ -161,6 +337,30 @@ export default function PortalDashboardPage() {
                 <p className="font-medium">{formatGhs(reg.balance)}</p>
               </div>
             </div>
+
+            {reg.balance > 0 && (
+              <div className="mt-4 space-y-3 border-t pt-4">
+                {confirmingRegistrationId === reg.registrationId ? (
+                  <p className="rounded-md bg-emerald-50 p-3 text-sm text-emerald-700">
+                    Payment received — confirming now, this will update automatically.
+                  </p>
+                ) : payingRegistrationId === reg.registrationId ? (
+                  <PaystackCheckout
+                    registrationId={reg.registrationId}
+                    participantEmail={dashboard.email}
+                    amountGhs={reg.balance}
+                    onCompleted={() => handlePaymentCompleted(reg.registrationId)}
+                  />
+                ) : (
+                  <Button
+                    className="h-11 w-full"
+                    onClick={() => setPayingRegistrationId(reg.registrationId)}
+                  >
+                    Pay {formatGhs(reg.balance)} now — Card or Mobile Money
+                  </Button>
+                )}
+              </div>
+            )}
 
             {reg.attendance.length > 0 && (
               <div className="mt-4">

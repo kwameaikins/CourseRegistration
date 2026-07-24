@@ -66,6 +66,7 @@ export default function PortalChangePinPage() {
             type="password"
             inputMode="numeric"
             maxLength={4}
+            className="h-11"
             value={currentPin}
             onChange={(event) => setCurrentPin(event.target.value.replace(/\D/g, '').slice(0, 4))}
           />
@@ -78,6 +79,7 @@ export default function PortalChangePinPage() {
             type="password"
             inputMode="numeric"
             maxLength={4}
+            className="h-11"
             value={newPin}
             onChange={(event) => setNewPin(event.target.value.replace(/\D/g, '').slice(0, 4))}
           />
@@ -90,13 +92,14 @@ export default function PortalChangePinPage() {
             type="password"
             inputMode="numeric"
             maxLength={4}
+            className="h-11"
             value={confirmPin}
             onChange={(event) => setConfirmPin(event.target.value.replace(/\D/g, '').slice(0, 4))}
           />
         </div>
         <Button
           type="submit"
-          className="w-full"
+          className="h-11 w-full"
           disabled={submitting || currentPin.length !== 4 || newPin.length !== 4}
         >
           {submitting ? 'Saving…' : 'Save New PIN'}

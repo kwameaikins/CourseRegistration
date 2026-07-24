@@ -84,7 +84,7 @@ export function PaystackCheckout(props: {
 
   return (
     <div className="space-y-2">
-      <Button onClick={handlePay} disabled={loading} className="w-full">
+      <Button onClick={handlePay} disabled={loading} className="h-11 w-full">
         {loading ? 'Opening secure checkout…' : 'Pay now — Card or Mobile Money'}
       </Button>
       {errorMessage && (

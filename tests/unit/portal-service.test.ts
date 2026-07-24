@@ -12,6 +12,8 @@ const repositoryMock = {
   revokeSession: vi.fn(),
   selectAllActiveParticipants: vi.fn(),
   selectPortalDashboardData: vi.fn(),
+  updateParticipantName: vi.fn(),
+  selectRegistrationIdsForParticipant: vi.fn(),
   selectParticipantIdForRegistration: vi.fn(),
   insertLoginToken: vi.fn(),
   consumeLoginToken: vi.fn(),
@@ -19,9 +21,13 @@ const repositoryMock = {
 const paymentsRepositoryMock = {
   selectPaymentSummaryByTransactionIdSystem: vi.fn(),
 };
+const certificatesServiceMock = {
+  renameExistingCertificates: vi.fn(),
+};
 
 vi.mock('@/modules/portal/repository', () => repositoryMock);
 vi.mock('@/modules/payments/repository', () => paymentsRepositoryMock);
+vi.mock('@/modules/certificates/service', () => certificatesServiceMock);
 
 const {
   login,
@@ -32,6 +38,7 @@ const {
   getPortalDashboard,
   issuePortalLoginToken,
   exchangeLoginToken,
+  updateName,
 } = await import('@/modules/portal/service');
 const { hashPin } = await import('@/lib/portal-auth/pin');
 
@@ -59,6 +66,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   repositoryMock.selectParticipantByIdentifier.mockResolvedValue(PARTICIPANT);
   repositoryMock.selectParticipantAuth.mockResolvedValue(authRow());
+  repositoryMock.selectRegistrationIdsForParticipant.mockResolvedValue(['reg-1', 'reg-2']);
+  certificatesServiceMock.renameExistingCertificates.mockResolvedValue(undefined);
   repositoryMock.insertSession.mockResolvedValue({
     id: 'session-1',
     participant_id: 'participant-1',
@@ -155,6 +164,64 @@ describe('changePin', () => {
       'participant-1',
       expect.any(String),
     );
+  });
+});
+
+describe('updateName', () => {
+  it('joins first/middle/surname into full_name and writes it via the repository', async () => {
+    await updateName('session-1', {
+      firstName: 'Ama',
+      middleName: null,
+      surname: 'Owusu-Mensah',
+    });
+    expect(repositoryMock.updateParticipantName).toHaveBeenCalledWith('participant-1', {
+      first_name: 'Ama',
+      middle_name: null,
+      surname: 'Owusu-Mensah',
+      full_name: 'Ama Owusu-Mensah',
+    });
+  });
+
+  it('includes the middle name in full_name when present', async () => {
+    await updateName('session-1', {
+      firstName: 'Ama',
+      middleName: 'Adjoa',
+      surname: 'Owusu',
+    });
+    expect(repositoryMock.updateParticipantName).toHaveBeenCalledWith('participant-1', {
+      first_name: 'Ama',
+      middle_name: 'Adjoa',
+      surname: 'Owusu',
+      full_name: 'Ama Adjoa Owusu',
+    });
+  });
+
+  it('rejects without a valid session', async () => {
+    await expect(
+      updateName(undefined, { firstName: 'Ama', middleName: null, surname: 'Owusu' }),
+    ).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+    expect(repositoryMock.updateParticipantName).not.toHaveBeenCalled();
+  });
+
+  // Founder follow-up, 2026-07-24: the correction must reach certificates
+  // already issued, not just the participant record going forward.
+  it('retroactively renames every certificate already issued to this participant', async () => {
+    await updateName('session-1', { firstName: 'Ama', middleName: null, surname: 'Owusu' });
+    expect(repositoryMock.selectRegistrationIdsForParticipant).toHaveBeenCalledWith(
+      'participant-1',
+    );
+    expect(certificatesServiceMock.renameExistingCertificates).toHaveBeenCalledWith(
+      ['reg-1', 'reg-2'],
+      'Ama Owusu',
+    );
+  });
+
+  it('still succeeds if the retroactive certificate rename fails', async () => {
+    certificatesServiceMock.renameExistingCertificates.mockRejectedValue(new Error('db down'));
+    await expect(
+      updateName('session-1', { firstName: 'Ama', middleName: null, surname: 'Owusu' }),
+    ).resolves.toBeUndefined();
+    expect(repositoryMock.updateParticipantName).toHaveBeenCalled();
   });
 });
 

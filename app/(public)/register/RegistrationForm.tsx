@@ -6,7 +6,7 @@
 import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { apiFetch } from '@/components/api-client';
+import { ApiError, apiFetch } from '@/components/api-client';
 import { PaystackCheckout } from '@/components/PaystackCheckout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,7 +40,18 @@ const CONSENT_TEXT =
   'Data Protection Act, 2012 (Act 843). I can request deletion of my data at any time.';
 
 type FieldErrors = Partial<
-  Record<'firstName' | 'surname' | 'gender' | 'email' | 'phone' | 'batchId' | 'leadSource', string>
+  Record<
+    | 'firstName'
+    | 'surname'
+    | 'gender'
+    | 'email'
+    | 'phone'
+    | 'jobTitle'
+    | 'company'
+    | 'batchId'
+    | 'leadSource',
+    string
+  >
 >;
 
 const LOGIN_TOKEN_POLL_INTERVAL_MS = 2000;
@@ -63,6 +74,7 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
 
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [bannerError, setBannerError] = useState<string | null>(null);
+  const [isDuplicateRegistration, setIsDuplicateRegistration] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState<{
     registrationId: string;
@@ -88,6 +100,14 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
       case 'phone':
         return phone.trim().length < 10
           ? 'Please enter a valid phone number (at least 10 digits).'
+          : undefined;
+      case 'jobTitle':
+        return jobTitle.trim().length < 1
+          ? 'Please enter your job title, or N/A if not currently employed.'
+          : undefined;
+      case 'company':
+        return company.trim().length < 1
+          ? 'Please enter your company/institution, or N/A if not applicable.'
           : undefined;
       case 'batchId':
         return batchId ? undefined : 'Please select a course.';
@@ -138,7 +158,17 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
     event.preventDefault();
     const errors: FieldErrors = {};
     (
-      ['firstName', 'surname', 'gender', 'email', 'phone', 'batchId', 'leadSource'] as const
+      [
+        'firstName',
+        'surname',
+        'gender',
+        'email',
+        'phone',
+        'jobTitle',
+        'company',
+        'batchId',
+        'leadSource',
+      ] as const
     ).forEach((field) => {
       const fieldError = validateField(field);
       if (fieldError) errors[field] = fieldError;
@@ -148,6 +178,7 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
 
     setSubmitting(true);
     setBannerError(null);
+    setIsDuplicateRegistration(false);
     try {
       const result = await apiFetch<{ registrationId: string; message: string }>(
         '/api/registrations',
@@ -171,7 +202,15 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
       setSuccess(result);
     } catch (err) {
       // The form retains its values on error — the participant is not forced
-      // to re-enter details (Document 8, Section 2).
+      // to re-enter details (Document 8, Section 2). A duplicate registration
+      // means they already have portal access (created at their first
+      // registration) — point them there instead of a dead-end error, since
+      // that's also where they can pay if they hadn't yet (Issue: previously
+      // the only payment link was the one-time success screen, lost forever
+      // if they navigated away before paying).
+      if (err instanceof ApiError && err.code === 'DUPLICATE_REGISTRATION') {
+        setIsDuplicateRegistration(true);
+      }
       setBannerError(err instanceof Error ? err.message : 'Registration failed.');
     } finally {
       setSubmitting(false);
@@ -197,9 +236,14 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
               onCompleted={handlePaymentCompleted}
             />
             <p className="text-xs text-muted-foreground">
-              You can also pay later by bank transfer or MTN Mobile Money (0530531328, or
-              MoMo Pay merchant code 143735) — details are in the payment instructions
-              email we just sent you.
+              Not ready to pay right now? No problem — log in to your{' '}
+              <a href="/portal/login" className="underline">
+                student portal
+              </a>{' '}
+              anytime with your email or phone number and PIN (the last 4 digits of your
+              phone number) to pay later. You can also pay by bank transfer or MTN Mobile
+              Money (0530531328, or MoMo Pay merchant code 143735) — details are in the
+              payment instructions email we just sent you.
             </p>
           </div>
         )}
@@ -226,6 +270,15 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
           className="rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
         >
           {bannerError}
+          {isDuplicateRegistration && (
+            <>
+              {' '}
+              <a href="/portal/login" className="font-medium underline">
+                Log in to your student portal
+              </a>{' '}
+              to check your payment status or pay now.
+            </>
+          )}
         </p>
       )}
 
@@ -233,7 +286,7 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
         <Label htmlFor="batchId">Course</Label>
         <select
           id="batchId"
-          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+          className="h-11 w-full rounded-md border border-input bg-background px-3 text-base md:text-sm"
           value={batchId}
           onChange={(event) => setBatchId(event.target.value)}
           onBlur={() => handleBlur('batchId')}
@@ -272,7 +325,7 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
           id="firstName"
           value={firstName}
           autoComplete="given-name"
-          className={fieldErrors.firstName ? 'border-destructive' : undefined}
+          className={fieldErrors.firstName ? 'h-11 border-destructive' : 'h-11'}
           onChange={(event) => setFirstName(event.target.value)}
           onBlur={() => handleBlur('firstName')}
         />
@@ -289,6 +342,7 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
           id="middleName"
           value={middleName}
           autoComplete="additional-name"
+          className="h-11"
           onChange={(event) => setMiddleName(event.target.value)}
         />
       </div>
@@ -299,7 +353,7 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
           id="surname"
           value={surname}
           autoComplete="family-name"
-          className={fieldErrors.surname ? 'border-destructive' : undefined}
+          className={fieldErrors.surname ? 'h-11 border-destructive' : 'h-11'}
           onChange={(event) => setSurname(event.target.value)}
           onBlur={() => handleBlur('surname')}
         />
@@ -312,7 +366,7 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
         <Label htmlFor="gender">Gender</Label>
         <select
           id="gender"
-          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+          className="h-11 w-full rounded-md border border-input bg-background px-3 text-base md:text-sm"
           value={gender}
           onChange={(event) => setGender(event.target.value)}
           onBlur={() => handleBlur('gender')}
@@ -334,7 +388,7 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
           type="email"
           value={email}
           autoComplete="email"
-          className={fieldErrors.email ? 'border-destructive' : undefined}
+          className={fieldErrors.email ? 'h-11 border-destructive' : 'h-11'}
           onChange={(event) => setEmail(event.target.value)}
           onBlur={() => handleBlur('email')}
         />
@@ -349,7 +403,7 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
           value={phone}
           autoComplete="tel"
           placeholder="+233…"
-          className={fieldErrors.phone ? 'border-destructive' : undefined}
+          className={fieldErrors.phone ? 'h-11 border-destructive' : 'h-11'}
           onChange={(event) => setPhone(event.target.value)}
           onBlur={() => handleBlur('phone')}
         />
@@ -357,34 +411,42 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="jobTitle">
-          Job Title <span className="text-muted-foreground">(optional)</span>
-        </Label>
+        <Label htmlFor="jobTitle">Job Title / Designation</Label>
         <Input
           id="jobTitle"
           value={jobTitle}
           autoComplete="organization-title"
+          placeholder="Enter N/A if not currently employed"
+          className={fieldErrors.jobTitle ? 'h-11 border-destructive' : 'h-11'}
           onChange={(event) => setJobTitle(event.target.value)}
+          onBlur={() => handleBlur('jobTitle')}
         />
+        {fieldErrors.jobTitle && (
+          <p className="text-sm text-destructive">{fieldErrors.jobTitle}</p>
+        )}
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="company">
-          Company / Institution <span className="text-muted-foreground">(optional)</span>
-        </Label>
+        <Label htmlFor="company">Company / Institution</Label>
         <Input
           id="company"
           value={company}
           autoComplete="organization"
+          placeholder="Enter N/A if not applicable"
+          className={fieldErrors.company ? 'h-11 border-destructive' : 'h-11'}
           onChange={(event) => setCompany(event.target.value)}
+          onBlur={() => handleBlur('company')}
         />
+        {fieldErrors.company && (
+          <p className="text-sm text-destructive">{fieldErrors.company}</p>
+        )}
       </div>
 
       <div className="space-y-2">
         <Label htmlFor="leadSource">How did you hear about us?</Label>
         <select
           id="leadSource"
-          className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+          className="h-11 w-full rounded-md border border-input bg-background px-3 text-base md:text-sm"
           value={leadSource}
           onChange={(event) => setLeadSource(event.target.value)}
           onBlur={() => handleBlur('leadSource')}
@@ -405,7 +467,7 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
         <input
           id="consent"
           type="checkbox"
-          className="mt-1 h-4 w-4"
+          className="mt-1 h-5 w-5 shrink-0"
           checked={consentGiven}
           onChange={(event) => setConsentGiven(event.target.checked)}
         />
@@ -415,7 +477,7 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
       </div>
 
       {/* BR-15: disabled (visibly greyed), not hidden, until consent given. */}
-      <Button type="submit" className="w-full" disabled={!consentGiven || submitting}>
+      <Button type="submit" className="h-11 w-full" disabled={!consentGiven || submitting}>
         {submitting ? 'Submitting…' : 'Complete Registration'}
       </Button>
     </form>

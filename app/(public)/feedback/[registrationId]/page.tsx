@@ -36,8 +36,8 @@ function RatingInput(props: {
             aria-checked={props.value === score}
             className={
               props.value === score
-                ? 'h-10 w-10 rounded-md bg-primary text-sm font-semibold text-primary-foreground'
-                : 'h-10 w-10 rounded-md border text-sm hover:bg-accent'
+                ? 'h-11 w-11 rounded-md bg-primary text-sm font-semibold text-primary-foreground'
+                : 'h-11 w-11 rounded-md border text-sm hover:bg-accent'
             }
             onClick={() => props.onChange(score)}
           >
@@ -233,7 +233,7 @@ export default function FeedbackPage({
           </p>
         )}
 
-        <Button type="submit" disabled={submitting} className="w-full">
+        <Button type="submit" disabled={submitting} className="h-11 w-full">
           {submitting ? 'Submitting…' : 'Submit feedback'}
         </Button>
       </form>

@@ -242,6 +242,23 @@ export async function issueForBatch(
   return result;
 }
 
+// Called from the portal module when a participant self-corrects their name
+// (system review, 2026-07-24) — same cross-module posture as
+// registrations/service.ts calling portal's ensureParticipantAuth: a
+// specific, narrow need every module is allowed, not a general open door.
+// No role check here (unlike the staff-facing certificate actions, gated at
+// the route layer) because the caller is the participant themself, acting
+// on their own record.
+export async function renameExistingCertificates(
+  registrationIds: string[],
+  recipientName: string,
+): Promise<void> {
+  await certificatesRepository.updateRecipientNameForRegistrations(
+    registrationIds,
+    recipientName,
+  );
+}
+
 export async function revokeCertificate(
   certificateId: string,
   reason: string,

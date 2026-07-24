@@ -57,6 +57,7 @@ export default function PortalLoginPage() {
             id="identifier"
             required
             autoComplete="username"
+            className="h-11"
             value={identifier}
             onChange={(event) => setIdentifier(event.target.value)}
           />
@@ -71,6 +72,7 @@ export default function PortalLoginPage() {
             maxLength={4}
             autoComplete="current-password"
             placeholder="4 digits"
+            className="h-11"
             value={pin}
             onChange={(event) => setPin(event.target.value.replace(/\D/g, '').slice(0, 4))}
           />
@@ -79,7 +81,7 @@ export default function PortalLoginPage() {
             registered with.
           </p>
         </div>
-        <Button type="submit" className="w-full" disabled={submitting || pin.length !== 4}>
+        <Button type="submit" className="h-11 w-full" disabled={submitting || pin.length !== 4}>
           {submitting ? 'Logging in…' : 'Log in'}
         </Button>
       </form>

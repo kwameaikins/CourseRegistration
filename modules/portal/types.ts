@@ -76,8 +76,26 @@ export interface PortalDashboardRegistration {
 
 export interface PortalDashboard {
   fullName: string;
+  firstName: string;
+  middleName: string | null;
+  surname: string;
   email: string;
   phone: string;
   mustChangePin: boolean;
   registrations: PortalDashboardRegistration[];
 }
+
+// Self-service name correction (founder request, 2026-07-24) — participants
+// confirm/fix their own name before a certificate is issued off it. Same
+// shape as the registration form's name fields.
+export const portalUpdateNameSchema = z.object({
+  firstName: z.string().trim().min(1).max(100),
+  middleName: z
+    .string()
+    .trim()
+    .max(100)
+    .nullish()
+    .transform((value) => (value ? value : null)),
+  surname: z.string().trim().min(1).max(100),
+});
+export type PortalUpdateNameInput = z.infer<typeof portalUpdateNameSchema>;

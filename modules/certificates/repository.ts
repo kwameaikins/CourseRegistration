@@ -103,6 +103,28 @@ export async function updateCertificate(
   if (error) throw error;
 }
 
+// Retroactive name correction (founder decision, 2026-07-24): a participant
+// can fix their own name from the portal at any time, including after a
+// certificate has already been issued off the old one. Safe to do because
+// the PDF is generated on demand from this row (see lib/certificates/pdf.ts
+// — "no file storage") — updating recipient_name here is all it takes for
+// every future download/verify to show the corrected name. Revoked
+// certificates are left untouched; they're void regardless of the name on
+// them.
+export async function updateRecipientNameForRegistrations(
+  registrationIds: string[],
+  recipientName: string,
+): Promise<void> {
+  if (registrationIds.length === 0) return;
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase
+    .from('certificates')
+    .update({ recipient_name: recipientName })
+    .in('registration_id', registrationIds)
+    .eq('revoked', false);
+  if (error) throw error;
+}
+
 // Batch-issue context: every registration on the batch with payment status,
 // feedback presence, attendance ratio, and existing-certificate flag.
 export async function selectBatchIssueContext(batchId: string): Promise<{

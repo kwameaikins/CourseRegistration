@@ -5,12 +5,17 @@ import { hashPin, lastFourDigits, verifyPin } from '@/lib/portal-auth/pin';
 import { AppError } from '@/lib/errors';
 import * as portalRepository from '@/modules/portal/repository';
 import * as paymentsRepository from '@/modules/payments/repository';
+// Permitted cross-module call (system review, 2026-07-24) — see
+// renameExistingCertificates's doc comment: retroactively fixing the name
+// on any certificate the participant already has, when they self-correct it.
+import * as certificatesService from '@/modules/certificates/service';
 import type {
   PortalChangePinInput,
   PortalDashboard,
   PortalExchangeLoginTokenResult,
   PortalLoginInput,
   PortalLoginResult,
+  PortalUpdateNameInput,
 } from '@/modules/portal/types';
 
 const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -165,6 +170,41 @@ export async function exchangeLoginToken(
   return { status: 'ok', sessionId: session.id, expiresAt };
 }
 
+// Self-service name correction (founder request, 2026-07-24; made
+// retroactive per founder follow-up the same day): fixes the participant
+// record, then also pushes the corrected name onto any certificate already
+// issued to them. Safe to do after the fact because certificate PDFs are
+// regenerated on demand from recipient_name, never stored (see
+// lib/certificates/pdf.ts) — so correcting that column is enough to fix
+// every future download and public verification page too, no reprint or
+// staff involvement needed.
+export async function updateName(
+  sessionId: string | undefined,
+  input: PortalUpdateNameInput,
+): Promise<void> {
+  const { participantId } = await requirePortalSession(sessionId);
+  const fullName = [input.firstName, input.middleName, input.surname]
+    .filter(Boolean)
+    .join(' ');
+  await portalRepository.updateParticipantName(participantId, {
+    first_name: input.firstName,
+    middle_name: input.middleName,
+    surname: input.surname,
+    full_name: fullName,
+  });
+
+  // Non-blocking: the participant record is already corrected regardless of
+  // whether this second step succeeds.
+  try {
+    const registrationIds = await portalRepository.selectRegistrationIdsForParticipant(
+      participantId,
+    );
+    await certificatesService.renameExistingCertificates(registrationIds, fullName);
+  } catch (err) {
+    console.error('[portal name update — retroactive certificate rename]', err);
+  }
+}
+
 export async function getPortalDashboard(sessionId: string | undefined): Promise<PortalDashboard> {
   const { participantId } = await requirePortalSession(sessionId);
   const [data, auth] = await Promise.all([
@@ -177,6 +217,11 @@ export async function getPortalDashboard(sessionId: string | undefined): Promise
 
   return {
     fullName: data.participant.full_name,
+    // Fallback for participants created before first_name/surname were
+    // captured separately — the edit form still needs something to seed.
+    firstName: data.participant.first_name ?? data.participant.full_name,
+    middleName: data.participant.middle_name,
+    surname: data.participant.surname ?? '',
     email: data.participant.email,
     phone: data.participant.phone,
     mustChangePin: auth?.must_change_pin ?? false,

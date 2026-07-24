@@ -45,12 +45,12 @@ export default function VerifyLandingPage() {
               required
               autoFocus
               placeholder="KNS-AI01-2026-0067"
-              className="font-mono uppercase"
+              className="h-11 font-mono uppercase"
               value={certificateNumber}
               onChange={(event) => setCertificateNumber(event.target.value)}
             />
           </div>
-          <Button type="submit" className="w-full">
+          <Button type="submit" className="h-11 w-full">
             Verify certificate
           </Button>
         </form>
