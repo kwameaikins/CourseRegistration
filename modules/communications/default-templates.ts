@@ -42,7 +42,7 @@ export const DEFAULT_TEMPLATES: ReadonlyArray<{
   <li>Course fee: GHS {{course_fee}}</li>
 </ul>
 <p>A separate email with payment instructions is on its way to you. Your seat is confirmed once payment is received.</p>
-<p>You can pay, or come back to pay later, anytime by logging in to your <a href="${PORTAL_LOGIN_URL}">student portal</a> with your email or phone number and PIN.</p>
+<p>Log in to your <a href="${PORTAL_LOGIN_URL}">student portal</a> anytime with your email or phone number and PIN (the last 4 digits of your phone number) to pay now or later, check your registration and payment status, and confirm your name is correct for your certificate.</p>
 <p>If you have any questions, simply reply to this email or write to ${CONTACT}.</p>`),
   },
   {
