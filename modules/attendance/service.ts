@@ -72,6 +72,21 @@ export async function ensureZoomRegistration(
   return 'registered';
 }
 
+// Batch transfer support (system review, 2026-07-24), called from
+// registrations/service.ts's transferRegistration — same cross-module
+// posture as registrations calling portal's ensureParticipantAuth.
+// ensureZoomRegistration on its own would short-circuit to
+// 'already_registered' (a zoom_registrants row for this registration_id
+// already exists, pointed at the OLD Batch's meeting) — clearing it first
+// lets the fresh call register against whatever Batch the registration now
+// points at.
+export async function reregisterForZoomAfterTransfer(
+  registrationId: string,
+): Promise<ZoomRegistrationOutcome> {
+  await attendanceRepository.deleteZoomRegistrantByRegistration(registrationId);
+  return ensureZoomRegistration(registrationId);
+}
+
 export async function runAttendanceSync(now = new Date()): Promise<AttendanceSyncSummary> {
   const dateIso = now.toISOString().slice(0, 10);
   const summary: AttendanceSyncSummary = {

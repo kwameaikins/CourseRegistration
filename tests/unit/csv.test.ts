@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { parseCsv } from '@/lib/csv';
+import { parseCsv, stringifyCsv } from '@/lib/csv';
 
 describe('parseCsv', () => {
   it('parses a simple comma-separated file into header + data rows', () => {
@@ -40,5 +40,44 @@ describe('parseCsv', () => {
       ['A', 'B'],
       ['1', '2'],
     ]);
+  });
+});
+
+describe('stringifyCsv', () => {
+  it('joins fields with commas and rows with CRLF', () => {
+    const csv = stringifyCsv([
+      ['First name', 'Email'],
+      ['Ama', 'ama@example.com'],
+    ]);
+    expect(csv).toBe('First name,Email\r\nAma,ama@example.com');
+  });
+
+  it('quotes a field containing a comma', () => {
+    const csv = stringifyCsv([['Mensah, Kofi', 'Acme, Inc.']]);
+    expect(csv).toBe('"Mensah, Kofi","Acme, Inc."');
+  });
+
+  it('quotes and doubles internal quotes for a field containing a quote', () => {
+    const csv = stringifyCsv([['She said "hello" to me']]);
+    expect(csv).toBe('"She said ""hello"" to me"');
+  });
+
+  it('quotes a field containing a newline', () => {
+    const csv = stringifyCsv([['line one\nline two']]);
+    expect(csv).toBe('"line one\nline two"');
+  });
+
+  it('leaves plain fields unquoted', () => {
+    const csv = stringifyCsv([['Ama Owusu', '1200.00', '']]);
+    expect(csv).toBe('Ama Owusu,1200.00,');
+  });
+
+  it('round-trips through parseCsv', () => {
+    const original = [
+      ['Name', 'Company', 'Note'],
+      ['Mensah, Kofi', 'Acme, Inc.', 'She said "hi" — fine'],
+      ['Ama Owusu', '', 'no notes'],
+    ];
+    expect(parseCsv(stringifyCsv(original))).toEqual(original);
   });
 });

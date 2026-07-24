@@ -133,6 +133,15 @@ export const manualDeletionRequestSchema = z.object({
 });
 export type ManualDeletionRequest = z.infer<typeof manualDeletionRequestSchema>;
 
+// Batch/cohort transfer (system review, 2026-07-24) — admin-only, moves a
+// Registration to a different Batch of the same Course. Reason is mandatory,
+// same audit-trail convention as manualDeletionRequestSchema.
+export const transferRegistrationSchema = z.object({
+  newBatchId: z.uuid(),
+  reason: z.string().trim().min(3).max(500),
+});
+export type TransferRegistrationInput = z.infer<typeof transferRegistrationSchema>;
+
 // Registration 360° view (system review, approved 2026-07-20). Sections
 // beyond `registration`/`participant`/`payment` are omitted entirely (not
 // present as empty arrays) when the viewing role isn't permitted to see
@@ -156,6 +165,10 @@ export interface Registration360 {
     deleted: boolean;
   } | null;
   course: {
+    // courseId/batchId (system review, 2026-07-24) — needed by the staff UI
+    // to look up sibling Batches of the same Course for the transfer action.
+    courseId: string;
+    batchId: string;
     courseName: string;
     courseCode: string;
     cohortLabel: string;

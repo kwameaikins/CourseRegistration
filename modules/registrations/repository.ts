@@ -201,6 +201,125 @@ export async function selectRegistrationList(filters: RegistrationListFilters): 
   return { rows, total: count ?? rows.length };
 }
 
+// CSV export (system review, 2026-07-24) — same join shape/filters as
+// selectRegistrationList above, but deliberately unpaginated: fetches every
+// matching row rather than one page. That makes it the correct place to
+// filter, not a follow-on quirk — selectRegistrationList's paymentStatus/
+// search filters apply after its 200-row page cut (a separate, pre-existing
+// gap, intentionally left alone here rather than fixed as a side effect of
+// building export).
+export async function selectAllRegistrationsForExport(
+  filters: Omit<RegistrationListFilters, 'page' | 'limit'>,
+): Promise<{
+  rows: Array<{
+    registration: RegistrationRow;
+    participant: Pick<
+      ParticipantRow,
+      'full_name' | 'email' | 'phone' | 'job_title' | 'company' | 'gender'
+    > | null;
+    payment: PaymentRow | null;
+    batch: { cohort_label: string; course_id: string } | null;
+    course: { course_name: string; course_code: string } | null;
+    verifiedByName: string | null;
+  }>;
+}> {
+  const supabase = await createSupabaseServerClient();
+
+  let batchIdFilter: string[] | null = null;
+  if (filters.courseId) {
+    const { data: courseBatches, error } = await supabase
+      .from('batches')
+      .select('id')
+      .eq('course_id', filters.courseId);
+    if (error) throw error;
+    batchIdFilter = courseBatches.map((batch) => batch.id);
+    if (batchIdFilter.length === 0) return { rows: [] };
+  }
+
+  let query = supabase
+    .from('registrations')
+    .select('*')
+    .order('registered_at', { ascending: false });
+
+  if (filters.batchId) query = query.eq('batch_id', filters.batchId);
+  else if (batchIdFilter) query = query.in('batch_id', batchIdFilter);
+  if (filters.registrationStatus) {
+    query = query.eq('registration_status', filters.registrationStatus);
+  }
+  if (filters.leadSource) query = query.eq('lead_source', filters.leadSource);
+  if (filters.dateFrom) query = query.gte('registered_at', `${filters.dateFrom}T00:00:00Z`);
+  if (filters.dateTo) query = query.lte('registered_at', `${filters.dateTo}T23:59:59Z`);
+
+  const { data: registrations, error: registrationsError } = await query;
+  if (registrationsError) throw registrationsError;
+  if (registrations.length === 0) return { rows: [] };
+
+  const participantIds = [...new Set(registrations.map((r) => r.participant_id))];
+  const batchIds = [...new Set(registrations.map((r) => r.batch_id))];
+  const registrationIds = registrations.map((r) => r.id);
+
+  const [participantsResult, batchesResult, paymentsResult] = await Promise.all([
+    supabase
+      .from('participants')
+      .select('id, full_name, email, phone, job_title, company, gender')
+      .in('id', participantIds),
+    supabase.from('batches').select('id, cohort_label, course_id').in('id', batchIds),
+    supabase.from('payments').select('*').in('registration_id', registrationIds),
+  ]);
+  if (participantsResult.error) throw participantsResult.error;
+  if (batchesResult.error) throw batchesResult.error;
+  if (paymentsResult.error) throw paymentsResult.error;
+
+  const courseIds = [...new Set(batchesResult.data.map((batch) => batch.course_id))];
+  const { data: courses, error: coursesError } = await supabase
+    .from('courses')
+    .select('id, course_name, course_code')
+    .in('id', courseIds);
+  if (coursesError) throw coursesError;
+
+  const verifiedByIds = [
+    ...new Set(
+      paymentsResult.data
+        .map((payment) => payment.verified_by)
+        .filter((value): value is string => value !== null),
+    ),
+  ];
+  const verifiedByNames = new Map<string, string>();
+  if (verifiedByIds.length > 0) {
+    const { data: staffRows } = await supabase
+      .from('staff_users')
+      .select('id, full_name')
+      .in('id', verifiedByIds);
+    for (const staff of staffRows ?? []) {
+      verifiedByNames.set(staff.id, staff.full_name);
+    }
+  }
+
+  const participantById = new Map(participantsResult.data.map((p) => [p.id, p]));
+  const batchById = new Map(batchesResult.data.map((b) => [b.id, b]));
+  const courseById = new Map(courses.map((c) => [c.id, c]));
+  const paymentByRegistrationId = new Map(
+    paymentsResult.data.map((payment) => [payment.registration_id, payment]),
+  );
+
+  const rows = registrations.map((registration) => {
+    const batch = batchById.get(registration.batch_id) ?? null;
+    const payment = paymentByRegistrationId.get(registration.id) ?? null;
+    return {
+      registration,
+      participant: participantById.get(registration.participant_id) ?? null,
+      payment,
+      batch,
+      course: batch ? (courseById.get(batch.course_id) ?? null) : null,
+      verifiedByName: payment?.verified_by
+        ? (verifiedByNames.get(payment.verified_by) ?? null)
+        : null,
+    };
+  });
+
+  return { rows };
+}
+
 // Registration 360° view (system review, approved 2026-07-20): one
 // aggregating read across every module that touches a Registration —
 // payment, every message channel, Zoom attendance, feedback, certificates,
@@ -359,6 +478,21 @@ export async function selectRegistration360(registrationId: string): Promise<{
     certificates: certificates ?? [],
     calls: calls ?? [],
   };
+}
+
+// Batch transfer (system review, 2026-07-24) — the fee-locked-at-registration
+// Payment row is deliberately left untouched by this; only the Batch link
+// moves.
+export async function updateRegistrationBatch(
+  registrationId: string,
+  newBatchId: string,
+): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from('registrations')
+    .update({ batch_id: newBatchId, updated_at: new Date().toISOString() })
+    .eq('id', registrationId);
+  if (error) throw error;
 }
 
 export async function updateRegistrationNotes(

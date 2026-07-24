@@ -7,6 +7,9 @@ const registrationsRepositoryMock = {
   insertRegistration: vi.fn(),
   insertInitialPayment: vi.fn(),
   updateRegistrationNotes: vi.fn(),
+  updateRegistrationBatch: vi.fn(),
+  selectRegistration360: vi.fn(),
+  selectAllRegistrationsForExport: vi.fn(),
   callDeleteRegistrationImmediately: vi.fn(),
   callDeleteParticipantImmediately: vi.fn(),
 };
@@ -21,22 +24,36 @@ const usersServiceMock = {
 const paymentsServiceMock = {
   applyPaymentUpdate: vi.fn(),
 };
+const attendanceServiceMock = {
+  reregisterForZoomAfterTransfer: vi.fn(),
+};
 const sendEmailOnceMock = vi.fn();
 const sendWhatsappOnceMock = vi.fn();
 const sendSmsOnceMock = vi.fn();
+const sendTransactionalEmailMock = vi.fn();
 
 vi.mock('@/modules/registrations/repository', () => registrationsRepositoryMock);
 vi.mock('@/modules/courses/service', () => coursesServiceMock);
 vi.mock('@/modules/users/service', () => usersServiceMock);
 vi.mock('@/modules/payments/service', () => paymentsServiceMock);
+vi.mock('@/modules/attendance/service', () => attendanceServiceMock);
 vi.mock('@/modules/communications/service', () => ({
   sendEmailOnce: (...args: unknown[]) => sendEmailOnceMock(...args),
   sendWhatsappOnce: (...args: unknown[]) => sendWhatsappOnceMock(...args),
   sendSmsOnce: (...args: unknown[]) => sendSmsOnceMock(...args),
 }));
+vi.mock('@/lib/resend/client', () => ({
+  sendTransactionalEmail: (...args: unknown[]) => sendTransactionalEmailMock(...args),
+}));
 
-const { createRegistration, bulkImportRegistrations, deleteRegistration, deleteParticipantImmediately } =
-  await import('@/modules/registrations/service');
+const {
+  createRegistration,
+  bulkImportRegistrations,
+  deleteRegistration,
+  deleteParticipantImmediately,
+  transferRegistration,
+  exportRegistrationsCsv,
+} = await import('@/modules/registrations/service');
 const { registrationInputSchema } = await import('@/modules/registrations/types');
 
 const FUTURE_DATE = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
@@ -105,6 +122,9 @@ beforeEach(() => {
     payment_status: 'Unpaid',
   });
   registrationsRepositoryMock.updateRegistrationNotes.mockResolvedValue(undefined);
+  registrationsRepositoryMock.updateRegistrationBatch.mockResolvedValue(undefined);
+  attendanceServiceMock.reregisterForZoomAfterTransfer.mockResolvedValue('registered');
+  sendTransactionalEmailMock.mockResolvedValue(undefined);
   usersServiceMock.requireRole.mockResolvedValue({
     id: 'staff-1',
     fullName: 'Jane Doe',
@@ -457,6 +477,243 @@ describe('deleteParticipantImmediately — immediate hard delete distinct from t
       'staff-admin-1',
       'Test participant from staging',
     );
+  });
+});
+
+describe('transferRegistration — batch/cohort transfer (system review, 2026-07-24)', () => {
+  function registration360Row(overrides: Record<string, unknown> = {}) {
+    return {
+      registration: {
+        id: 'reg-1',
+        participant_id: 'participant-1',
+        batch_id: 'old-batch-1',
+        registration_status: 'Registered',
+        lead_source: 'WhatsApp',
+        consent_given: true,
+        notes: null,
+        registered_at: '2026-07-01T09:00:00Z',
+      },
+      participant: {
+        id: 'participant-1',
+        full_name: 'Ama Owusu',
+        email: 'ama.owusu@example.com',
+        phone: '+233241234567',
+        deleted_at: null,
+      },
+      payment: { payment_status: 'Unpaid' },
+      batch: { id: 'old-batch-1', course_id: 'course-1', cohort_label: 'JUL-2026' },
+      course: { course_name: 'AI-Powered Financial Reporting and Modeling', course_code: 'AI05' },
+      verifiedByName: null,
+      discountGrantedByName: null,
+      emailLog: [],
+      whatsappLog: [],
+      smsLog: [],
+      zoomRegistrant: null,
+      attendance: [],
+      feedback: null,
+      certificates: [],
+      calls: [],
+      ...overrides,
+    };
+  }
+
+  const destinationBatch = (overrides: Record<string, unknown> = {}) =>
+    activeBatch({ id: 'new-batch-1', cohortLabel: 'AUG-2026', ...overrides });
+
+  beforeEach(() => {
+    usersServiceMock.requireRole.mockResolvedValue({
+      id: 'staff-admin-1',
+      fullName: 'Ama Admin',
+      role: 'admin',
+    });
+    registrationsRepositoryMock.selectRegistration360.mockResolvedValue(registration360Row());
+    coursesServiceMock.getBatchByIdSystem.mockResolvedValue(destinationBatch());
+  });
+
+  it('requires the admin role', async () => {
+    await transferRegistration('reg-1', { newBatchId: 'new-batch-1', reason: 'Schedule clash' });
+    expect(usersServiceMock.requireRole).toHaveBeenCalledWith(['admin']);
+  });
+
+  it('moves the batch, appends a note, and does not touch Zoom for an Unpaid registration', async () => {
+    await transferRegistration('reg-1', { newBatchId: 'new-batch-1', reason: 'Schedule clash' });
+
+    expect(registrationsRepositoryMock.updateRegistrationBatch).toHaveBeenCalledWith(
+      'reg-1',
+      'new-batch-1',
+    );
+    expect(registrationsRepositoryMock.updateRegistrationNotes).toHaveBeenCalledWith(
+      'reg-1',
+      expect.stringContaining('Transferred from JUL-2026 to AUG-2026'),
+    );
+    expect(attendanceServiceMock.reregisterForZoomAfterTransfer).not.toHaveBeenCalled();
+    expect(sendTransactionalEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'ama.owusu@example.com' }),
+    );
+  });
+
+  it('prepends to existing notes rather than overwriting them', async () => {
+    registrationsRepositoryMock.selectRegistration360.mockResolvedValue(
+      registration360Row({
+        registration: {
+          ...registration360Row().registration,
+          notes: 'Original note from registration.',
+        },
+      }),
+    );
+
+    await transferRegistration('reg-1', { newBatchId: 'new-batch-1', reason: 'Schedule clash' });
+
+    const [, writtenNotes] = registrationsRepositoryMock.updateRegistrationNotes.mock.calls[0];
+    expect(writtenNotes).toContain('Original note from registration.');
+    expect(writtenNotes).toContain('Transferred from JUL-2026 to AUG-2026');
+  });
+
+  it('re-registers Zoom against the new batch for an already-Paid registration', async () => {
+    registrationsRepositoryMock.selectRegistration360.mockResolvedValue(
+      registration360Row({ payment: { payment_status: 'Paid' } }),
+    );
+
+    await transferRegistration('reg-1', { newBatchId: 'new-batch-1', reason: 'Schedule clash' });
+
+    expect(attendanceServiceMock.reregisterForZoomAfterTransfer).toHaveBeenCalledWith('reg-1');
+  });
+
+  it('still completes the transfer even if Zoom re-registration fails', async () => {
+    registrationsRepositoryMock.selectRegistration360.mockResolvedValue(
+      registration360Row({ payment: { payment_status: 'Paid' } }),
+    );
+    attendanceServiceMock.reregisterForZoomAfterTransfer.mockRejectedValue(
+      new Error('zoom down'),
+    );
+
+    await expect(
+      transferRegistration('reg-1', { newBatchId: 'new-batch-1', reason: 'Schedule clash' }),
+    ).resolves.toBeUndefined();
+    expect(registrationsRepositoryMock.updateRegistrationBatch).toHaveBeenCalled();
+  });
+
+  it('rejects when the registration is already on the destination batch', async () => {
+    await expect(
+      transferRegistration('reg-1', { newBatchId: 'old-batch-1', reason: 'Schedule clash' }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    expect(registrationsRepositoryMock.updateRegistrationBatch).not.toHaveBeenCalled();
+  });
+
+  it('rejects a destination batch from a different course', async () => {
+    coursesServiceMock.getBatchByIdSystem.mockResolvedValue(
+      destinationBatch({ courseId: 'a-different-course' }),
+    );
+    await expect(
+      transferRegistration('reg-1', { newBatchId: 'new-batch-1', reason: 'Schedule clash' }),
+    ).rejects.toMatchObject({ code: 'INVALID_BATCH' });
+  });
+
+  it('rejects an inactive destination batch', async () => {
+    coursesServiceMock.getBatchByIdSystem.mockResolvedValue(destinationBatch({ isActive: false }));
+    await expect(
+      transferRegistration('reg-1', { newBatchId: 'new-batch-1', reason: 'Schedule clash' }),
+    ).rejects.toMatchObject({ code: 'INVALID_BATCH' });
+  });
+
+  it('rejects a destination batch that has already started', async () => {
+    coursesServiceMock.getBatchByIdSystem.mockResolvedValue(
+      destinationBatch({ startDate: '2020-01-01' }),
+    );
+    await expect(
+      transferRegistration('reg-1', { newBatchId: 'new-batch-1', reason: 'Schedule clash' }),
+    ).rejects.toMatchObject({ code: 'INVALID_BATCH' });
+  });
+
+  it('surfaces BR-03 as DUPLICATE_REGISTRATION when the destination move violates the unique constraint', async () => {
+    registrationsRepositoryMock.updateRegistrationBatch.mockRejectedValueOnce({ code: '23505' });
+    await expect(
+      transferRegistration('reg-1', { newBatchId: 'new-batch-1', reason: 'Schedule clash' }),
+    ).rejects.toMatchObject({ code: 'DUPLICATE_REGISTRATION' });
+  });
+});
+
+describe('exportRegistrationsCsv — CSV export (system review, 2026-07-24)', () => {
+  function exportRow(overrides: Record<string, unknown> = {}) {
+    return {
+      registration: {
+        id: 'reg-1',
+        batch_id: 'batch-1',
+        registration_status: 'Confirmed',
+        lead_source: 'WhatsApp',
+        notes: null,
+        registered_at: '2026-07-01T09:00:00Z',
+      },
+      participant: {
+        full_name: 'Ama Owusu',
+        email: 'ama.owusu@example.com',
+        phone: '+233241234567',
+        job_title: 'Accountant',
+        company: 'Acme Ltd',
+        gender: 'Female',
+      },
+      payment: {
+        payment_status: 'Paid',
+        course_fee: '1200.00',
+        original_fee: null,
+        amount_paid: '1200.00',
+        payment_method: 'Paystack Card',
+        transaction_id: 'TXN-1',
+      },
+      batch: { cohort_label: 'JUL-2026', course_id: 'course-1' },
+      course: { course_name: 'AI-Powered Financial Reporting and Modeling', course_code: 'AI05' },
+      verifiedByName: 'Jane Doe',
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    registrationsRepositoryMock.selectAllRegistrationsForExport.mockResolvedValue({
+      rows: [exportRow()],
+    });
+  });
+
+  it('produces a header row plus one data row per registration', async () => {
+    usersServiceMock.requireRole.mockResolvedValue({ id: 's-1', fullName: 'Jane', role: 'admin' });
+    const csv = await exportRegistrationsCsv({});
+    const lines = csv.split('\r\n');
+    expect(lines[0]).toContain('Full Name');
+    expect(lines[1]).toContain('Ama Owusu');
+  });
+
+  it('strips payment audit columns (Transaction ID, Verified By) for Marketing', async () => {
+    usersServiceMock.requireRole.mockResolvedValue({
+      id: 's-1',
+      fullName: 'Jane',
+      role: 'marketing',
+    });
+    const csv = await exportRegistrationsCsv({});
+    expect(csv.split('\r\n')[0]).not.toContain('Transaction ID');
+    expect(csv.split('\r\n')[0]).not.toContain('Verified By');
+  });
+
+  it('also strips Payment Method for Tutor, on top of the Marketing exclusions', async () => {
+    usersServiceMock.requireRole.mockResolvedValue({ id: 's-1', fullName: 'Jane', role: 'tutor' });
+    const csv = await exportRegistrationsCsv({});
+    expect(csv.split('\r\n')[0]).not.toContain('Payment Method');
+    expect(csv.split('\r\n')[0]).not.toContain('Transaction ID');
+  });
+
+  it('filters by paymentStatus over the full unpaginated set (not just one page)', async () => {
+    registrationsRepositoryMock.selectAllRegistrationsForExport.mockResolvedValue({
+      rows: [
+        exportRow({ registration: { ...exportRow().registration, id: 'reg-1' } }),
+        exportRow({
+          registration: { ...exportRow().registration, id: 'reg-2' },
+          payment: { ...exportRow().payment, payment_status: 'Unpaid', amount_paid: '0.00' },
+        }),
+      ],
+    });
+    usersServiceMock.requireRole.mockResolvedValue({ id: 's-1', fullName: 'Jane', role: 'admin' });
+
+    const csv = await exportRegistrationsCsv({ paymentStatus: 'Unpaid' });
+    const dataLines = csv.split('\r\n').slice(1);
+    expect(dataLines).toHaveLength(1);
   });
 });
 

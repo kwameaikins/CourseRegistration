@@ -51,3 +51,18 @@ export function parseCsv(text: string): string[][] {
   // Drop fully-empty trailing rows (common with a trailing blank line).
   return rows.filter((r) => !(r.length === 1 && r[0] === ''));
 }
+
+// Minimal RFC4180 CSV stringifier — the write-side counterpart to parseCsv
+// above. A field is quoted only when it contains a comma, quote, or newline
+// (the common convention — keeps typical exports readable unquoted), with
+// internal quotes doubled per spec. CRLF row endings for Excel compatibility.
+function stringifyCsvField(field: string): string {
+  if (/[",\n\r]/.test(field)) {
+    return `"${field.replace(/"/g, '""')}"`;
+  }
+  return field;
+}
+
+export function stringifyCsv(rows: string[][]): string {
+  return rows.map((row) => row.map(stringifyCsvField).join(',')).join('\r\n');
+}

@@ -1,5 +1,6 @@
 // F1.06 — the shared email engine. Every module sends email exclusively
 // through sendEmailOnce (Document 2, Section 9).
+import { buildCourseIcsAttachment } from '@/lib/calendar/ics';
 import { sendTransactionalEmail } from '@/lib/resend/client';
 import * as communicationsRepository from '@/modules/communications/repository';
 import { EMAIL_TYPE_TOGGLE, type EmailType } from '@/modules/communications/types';
@@ -94,11 +95,36 @@ export async function sendEmailOnce(
     feedback_link: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com'}/feedback/${registrationId}`,
   };
 
+  // Calendar invite (system review, 2026-07-24) — only on the welcome email,
+  // the one that lands right after registering. Built from the same context
+  // already loaded above, no extra DB read. A generation failure here must
+  // never block the email itself, so it's isolated in its own try/catch.
+  let attachments: Array<{ filename: string; content: string; contentType: string }> | undefined;
+  if (emailType === 'welcome') {
+    try {
+      attachments = [
+        buildCourseIcsAttachment({
+          registrationId,
+          courseName: context.courseName,
+          cohortLabel: context.cohortLabel,
+          startDate: context.startDate,
+          startTime: context.startTime,
+          endDate: context.endDate,
+          facilitatorName: context.facilitatorName,
+          zoomLink: context.zoomLink,
+        }),
+      ];
+    } catch (err) {
+      console.error('[welcome email ics attachment]', err);
+    }
+  }
+
   try {
     await sendTransactionalEmail({
       to: context.participantEmail,
       subject: renderTemplateBody(template.subject, placeholderData),
       html: renderTemplateBody(template.body, placeholderData),
+      attachments,
     });
     await communicationsRepository.updateEmailLogEntry(registrationId, emailType, {
       success: true,

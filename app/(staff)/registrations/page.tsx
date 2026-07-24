@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { apiFetch } from '@/components/api-client';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Table,
@@ -127,11 +128,28 @@ export default function RegistrationListPage() {
   const selectClass =
     'h-9 rounded-md border border-input bg-background px-2 text-sm';
 
+  // Same filter set the screen already applies — export downloads exactly
+  // what's on screen, not just the current page's 200-row cap.
+  function exportHref(): string {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+    });
+    return `/api/registrations/export?${params.toString()}`;
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Registrations</h1>
-        <p className="text-sm text-muted-foreground">{total} total</p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-muted-foreground">{total} total</p>
+          <Button variant="outline" size="sm" asChild>
+            <a href={exportHref()} download>
+              Export CSV
+            </a>
+          </Button>
+        </div>
       </div>
 
       {errorMessage && (
@@ -318,6 +336,7 @@ export default function RegistrationListPage() {
             flashDeleted();
             void reload();
           }}
+          onTransferred={() => void reload()}
         />
       )}
 

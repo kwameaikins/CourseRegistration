@@ -74,6 +74,23 @@ export async function insertZoomRegistrant(row: {
   return 'inserted';
 }
 
+// Batch transfer support (system review, 2026-07-24) — ensureZoomRegistration
+// short-circuits ('already_registered') whenever a zoom_registrants row
+// already exists for this registration_id (unique constraint), so a transfer
+// clears the old one first. That lets the next ensureZoomRegistration call
+// register fresh against whatever Batch's Zoom meeting the registration now
+// points at (selectZoomContext always re-reads the current batch_id).
+export async function deleteZoomRegistrantByRegistration(
+  registrationId: string,
+): Promise<void> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase
+    .from('zoom_registrants')
+    .delete()
+    .eq('registration_id', registrationId);
+  if (error) throw error;
+}
+
 // Batches whose Zoom sessions may have run on `dateIso` (course in progress,
 // or the day after the last session so the final report is still captured).
 export async function selectBatchesForAttendanceSync(dateIso: string): Promise<

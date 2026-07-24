@@ -42,6 +42,8 @@ interface Registration360 {
     deleted: boolean;
   } | null;
   course: {
+    courseId: string;
+    batchId: string;
     courseName: string;
     courseCode: string;
     cohortLabel: string;
@@ -121,12 +123,22 @@ function channelBadge(channel: 'Email' | 'WhatsApp' | 'SMS') {
   return <span className={`rounded px-1.5 py-0.5 text-xs ${styles[channel]}`}>{channel}</span>;
 }
 
+interface TransferBatchOption {
+  id: string;
+  cohortLabel: string;
+  startDate: string;
+  isActive: boolean;
+}
+
 export function RegistrationDetailDialog(props: {
   registrationId: string;
   onClose: () => void;
   // Called after a successful delete so the parent list can refresh —
   // optional so this dialog still works from callers that don't care.
   onDeleted?: () => void;
+  // Called after a successful batch transfer (cohort label changes) — same
+  // optional refresh-the-parent-list posture as onDeleted.
+  onTransferred?: () => void;
 }) {
   const [data, setData] = useState<Registration360 | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -135,6 +147,25 @@ export function RegistrationDetailDialog(props: {
   const [deleteReason, setDeleteReason] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const [transferring, setTransferring] = useState(false);
+  const [transferBatches, setTransferBatches] = useState<TransferBatchOption[]>([]);
+  const [transferBatchId, setTransferBatchId] = useState('');
+  const [transferReason, setTransferReason] = useState('');
+  const [transferSubmitting, setTransferSubmitting] = useState(false);
+  const [transferError, setTransferError] = useState<string | null>(null);
+  const [transferSuccess, setTransferSuccess] = useState(false);
+
+  function loadData() {
+    setLoading(true);
+    setErrorMessage(null);
+    return apiFetch<Registration360>(`/api/registrations/${props.registrationId}`)
+      .then((result) => setData(result))
+      .catch((err) => {
+        setErrorMessage(err instanceof Error ? err.message : 'Failed to load registration.');
+      })
+      .finally(() => setLoading(false));
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -172,6 +203,56 @@ export function RegistrationDetailDialog(props: {
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete registration.');
     } finally {
       setDeleting(false);
+    }
+  }
+
+  async function handleOpenTransfer() {
+    if (!data?.course) return;
+    setTransferring(true);
+    setTransferBatchId('');
+    setTransferReason('');
+    setTransferError(null);
+    setTransferSuccess(false);
+    try {
+      const result = await apiFetch<{ batches: TransferBatchOption[] }>(
+        `/api/batches?courseId=${data.course.courseId}`,
+      );
+      const todayIso = new Date().toISOString().slice(0, 10);
+      setTransferBatches(
+        result.batches.filter(
+          (batch) =>
+            batch.id !== data.course!.batchId &&
+            batch.isActive &&
+            batch.startDate >= todayIso,
+        ),
+      );
+    } catch (err) {
+      setTransferError(
+        err instanceof Error ? err.message : 'Failed to load available batches.',
+      );
+    }
+  }
+
+  async function handleTransfer() {
+    setTransferSubmitting(true);
+    setTransferError(null);
+    try {
+      await apiFetch(`/api/registrations/${props.registrationId}/transfer`, {
+        method: 'POST',
+        body: JSON.stringify({
+          newBatchId: transferBatchId,
+          reason: transferReason.trim(),
+        }),
+      });
+      setTransferring(false);
+      setTransferSuccess(true);
+      setTimeout(() => setTransferSuccess(false), 2500);
+      props.onTransferred?.();
+      await loadData();
+    } catch (err) {
+      setTransferError(err instanceof Error ? err.message : 'Failed to transfer registration.');
+    } finally {
+      setTransferSubmitting(false);
     }
   }
 
@@ -470,6 +551,24 @@ export function RegistrationDetailDialog(props: {
               </Section>
             )}
 
+            {data.canDelete && data.course && (
+              <Section title="Transfer">
+                <p className="mb-2 text-sm text-muted-foreground">
+                  Move this registration to a different batch/cohort of the same course
+                  (e.g. they can&apos;t make the original start date). Their course fee is
+                  unchanged.
+                </p>
+                {transferSuccess && (
+                  <p className="mb-2 rounded bg-emerald-50 p-2 text-sm text-emerald-700">
+                    Transferred.
+                  </p>
+                )}
+                <Button variant="outline" size="sm" onClick={handleOpenTransfer}>
+                  Transfer to another cohort
+                </Button>
+              </Section>
+            )}
+
             {data.canDelete && (
               <Section title="Danger zone">
                 <p className="mb-2 text-sm text-muted-foreground">
@@ -489,6 +588,63 @@ export function RegistrationDetailDialog(props: {
           </div>
         )}
       </DialogContent>
+
+      <Dialog open={transferring} onOpenChange={(open) => !open && setTransferring(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Transfer to another cohort</DialogTitle>
+            <DialogDescription>
+              Only active, not-yet-started batches of the same course are shown.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="transferBatch">Destination batch</Label>
+              <select
+                id="transferBatch"
+                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                value={transferBatchId}
+                onChange={(event) => setTransferBatchId(event.target.value)}
+              >
+                <option value="">Select a batch</option>
+                {transferBatches.map((batch) => (
+                  <option key={batch.id} value={batch.id}>
+                    {batch.cohortLabel} — {formatDate(batch.startDate)}
+                  </option>
+                ))}
+              </select>
+              {transferBatches.length === 0 && !transferError && (
+                <p className="text-xs text-muted-foreground">
+                  No other eligible batches found for this course.
+                </p>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="transferReason">Reason (required, recorded)</Label>
+              <Input
+                id="transferReason"
+                placeholder="e.g. Can't make the original start date"
+                value={transferReason}
+                onChange={(event) => setTransferReason(event.target.value)}
+              />
+            </div>
+          </div>
+          {transferError && <p className="text-sm text-destructive">{transferError}</p>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTransferring(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={
+                !transferBatchId || transferReason.trim().length < 3 || transferSubmitting
+              }
+              onClick={handleTransfer}
+            >
+              {transferSubmitting ? 'Transferring…' : 'Transfer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={confirmingDelete} onOpenChange={(open) => !open && setConfirmingDelete(false)}>
         <DialogContent>

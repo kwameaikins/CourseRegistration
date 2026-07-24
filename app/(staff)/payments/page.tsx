@@ -234,9 +234,16 @@ export default function PaymentTrackingPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Payment Tracking</h1>
-        <Button variant="outline" onClick={() => setShowSettled((value) => !value)}>
-          {showSettled ? 'Show outstanding only' : 'Show all (incl. Paid)'}
-        </Button>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={() => setShowSettled((value) => !value)}>
+            {showSettled ? 'Show outstanding only' : 'Show all (incl. Paid)'}
+          </Button>
+          <Button variant="outline" asChild>
+            <a href="/api/registrations/export" download>
+              Export CSV
+            </a>
+          </Button>
+        </div>
       </div>
 
       {errorMessage && (

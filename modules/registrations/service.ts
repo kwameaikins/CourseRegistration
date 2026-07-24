@@ -6,6 +6,8 @@ import {
   parseRegistrationStatus,
 } from '@/lib/domain/parsers';
 import { AppError } from '@/lib/errors';
+import { stringifyCsv } from '@/lib/csv';
+import { sendTransactionalEmail } from '@/lib/resend/client';
 import { effectiveCourseFee } from '@/lib/utils';
 import * as registrationsRepository from '@/modules/registrations/repository';
 import * as coursesService from '@/modules/courses/service';
@@ -20,6 +22,10 @@ import * as paymentsService from '@/modules/payments/service';
 // Permitted cross-module call, same posture as communications: every new/
 // returning registrant gets student-portal access (system review, 2026-07-22).
 import { ensureParticipantAuth } from '@/modules/portal/service';
+// Permitted cross-module call, same posture as above — batch transfer needs
+// to re-register a Paid participant against the destination Batch's Zoom
+// meeting (system review, 2026-07-24).
+import * as attendanceService from '@/modules/attendance/service';
 import type {
   BulkImportRequest,
   BulkImportResult,
@@ -29,6 +35,7 @@ import type {
   RegistrationInput,
   RegistrationListFilters,
   RegistrationListRow,
+  TransferRegistrationInput,
 } from '@/modules/registrations/types';
 import type { StaffRole } from '@/lib/domain/types';
 
@@ -287,6 +294,67 @@ export async function bulkImportRegistrations(
   return { results, summary };
 }
 
+// Shared row shaping between listRegistrations and exportRegistrationsCsv —
+// same join-row shape in, same role-shaped RegistrationListRow out.
+function toRegistrationListRow(
+  row: Awaited<
+    ReturnType<typeof registrationsRepository.selectRegistrationList>
+  >['rows'][number],
+): RegistrationListRow {
+  return {
+    id: row.registration.id,
+    fullName: row.participant?.full_name ?? '[unavailable]',
+    email: row.participant?.email ?? '',
+    phone: row.participant?.phone ?? '',
+    jobTitle: row.participant?.job_title ?? null,
+    company: row.participant?.company ?? null,
+    gender: row.participant?.gender ? parseGender(row.participant.gender) : null,
+    courseName: row.course?.course_name ?? '',
+    courseCode: row.course?.course_code ?? '',
+    cohortLabel: row.batch?.cohort_label ?? '',
+    batchId: row.registration.batch_id,
+    leadSource: parseLeadSource(row.registration.lead_source),
+    registrationStatus: parseRegistrationStatus(row.registration.registration_status),
+    paymentStatus: parsePaymentStatus(row.payment?.payment_status ?? 'Unpaid'),
+    courseFee: Number(row.payment?.course_fee ?? 0),
+    originalFee:
+      row.payment?.original_fee !== null && row.payment?.original_fee !== undefined
+        ? Number(row.payment.original_fee)
+        : null,
+    amountPaid: Number(row.payment?.amount_paid ?? 0),
+    balance: Number(row.payment?.balance ?? 0),
+    registeredAt: row.registration.registered_at,
+    notes: row.registration.notes,
+    paymentMethod: row.payment?.payment_method ?? null,
+    paymentNotes: row.payment?.payment_notes ?? null,
+    transactionId: row.payment?.transaction_id ?? null,
+    verifiedBy: row.verifiedByName,
+  };
+}
+
+// Payment Status filter and search apply after the join because they live
+// on joined tables (payments/participants) — shared by both the paginated
+// list and the (unpaginated) CSV export.
+function applyPostJoinFilters(
+  rows: RegistrationListRow[],
+  filters: Pick<RegistrationListFilters, 'paymentStatus' | 'search'>,
+): RegistrationListRow[] {
+  let result = rows;
+  if (filters.paymentStatus) {
+    result = result.filter((row) => row.paymentStatus === filters.paymentStatus);
+  }
+  if (filters.search) {
+    const needle = filters.search.toLowerCase();
+    result = result.filter(
+      (row) =>
+        row.fullName.toLowerCase().includes(needle) ||
+        row.email.toLowerCase().includes(needle) ||
+        row.phone.toLowerCase().includes(needle),
+    );
+  }
+  return result;
+}
+
 // F1.03 list with role-based field shaping (Document 5, Section 3). RLS
 // filters rows; this function additionally strips payment audit fields for
 // Marketing and all payment fields for Tutor.
@@ -302,60 +370,71 @@ export async function listRegistrations(filters: RegistrationListFilters): Promi
   ]);
 
   const { rows, total } = await registrationsRepository.selectRegistrationList(filters);
-
-  let registrations = rows.map((row) => {
-    const listRow: RegistrationListRow = {
-      id: row.registration.id,
-      fullName: row.participant?.full_name ?? '[unavailable]',
-      email: row.participant?.email ?? '',
-      phone: row.participant?.phone ?? '',
-      jobTitle: row.participant?.job_title ?? null,
-      company: row.participant?.company ?? null,
-      gender: row.participant?.gender ? parseGender(row.participant.gender) : null,
-      courseName: row.course?.course_name ?? '',
-      courseCode: row.course?.course_code ?? '',
-      cohortLabel: row.batch?.cohort_label ?? '',
-      batchId: row.registration.batch_id,
-      leadSource: parseLeadSource(row.registration.lead_source),
-      registrationStatus: parseRegistrationStatus(row.registration.registration_status),
-      paymentStatus: parsePaymentStatus(row.payment?.payment_status ?? 'Unpaid'),
-      courseFee: Number(row.payment?.course_fee ?? 0),
-      originalFee: row.payment?.original_fee !== null && row.payment?.original_fee !== undefined
-        ? Number(row.payment.original_fee)
-        : null,
-      amountPaid: Number(row.payment?.amount_paid ?? 0),
-      balance: Number(row.payment?.balance ?? 0),
-      registeredAt: row.registration.registered_at,
-      notes: row.registration.notes,
-      paymentMethod: row.payment?.payment_method ?? null,
-      paymentNotes: row.payment?.payment_notes ?? null,
-      transactionId: row.payment?.transaction_id ?? null,
-      verifiedBy: row.verifiedByName,
-    };
-    return shapeRowForRole(listRow, staffUser.role);
-  });
-
-  // Payment Status filter and search are applied after the join because they
-  // live on joined tables (payments/participants).
-  if (filters.paymentStatus) {
-    registrations = registrations.filter(
-      (row) => row.paymentStatus === filters.paymentStatus,
-    );
-  }
-  if (filters.search) {
-    const needle = filters.search.toLowerCase();
-    registrations = registrations.filter(
-      (row) =>
-        row.fullName.toLowerCase().includes(needle) ||
-        row.email.toLowerCase().includes(needle) ||
-        row.phone.toLowerCase().includes(needle),
-    );
-  }
+  const registrations = applyPostJoinFilters(
+    rows.map((row) => shapeRowForRole(toRegistrationListRow(row), staffUser.role)),
+    filters,
+  );
 
   return {
     registrations,
     pagination: { page: filters.page, limit: filters.limit, total },
   };
+}
+
+// CSV export (system review, 2026-07-24) — same role gate, same row
+// shaping/filtering as listRegistrations, but reads every matching row via
+// selectAllRegistrationsForExport instead of one page (see that function's
+// doc comment for why this makes the paymentStatus/search filtering
+// correct here in a way the paginated list's isn't).
+const EXPORT_COLUMNS: Array<{ key: keyof RegistrationListRow; header: string }> = [
+  { key: 'fullName', header: 'Full Name' },
+  { key: 'email', header: 'Email' },
+  { key: 'phone', header: 'Phone' },
+  { key: 'gender', header: 'Gender' },
+  { key: 'jobTitle', header: 'Job Title' },
+  { key: 'company', header: 'Company' },
+  { key: 'courseName', header: 'Course' },
+  { key: 'courseCode', header: 'Course Code' },
+  { key: 'cohortLabel', header: 'Cohort' },
+  { key: 'leadSource', header: 'Lead Source' },
+  { key: 'registrationStatus', header: 'Registration Status' },
+  { key: 'paymentStatus', header: 'Payment Status' },
+  { key: 'courseFee', header: 'Course Fee' },
+  { key: 'amountPaid', header: 'Amount Paid' },
+  { key: 'balance', header: 'Balance' },
+  { key: 'paymentMethod', header: 'Payment Method' },
+  { key: 'transactionId', header: 'Transaction ID' },
+  { key: 'verifiedBy', header: 'Verified By' },
+  { key: 'registeredAt', header: 'Registered At' },
+  { key: 'notes', header: 'Notes' },
+];
+
+export async function exportRegistrationsCsv(
+  filters: Omit<RegistrationListFilters, 'page' | 'limit'>,
+): Promise<string> {
+  const staffUser = await usersService.requireRole(['admin', 'finance', 'marketing', 'tutor']);
+
+  const { rows } = await registrationsRepository.selectAllRegistrationsForExport(filters);
+  const registrations = applyPostJoinFilters(
+    rows.map((row) => shapeRowForRole(toRegistrationListRow(row), staffUser.role)),
+    filters,
+  );
+
+  // Columns the viewer's role can't see are simply absent from the row
+  // object (shapeRowForRole deletes them) — skip those headers entirely
+  // rather than emitting an always-empty column.
+  const visibleColumns = EXPORT_COLUMNS.filter(
+    (column) => registrations.length === 0 || column.key in registrations[0],
+  );
+  const header = visibleColumns.map((column) => column.header);
+  const dataRows = registrations.map((row) =>
+    visibleColumns.map((column) => {
+      const value = row[column.key];
+      return value === null || value === undefined ? '' : String(value);
+    }),
+  );
+
+  return stringifyCsv([header, ...dataRows]);
 }
 
 function shapeRowForRole(row: RegistrationListRow, role: StaffRole): RegistrationListRow {
@@ -414,6 +493,8 @@ export async function getRegistration360(registrationId: string): Promise<Regist
       : null,
     course: data.batch
       ? {
+          courseId: data.batch.course_id,
+          batchId: data.batch.id,
           courseName: data.course?.course_name ?? '',
           courseCode: data.course?.course_code ?? '',
           cohortLabel: data.batch.cohort_label,
@@ -598,4 +679,102 @@ export async function deleteParticipantImmediately(
     staffUser.id,
     reason,
   );
+}
+
+// Batch/cohort transfer (system review, 2026-07-24) — admin-only, moves a
+// Registration to a different Batch of the same Course, e.g. when a
+// participant can't make their original cohort's start date. The fee is
+// deliberately left untouched (founder decision, 2026-07-24: keep whatever
+// was locked in at original registration, BR-18) — only the Batch link,
+// Zoom registration (if already Paid), and notes change.
+export async function transferRegistration(
+  registrationId: string,
+  input: TransferRegistrationInput,
+): Promise<void> {
+  const staffUser = await usersService.requireRole(['admin']);
+
+  const data = await registrationsRepository.selectRegistration360(registrationId);
+  if (!data || !data.batch) {
+    throw new AppError('NOT_FOUND', 'Registration not found.', 404);
+  }
+  if (data.registration.batch_id === input.newBatchId) {
+    throw new AppError(
+      'VALIDATION_ERROR',
+      'This registration is already on that batch.',
+      400,
+    );
+  }
+
+  // Same BR-01/BR-19 eligibility gate createRegistration applies to a fresh
+  // registration, reused here rather than reinvented — plus same-course,
+  // since a transfer moves cohorts, not products.
+  const destinationBatch = await coursesService.getBatchByIdSystem(input.newBatchId);
+  const todayIso = new Date().toISOString().slice(0, 10);
+  if (
+    !destinationBatch ||
+    destinationBatch.courseId !== data.batch.course_id ||
+    !destinationBatch.isActive ||
+    destinationBatch.startDate < todayIso
+  ) {
+    throw new AppError(
+      'INVALID_BATCH',
+      'The destination batch must be an active, not-yet-started batch of the same course.',
+      400,
+    );
+  }
+
+  // BR-03: unique(participant_id, batch_id) is the authoritative guarantee,
+  // same posture as createRegistration's duplicate handling.
+  try {
+    await registrationsRepository.updateRegistrationBatch(registrationId, input.newBatchId);
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      throw new AppError(
+        'DUPLICATE_REGISTRATION',
+        'This participant is already registered for that batch.',
+        409,
+      );
+    }
+    throw err;
+  }
+
+  const transferNote =
+    `Transferred from ${data.batch.cohort_label} to ${destinationBatch.cohortLabel} ` +
+    `by ${staffUser.fullName} on ${todayIso}: ${input.reason}`;
+  const updatedNotes = data.registration.notes
+    ? `${data.registration.notes}\n${transferNote}`
+    : transferNote;
+  await registrationsRepository.updateRegistrationNotes(registrationId, updatedNotes);
+
+  // Zoom re-registration only matters once Paid — an Unpaid/Part Payment
+  // registration never had a personal join link to begin with (same gate
+  // the portal dashboard already applies). Non-blocking: a Zoom hiccup must
+  // never fail the transfer itself.
+  if (data.payment?.payment_status === 'Paid') {
+    try {
+      await attendanceService.reregisterForZoomAfterTransfer(registrationId);
+    } catch (err) {
+      console.error('[batch transfer zoom re-registration]', err);
+    }
+  }
+
+  // One-off staff-triggered notice — same inline-HTML posture as
+  // certificates/service.ts's sendCertificateEmail, since this doesn't fit
+  // the per-course templated pipeline (Phase 1 EmailType set). Non-blocking.
+  if (data.participant?.email) {
+    try {
+      await sendTransactionalEmail({
+        to: data.participant.email,
+        subject: `Your course schedule has changed — ${destinationBatch.cohortLabel}`,
+        html: `
+<p>Dear ${data.participant.full_name},</p>
+<p>Your registration has been moved to a new cohort: <strong>${destinationBatch.cohortLabel}</strong>, starting ${destinationBatch.startDate}.</p>
+<p>Your course fee is unchanged.</p>
+<p>Log in to your <a href="${process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com'}/portal/login">student portal</a> for the updated schedule${data.payment?.payment_status === 'Paid' ? ' and your new Zoom join link' : ''}.</p>
+<p>If you have any questions, just reply to this email.</p>`,
+      });
+    } catch (err) {
+      console.error('[batch transfer notification email]', err);
+    }
+  }
 }

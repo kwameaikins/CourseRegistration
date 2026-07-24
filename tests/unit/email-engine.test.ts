@@ -125,6 +125,31 @@ describe('BR-07 — sendEmailOnce reservation-before-send (T-BR07-01 logic)', ()
   });
 });
 
+describe('calendar invite attachment (system review, 2026-07-24)', () => {
+  it('attaches a .ics calendar invite to the welcome email', async () => {
+    await sendEmailOnce('reg-1', 'welcome');
+
+    expect(sendTransactionalEmailMock).toHaveBeenCalledTimes(1);
+    const call = sendTransactionalEmailMock.mock.calls[0][0];
+    expect(call.attachments).toHaveLength(1);
+    expect(call.attachments[0]).toMatchObject({
+      filename: 'course-invite.ics',
+      contentType: expect.stringContaining('text/calendar'),
+    });
+  });
+
+  it('does not attach a calendar invite to other email types', async () => {
+    repositoryMock.selectRegistrationEmailContext.mockResolvedValue(
+      makeContext({ paymentStatus: 'Paid' }),
+    );
+
+    await sendEmailOnce('reg-1', 'payment_confirmation');
+
+    const call = sendTransactionalEmailMock.mock.calls[0][0];
+    expect(call.attachments).toBeUndefined();
+  });
+});
+
 describe('BR-09/BR-10 — gates checked BEFORE the BR-07 reservation', () => {
   it('does not reserve a slot for an inactive batch (BR-09)', async () => {
     repositoryMock.selectRegistrationEmailContext.mockResolvedValue(
