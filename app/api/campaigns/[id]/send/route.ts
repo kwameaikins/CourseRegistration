@@ -3,7 +3,7 @@ import * as campaignsService from '@/modules/campaigns/service';
 import { sendCampaignInputSchema } from '@/modules/campaigns/types';
 import * as usersService from '@/modules/users/service';
 
-// POST /api/campaigns/[id]/send — explicit live send action. Queue remains
+// POST /api/campaigns/[id]/send - explicit live send action. Queue remains
 // a dry run; this endpoint is the only path that contacts a provider.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
