@@ -104,6 +104,20 @@ describe('login', () => {
     expect(repositoryMock.recordFailedLogin).not.toHaveBeenCalled();
   });
 
+  it('self-heals a missing portal auth row from the participant phone', async () => {
+    repositoryMock.selectParticipantAuth
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(authRow());
+
+    const result = await login({ identifier: '0245121941', pin: '1941' });
+
+    expect(repositoryMock.insertParticipantAuthIfMissing).toHaveBeenCalledWith(
+      'participant-1',
+      expect.any(String),
+    );
+    expect(result).toMatchObject({ status: 'ok', sessionId: 'session-1' });
+  });
+
   it('increments failed_attempts on a wrong PIN without locking below the threshold', async () => {
     repositoryMock.selectParticipantAuth.mockResolvedValue(authRow({ failed_attempts: 2 }));
     const result = await login({ identifier: 'ama@example.com', pin: '0000' });

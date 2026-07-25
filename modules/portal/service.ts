@@ -64,7 +64,11 @@ export async function login(input: PortalLoginInput): Promise<PortalLoginResult>
     return { status: 'invalid' };
   }
 
-  const auth = await portalRepository.selectParticipantAuth(participant.id);
+  let auth = await portalRepository.selectParticipantAuth(participant.id);
+  if (!auth) {
+    await ensureParticipantAuth(participant.id, participant.phone);
+    auth = await portalRepository.selectParticipantAuth(participant.id);
+  }
   if (!auth) {
     return { status: 'invalid' };
   }
