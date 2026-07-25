@@ -5,6 +5,7 @@ import * as paymentsRepository from '@/modules/payments/repository';
 import * as usersService from '@/modules/users/service';
 import * as communicationsService from '@/modules/communications/service';
 import * as attendanceService from '@/modules/attendance/service';
+import * as opportunitiesService from '@/modules/opportunities/service';
 import type { Payment, PaymentDiscountInput, PaymentUpdate } from '@/modules/payments/types';
 import type { Database } from '@/lib/supabase/database.types';
 
@@ -60,6 +61,13 @@ export async function runPaidTransitionSideEffects(registrationId: string): Prom
     await attendanceService.ensureZoomRegistration(registrationId);
   } catch (err) {
     console.error('[payment_confirmation zoom registration]', err);
+  }
+  // Sales pipeline: a Paid registration wins its opportunity (Revenue OS
+  // Phase 1 roadmap). Same non-blocking posture as the side effects above.
+  try {
+    await opportunitiesService.markWonByRegistrationId(registrationId);
+  } catch (err) {
+    console.error('[payment_confirmation opportunity stage sync]', err);
   }
 }
 

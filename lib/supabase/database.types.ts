@@ -654,6 +654,63 @@ export type Database = {
           },
         ]
       }
+      opportunities: {
+        Row: {
+          amount: number
+          batch_label: string
+          course_name: string
+          created_at: string
+          expected_close_date: string | null
+          id: string
+          lead_id: string | null
+          notes: string | null
+          registration_id: string | null
+          stage: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          batch_label: string
+          course_name: string
+          created_at?: string
+          expected_close_date?: string | null
+          id?: string
+          lead_id?: string | null
+          notes?: string | null
+          registration_id?: string | null
+          stage?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          batch_label?: string
+          course_name?: string
+          created_at?: string
+          expected_close_date?: string | null
+          id?: string
+          lead_id?: string | null
+          notes?: string | null
+          registration_id?: string | null
+          stage?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opportunities_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "opportunities_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       participants: {
         Row: {
           company: string | null

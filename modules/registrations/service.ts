@@ -20,6 +20,7 @@ import * as communicationsService from '@/modules/communications/service';
 // instead of the finance/admin-only updatePaymentByStaff.
 import * as paymentsService from '@/modules/payments/service';
 import * as leadsService from '@/modules/leads/service';
+import * as opportunitiesService from '@/modules/opportunities/service';
 // Permitted cross-module call, same posture as communications: every new/
 // returning registrant gets student-portal access (system review, 2026-07-22).
 import { ensureParticipantAuth } from '@/modules/portal/service';
@@ -122,28 +123,55 @@ export async function createRegistration(
   // BR-18: the fee is copied from the Batch at registration time — the
   // early-registration discount, if the cutoff hasn't passed yet, decides
   // the effective fee once and for all here (Document 5 addendum).
+  const courseFee = effectiveCourseFee(batch, todayIso);
   const payment = await registrationsRepository.insertInitialPayment({
     registration_id: registration.id,
-    course_fee: effectiveCourseFee(batch, todayIso),
+    course_fee: courseFee,
   });
 
-  await leadsService.createLead({
-    registrationId: registration.id,
-    participantId: participant.id,
-    fullName,
-    email: input.email,
-    phone: input.phone,
-    jobTitle: input.jobTitle,
-    company: input.company,
-    leadSource: input.leadSource,
-    status: 'New',
-    // score omitted on purpose — leadsService.createLead computes it
-    // automatically from these same signals (calculateLeadScore).
-  }).catch((err) => {
+  // The confirmation names the Course, not the Batch (Document 1, F1.01
+  // step 5; Document 5 example). Cohort label is only the fallback. Fetched
+  // here (rather than just before the return) so both the opportunity below
+  // and the confirmation message can use it.
+  const course = await coursesService.getCourseByIdSystem(batch.courseId);
+
+  let createdLeadId: string | null = null;
+  try {
+    const lead = await leadsService.createLead({
+      registrationId: registration.id,
+      participantId: participant.id,
+      fullName,
+      email: input.email,
+      phone: input.phone,
+      jobTitle: input.jobTitle,
+      company: input.company,
+      leadSource: input.leadSource,
+      status: 'New',
+      // score omitted on purpose — leadsService.createLead computes it
+      // automatically from these same signals (calculateLeadScore).
+    });
+    createdLeadId = lead.id;
+  } catch (err) {
     // Same non-blocking posture as email/WhatsApp/SMS (P4.01): a lead-record
     // failure must never fail the registration itself.
     console.error('[registration lead creation]', err);
-  });
+  }
+
+  // Sales pipeline: one opportunity per registration (Revenue OS Phase 1
+  // roadmap). Independent of the lead write above — a lead failure must not
+  // block the opportunity, and vice versa.
+  try {
+    await opportunitiesService.createOpportunity({
+      leadId: createdLeadId,
+      registrationId: registration.id,
+      courseName: course?.courseName ?? batch.cohortLabel,
+      batchLabel: batch.cohortLabel,
+      amount: courseFee,
+      stage: 'New',
+    });
+  } catch (err) {
+    console.error('[registration opportunity creation]', err);
+  }
 
   // E01, E02, E03 — email failures never fail the registration itself
   // (Document 5, Section 2, step 7).
@@ -169,10 +197,6 @@ export async function createRegistration(
   } catch (err) {
     console.error('[registration sms welcome]', err);
   }
-
-  // The confirmation names the Course, not the Batch (Document 1, F1.01
-  // step 5; Document 5 example). Cohort label is only the fallback.
-  const course = await coursesService.getCourseByIdSystem(batch.courseId);
 
   return {
     registrationId: registration.id,

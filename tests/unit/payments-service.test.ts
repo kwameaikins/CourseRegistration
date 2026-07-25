@@ -11,6 +11,9 @@ const usersServiceMock = {
 const sendEmailOnceMock = vi.fn();
 const sendWhatsappOnceMock = vi.fn();
 const sendSmsOnceMock = vi.fn();
+const opportunitiesServiceMock = {
+  markWonByRegistrationId: vi.fn(),
+};
 
 vi.mock('@/modules/payments/repository', () => paymentsRepositoryMock);
 vi.mock('@/modules/users/service', () => usersServiceMock);
@@ -19,6 +22,7 @@ vi.mock('@/modules/communications/service', () => ({
   sendWhatsappOnce: (...args: unknown[]) => sendWhatsappOnceMock(...args),
   sendSmsOnce: (...args: unknown[]) => sendSmsOnceMock(...args),
 }));
+vi.mock('@/modules/opportunities/service', () => opportunitiesServiceMock);
 
 const { updatePaymentByStaff, applyDiscount } = await import('@/modules/payments/service');
 const { paymentUpdateSchema, paymentDiscountSchema } = await import('@/modules/payments/types');
@@ -79,6 +83,7 @@ beforeEach(() => {
     }),
   );
   sendEmailOnceMock.mockResolvedValue('sent');
+  opportunitiesServiceMock.markWonByRegistrationId.mockResolvedValue(undefined);
 });
 
 describe('BR-12 — verified_by is always the session staff id', () => {
@@ -106,6 +111,11 @@ describe('E07 — confirmation email only on the transition to Paid', () => {
     await updatePaymentByStaff('reg-1', { amountPaid: 1200, paymentMethod: 'Bank Transfer' });
     expect(sendEmailOnceMock).toHaveBeenCalledWith('reg-1', 'payment_confirmation');
     expect(sendWhatsappOnceMock).toHaveBeenCalledWith('reg-1', 'payment_confirmation');
+  });
+
+  it('marks the linked sales opportunity as Won on the transition to Paid', async () => {
+    await updatePaymentByStaff('reg-1', { amountPaid: 1200, paymentMethod: 'Bank Transfer' });
+    expect(opportunitiesServiceMock.markWonByRegistrationId).toHaveBeenCalledWith('reg-1');
   });
 
   it('does not send when the payment was already Paid (EC-05 double-mark)', async () => {

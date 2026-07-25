@@ -27,6 +27,9 @@ const paymentsServiceMock = {
 const leadsServiceMock = {
   createLead: vi.fn(),
 };
+const opportunitiesServiceMock = {
+  createOpportunity: vi.fn(),
+};
 const attendanceServiceMock = {
   reregisterForZoomAfterTransfer: vi.fn(),
 };
@@ -40,6 +43,7 @@ vi.mock('@/modules/courses/service', () => coursesServiceMock);
 vi.mock('@/modules/users/service', () => usersServiceMock);
 vi.mock('@/modules/payments/service', () => paymentsServiceMock);
 vi.mock('@/modules/leads/service', () => leadsServiceMock);
+vi.mock('@/modules/opportunities/service', () => opportunitiesServiceMock);
 vi.mock('@/modules/attendance/service', () => attendanceServiceMock);
 vi.mock('@/modules/communications/service', () => ({
   sendEmailOnce: (...args: unknown[]) => sendEmailOnceMock(...args),
@@ -143,6 +147,7 @@ beforeEach(() => {
     verifiedBy: 'Jane Doe (marketing)',
   });
   leadsServiceMock.createLead.mockResolvedValue({ id: 'lead-1' });
+  opportunitiesServiceMock.createOpportunity.mockResolvedValue({ id: 'opp-1' });
   sendEmailOnceMock.mockResolvedValue('sent');
   sendWhatsappOnceMock.mockResolvedValue('sent');
   sendSmsOnceMock.mockResolvedValue('sent');
@@ -232,6 +237,19 @@ describe('deep-endpoint orchestration (Document 5, Section 2)', () => {
         company: 'N/A',
         jobTitle: 'N/A',
         leadSource: 'WhatsApp',
+      }),
+    );
+  });
+
+  it('creates a sales opportunity linked to the lead and registration', async () => {
+    await createRegistration(validInput());
+
+    expect(opportunitiesServiceMock.createOpportunity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        leadId: 'lead-1',
+        registrationId: 'reg-1',
+        amount: 1200,
+        stage: 'New',
       }),
     );
   });
