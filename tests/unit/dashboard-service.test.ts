@@ -6,9 +6,17 @@ const dashboardRepositoryMock = {
 const usersServiceMock = {
   requireRole: vi.fn(),
 };
+const leadsServiceMock = {
+  getPipelineSummary: vi.fn(),
+};
+const opportunitiesServiceMock = {
+  getPipelineSummary: vi.fn(),
+};
 
 vi.mock('@/modules/dashboard/repository', () => dashboardRepositoryMock);
 vi.mock('@/modules/users/service', () => usersServiceMock);
+vi.mock('@/modules/leads/service', () => leadsServiceMock);
+vi.mock('@/modules/opportunities/service', () => opportunitiesServiceMock);
 
 const { getDashboardSummary } = await import('@/modules/dashboard/service');
 
@@ -17,6 +25,18 @@ const THIS_MONTH = new Date().toISOString();
 beforeEach(() => {
   vi.clearAllMocks();
   usersServiceMock.requireRole.mockResolvedValue({ role: 'management' });
+  leadsServiceMock.getPipelineSummary.mockResolvedValue({
+    total: 5,
+    byStatus: { New: 3, Qualified: 2 },
+    averageScore: 42,
+    unassigned: 2,
+  });
+  opportunitiesServiceMock.getPipelineSummary.mockResolvedValue({
+    total: 4,
+    openValue: 2400,
+    wonValue: 1200,
+    byStage: { New: 2, Won: 1, Lost: 1 },
+  });
   dashboardRepositoryMock.selectDashboardData.mockResolvedValue([
     {
       batchId: 'batch-1',
@@ -93,5 +113,22 @@ describe('F1.08 — dashboard aggregation (computed live)', () => {
     const summary = await getDashboardSummary();
     expect(summary.aggregate.totalOutstandingBalance).toBe(2000);
     expect(summary.aggregate.registrationsThisMonth).toBe(3);
+  });
+
+  it('surfaces the lead and sales pipeline summaries for the executive view', async () => {
+    const summary = await getDashboardSummary();
+
+    expect(summary.leadPipeline).toEqual({
+      total: 5,
+      unassigned: 2,
+      averageScore: 42,
+      byStatus: { New: 3, Qualified: 2 },
+    });
+    expect(summary.salesPipeline).toEqual({
+      total: 4,
+      openValue: 2400,
+      wonValue: 1200,
+      byStage: { New: 2, Won: 1, Lost: 1 },
+    });
   });
 });

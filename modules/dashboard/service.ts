@@ -1,6 +1,8 @@
 // F1.08 — dashboard summary computation (Document 5, Section 10).
 import * as dashboardRepository from '@/modules/dashboard/repository';
 import * as usersService from '@/modules/users/service';
+import * as leadsService from '@/modules/leads/service';
+import * as opportunitiesService from '@/modules/opportunities/service';
 
 export interface DashboardSummary {
   courses: Array<{
@@ -23,6 +25,20 @@ export interface DashboardSummary {
     totalOutstandingBalance: number;
   };
   leadSources: Array<{ source: string; count: number; conversionRate: number }>;
+  // Revenue OS Phase 1 roadmap: give executives a single screen that spans
+  // registrations/revenue AND the lead/sales pipeline health.
+  leadPipeline: {
+    total: number;
+    unassigned: number;
+    averageScore: number;
+    byStatus: Record<string, number>;
+  };
+  salesPipeline: {
+    total: number;
+    openValue: number;
+    wonValue: number;
+    byStage: Record<string, number>;
+  };
 }
 
 function round2(value: number): number {
@@ -32,7 +48,11 @@ function round2(value: number): number {
 export async function getDashboardSummary(): Promise<DashboardSummary> {
   await usersService.requireRole(['admin', 'management']);
 
-  const batches = await dashboardRepository.selectDashboardData();
+  const [batches, leadPipeline, salesPipeline] = await Promise.all([
+    dashboardRepository.selectDashboardData(),
+    leadsService.getPipelineSummary(),
+    opportunitiesService.getPipelineSummary(),
+  ]);
 
   const courses = batches.map((batch) => {
     const total = batch.registrations.length;
@@ -96,5 +116,17 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
         conversionRate: entry.count === 0 ? 0 : round2((entry.paid / entry.count) * 100),
       }))
       .sort((a, b) => b.count - a.count),
+    leadPipeline: {
+      total: leadPipeline.total,
+      unassigned: leadPipeline.unassigned,
+      averageScore: leadPipeline.averageScore,
+      byStatus: leadPipeline.byStatus,
+    },
+    salesPipeline: {
+      total: salesPipeline.total,
+      openValue: salesPipeline.openValue,
+      wonValue: salesPipeline.wonValue,
+      byStage: salesPipeline.byStage,
+    },
   };
 }

@@ -156,6 +156,68 @@ export default async function ManagementDashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Lead Pipeline</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex gap-4 text-sm">
+              <span>
+                <strong>{summary.leadPipeline.total}</strong> total leads
+              </span>
+              <span>
+                <strong>{summary.leadPipeline.unassigned}</strong> unassigned
+              </span>
+              <span>
+                <strong>{summary.leadPipeline.averageScore}</strong> avg. score
+              </span>
+            </div>
+            <div className="space-y-1 text-sm">
+              {Object.entries(summary.leadPipeline.byStatus).map(([status, count]) => (
+                <div key={status} className="flex justify-between border-b py-1 last:border-0">
+                  <span className="text-muted-foreground">{status}</span>
+                  <span className="font-medium">{count}</span>
+                </div>
+              ))}
+              {Object.keys(summary.leadPipeline.byStatus).length === 0 && (
+                <p className="text-sm text-muted-foreground">No leads yet.</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Sales Pipeline</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex gap-4 text-sm">
+              <span>
+                <strong>{summary.salesPipeline.total}</strong> opportunities
+              </span>
+              <span className="text-muted-foreground">
+                {formatGhs(summary.salesPipeline.openValue)} open
+              </span>
+              <span className="text-emerald-600">
+                {formatGhs(summary.salesPipeline.wonValue)} won
+              </span>
+            </div>
+            <div className="space-y-1 text-sm">
+              {Object.entries(summary.salesPipeline.byStage).map(([stage, count]) => (
+                <div key={stage} className="flex justify-between border-b py-1 last:border-0">
+                  <span className="text-muted-foreground">{stage}</span>
+                  <span className="font-medium">{count}</span>
+                </div>
+              ))}
+              {Object.keys(summary.salesPipeline.byStage).length === 0 && (
+                <p className="text-sm text-muted-foreground">No opportunities yet.</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
