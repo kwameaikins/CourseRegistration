@@ -20,6 +20,7 @@ export const ALL_EMAIL_TYPES: readonly EmailType[] = [
   'whatsapp_invite',
   'post_training_thankyou',
   'upsell',
+  'installment_reminder',
 ] as const;
 
 export const templateUpsertSchema = z.object({
@@ -52,6 +53,7 @@ export const PHASE_1_EMAIL_TYPES: readonly EmailType[] = [
   'reminder_3',
   'reminder_4',
   'payment_confirmation',
+  'installment_reminder',
 ] as const;
 
 // Which Batch automation toggle gates each email type (BR-10).
@@ -67,6 +69,7 @@ export const EMAIL_TYPE_TOGGLE: Partial<
   reminder_2: 'payment_reminder_enabled',
   reminder_3: 'payment_reminder_enabled',
   reminder_4: 'payment_reminder_enabled',
+  installment_reminder: 'payment_reminder_enabled',
   class_reminder_24h: 'class_reminder_enabled',
   class_reminder_2h: 'class_reminder_enabled',
   zoom_link: 'class_reminder_enabled',

@@ -252,3 +252,9 @@ The integration is successful when:
 ## 11. Final recommendation
 
 Implement this as an extension of the existing modular monolith. The current app already has the correct core engine for course registration and payments. The attached Revenue OS document should therefore be used as the roadmap for adding CRM, lead, sales, campaign, and AI capabilities on top of that working foundation.
+
+---
+
+## 12. Live Learning Operations Relationship
+
+The Revenue OS and Live Learning Operations share learner, lead, communications, and analytics signals but remain separate module responsibilities. Revenue OS owns acquisition and conversion; Live Learning Operations owns delivery, attendance, learner success, completion, and post-course signals. `modules/live-sessions` may publish approved attendance/completion signals to analytics or CRM workflows, but it must not let sales automation alter academic records.

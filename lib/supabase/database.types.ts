@@ -1276,6 +1276,294 @@ export type Database = {
           },
         ]
       }
+      live_session_audit_log: {
+        Row: {
+          actor_staff_id: string | null
+          created_at: string
+          details: Json
+          event_type: string
+          id: string
+          live_session_id: string
+          reason: string | null
+        }
+        Insert: {
+          actor_staff_id?: string | null
+          created_at?: string
+          details?: Json
+          event_type: string
+          id?: string
+          live_session_id: string
+          reason?: string | null
+        }
+        Update: {
+          actor_staff_id?: string | null
+          created_at?: string
+          details?: Json
+          event_type?: string
+          id?: string
+          live_session_id?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_session_audit_log_actor_staff_id_fkey"
+            columns: ["actor_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_session_audit_log_live_session_id_fkey"
+            columns: ["live_session_id"]
+            isOneToOne: false
+            referencedRelation: "live_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      live_session_registrants: {
+        Row: {
+          created_at: string
+          id: string
+          join_url: string
+          live_session_id: string
+          registration_id: string
+          zoom_registrant_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          join_url: string
+          live_session_id: string
+          registration_id: string
+          zoom_registrant_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          join_url?: string
+          live_session_id?: string
+          registration_id?: string
+          zoom_registrant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_session_registrants_live_session_id_fkey"
+            columns: ["live_session_id"]
+            isOneToOne: false
+            referencedRelation: "live_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_session_registrants_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      live_session_reminders: {
+        Row: {
+          channel: string
+          error_message: string | null
+          id: string
+          live_session_id: string
+          registration_id: string
+          reminder_type: string
+          sent_at: string
+          success: boolean
+        }
+        Insert: {
+          channel: string
+          error_message?: string | null
+          id?: string
+          live_session_id: string
+          registration_id: string
+          reminder_type: string
+          sent_at?: string
+          success: boolean
+        }
+        Update: {
+          channel?: string
+          error_message?: string | null
+          id?: string
+          live_session_id?: string
+          registration_id?: string
+          reminder_type?: string
+          sent_at?: string
+          success?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_session_reminders_live_session_id_fkey"
+            columns: ["live_session_id"]
+            isOneToOne: false
+            referencedRelation: "live_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_session_reminders_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      live_session_attendance: {
+        Row: {
+          created_at: string
+          duration_minutes: number
+          id: string
+          join_time: string | null
+          leave_time: string | null
+          live_session_id: string
+          registration_id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          join_time?: string | null
+          leave_time?: string | null
+          live_session_id: string
+          registration_id: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          join_time?: string | null
+          leave_time?: string | null
+          live_session_id?: string
+          registration_id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          source?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_session_attendance_live_session_id_fkey"
+            columns: ["live_session_id"]
+            isOneToOne: false
+            referencedRelation: "live_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_session_attendance_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_session_attendance_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      live_sessions: {
+        Row: {
+          agenda: string | null
+          batch_id: string
+          created_at: string
+          created_by: string | null
+          ends_at: string
+          id: string
+          learning_outcomes: string | null
+          provider: string
+          starts_at: string
+          status: string
+          status_reason: string | null
+          timezone: string
+          title: string
+          tutor_staff_id: string | null
+          updated_at: string
+          updated_by: string | null
+          zoom_meeting_id: string | null
+        }
+        Insert: {
+          agenda?: string | null
+          batch_id: string
+          created_at?: string
+          created_by?: string | null
+          ends_at: string
+          id?: string
+          learning_outcomes?: string | null
+          provider?: string
+          starts_at: string
+          status?: string
+          status_reason?: string | null
+          timezone?: string
+          title: string
+          tutor_staff_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          zoom_meeting_id?: string | null
+        }
+        Update: {
+          agenda?: string | null
+          batch_id?: string
+          created_at?: string
+          created_by?: string | null
+          ends_at?: string
+          id?: string
+          learning_outcomes?: string | null
+          provider?: string
+          starts_at?: string
+          status?: string
+          status_reason?: string | null
+          timezone?: string
+          title?: string
+          tutor_staff_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          zoom_meeting_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_sessions_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_sessions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_sessions_tutor_staff_id_fkey"
+            columns: ["tutor_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "live_sessions_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_users: {
         Row: {
           created_at: string

@@ -6,8 +6,15 @@ import * as usersService from '@/modules/users/service';
 import * as communicationsService from '@/modules/communications/service';
 import * as attendanceService from '@/modules/attendance/service';
 import * as opportunitiesService from '@/modules/opportunities/service';
-import type { Payment, PaymentDiscountInput, PaymentUpdate } from '@/modules/payments/types';
+import type {
+  Installment,
+  Payment,
+  PaymentDiscountInput,
+  PaymentUpdate,
+} from '@/modules/payments/types';
 import type { Database } from '@/lib/supabase/database.types';
+
+const TWO_INSTALLMENT_DUE_LEAD_DAYS = 7;
 
 function toPayment(row: Database['public']['Tables']['payments']['Row']): Payment {
   return {
@@ -22,6 +29,20 @@ function toPayment(row: Database['public']['Tables']['payments']['Row']): Paymen
     paymentDate: row.payment_date,
     verifiedBy: row.verified_by,
     paymentNotes: row.payment_notes,
+  };
+}
+
+function toInstallment(
+  row: Database['public']['Tables']['payment_installments']['Row'],
+): Installment {
+  return {
+    id: row.id,
+    installmentNumber: row.installment_number,
+    amountDue: Number(row.amount_due),
+    amountPaid: Number(row.amount_paid),
+    dueDate: row.due_date,
+    paymentStatus: row.payment_status === 'Paid' ? 'Paid' : 'Pending',
+    paidAt: row.paid_at,
   };
 }
 
@@ -104,6 +125,15 @@ export async function applyPaymentUpdate(
     await runPaidTransitionSideEffects(registrationId);
   }
 
+  // Keep any payment-plan schedule in sync with the new total — never lets
+  // a reconciliation hiccup fail the payment write itself, which has
+  // already committed by this point.
+  try {
+    await reconcileInstallments(registrationId, Number(updated.amount_paid));
+  } catch (err) {
+    console.error('[payment update installment reconcile]', err);
+  }
+
   // BR-06's trigger has already advanced the Registration by the time the
   // update returns; report Confirmed when the payment is now Paid.
   const payment = toPayment(updated);
@@ -115,6 +145,162 @@ export async function applyPaymentUpdate(
     registrationStatus: payment.paymentStatus === 'Paid' ? 'Confirmed' : 'Registered',
     verifiedBy: `${verifiedByStaff.fullName} (${verifiedByStaff.role})`,
   };
+}
+
+// Simple fixed-split payment plan (founder-approved 2026-07-24) — a
+// participant on the portal commits to 50% now, 50% by a set date, instead
+// of paying in full. Deliberately only offered while still Unpaid (no
+// existing partial payment or discount to reconcile against) and only when
+// the course starts far enough out that a second installment date means
+// something. Called from modules/portal/service.ts, which has already
+// verified the registration belongs to the requesting participant and
+// resolved courseFee/batchStartDate from its own dashboard read.
+export async function setUpTwoInstallmentPlan(
+  registrationId: string,
+  context: { courseFee: number; batchStartDate: string },
+): Promise<void> {
+  const payment = await paymentsRepository.selectPaymentByRegistrationIdSystem(registrationId);
+  if (!payment) {
+    throw new AppError('NOT_FOUND', 'No payment record exists for this registration.', 404);
+  }
+  if (payment.payment_status !== 'Unpaid') {
+    throw new AppError(
+      'VALIDATION_ERROR',
+      'A payment plan can only be set up before any payment has been made.',
+      400,
+    );
+  }
+
+  const existingCount = await paymentsRepository.selectInstallmentCountForRegistration(
+    registrationId,
+  );
+  if (existingCount > 0) {
+    throw new AppError(
+      'VALIDATION_ERROR',
+      'A payment plan has already been set up for this registration.',
+      400,
+    );
+  }
+
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const secondDueDate = new Date(
+    new Date(context.batchStartDate).getTime() -
+      TWO_INSTALLMENT_DUE_LEAD_DAYS * 24 * 60 * 60 * 1000,
+  )
+    .toISOString()
+    .slice(0, 10);
+  if (secondDueDate <= todayIso) {
+    throw new AppError(
+      'VALIDATION_ERROR',
+      'This course starts too soon to offer a payment plan — please pay in full.',
+      400,
+    );
+  }
+
+  const firstAmount = Math.round((context.courseFee / 2) * 100) / 100;
+  const secondAmount = Math.round((context.courseFee - firstAmount) * 100) / 100;
+
+  await paymentsRepository.insertInstallments([
+    {
+      payment_id: payment.id,
+      registration_id: registrationId,
+      installment_number: 1,
+      amount_due: firstAmount,
+      due_date: todayIso,
+    },
+    {
+      payment_id: payment.id,
+      registration_id: registrationId,
+      installment_number: 2,
+      amount_due: secondAmount,
+      due_date: secondDueDate,
+    },
+  ]);
+}
+
+// Redistributes the Payment's current amount_paid across installments in
+// order (installment 1 fills before installment 2) — the parent payments
+// row stays the sole source of truth for BR-04/BR-05/BR-06 either way; this
+// only updates the schedule/progress view layered on top. A no-op when no
+// plan exists. Not called from applyDiscount: a discount changes course_fee
+// after installment amounts were already fixed, and reconciling that
+// combination is deliberately out of scope for this pass (rare in
+// practice — the aggregate payments row remains correct regardless).
+export async function reconcileInstallments(
+  registrationId: string,
+  totalAmountPaid: number,
+): Promise<void> {
+  const installments = await paymentsRepository.selectInstallmentsForRegistration(registrationId);
+  if (installments.length === 0) return;
+
+  let remaining = totalAmountPaid;
+  for (const installment of installments) {
+    const amountDue = Number(installment.amount_due);
+    const allocation = Math.max(Math.min(remaining, amountDue), 0);
+    if (allocation !== Number(installment.amount_paid)) {
+      await paymentsRepository.updateInstallmentAmountPaid(installment.id, allocation);
+    }
+    remaining -= allocation;
+  }
+}
+
+// Discount rebalancing (fixes the known limitation flagged in PLAN.md) —
+// installment amounts are fixed when the plan is set up, but a staff
+// discount granted afterward changes the aggregate course_fee. Re-splits
+// the new total 50/50 across the (always exactly two) installments, never
+// shrinking either one below what has already been paid on it — money
+// already received can't retroactively become "not yet due." If the
+// discount is large enough that what's already been paid exceeds the new
+// total, both installments simply settle at their already-paid amount
+// (the discount fully covers what's left); the aggregate payments row's
+// balance is the authoritative figure regardless.
+export async function rebalanceInstallmentsForDiscount(
+  registrationId: string,
+  newCourseFee: number,
+): Promise<void> {
+  const installments = await paymentsRepository.selectInstallmentsForRegistration(registrationId);
+  if (installments.length === 0) return; // no payment plan — nothing to rebalance
+
+  const first = installments.find((installment) => installment.installment_number === 1);
+  const second = installments.find((installment) => installment.installment_number === 2);
+  if (!first) return;
+
+  const firstPaid = Number(first.amount_paid);
+  const secondPaid = second ? Number(second.amount_paid) : 0;
+  const newTotal = Math.max(newCourseFee, firstPaid + secondPaid);
+
+  const newFirstDue = Math.max(firstPaid, Math.round((newTotal / 2) * 100) / 100);
+  if (newFirstDue !== Number(first.amount_due)) {
+    await paymentsRepository.updateInstallmentAmountDue(first.id, newFirstDue);
+  }
+
+  if (second) {
+    const newSecondDue = Math.max(secondPaid, Math.round((newTotal - newFirstDue) * 100) / 100);
+    if (newSecondDue !== Number(second.amount_due)) {
+      await paymentsRepository.updateInstallmentAmountDue(second.id, newSecondDue);
+    }
+  }
+}
+
+export async function getInstallmentsForRegistration(
+  registrationId: string,
+): Promise<Installment[]> {
+  const rows = await paymentsRepository.selectInstallmentsForRegistration(registrationId);
+  return rows.map(toInstallment);
+}
+
+// Reminder candidates for the daily cron (modules/communications/
+// reminder-scheduler.ts) — see selectDueSecondInstallments's doc comment
+// for why only the second installment is considered.
+export async function getDueInstallmentReminderCandidates(
+  withinDays = 3,
+): Promise<Array<{ registrationId: string; amountDue: number; dueDate: string }>> {
+  const rows = await paymentsRepository.selectDueSecondInstallments(withinDays);
+  return rows.map((row) => ({
+    registrationId: row.registration_id,
+    amountDue: Number(row.amount_due),
+    dueDate: row.due_date,
+  }));
 }
 
 // F1.04 manual payment update (Document 5, Section 6).
@@ -181,6 +367,15 @@ export async function applyDiscount(
     // Staff-initiated — no browser waiting, so no portal login token here
     // (only the Paystack webhook path mints one).
     await runPaidTransitionSideEffects(registrationId);
+  }
+
+  // Keep any payment-plan schedule in sync with the new, discounted fee —
+  // non-blocking, same posture as every other side effect here (the
+  // discount write has already committed by this point).
+  try {
+    await rebalanceInstallmentsForDiscount(registrationId, newCourseFee);
+  } catch (err) {
+    console.error('[discount installment rebalance]', err);
   }
 
   const payment = toPayment(updated);

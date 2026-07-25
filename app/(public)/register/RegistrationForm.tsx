@@ -3,7 +3,7 @@
 // F1.01 — mobile-first, single-column form (Document 8, Section 2).
 // Inline validation on blur; submit disabled until DPA consent is checked;
 // on a duplicate-registration error the form retains its values.
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { ApiError, apiFetch } from '@/components/api-client';
@@ -19,9 +19,18 @@ interface BatchOption {
   cohortLabel: string;
   startDate: string;
   courseFee: number;
+  // Waitlist feature (founder-approved 2026-07-24) — null capacity means
+  // unlimited, so seatsRemaining/isFull are also null/false in that case.
+  capacity: number | null;
+  seatsRemaining: number | null;
+  isFull: boolean;
   discountCutoffDate: string | null;
   discountedFee: number | null;
 }
+
+type RegistrationResult =
+  | { outcome: 'registered'; registrationId: string; message: string }
+  | { outcome: 'waitlisted'; waitlistId: string; message: string };
 
 const LEAD_SOURCES = [
   'WhatsApp',
@@ -76,11 +85,21 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [isDuplicateRegistration, setIsDuplicateRegistration] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState<{
-    registrationId: string;
-    message: string;
-  } | null>(null);
+  const [success, setSuccess] = useState<RegistrationResult | null>(null);
   const [paymentStarted, setPaymentStarted] = useState(false);
+
+  // Preselects the batch when arriving from a "a seat opened up" waitlist
+  // email (?batchId=...) — reads window.location directly (rather than
+  // next/navigation's useSearchParams, which requires a Suspense boundary
+  // this page doesn't have) since this is a one-time read on mount, not
+  // something that needs to react to client-side navigation.
+  useEffect(() => {
+    const requestedBatchId = new URLSearchParams(window.location.search).get('batchId');
+    if (requestedBatchId && batchOptions.some((option) => option.batchId === requestedBatchId)) {
+      setBatchId(requestedBatchId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const selectedBatch = batchOptions.find((option) => option.batchId === batchId) ?? null;
   const selectedBatchFee = selectedBatch ? effectiveCourseFee(selectedBatch) : null;
@@ -180,7 +199,7 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
     setBannerError(null);
     setIsDuplicateRegistration(false);
     try {
-      const result = await apiFetch<{ registrationId: string; message: string }>(
+      const result = await apiFetch<RegistrationResult>(
         '/api/registrations',
         {
           method: 'POST',
@@ -215,6 +234,19 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (success?.outcome === 'waitlisted') {
+    return (
+      <div className="space-y-3 rounded-lg border bg-card p-6">
+        <h2 className="text-lg font-semibold text-amber-700">You&apos;re on the waitlist</h2>
+        <p className="text-sm">{success.message}</p>
+        <p className="text-xs text-muted-foreground">
+          We email you the moment a seat opens up, in the order you joined — no action is
+          needed from you now.
+        </p>
+      </div>
+    );
   }
 
   if (success) {
@@ -314,6 +346,16 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
               </p>
             ) : (
               <p>Course fee: {formatGhs(selectedBatchFee)}</p>
+            )}
+            {selectedBatch.isFull ? (
+              <p className="mt-1 font-medium text-amber-600">
+                This intake is full — submitting will add you to the waitlist instead.
+              </p>
+            ) : (
+              selectedBatch.seatsRemaining !== null &&
+              selectedBatch.seatsRemaining <= 5 && (
+                <p className="mt-1">Only {selectedBatch.seatsRemaining} seat(s) left.</p>
+              )
             )}
           </div>
         )}

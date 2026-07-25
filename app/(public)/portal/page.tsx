@@ -51,6 +51,23 @@ interface DashboardRegistration {
     durationMinutes: number;
   }>;
   certificates: Array<{ id: string; certificateNumber: string; issuedDate: string; revoked: boolean }>;
+  // Payment plan (founder-approved 2026-07-24) — empty when none set up.
+  installments: Array<{
+    installmentNumber: number;
+    amountDue: number;
+    amountPaid: number;
+    dueDate: string;
+    paymentStatus: 'Pending' | 'Paid';
+  }>;
+}
+
+interface NextClass {
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  // Null until the join window opens (15 minutes before start, per
+  // Document 14 Section 5) — never a dead/premature link.
+  joinUrl: string | null;
 }
 
 interface Dashboard {
@@ -74,6 +91,7 @@ export default function PortalDashboardPage() {
   const router = useRouter();
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [loading, setLoading] = useState(true);
+  const [nextClass, setNextClass] = useState<NextClass | null>(null);
   // Which registration currently has the Paystack widget open — only one
   // at a time, since only one iframe can be open.
   const [payingRegistrationId, setPayingRegistrationId] = useState<string | null>(null);
@@ -90,6 +108,14 @@ export default function PortalDashboardPage() {
   const [nameSaving, setNameSaving] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
 
+  // Simple fixed-split payment plan (founder-approved 2026-07-24) — see
+  // /api/portal/set-installment-plan.
+  const [confirmingPlanRegistrationId, setConfirmingPlanRegistrationId] = useState<string | null>(
+    null,
+  );
+  const [planSaving, setPlanSaving] = useState(false);
+  const [planError, setPlanError] = useState<string | null>(null);
+
   const loadDashboard = useCallback(() => {
     return apiFetch<Dashboard>('/api/portal/me')
       .then((data) => {
@@ -98,6 +124,7 @@ export default function PortalDashboardPage() {
           return;
         }
         setDashboard(data);
+        void apiFetch<{ nextClass: NextClass | null }>('/api/portal/next-class').then((result) => setNextClass(result.nextClass)).catch(() => setNextClass(null));
       })
       .catch(() => router.push('/portal/login'));
   }, [router]);
@@ -140,6 +167,23 @@ export default function PortalDashboardPage() {
       setNameError(err instanceof Error ? err.message : 'Could not save your name.');
     } finally {
       setNameSaving(false);
+    }
+  }
+
+  async function handleSetUpPlan(registrationId: string) {
+    setPlanSaving(true);
+    setPlanError(null);
+    try {
+      await apiFetch('/api/portal/set-installment-plan', {
+        method: 'POST',
+        body: JSON.stringify({ registrationId }),
+      });
+      await loadDashboard();
+      setConfirmingPlanRegistrationId(null);
+    } catch (err) {
+      setPlanError(err instanceof Error ? err.message : 'Could not set up a payment plan.');
+    } finally {
+      setPlanSaving(false);
     }
   }
 
@@ -280,6 +324,31 @@ export default function PortalDashboardPage() {
       </div>
 
       <div className="mt-8 space-y-6">
+        {nextClass && (
+          <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-5">
+            <p className="text-sm font-medium text-emerald-800">Next Class</p>
+            <h2 className="mt-1 text-lg font-semibold">{nextClass.title}</h2>
+            <p className="mt-1 text-sm text-emerald-800">
+              {new Date(nextClass.startsAt).toLocaleString('en-GB', {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+                timeZone: 'Africa/Accra',
+              })}{' '}
+              GMT
+            </p>
+            {nextClass.joinUrl ? (
+              <Button asChild className="mt-4">
+                <a href={nextClass.joinUrl} target="_blank" rel="noreferrer">
+                  Join Class
+                </a>
+              </Button>
+            ) : (
+              <p className="mt-4 text-sm text-emerald-800">
+                Join opens 15 minutes before start.
+              </p>
+            )}
+          </section>
+        )}
         {dashboard.registrations.length === 0 && (
           <p className="text-muted-foreground">No registrations found on this account.</p>
         )}
@@ -358,6 +427,65 @@ export default function PortalDashboardPage() {
                   >
                     Pay {formatGhs(reg.balance)} now — Card or Mobile Money
                   </Button>
+                )}
+
+                {reg.installments.length > 0 ? (
+                  <div className="rounded-md bg-muted/30 p-3 text-sm">
+                    <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Payment plan
+                    </p>
+                    {reg.installments.map((installment) => (
+                      <p key={installment.installmentNumber}>
+                        Installment {installment.installmentNumber}:{' '}
+                        {formatGhs(installment.amountDue)} —{' '}
+                        {installment.paymentStatus === 'Paid' ? (
+                          <span className="text-emerald-700">Paid</span>
+                        ) : (
+                          <>Due {formatDate(installment.dueDate)}</>
+                        )}
+                      </p>
+                    ))}
+                  </div>
+                ) : (
+                  reg.paymentStatus === 'Unpaid' &&
+                  (confirmingPlanRegistrationId === reg.registrationId ? (
+                    <div className="space-y-2 rounded-md border p-3 text-sm">
+                      <p>
+                        Split {formatGhs(reg.balance)} into two installments — 50% now, 50%
+                        closer to the course start date. Available once, before you make any
+                        payment.
+                      </p>
+                      {planError && <p className="text-destructive">{planError}</p>}
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          disabled={planSaving}
+                          onClick={() => void handleSetUpPlan(reg.registrationId)}
+                        >
+                          {planSaving ? 'Setting up…' : 'Confirm payment plan'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={planSaving}
+                          onClick={() => setConfirmingPlanRegistrationId(null)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="text-sm font-medium text-primary underline-offset-2 hover:underline"
+                      onClick={() => {
+                        setConfirmingPlanRegistrationId(reg.registrationId);
+                        setPlanError(null);
+                      }}
+                    >
+                      Prefer to split this into two payments? Set up a payment plan
+                    </button>
+                  ))
                 )}
               </div>
             )}

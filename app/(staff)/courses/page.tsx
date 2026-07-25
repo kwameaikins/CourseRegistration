@@ -39,6 +39,8 @@ interface Batch {
   id: string;
   courseId: string;
   cohortLabel: string;
+  // Waitlist feature (founder-approved 2026-07-24) — null means unlimited.
+  capacity: number | null;
   courseFee: number;
   startDate: string;
   startTime: string;
@@ -55,8 +57,18 @@ interface Batch {
   discountedFee: number | null;
 }
 
+interface WaitlistEntry {
+  id: string;
+  status: 'Waiting' | 'Offered' | 'Converted' | 'Cancelled';
+  fullName: string;
+  email: string;
+  phone: string;
+  createdAt: string;
+}
+
 const EMPTY_BATCH_FORM = {
   cohortLabel: '',
+  capacity: '',
   courseFee: '',
   startDate: '',
   startTime: '09:00',
@@ -83,6 +95,9 @@ export default function CourseControlPanelPage() {
   const [editingBatchId, setEditingBatchId] = useState<string | null>(null);
   const [editBatchForm, setEditBatchForm] = useState(EMPTY_BATCH_FORM);
   const [saving, setSaving] = useState(false);
+  const [expandedWaitlistBatchId, setExpandedWaitlistBatchId] = useState<string | null>(null);
+  const [waitlistByBatch, setWaitlistByBatch] = useState<Record<string, WaitlistEntry[]>>({});
+  const [loadingWaitlist, setLoadingWaitlist] = useState(false);
 
   const reload = useCallback(async () => {
     try {
@@ -179,6 +194,7 @@ export default function CourseControlPanelPage() {
         body: JSON.stringify({
           courseId,
           cohortLabel: batchForm.cohortLabel,
+          capacity: batchForm.capacity ? Number(batchForm.capacity) : null,
           courseFee: Number(batchForm.courseFee),
           startDate: batchForm.startDate,
           startTime: batchForm.startTime,
@@ -217,6 +233,7 @@ export default function CourseControlPanelPage() {
     setEditingBatchId(batch.id);
     setEditBatchForm({
       cohortLabel: batch.cohortLabel,
+      capacity: batch.capacity !== null ? String(batch.capacity) : '',
       courseFee: String(batch.courseFee),
       startDate: batch.startDate,
       startTime: batch.startTime,
@@ -236,6 +253,7 @@ export default function CourseControlPanelPage() {
         method: 'PATCH',
         body: JSON.stringify({
           cohortLabel: editBatchForm.cohortLabel,
+          capacity: editBatchForm.capacity ? Number(editBatchForm.capacity) : null,
           courseFee: Number(editBatchForm.courseFee),
           startDate: editBatchForm.startDate,
           startTime: editBatchForm.startTime,
@@ -253,6 +271,26 @@ export default function CourseControlPanelPage() {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to update batch.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function toggleWaitlist(batchId: string) {
+    if (expandedWaitlistBatchId === batchId) {
+      setExpandedWaitlistBatchId(null);
+      return;
+    }
+    setExpandedWaitlistBatchId(batchId);
+    if (waitlistByBatch[batchId]) return; // already loaded once this session
+    setLoadingWaitlist(true);
+    try {
+      const result = await apiFetch<{ entries: WaitlistEntry[] }>(
+        `/api/waitlist?batchId=${batchId}`,
+      );
+      setWaitlistByBatch((current) => ({ ...current, [batchId]: result.entries }));
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to load waitlist.');
+    } finally {
+      setLoadingWaitlist(false);
     }
   }
 
@@ -540,6 +578,22 @@ export default function CourseControlPanelPage() {
                         />
                       </div>
                       <div className="space-y-2">
+                        <Label htmlFor={`edit-capacity-${batch.id}`}>
+                          Capacity <span className="text-muted-foreground">(optional — blank = unlimited)</span>
+                        </Label>
+                        <Input
+                          id={`edit-capacity-${batch.id}`}
+                          type="number"
+                          min="1"
+                          step="1"
+                          placeholder="e.g. 30"
+                          value={editBatchForm.capacity}
+                          onChange={(event) =>
+                            setEditBatchForm({ ...editBatchForm, capacity: event.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
                         <Label htmlFor={`edit-startDate-${batch.id}`}>Start Date</Label>
                         <Input
                           id={`edit-startDate-${batch.id}`}
@@ -731,6 +785,38 @@ export default function CourseControlPanelPage() {
                           ))}
                         </div>
                       </div>
+                      {batch.capacity !== null && (
+                        <div className="mt-3 border-t pt-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm text-muted-foreground">
+                              Capacity: {batch.capacity}
+                            </p>
+                            <button
+                              type="button"
+                              className="text-sm font-medium text-primary underline-offset-2 hover:underline"
+                              onClick={() => void toggleWaitlist(batch.id)}
+                            >
+                              {expandedWaitlistBatchId === batch.id ? 'Hide waitlist' : 'View waitlist'}
+                            </button>
+                          </div>
+                          {expandedWaitlistBatchId === batch.id && (
+                            <div className="mt-2 space-y-1">
+                              {loadingWaitlist && !waitlistByBatch[batch.id] ? (
+                                <p className="text-sm text-muted-foreground">Loading…</p>
+                              ) : (waitlistByBatch[batch.id]?.length ?? 0) === 0 ? (
+                                <p className="text-sm text-muted-foreground">No one on the waitlist.</p>
+                              ) : (
+                                waitlistByBatch[batch.id]!.map((entry) => (
+                                  <p key={entry.id} className="text-sm">
+                                    {entry.fullName} · {entry.email} ·{' '}
+                                    <span className="text-muted-foreground">{entry.status}</span>
+                                  </p>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ),
                 )}
@@ -763,6 +849,22 @@ export default function CourseControlPanelPage() {
                         value={batchForm.courseFee}
                         onChange={(event) =>
                           setBatchForm({ ...batchForm, courseFee: event.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="capacity">
+                        Capacity <span className="text-muted-foreground">(optional — blank = unlimited)</span>
+                      </Label>
+                      <Input
+                        id="capacity"
+                        type="number"
+                        min="1"
+                        step="1"
+                        placeholder="e.g. 30"
+                        value={batchForm.capacity}
+                        onChange={(event) =>
+                          setBatchForm({ ...batchForm, capacity: event.target.value })
                         }
                       />
                     </div>

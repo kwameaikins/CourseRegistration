@@ -373,3 +373,9 @@ file against this rule before considering a module complete.
 
 *Document 3 of 12: Data Schema and ERD follows.*
 *Input to Document 3: This document + Document 1 (PRD Section 5 Entity Map).*
+
+---
+
+## 13. Live Learning Operations Architecture (Planned)
+
+Add `modules/live-sessions` using the standard module boundary. It owns session lifecycle and provider adapters; it may call attendance, communications, certificates, and Zoom only through exposed services. `Course -> Batch -> LiveSession` is the hierarchy: Batch is the template, LiveSession is one real class occurrence. Keep the modular monolith; do not split this scope into deployable services. See Document 14 for entities, lifecycle, and controls.

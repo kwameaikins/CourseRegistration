@@ -54,6 +54,7 @@ export const parseEmailType = (value: string): EmailType =>
       'whatsapp_invite',
       'post_training_thankyou',
       'upsell',
+      'installment_reminder',
     ],
     'email type',
   );

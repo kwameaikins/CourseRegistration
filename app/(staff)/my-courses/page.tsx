@@ -4,6 +4,7 @@
 // present in this component at all.
 import * as usersService from '@/modules/users/service';
 import * as registrationsService from '@/modules/registrations/service';
+import * as liveSessionsService from '@/modules/live-sessions/service';
 import { PrintButton } from '@/app/(staff)/my-courses/PrintButton';
 import { formatDate } from '@/lib/utils';
 
@@ -13,10 +14,10 @@ export default async function MyCoursesPage() {
   // Fast-fail role check — a clarity optimisation; RLS remains the boundary.
   await usersService.requireRole(['tutor']);
 
-  const { registrations } = await registrationsService.listRegistrations({
-    page: 1,
-    limit: 200,
-  });
+  const [{ registrations }, liveSessions] = await Promise.all([
+    registrationsService.listRegistrations({ page: 1, limit: 200 }),
+    liveSessionsService.getLiveSessions(),
+  ]);
 
   const byBatch = new Map<
     string,
@@ -45,6 +46,26 @@ export default async function MyCoursesPage() {
         <p className="text-muted-foreground">
           No confirmed participants yet for your upcoming batches.
         </p>
+      )}
+
+      {liveSessions.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-lg font-medium">My live sessions</h2>
+          <div className="space-y-2">
+            {liveSessions.map((session) => (
+              <div key={session.id} className="rounded-md border p-3 text-sm">
+                <p className="font-medium">{session.title}</p>
+                <p className="text-muted-foreground">
+                  {new Date(session.startsAt).toLocaleString('en-GB', {
+                    dateStyle: 'medium',
+                    timeStyle: 'short',
+                    timeZone: 'Africa/Accra',
+                  })} GMT · {session.status.replace('_', ' ')}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {[...byBatch.entries()].map(([batchId, batch]) => (

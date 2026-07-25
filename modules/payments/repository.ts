@@ -133,3 +133,95 @@ export async function applyWebhookPaymentSystem(
   if (error) throw error;
   return data;
 }
+
+// --- Payment installments (founder-approved 2026-07-24) ---
+// Service-role throughout: written from the portal (participant, no staff
+// session) and from the webhook/manual-payment reconciliation step (system
+// context, not itself a staff action — the staff action already completed
+// under its own role check by the time reconciliation runs).
+
+type InstallmentRow = Database['public']['Tables']['payment_installments']['Row'];
+
+export async function selectInstallmentCountForRegistration(
+  registrationId: string,
+): Promise<number> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { count, error } = await supabase
+    .from('payment_installments')
+    .select('id', { count: 'exact', head: true })
+    .eq('registration_id', registrationId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
+export async function insertInstallments(
+  rows: Array<{
+    payment_id: string;
+    registration_id: string;
+    installment_number: number;
+    amount_due: number;
+    due_date: string;
+  }>,
+): Promise<void> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase.from('payment_installments').insert(rows);
+  if (error) throw error;
+}
+
+export async function selectInstallmentsForRegistration(
+  registrationId: string,
+): Promise<InstallmentRow[]> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('payment_installments')
+    .select('*')
+    .eq('registration_id', registrationId)
+    .order('installment_number', { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function updateInstallmentAmountPaid(id: string, amountPaid: number): Promise<void> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase
+    .from('payment_installments')
+    .update({ amount_paid: amountPaid })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+// Discount rebalancing (fixes the known limitation flagged in PLAN.md) — a
+// staff discount changes the aggregate course_fee after installment amounts
+// were already fixed; this updates amount_due to match. The
+// fn_derive_installment_status trigger re-evaluates payment_status/paid_at
+// automatically on this write, same as an amount_paid change.
+export async function updateInstallmentAmountDue(id: string, amountDue: number): Promise<void> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase
+    .from('payment_installments')
+    .update({ amount_due: amountDue })
+    .eq('id', id);
+  if (error) throw error;
+}
+
+// Reminder candidates (daily cron) — specifically the second installment:
+// the first is due the day the plan is set up, so reminding about it moments
+// later would be noise. Still-Pending rows due within `withinDays` (or
+// already overdue) — BR-07's email_log unique(registration_id, email_type)
+// makes re-running this safe without a separate installment-level dedup.
+export async function selectDueSecondInstallments(
+  withinDays: number,
+): Promise<Array<{ registration_id: string; amount_due: number; due_date: string }>> {
+  const supabase = createSupabaseServiceRoleClient();
+  const thresholdIso = new Date(Date.now() + withinDays * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+  const { data, error } = await supabase
+    .from('payment_installments')
+    .select('registration_id, amount_due, due_date')
+    .eq('installment_number', 2)
+    .eq('payment_status', 'Pending')
+    .lte('due_date', thresholdIso);
+  if (error) throw error;
+  return data ?? [];
+}

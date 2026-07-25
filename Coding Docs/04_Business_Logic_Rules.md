@@ -459,3 +459,16 @@ order by b.start_date asc;
 
 *Document 5 of 12: API Contract and Endpoint Specification follows.*
 *Input to Document 5: This document + Document 2 (API Surface Map) + Document 3 (Schema).*
+
+---
+
+## 5. Planned Live Learning Operations Rules
+
+- **BR-20:** A LiveSession belongs to one Batch and is the source of truth for one class occurrence; a published session is never silently edited into a different occurrence.
+- **BR-21:** A learner may join only when enrolled, eligible by payment/approval, active, within the join window, and assigned a valid personal provider link. Overrides require an authorised actor, reason, and expiry.
+- **BR-22:** Provider attendance is provisional until tutor/admin exception review. Final attendance changes require audit evidence; AI cannot finalise it.
+- **BR-23:** Rescheduling preserves the original session, reason, affected learners, and notification evidence; it creates or links the replacement occurrence.
+- **BR-24:** Recording release requires consent, role/enrolment eligibility, retention metadata, and tutor/admin approval.
+- **BR-25:** AI may draft learning summaries, reminders, catch-up tasks, and risk lists, but cannot finalise grades, attendance, access overrides, or certificates.
+
+See Document 14 for the workflow and acceptance criteria.

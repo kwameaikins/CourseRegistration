@@ -9,12 +9,18 @@ import * as paymentsRepository from '@/modules/payments/repository';
 // renameExistingCertificates's doc comment: retroactively fixing the name
 // on any certificate the participant already has, when they self-correct it.
 import * as certificatesService from '@/modules/certificates/service';
+// Permitted cross-module call, same posture as certificatesService above —
+// the payment-plan setup/read lives in payments (the Payment aggregate's
+// module); portal only verifies the registration belongs to this session
+// before delegating (founder-approved 2026-07-24).
+import * as paymentsService from '@/modules/payments/service';
 import type {
   PortalChangePinInput,
   PortalDashboard,
   PortalExchangeLoginTokenResult,
   PortalLoginInput,
   PortalLoginResult,
+  PortalSetUpInstallmentPlanInput,
   PortalUpdateNameInput,
 } from '@/modules/portal/types';
 
@@ -219,6 +225,21 @@ export async function getPortalDashboard(sessionId: string | undefined): Promise
     throw new AppError('NOT_FOUND', 'Participant not found.', 404);
   }
 
+  // Payment plan (founder-approved 2026-07-24) — per registration, empty
+  // when none has been set up. A handful of registrations per participant
+  // at most, so N calls here is simpler than threading a bulk fetch through
+  // selectPortalDashboardData for what's still a rare feature.
+  const installmentsByRegistrationId = new Map(
+    await Promise.all(
+      data.registrations.map(async (row) => {
+        const installments = await paymentsService
+          .getInstallmentsForRegistration(row.registration.id)
+          .catch(() => []);
+        return [row.registration.id, installments] as const;
+      }),
+    ),
+  );
+
   return {
     fullName: data.participant.full_name,
     // Fallback for participants created before first_name/surname were
@@ -265,6 +286,35 @@ export async function getPortalDashboard(sessionId: string | undefined): Promise
         issuedDate: c.issued_date,
         revoked: c.revoked,
       })),
+      installments: (installmentsByRegistrationId.get(row.registration.id) ?? []).map((i) => ({
+        installmentNumber: i.installmentNumber,
+        amountDue: i.amountDue,
+        amountPaid: i.amountPaid,
+        dueDate: i.dueDate,
+        paymentStatus: i.paymentStatus,
+      })),
     })),
   };
+}
+
+// Simple fixed-split payment plan (founder-approved 2026-07-24) — verifies
+// the registration belongs to the requesting participant (never trusts a
+// client-supplied registrationId blindly) using the same dashboard read
+// already used to render the portal, then delegates the money logic to
+// paymentsService.
+export async function setUpInstallmentPlan(
+  sessionId: string | undefined,
+  input: PortalSetUpInstallmentPlanInput,
+): Promise<void> {
+  const { participantId } = await requirePortalSession(sessionId);
+  const data = await portalRepository.selectPortalDashboardData(participantId);
+  const match = data.registrations.find((row) => row.registration.id === input.registrationId);
+  if (!match || !match.batch || !match.payment) {
+    throw new AppError('NOT_FOUND', 'Registration not found.', 404);
+  }
+
+  await paymentsService.setUpTwoInstallmentPlan(input.registrationId, {
+    courseFee: Number(match.payment.course_fee),
+    batchStartDate: match.batch.start_date,
+  });
 }

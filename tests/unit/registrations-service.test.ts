@@ -16,6 +16,7 @@ const registrationsRepositoryMock = {
 const coursesServiceMock = {
   getBatchByIdSystem: vi.fn(),
   getCourseByIdSystem: vi.fn(),
+  getSeatsRemaining: vi.fn(),
 };
 const usersServiceMock = {
   requireRole: vi.fn(),
@@ -33,6 +34,10 @@ const opportunitiesServiceMock = {
 const attendanceServiceMock = {
   reregisterForZoomAfterTransfer: vi.fn(),
 };
+const waitlistServiceMock = {
+  joinWaitlist: vi.fn(),
+  notifyNextIfSeatAvailable: vi.fn(),
+};
 const sendEmailOnceMock = vi.fn();
 const sendWhatsappOnceMock = vi.fn();
 const sendSmsOnceMock = vi.fn();
@@ -45,6 +50,7 @@ vi.mock('@/modules/payments/service', () => paymentsServiceMock);
 vi.mock('@/modules/leads/service', () => leadsServiceMock);
 vi.mock('@/modules/opportunities/service', () => opportunitiesServiceMock);
 vi.mock('@/modules/attendance/service', () => attendanceServiceMock);
+vi.mock('@/modules/waitlist/service', () => waitlistServiceMock);
 vi.mock('@/modules/communications/service', () => ({
   sendEmailOnce: (...args: unknown[]) => sendEmailOnceMock(...args),
   sendWhatsappOnce: (...args: unknown[]) => sendWhatsappOnceMock(...args),
@@ -116,6 +122,10 @@ beforeEach(() => {
     courseName: 'AI-Powered Financial Reporting and Modeling',
     createdAt: '2026-07-01T00:00:00Z',
   });
+  // Unlimited capacity by default — waitlist-branch tests override this.
+  coursesServiceMock.getSeatsRemaining.mockResolvedValue(null);
+  waitlistServiceMock.joinWaitlist.mockResolvedValue({ waitlistId: 'waitlist-1' });
+  waitlistServiceMock.notifyNextIfSeatAvailable.mockResolvedValue(undefined);
   registrationsRepositoryMock.findOrCreateParticipant.mockResolvedValue({
     id: 'participant-1',
     email: 'ama.owusu@example.com',
@@ -203,6 +213,7 @@ describe('BR-03 — duplicate registration (T-BR03-01 logic)', () => {
 describe('deep-endpoint orchestration (Document 5, Section 2)', () => {
   it('creates participant, registration, payment, and fires E01+E02+E03', async () => {
     const result = await createRegistration(validInput());
+    if (result.outcome !== 'registered') throw new Error('expected a registered outcome');
 
     expect(result.registrationId).toBe('reg-1');
     expect(result.paymentStatus).toBe('Unpaid');
@@ -214,6 +225,38 @@ describe('deep-endpoint orchestration (Document 5, Section 2)', () => {
     expect(sendEmailOnceMock).toHaveBeenCalledWith('reg-1', 'payment_instruction');
     expect(sendEmailOnceMock).toHaveBeenCalledWith('reg-1', 'reminder_1');
     expect(sendWhatsappOnceMock).toHaveBeenCalledWith('reg-1', 'welcome');
+  });
+
+  it('joins the waitlist instead of registering when the batch is at capacity (founder-approved 2026-07-24)', async () => {
+    coursesServiceMock.getSeatsRemaining.mockResolvedValue(0);
+
+    const result = await createRegistration(validInput());
+    if (result.outcome !== 'waitlisted') throw new Error('expected a waitlisted outcome');
+
+    expect(result.waitlistId).toBe('waitlist-1');
+    expect(waitlistServiceMock.joinWaitlist).toHaveBeenCalledWith(
+      expect.objectContaining({ participantId: 'participant-1', batchId: expect.any(String) }),
+    );
+    expect(registrationsRepositoryMock.insertRegistration).not.toHaveBeenCalled();
+    expect(registrationsRepositoryMock.insertInitialPayment).not.toHaveBeenCalled();
+  });
+
+  it('registers normally when seats remain (seatsRemaining > 0)', async () => {
+    coursesServiceMock.getSeatsRemaining.mockResolvedValue(5);
+
+    const result = await createRegistration(validInput());
+
+    expect(result.outcome).toBe('registered');
+    expect(waitlistServiceMock.joinWaitlist).not.toHaveBeenCalled();
+  });
+
+  it('registers normally when the batch has unlimited capacity (seatsRemaining null)', async () => {
+    coursesServiceMock.getSeatsRemaining.mockResolvedValue(null);
+
+    const result = await createRegistration(validInput());
+
+    expect(result.outcome).toBe('registered');
+    expect(waitlistServiceMock.joinWaitlist).not.toHaveBeenCalled();
   });
 
   it('passes job title and company through to the participant upsert', async () => {
@@ -280,6 +323,7 @@ describe('deep-endpoint orchestration (Document 5, Section 2)', () => {
     sendEmailOnceMock.mockRejectedValue(new Error('resend down'));
 
     const result = await createRegistration(validInput());
+    if (result.outcome !== 'registered') throw new Error('expected a registered outcome');
 
     expect(result.registrationId).toBe('reg-1');
   });

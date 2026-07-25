@@ -219,3 +219,9 @@ Phase 1 is complete when, and only when, all of the following are true simultane
 ---
 
 *Document 11 of 12: Coding Standards and Conventions follows.*
+
+---
+
+## 9. Live Learning Operations Roadmap (Post-Core)
+
+Implement after the current go-live gates: (1) LiveSession model, tutor assignment, Zoom linkage, and audit log; (2) student/tutor workspaces, eligibility gate, reminders, calendar, attendance exceptions, and rescheduling; (3) materials, recording metadata, approved AI summaries, and catch-up tasks; (4) learner-risk, completion, and executive analytics. Pilot one batch before migrating every course. See Document 14 for acceptance criteria and decisions.

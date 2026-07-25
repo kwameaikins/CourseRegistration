@@ -68,3 +68,19 @@ export type WebhookOutcome =
   | { status: 'unmatched_logged_for_review' }
   | { status: 'ignored_event' }
   | { status: 'processed'; paymentStatus: PaymentStatus };
+
+// Simple fixed-split payment plan (founder-approved 2026-07-24: "simple
+// fixed split," not fully flexible schedules) — one row per installment,
+// reconciled from the parent Payment's amount_paid (see
+// reconcileInstallments in service.ts). The parent payments row remains the
+// sole source of truth for BR-04/BR-05/BR-06; these rows are a schedule/
+// progress view layered on top, not a second ledger.
+export interface Installment {
+  id: string;
+  installmentNumber: number;
+  amountDue: number;
+  amountPaid: number;
+  dueDate: string;
+  paymentStatus: 'Pending' | 'Paid';
+  paidAt: string | null;
+}

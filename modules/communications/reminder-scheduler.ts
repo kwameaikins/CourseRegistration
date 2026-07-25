@@ -4,8 +4,15 @@ import { sendEmailOnce } from '@/modules/communications/email-engine';
 import { sendWhatsappOnce } from '@/modules/communications/whatsapp-engine';
 import { sendSmsOnce } from '@/modules/communications/sms-engine';
 import * as communicationsRepository from '@/modules/communications/repository';
+// Permitted cross-module call, same posture as every other documented
+// exception in this codebase — payment plans (founder-approved 2026-07-24)
+// need their own reminder, independent of the Batch-relative reminder_1..4
+// schedule below.
+import * as paymentsService from '@/modules/payments/service';
 import type { EmailType, ReminderRunSummary } from '@/modules/communications/types';
 import type { SmsMessageType, WhatsappMessageType } from '@/lib/domain/types';
+
+const INSTALLMENT_REMINDER_LEAD_DAYS = 3;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -109,6 +116,53 @@ export async function runDailyReminders(now = new Date()): Promise<ReminderRunSu
       } catch (err) {
         summary.errors.push(`${candidate.registrationId}/${reminderType}: ${String(err)}`);
       }
+    }
+  }
+
+  return summary;
+}
+
+export interface InstallmentReminderSummary {
+  evaluated: number;
+  sent: number;
+  skippedDeduplicated: number;
+  skippedGated: number;
+  errors: string[];
+}
+
+// Payment plan reminder (founder-approved 2026-07-24) — independent of the
+// Batch-relative schedule above: fires once, a few days ahead of a payment
+// plan's second installment due date. Same BR-07 idempotency (email_log's
+// unique(registration_id, email_type)) makes re-running this safe.
+export async function runInstallmentReminders(): Promise<InstallmentReminderSummary> {
+  const summary: InstallmentReminderSummary = {
+    evaluated: 0,
+    sent: 0,
+    skippedDeduplicated: 0,
+    skippedGated: 0,
+    errors: [],
+  };
+
+  const candidates = await paymentsService.getDueInstallmentReminderCandidates(
+    INSTALLMENT_REMINDER_LEAD_DAYS,
+  );
+
+  for (const candidate of candidates) {
+    summary.evaluated += 1;
+    try {
+      const outcome = await sendEmailOnce(candidate.registrationId, 'installment_reminder', {
+        installment_amount: candidate.amountDue.toFixed(2),
+        installment_due_date: candidate.dueDate,
+      });
+      if (outcome === 'sent') summary.sent += 1;
+      else if (outcome === 'skipped_duplicate') summary.skippedDeduplicated += 1;
+      else if (outcome === 'skipped_gated' || outcome === 'skipped_no_template') {
+        summary.skippedGated += 1;
+      } else if (outcome === 'failed') {
+        summary.errors.push(`${candidate.registrationId}/installment_reminder: send failed`);
+      }
+    } catch (err) {
+      summary.errors.push(`${candidate.registrationId}/installment_reminder: ${String(err)}`);
     }
   }
 

@@ -4,6 +4,11 @@ import * as coursesRepository from '@/modules/courses/repository';
 // Permitted cross-module call: communications is the shared generic
 // subdomain every module may use (Document 2, Section 9).
 import { seedDefaultTemplatesForCourse } from '@/modules/communications/default-templates';
+// Permitted cross-module call, same posture as communications — raising a
+// Batch's capacity is one of the two real "a seat freed up" triggers
+// (founder decision, 2026-07-24), the other being registrations'
+// deleteRegistration.
+import * as waitlistService from '@/modules/waitlist/service';
 import { createZoomMeeting, isZoomMeetingCreateConfigured } from '@/lib/zoom/client';
 import type {
   Batch,
@@ -170,6 +175,7 @@ export async function createBatch(input: BatchInput): Promise<Batch> {
 
 export async function updateBatch(batchId: string, changes: BatchUpdate): Promise<Batch> {
   const row = await coursesRepository.updateBatchById(batchId, {
+    ...(changes.capacity !== undefined && { capacity: changes.capacity }),
     ...(changes.cohortLabel !== undefined && { cohort_label: changes.cohortLabel }),
     ...(changes.courseFee !== undefined && { course_fee: changes.courseFee }),
     ...(changes.startDate !== undefined && { start_date: changes.startDate }),
@@ -203,7 +209,38 @@ export async function updateBatch(batchId: string, changes: BatchUpdate): Promis
     }),
     ...(changes.discountedFee !== undefined && { discounted_fee: changes.discountedFee }),
   });
-  return toBatch(row);
+  const batch = toBatch(row);
+
+  // A capacity increase (or any other edit) may have freed a seat — cheap
+  // to just always check rather than diff old vs new capacity, since
+  // notifyNextIfSeatAvailable is itself a no-op when nothing changed or
+  // no one is waiting. Non-blocking: a notification hiccup must never fail
+  // the batch edit itself.
+  if (batch.capacity !== null) {
+    try {
+      const seatsRemaining = await getSeatsRemaining(batchId);
+      const course = await coursesRepository.selectCourseByIdSystem(batch.courseId);
+      await waitlistService.notifyNextIfSeatAvailable(batchId, seatsRemaining, {
+        courseName: course?.course_name ?? batch.cohortLabel,
+        cohortLabel: batch.cohortLabel,
+      });
+    } catch (err) {
+      console.error('[batch update waitlist notify]', err);
+    }
+  }
+
+  return batch;
+}
+
+// Capacity check (waitlist feature, founder-approved 2026-07-24) — null
+// means unlimited. Exposed to the registrations module (to decide
+// register-vs-waitlist at submission time) and used internally above (to
+// decide whether a batch edit freed a waitlist seat).
+export async function getSeatsRemaining(batchId: string): Promise<number | null> {
+  const batch = await coursesRepository.selectBatchByIdSystem(batchId);
+  if (!batch || batch.capacity === null) return null;
+  const usage = await coursesRepository.countRegistrationsByBatchIdsSystem([batchId]);
+  return Math.max(batch.capacity - (usage.get(batchId) ?? 0), 0);
 }
 
 // BR-19: the public registration form only lists Active batches with a

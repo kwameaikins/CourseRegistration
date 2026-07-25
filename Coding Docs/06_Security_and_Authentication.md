@@ -299,3 +299,9 @@ Minimal but explicit, appropriate for a 6-person team with no dedicated security
 ---
 
 *Document 7 of 12: Integration Specifications follows.*
+
+---
+
+## 12. Live Learning Security Controls (Planned)
+
+Live session provider credentials and host URLs remain server-only. Student access is scoped to the session, registration, eligibility, and join window; tutor access is scoped to assigned sessions. Access overrides, reschedules, attendance corrections, and recording release require actor/reason/time audit records. New LiveSession tables require RLS and explicit least-privilege policies. Recording consent, retention, and enrolment-scoped access must be reviewed against the Ghana DPA before release.

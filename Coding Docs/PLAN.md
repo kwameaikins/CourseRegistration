@@ -266,6 +266,48 @@ Deferred until Phase 1 is stable in production. See `/docs/01_PRD.md`, Section 7
 
 ---
 
+## Live Learning Operations (approved blueprint, L1 foundation in progress)
+
+Authoritative design: `Coding Docs/14_Live_Learning_Operations.md`. Zoom remains the classroom
+provider; Knowsia owns the learning-operation layer. Existing batch-level Zoom meetings and
+attendance sync remain unchanged throughout; do not enable per-session Zoom creation before a
+named pilot batch is approved.
+
+- [ ] Confirm first pilot Batch, one-meeting-per-session policy, join window, attendance threshold, reminder schedule, and recording-retention period
+- [~] L1 Foundation: schema (`live_sessions`, `live_session_audit_log`, `live_session_registrants`,
+      plus schema-only `live_session_reminders`/`live_session_attendance` for L3), RLS, status
+      workflow (including the Cancel/Reschedule actions with a mandatory reason, and the
+      Control Centre UI for both), tutor assignment, staff scheduling Control Centre, and
+      tutor read model (My Courses) are implemented. The student portal's "Next Class" card
+      is live, gated on Confirmed+Paid eligibility and a join window (15 minutes before start
+      through session end — placeholder default, not yet founder-confirmed per the item above).
+      Migrations `202607250025/026/027` have not yet been applied to production; batch schedule
+      generator and session-level Zoom adapter remain pending.
+- [ ] L2 Student and Tutor workspaces: tutor host view, roster, materials, and Ghana-time calendar download (Next Class card and protected Join action are done, above)
+- [ ] L3 Reliability: provider registration, per-session reminders, reschedule/cancellation flow, attendance reconciliation, and tutor/admin exception review
+- [ ] L4 Learning value: recordings metadata and consent, released materials, tutor-approved AI summaries, catch-up tasks, and support requests
+- [ ] L5 Intelligence: at-risk learner signals, completion rules, certificate eligibility input, tutor insight, and executive learning analytics
+- [ ] Pilot one Batch end-to-end before enabling the model for every Course
+
+---
+
+## Batch capacity, waitlist, and payment installments (founder-approved 2026-07-24)
+
+Migration `202607240017_waitlist_payment_plans.sql` (batches.capacity, waitlist_entries,
+payment_installments) plus `202607250028_installment_reminder_email_type.sql` (adds
+`installment_reminder` to email_templates). Not yet applied to production.
+
+- [x] Batch capacity field (Courses screen) with seats-remaining/isFull surfaced on the public registration form
+- [x] Waitlist: a full batch's public submission becomes a `waitlist_entries` row instead of a Registration (same form, same endpoint — the server decides); confirmation email on joining
+- [x] Automatic seat-freed promotion: emails the oldest waiting entry (with a `?batchId=` deep link back to `/register`) when an admin deletes a registration or raises a batch's capacity
+- [x] Admin waitlist visibility on the Courses screen (per-batch, lazy-loaded)
+- [x] Payment plan: portal self-service "pay half now, half later" (only while Unpaid, only when the course starts far enough out); reconciled automatically against the aggregate `payments.amount_paid` on every webhook/manual payment (the aggregate row stays the sole BR-04/05/06 source of truth)
+- [x] `installment_reminder` email (new EmailType), a few days ahead of the second installment's due date, bundled into the existing daily cron
+- [x] Staff visibility: payment plan shown on the Registration 360 view (admin/finance only, same rule as other payment audit fields)
+- [x] Discount rebalancing: a staff discount granted after a payment plan is set up now re-splits the new, discounted total 50/50 across the two installments — never shrinking either below what's already been paid on it
+
+---
+
 ## Risk watch (carried from `/docs/01_PRD.md` risk register)
 
 | ID | Risk | Status |

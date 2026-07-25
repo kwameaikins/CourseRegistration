@@ -66,6 +66,13 @@ interface Registration360 {
     discountReason?: string | null;
     discountGrantedByName?: string | null;
     discountGrantedAt?: string | null;
+    installments?: Array<{
+      installmentNumber: number;
+      amountDue: number;
+      amountPaid: number;
+      dueDate: string;
+      paymentStatus: 'Pending' | 'Paid';
+    }>;
   } | null;
   messages?: {
     email: Array<{ type: string; sentAt: string; success: boolean; error: string | null }>;
@@ -439,6 +446,20 @@ export function RegistrationDetailDialog(props: {
                             )}
                           </div>
                         )}
+                      {data.payment.installments && data.payment.installments.length > 0 && (
+                        <div className="col-span-2 rounded bg-muted/50 p-2">
+                          <p className="mb-1 text-muted-foreground">Payment plan:</p>
+                          {data.payment.installments.map((installment) => (
+                            <p key={installment.installmentNumber}>
+                              Installment {installment.installmentNumber}:{' '}
+                              {formatGhs(installment.amountDue)} —{' '}
+                              {installment.paymentStatus === 'Paid'
+                                ? 'Paid'
+                                : `Due ${formatDate(installment.dueDate)}`}
+                            </p>
+                          ))}
+                        </div>
+                      )}
                     </>
                   )}
                 </div>

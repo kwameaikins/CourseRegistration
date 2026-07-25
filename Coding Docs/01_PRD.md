@@ -906,3 +906,9 @@ The AI coding agent must confirm every item before beginning implementation.
 *Input to Document 2: This PRD.*
 *Output of Document 2: Stack specification, module structure, deployment architecture,
 and API surface map — used as input to Document 3 (Data Schema and ERD).*
+
+---
+
+## 18. Live Learning Operations Extension (Approved 2026-07-25)
+
+Knowsia will manage a complete Zoom-powered learning journey. Zoom remains the delivery provider; Knowsia owns scheduled `LiveSession` records, student eligibility, personal access, materials, attendance review, recording release, follow-up, completion, and certificates. The authoritative detail is Document 14, `Live_Learning_Operations.md`. This is a phased extension after the current core system, not a replacement for registration, payments, or the student portal.

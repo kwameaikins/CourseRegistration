@@ -4,6 +4,13 @@ const paymentsRepositoryMock = {
   selectPaymentByRegistrationId: vi.fn(),
   updatePaymentByRegistrationId: vi.fn(),
   updatePaymentDiscount: vi.fn(),
+  selectPaymentByRegistrationIdSystem: vi.fn(),
+  selectInstallmentCountForRegistration: vi.fn(),
+  insertInstallments: vi.fn(),
+  selectInstallmentsForRegistration: vi.fn(),
+  updateInstallmentAmountPaid: vi.fn(),
+  updateInstallmentAmountDue: vi.fn(),
+  selectDueSecondInstallments: vi.fn(),
 };
 const usersServiceMock = {
   requireRole: vi.fn(),
@@ -24,7 +31,14 @@ vi.mock('@/modules/communications/service', () => ({
 }));
 vi.mock('@/modules/opportunities/service', () => opportunitiesServiceMock);
 
-const { updatePaymentByStaff, applyDiscount } = await import('@/modules/payments/service');
+const {
+  updatePaymentByStaff,
+  applyDiscount,
+  setUpTwoInstallmentPlan,
+  reconcileInstallments,
+  rebalanceInstallmentsForDiscount,
+  getDueInstallmentReminderCandidates,
+} = await import('@/modules/payments/service');
 const { paymentUpdateSchema, paymentDiscountSchema } = await import('@/modules/payments/types');
 
 const ADMIN_STAFF = {
@@ -84,6 +98,9 @@ beforeEach(() => {
   );
   sendEmailOnceMock.mockResolvedValue('sent');
   opportunitiesServiceMock.markWonByRegistrationId.mockResolvedValue(undefined);
+  paymentsRepositoryMock.selectInstallmentsForRegistration.mockResolvedValue([]);
+  paymentsRepositoryMock.updateInstallmentAmountPaid.mockResolvedValue(undefined);
+  paymentsRepositoryMock.updateInstallmentAmountDue.mockResolvedValue(undefined);
 });
 
 describe('BR-12 — verified_by is always the session staff id', () => {
@@ -269,5 +286,246 @@ describe('applyDiscount — staff-granted discretionary discount / fee waiver', 
     expect(
       paymentDiscountSchema.safeParse({ discountAmount: 50, reason: 'hi' }).success,
     ).toBe(false);
+  });
+});
+
+const FAR_FUTURE_START = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+  .toISOString()
+  .slice(0, 10);
+const NEAR_FUTURE_START = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+  .toISOString()
+  .slice(0, 10);
+
+describe('setUpTwoInstallmentPlan — simple fixed-split payment plan (founder-approved 2026-07-24)', () => {
+  beforeEach(() => {
+    paymentsRepositoryMock.selectPaymentByRegistrationIdSystem.mockResolvedValue(
+      existingPayment({ id: 'pay-1', payment_status: 'Unpaid' }),
+    );
+    paymentsRepositoryMock.selectInstallmentCountForRegistration.mockResolvedValue(0);
+    paymentsRepositoryMock.insertInstallments.mockResolvedValue(undefined);
+  });
+
+  it('splits the course fee 50/50 across two installments', async () => {
+    await setUpTwoInstallmentPlan('reg-1', { courseFee: 1200, batchStartDate: FAR_FUTURE_START });
+
+    expect(paymentsRepositoryMock.insertInstallments).toHaveBeenCalledWith([
+      expect.objectContaining({ installment_number: 1, amount_due: 600 }),
+      expect.objectContaining({ installment_number: 2, amount_due: 600 }),
+    ]);
+  });
+
+  it('handles an odd fee without losing a cent (remainder goes to the second installment)', async () => {
+    await setUpTwoInstallmentPlan('reg-1', { courseFee: 1201, batchStartDate: FAR_FUTURE_START });
+
+    const [[rows]] = paymentsRepositoryMock.insertInstallments.mock.calls;
+    expect(rows[0].amount_due + rows[1].amount_due).toBe(1201);
+  });
+
+  it('rejects when the payment is not Unpaid', async () => {
+    paymentsRepositoryMock.selectPaymentByRegistrationIdSystem.mockResolvedValue(
+      existingPayment({ payment_status: 'Part Payment' }),
+    );
+    await expect(
+      setUpTwoInstallmentPlan('reg-1', { courseFee: 1200, batchStartDate: FAR_FUTURE_START }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    expect(paymentsRepositoryMock.insertInstallments).not.toHaveBeenCalled();
+  });
+
+  it('rejects when a plan already exists for this registration', async () => {
+    paymentsRepositoryMock.selectInstallmentCountForRegistration.mockResolvedValue(2);
+    await expect(
+      setUpTwoInstallmentPlan('reg-1', { courseFee: 1200, batchStartDate: FAR_FUTURE_START }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    expect(paymentsRepositoryMock.insertInstallments).not.toHaveBeenCalled();
+  });
+
+  it('rejects when the course starts too soon for a second installment date', async () => {
+    await expect(
+      setUpTwoInstallmentPlan('reg-1', { courseFee: 1200, batchStartDate: NEAR_FUTURE_START }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    expect(paymentsRepositoryMock.insertInstallments).not.toHaveBeenCalled();
+  });
+
+  it('rejects when no payment record exists', async () => {
+    paymentsRepositoryMock.selectPaymentByRegistrationIdSystem.mockResolvedValue(null);
+    await expect(
+      setUpTwoInstallmentPlan('reg-1', { courseFee: 1200, batchStartDate: FAR_FUTURE_START }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});
+
+describe('reconcileInstallments — redistributes amount_paid across installments in order', () => {
+  function installmentRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'inst-1',
+      installment_number: 1,
+      amount_due: '600.00',
+      amount_paid: '0.00',
+      due_date: '2026-08-01',
+      payment_status: 'Pending',
+      ...overrides,
+    };
+  }
+
+  it('does nothing when no plan exists', async () => {
+    paymentsRepositoryMock.selectInstallmentsForRegistration.mockResolvedValue([]);
+    await reconcileInstallments('reg-1', 300);
+    expect(paymentsRepositoryMock.updateInstallmentAmountPaid).not.toHaveBeenCalled();
+  });
+
+  it('allocates a partial payment entirely to the first installment', async () => {
+    paymentsRepositoryMock.selectInstallmentsForRegistration.mockResolvedValue([
+      installmentRow({ id: 'inst-1', installment_number: 1, amount_due: '600.00' }),
+      installmentRow({ id: 'inst-2', installment_number: 2, amount_due: '600.00' }),
+    ]);
+
+    await reconcileInstallments('reg-1', 300);
+
+    expect(paymentsRepositoryMock.updateInstallmentAmountPaid).toHaveBeenCalledWith(
+      'inst-1',
+      300,
+    );
+    expect(paymentsRepositoryMock.updateInstallmentAmountPaid).not.toHaveBeenCalledWith(
+      'inst-2',
+      expect.anything(),
+    );
+  });
+
+  it('fills the first installment before spilling over into the second', async () => {
+    paymentsRepositoryMock.selectInstallmentsForRegistration.mockResolvedValue([
+      installmentRow({ id: 'inst-1', installment_number: 1, amount_due: '600.00' }),
+      installmentRow({ id: 'inst-2', installment_number: 2, amount_due: '600.00' }),
+    ]);
+
+    await reconcileInstallments('reg-1', 900);
+
+    expect(paymentsRepositoryMock.updateInstallmentAmountPaid).toHaveBeenCalledWith(
+      'inst-1',
+      600,
+    );
+    expect(paymentsRepositoryMock.updateInstallmentAmountPaid).toHaveBeenCalledWith(
+      'inst-2',
+      300,
+    );
+  });
+
+  it('does not re-write an installment whose allocation has not changed', async () => {
+    paymentsRepositoryMock.selectInstallmentsForRegistration.mockResolvedValue([
+      installmentRow({ id: 'inst-1', installment_number: 1, amount_due: '600.00', amount_paid: '600.00' }),
+    ]);
+
+    await reconcileInstallments('reg-1', 600);
+
+    expect(paymentsRepositoryMock.updateInstallmentAmountPaid).not.toHaveBeenCalled();
+  });
+});
+
+describe('getDueInstallmentReminderCandidates', () => {
+  it('maps repository rows to camelCase', async () => {
+    paymentsRepositoryMock.selectDueSecondInstallments.mockResolvedValue([
+      { registration_id: 'reg-1', amount_due: '600.00', due_date: '2026-08-01' },
+    ]);
+
+    const result = await getDueInstallmentReminderCandidates(3);
+
+    expect(paymentsRepositoryMock.selectDueSecondInstallments).toHaveBeenCalledWith(3);
+    expect(result).toEqual([{ registrationId: 'reg-1', amountDue: 600, dueDate: '2026-08-01' }]);
+  });
+});
+
+describe('rebalanceInstallmentsForDiscount — keeps a payment plan in sync with a discount (fixes the known limitation)', () => {
+  function installmentRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'inst-1',
+      installment_number: 1,
+      amount_due: '600.00',
+      amount_paid: '0.00',
+      due_date: '2026-08-01',
+      payment_status: 'Pending',
+      ...overrides,
+    };
+  }
+
+  it('does nothing when no payment plan exists', async () => {
+    paymentsRepositoryMock.selectInstallmentsForRegistration.mockResolvedValue([]);
+    await rebalanceInstallmentsForDiscount('reg-1', 900);
+    expect(paymentsRepositoryMock.updateInstallmentAmountDue).not.toHaveBeenCalled();
+  });
+
+  it('re-splits the new, discounted total 50/50 across both installments', async () => {
+    paymentsRepositoryMock.selectInstallmentsForRegistration.mockResolvedValue([
+      installmentRow({ id: 'inst-1', installment_number: 1, amount_due: '600.00' }),
+      installmentRow({ id: 'inst-2', installment_number: 2, amount_due: '600.00' }),
+    ]);
+
+    // Discount brings the fee from 1200 to 900.
+    await rebalanceInstallmentsForDiscount('reg-1', 900);
+
+    expect(paymentsRepositoryMock.updateInstallmentAmountDue).toHaveBeenCalledWith('inst-1', 450);
+    expect(paymentsRepositoryMock.updateInstallmentAmountDue).toHaveBeenCalledWith('inst-2', 450);
+  });
+
+  it('never shrinks an installment below what has already been paid on it', async () => {
+    paymentsRepositoryMock.selectInstallmentsForRegistration.mockResolvedValue([
+      // Installment 1 already fully paid at 600.
+      installmentRow({ id: 'inst-1', installment_number: 1, amount_due: '600.00', amount_paid: '600.00' }),
+      installmentRow({ id: 'inst-2', installment_number: 2, amount_due: '600.00', amount_paid: '0.00' }),
+    ]);
+
+    // A steep discount brings the fee down to 700 — half of that (350) is
+    // less than the 600 already paid on installment 1, so it must not drop.
+    await rebalanceInstallmentsForDiscount('reg-1', 700);
+
+    expect(paymentsRepositoryMock.updateInstallmentAmountDue).not.toHaveBeenCalledWith(
+      'inst-1',
+      expect.any(Number),
+    );
+    // Installment 2 absorbs the rest: 700 (new floor, since paid-so-far
+    // already exceeds the discounted total) - 600 = 100.
+    expect(paymentsRepositoryMock.updateInstallmentAmountDue).toHaveBeenCalledWith('inst-2', 100);
+  });
+
+  it('does not write an installment whose due amount is unchanged', async () => {
+    paymentsRepositoryMock.selectInstallmentsForRegistration.mockResolvedValue([
+      installmentRow({ id: 'inst-1', installment_number: 1, amount_due: '600.00' }),
+      installmentRow({ id: 'inst-2', installment_number: 2, amount_due: '600.00' }),
+    ]);
+
+    await rebalanceInstallmentsForDiscount('reg-1', 1200); // no actual discount
+
+    expect(paymentsRepositoryMock.updateInstallmentAmountDue).not.toHaveBeenCalled();
+  });
+
+  it('applyDiscount calls the rebalance with the new discounted fee', async () => {
+    paymentsRepositoryMock.selectPaymentByRegistrationId.mockResolvedValue(
+      existingPayment({ course_fee: 1200, amount_paid: 0 }),
+    );
+    paymentsRepositoryMock.updatePaymentDiscount.mockResolvedValue(
+      existingPayment({ course_fee: 900, original_fee: 1200, discount_amount: 300 }),
+    );
+    paymentsRepositoryMock.selectInstallmentsForRegistration.mockResolvedValue([
+      installmentRow({ id: 'inst-1', installment_number: 1, amount_due: '600.00' }),
+      installmentRow({ id: 'inst-2', installment_number: 2, amount_due: '600.00' }),
+    ]);
+
+    await applyDiscount('reg-1', { discountAmount: 300, reason: 'Corporate sponsorship' });
+
+    expect(paymentsRepositoryMock.updateInstallmentAmountDue).toHaveBeenCalledWith('inst-1', 450);
+    expect(paymentsRepositoryMock.updateInstallmentAmountDue).toHaveBeenCalledWith('inst-2', 450);
+  });
+
+  it('applyDiscount still succeeds even if the rebalance fails (non-blocking)', async () => {
+    paymentsRepositoryMock.selectPaymentByRegistrationId.mockResolvedValue(
+      existingPayment({ course_fee: 1200, amount_paid: 0 }),
+    );
+    paymentsRepositoryMock.updatePaymentDiscount.mockResolvedValue(
+      existingPayment({ course_fee: 900, original_fee: 1200, discount_amount: 300 }),
+    );
+    paymentsRepositoryMock.selectInstallmentsForRegistration.mockRejectedValue(
+      new Error('db down'),
+    );
+
+    const result = await applyDiscount('reg-1', { discountAmount: 300, reason: 'Test' });
+    expect(result.discountAmount).toBe(300);
   });
 });

@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 This file is read automatically at the start of every session. It is the single source of
-truth for how to work on this codebase. It does not replace the 12 documents in `/docs` —
+truth for how to work on this codebase. It does not replace the 14 documents in `Coding Docs` —
 it tells you which one to read for what, and states the rules that apply regardless of
 which task you are doing.
 
@@ -29,6 +29,7 @@ your summary of it.
 | Task | Read first |
 |---|---|
 | Any new feature or screen | `/docs/01_PRD.md` — find the Feature ID (F1.xx), read its full spec |
+| Live sessions, Zoom delivery, attendance review, recordings, tutor/student learning workflows | Coding Docs/14_Live_Learning_Operations.md |
 | Database, schema, migrations | `/docs/03_Data_Schema_and_ERD.md` — full SQL, triggers, RLS |
 | Business logic, validation, edge cases | `/docs/04_Business_Logic_Rules.md` — BR-01 through BR-19 |
 | API routes | `/docs/05_API_Contract.md` — exact request/response shapes |
@@ -96,7 +97,7 @@ These apply to every task, regardless of what is being built.
    and not deferrable** — unlike every other Should-Have/Could-Have feature, these ship in
    Phase 1 with no exceptions (`/docs/10_Implementation_Plan.md`, Section 4).
 
-10. **If a request conflicts with any of the 12 documents, say so before proceeding.**
+10. **If a request conflicts with any of the 14 documents, say so before proceeding.**
     Do not silently pick one interpretation. Ask, or flag the conflict and propose a
     resolution, per `/docs/12_Agent_Prompt_Engineering_Guide.md`, Section 5.
 
@@ -160,6 +161,51 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
   Brand assets — real logo as favicon + on all public page headers
     (components/KnowsiaHeader.tsx) + email headers; "View our courses"
     lead-gen link on both verify pages.
+  Public registration & portal self-service (2026-07-24) — mobile-
+    optimized registration form (required Job Title/Company, N/A guidance);
+    student portal gained self-service Pay Now (any outstanding balance,
+    any time) and self-service name correction (retroactively fixes
+    already-issued certificates too, since PDFs are generated on demand,
+    never stored); CSV export on the staff Registrations/Payments screens;
+    a .ics calendar invite attached to the welcome email; admin-only
+    batch/cohort transfer (keeps the original locked-in fee, re-registers
+    Zoom if already Paid).
+  Batch capacity, waitlist, and payment installments (founder-approved
+    2026-07-24) — a full batch's public submission becomes a waitlist
+    entry instead of a Registration (same form, same endpoint); automatic
+    seat-freed promotion email; admin waitlist visibility on the Courses
+    screen; portal self-service "pay half now, half later" payment plan,
+    reconciled automatically against the aggregate payments row (which
+    stays the sole BR-04/05/06 source of truth), with its own reminder
+    email. A staff discount granted after a plan is set up now rebalances
+    the schedule too (never below what's already been paid on either
+    installment).
+  Revenue OS (2026-07-25) — leads module with automatic scoring, an
+    activity/audit log, and follow-up due dates; sales pipeline/
+    opportunities tied into the executive dashboard; lead assignment rules
+    by source; a campaign workspace (dry-run Queue, audience preview,
+    logged members) with live guarded email (Resend) and SMS (Arkesel)
+    sending — per-channel toggle, separate Send action, 100-recipient cap,
+    typed `SEND <count>` confirmation; WhatsApp dispatch still disabled
+    pending Meta credentials/templates. See `Coding Docs/13_Revenue_OS_Integration_Plan.md`.
+  Live Learning Operations — L1 foundation in progress (`Coding Docs/
+    14_Live_Learning_Operations.md`). Existing batch-level Zoom personal
+    links and attendance sync remain live and unchanged throughout. Built:
+    schema/RLS (live_sessions, live_session_audit_log,
+    live_session_registrants, plus schema-only live_session_reminders/
+    live_session_attendance for later), status workflow including admin
+    Cancel/Reschedule with a mandatory reason, the staff scheduling Control
+    Centre, the tutor read model on My Courses, and a student portal "Next
+    Class" card (Confirmed+Paid eligibility, a join-window gate — 15
+    minutes before start through session end, a placeholder default still
+    pending founder confirmation). Migrations `202607250025/026/027` not
+    yet applied to production; batch schedule generator and session-level
+    Zoom adapter remain pending — see PLAN.md's Live Learning Operations
+    section for the full L1–L5 roadmap and open founder decisions.
+  Student portal credential repair - deployed 2026-07-25: missing portal
+    authentication rows are backfilled and normal login self-heals an absent
+    row from the participant phone without replacing an existing PIN.
+
   Registration 360° view — "View" action on the Registrations list
     opens a detail dialog aggregating payment, every message channel,
     Zoom, attendance, feedback, certificates, and calls for one
@@ -181,9 +227,9 @@ Still open from the original Week 4/5 checklist: Sentry DSN live-fired,
 Uptime Robot monitor, remaining staff accounts, live RLS pass for
 Tutor, load test, manual pre-launch checklist, final go-live.
 
-Feature backlog (lower priority, not yet built): batch capacity (max
-seats) + session-days schedule, dashboard attendance/feedback/
-certificate metrics.
+Feature backlog (lower priority, not yet built): session-days schedule
+(superseded in part by the Live Learning Operations LiveSession model),
+dashboard attendance/feedback/certificate metrics.
 
 Pivot-or-persevere gate status: Not yet reached (needs live Paystack test)
 ```
@@ -203,5 +249,5 @@ still isn't covered:
 
 ---
 
-*Full documentation suite: `/docs/01_PRD.md` through `/docs/12_Agent_Prompt_Engineering_Guide.md`.*
+*Full documentation suite: `Coding Docs/01_PRD.md` through `Coding Docs/14_Live_Learning_Operations.md`.*
 *Live task tracker: `PLAN.md`.*

@@ -17,11 +17,15 @@ export async function GET(request: Request) {
 
   try {
     const summary = await communicationsService.runDailyReminders();
+    // Payment plans (founder-approved 2026-07-24) — independent schedule,
+    // same idempotency guarantee, bundled into this cron for the same
+    // Vercel Hobby two-job cap reason as feedback/voice below.
+    const installments = await communicationsService.runInstallmentReminders();
     const feedback = await feedbackService.runFeedbackRequestDispatch();
     // Voice calls are dispatched now but dialed inside the 10:00 Ghana
     // calling window via Vapi schedulePlan.
     const voice = await voiceService.runVoiceCallDispatch();
-    return successResponse({ ...summary, feedback, voice });
+    return successResponse({ ...summary, installments, feedback, voice });
   } catch (err) {
     // A failed cron run affects many participants at once — must be visible
     // immediately (Document 7, Section 5.2).

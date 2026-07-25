@@ -21,6 +21,10 @@ import * as communicationsService from '@/modules/communications/service';
 import * as paymentsService from '@/modules/payments/service';
 import * as leadsService from '@/modules/leads/service';
 import * as opportunitiesService from '@/modules/opportunities/service';
+// Permitted cross-module call, same posture as portal/attendance below — a
+// Batch at capacity routes the submission to the waitlist instead of
+// creating a Registration (founder-approved 2026-07-24).
+import * as waitlistService from '@/modules/waitlist/service';
 // Permitted cross-module call, same posture as communications: every new/
 // returning registrant gets student-portal access (system review, 2026-07-22).
 import { ensureParticipantAuth } from '@/modules/portal/service';
@@ -100,6 +104,29 @@ export async function createRegistration(
     console.error('[registration portal auth provision]', err);
   }
 
+  const course = await coursesService.getCourseByIdSystem(batch.courseId);
+
+  // Waitlist branch (founder-approved 2026-07-24): a Batch at capacity gets
+  // a waitlist entry instead of a Registration — same participant record,
+  // same public endpoint, a different result the client branches on.
+  const seatsRemaining = await coursesService.getSeatsRemaining(input.batchId);
+  if (seatsRemaining !== null && seatsRemaining <= 0) {
+    const { waitlistId } = await waitlistService.joinWaitlist({
+      participantId: participant.id,
+      participantEmail: input.email,
+      participantFullName: fullName,
+      batchId: input.batchId,
+      courseName: course?.courseName ?? batch.cohortLabel,
+      cohortLabel: batch.cohortLabel,
+      leadSource: input.leadSource,
+    });
+    return {
+      outcome: 'waitlisted',
+      waitlistId,
+      message: `Thank you, ${fullName}. ${course?.courseName ?? batch.cohortLabel} is currently full — you've been added to the waitlist and we'll email you the moment a seat opens up.`,
+    };
+  }
+
   let registration;
   try {
     registration = await registrationsRepository.insertRegistration({
@@ -128,12 +155,6 @@ export async function createRegistration(
     registration_id: registration.id,
     course_fee: courseFee,
   });
-
-  // The confirmation names the Course, not the Batch (Document 1, F1.01
-  // step 5; Document 5 example). Cohort label is only the fallback. Fetched
-  // here (rather than just before the return) so both the opportunity below
-  // and the confirmation message can use it.
-  const course = await coursesService.getCourseByIdSystem(batch.courseId);
 
   let createdLeadId: string | null = null;
   try {
@@ -199,6 +220,7 @@ export async function createRegistration(
   }
 
   return {
+    outcome: 'registered',
     registrationId: registration.id,
     registrationStatus: parseRegistrationStatus(registration.registration_status),
     paymentStatus: parsePaymentStatus(payment.payment_status),
@@ -562,6 +584,13 @@ export async function getRegistration360(registrationId: string): Promise<Regist
           discountReason: data.payment.discount_reason,
           discountGrantedByName: data.discountGrantedByName,
           discountGrantedAt: data.payment.discount_granted_at,
+          installments: (data.installments ?? []).map((installment) => ({
+            installmentNumber: installment.installment_number,
+            amountDue: Number(installment.amount_due),
+            amountPaid: Number(installment.amount_paid),
+            dueDate: installment.due_date,
+            paymentStatus: installment.payment_status === 'Paid' ? 'Paid' : 'Pending',
+          })),
         }
       : null,
   };
@@ -594,6 +623,7 @@ function shapeRegistration360ForRole(
     delete view.payment.discountReason;
     delete view.payment.discountGrantedByName;
     delete view.payment.discountGrantedAt;
+    delete view.payment.installments;
   }
   if (view.payment && role === 'tutor') {
     view.payment = null;
@@ -700,11 +730,29 @@ export async function deleteRegistration(
   reason: string | null,
 ): Promise<void> {
   const staffUser = await usersService.requireRole(['admin']);
+  // Read the Batch before deleting — the row (and its batch_id) is gone
+  // afterward, and a deletion is the clearest "a seat freed up" trigger for
+  // the waitlist auto-promotion (founder decision, 2026-07-24).
+  const existing = await registrationsRepository.selectRegistration360(registrationId);
+
   await registrationsRepository.callDeleteRegistrationImmediately(
     registrationId,
     staffUser.id,
     reason,
   );
+
+  const batch = existing?.batch;
+  if (batch && batch.capacity !== null) {
+    try {
+      const seatsRemaining = await coursesService.getSeatsRemaining(batch.id);
+      await waitlistService.notifyNextIfSeatAvailable(batch.id, seatsRemaining, {
+        courseName: existing?.course?.course_name ?? batch.cohort_label,
+        cohortLabel: batch.cohort_label,
+      });
+    } catch (err) {
+      console.error('[registration delete waitlist notify]', err);
+    }
+  }
 }
 
 // Immediate hard-delete of a wrongly-entered/test Participant, including

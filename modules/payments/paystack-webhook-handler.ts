@@ -103,5 +103,14 @@ export async function processWebhookEvent(payload: unknown): Promise<WebhookOutc
     }
   }
 
+  // Keep any payment-plan schedule in sync — non-blocking, same posture as
+  // every other side effect here; Paystack must never retry the whole
+  // webhook over a reconciliation hiccup.
+  try {
+    await paymentsService.reconcileInstallments(registrationId, Number(updated.amount_paid));
+  } catch (err) {
+    console.error('[paystack webhook installment reconcile]', err);
+  }
+
   return { status: 'processed', paymentStatus: parsePaymentStatus(updated.payment_status) };
 }

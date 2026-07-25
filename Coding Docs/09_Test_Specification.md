@@ -184,3 +184,9 @@ submissions without data corruption):
 ---
 
 *Document 10 of 12: Implementation Plan follows.*
+
+---
+
+## 9. Planned Live Learning Test Coverage
+
+Test session generation, role-scoped reads, eligibility/join-window gates, provider-registration idempotency, reminder idempotency, reschedule notifications, provider-attendance matching, exception approval/locking, recording-consent/release rules, audit-log creation, tutor payment-field exclusion, and AI boundary enforcement. Include a pilot E2E test: paid learner -> personal link -> session attendance -> tutor review -> completion eligibility.

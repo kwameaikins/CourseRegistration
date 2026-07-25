@@ -27,6 +27,11 @@ export function renderTemplateBody(
 export async function sendEmailOnce(
   registrationId: string,
   emailType: EmailType,
+  // Additive (payment plans, founder-approved 2026-07-24) — per-send extra
+  // placeholders a caller already knows and the shared RegistrationEmailContext
+  // can't derive on its own (e.g. which installment is due). Merged over the
+  // context-derived placeholders below, never replacing them.
+  extraPlaceholders: Record<string, string> = {},
 ): Promise<SendOutcome> {
   const context =
     await communicationsRepository.selectRegistrationEmailContext(registrationId);
@@ -93,6 +98,7 @@ export async function sendEmailOnce(
     // UUID is the access token) — meant for the post_training_thankyou
     // template, dispatched the morning after the Batch end_date.
     feedback_link: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com'}/feedback/${registrationId}`,
+    ...extraPlaceholders,
   };
 
   // Calendar invite (system review, 2026-07-24) — only on the welcome email,

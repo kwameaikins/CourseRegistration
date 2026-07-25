@@ -54,4 +54,8 @@ export type EmailType =
   | 'zoom_link'
   | 'whatsapp_invite'
   | 'post_training_thankyou'
-  | 'upsell';
+  | 'upsell'
+  // Payment plan (founder-approved 2026-07-24) — one reminder ahead of the
+  // second installment's due date. Email-only (no WhatsApp/SMS template
+  // exists for this), same posture as payment_instruction/class_reminder_*.
+  | 'installment_reminder';

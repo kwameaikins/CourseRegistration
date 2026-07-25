@@ -584,3 +584,9 @@ real operational setup):
 
 *Document 4 of 12: Business Logic Rules Document follows.*
 *Input to Document 4: This document + Document 1 (PRD Section 11).*
+
+---
+
+## 11. Planned Live Learning Operations Extension
+
+The next schema extension adds `live_sessions`, `live_session_tutors`, `live_session_access`, `session_materials`, `attendance_exceptions`, `session_recordings`, and `session_audit_log`. `attendance` will gain an optional `live_session_id` with a backfill plan so historical rows remain valid. Every new table requires RLS, explicit policies, indexes on session/batch/status access paths, and immutable evidence for access overrides, reschedules, attendance review, and recording release. Full definitions and ownership rules are in Document 14.

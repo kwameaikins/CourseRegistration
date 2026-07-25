@@ -99,6 +99,20 @@ Course starts: {{start_date}} at {{start_time}}</p>
 <p>If you have already paid, please send your transaction reference to ${CONTACT} right away so we can confirm you before the session begins.</p>`),
   },
   {
+    // Payment plan (founder-approved 2026-07-24) — one reminder ahead of the
+    // second installment's due date. {{installment_amount}}/
+    // {{installment_due_date}} come from the reminder scheduler, not the
+    // shared RegistrationEmailContext (see sendEmailOnce's extraPlaceholders).
+    emailType: 'installment_reminder',
+    subject: 'Your next payment is due soon — {{course_name}} ({{cohort_label}})',
+    body: wrap(`
+<p>Dear {{participant_name}},</p>
+<p>Your next installment for <strong>{{course_name}}</strong> ({{cohort_label}}) is coming up:</p>
+<p><strong>GHS {{installment_amount}}</strong> due <strong>{{installment_due_date}}</strong></p>
+<p>Log in to your <a href="${PORTAL_LOGIN_URL}">student portal</a> to pay by card or Mobile Money, or pay directly by MTN Mobile Money (${MOMO_PERSONAL} or MoMo Pay ${MOMO_MERCHANT_CODE}) or bank transfer.</p>
+<p>If you have already paid, kindly send your transaction reference to ${CONTACT} so we can confirm it.</p>`),
+  },
+  {
     emailType: 'zoom_link',
     subject: 'Your personal Zoom link — {{course_name}} ({{cohort_label}})',
     body: wrap(`

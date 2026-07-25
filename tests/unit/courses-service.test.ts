@@ -8,11 +8,15 @@ const coursesRepositoryMock = {
   updateBatchById: vi.fn(),
   selectCourseByIdSystem: vi.fn(),
   selectBatchByIdSystem: vi.fn(),
+  countRegistrationsByBatchIdsSystem: vi.fn(),
 };
 const seedDefaultTemplatesForCourseMock = vi.fn();
 const zoomClientMock = {
   createZoomMeeting: vi.fn(),
   isZoomMeetingCreateConfigured: vi.fn(),
+};
+const waitlistServiceMock = {
+  notifyNextIfSeatAvailable: vi.fn(),
 };
 
 vi.mock('@/modules/courses/repository', () => coursesRepositoryMock);
@@ -20,8 +24,11 @@ vi.mock('@/modules/communications/default-templates', () => ({
   seedDefaultTemplatesForCourse: (...args: unknown[]) => seedDefaultTemplatesForCourseMock(...args),
 }));
 vi.mock('@/lib/zoom/client', () => zoomClientMock);
+vi.mock('@/modules/waitlist/service', () => waitlistServiceMock);
 
-const { createCourse, createBatch } = await import('@/modules/courses/service');
+const { createCourse, createBatch, updateBatch, getSeatsRemaining } = await import(
+  '@/modules/courses/service'
+);
 
 function courseRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -44,7 +51,35 @@ beforeEach(() => {
   seedDefaultTemplatesForCourseMock.mockResolvedValue(1);
   zoomClientMock.isZoomMeetingCreateConfigured.mockReturnValue(true);
   coursesRepositoryMock.insertCourse.mockResolvedValue(courseRow());
+  waitlistServiceMock.notifyNextIfSeatAvailable.mockResolvedValue(undefined);
 });
+
+function batchRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'batch-1',
+    course_id: 'course-1',
+    cohort_label: 'JUL-2026',
+    capacity: null,
+    course_fee: 1200,
+    start_date: '2026-08-01',
+    start_time: '09:00',
+    end_date: '2026-08-05',
+    zoom_link: null,
+    zoom_meeting_id: null,
+    whatsapp_group_link: null,
+    facilitator_name: 'Mr. Asante',
+    facilitator_staff_id: null,
+    welcome_email_enabled: true,
+    payment_reminder_enabled: true,
+    class_reminder_enabled: true,
+    whatsapp_enabled: true,
+    sms_enabled: true,
+    is_active: true,
+    discount_cutoff_date: null,
+    discounted_fee: null,
+    ...overrides,
+  };
+}
 
 function validCourseInput() {
   return {
@@ -271,5 +306,70 @@ describe('createBatch — inherits the parent Course\'s Zoom meeting', () => {
 
     expect(coursesRepositoryMock.updateCourseById).not.toHaveBeenCalled();
     expect(batch.zoomLink).toBeNull();
+  });
+});
+
+describe('getSeatsRemaining — batch capacity check (founder-approved 2026-07-24)', () => {
+  it('returns null (unlimited) when the batch has no capacity set', async () => {
+    coursesRepositoryMock.selectBatchByIdSystem.mockResolvedValue(batchRow({ capacity: null }));
+    const result = await getSeatsRemaining('batch-1');
+    expect(result).toBeNull();
+    expect(coursesRepositoryMock.countRegistrationsByBatchIdsSystem).not.toHaveBeenCalled();
+  });
+
+  it('subtracts active registrations from capacity', async () => {
+    coursesRepositoryMock.selectBatchByIdSystem.mockResolvedValue(batchRow({ capacity: 30 }));
+    coursesRepositoryMock.countRegistrationsByBatchIdsSystem.mockResolvedValue(
+      new Map([['batch-1', 22]]),
+    );
+    expect(await getSeatsRemaining('batch-1')).toBe(8);
+  });
+
+  it('never goes negative when over-enrolled', async () => {
+    coursesRepositoryMock.selectBatchByIdSystem.mockResolvedValue(batchRow({ capacity: 10 }));
+    coursesRepositoryMock.countRegistrationsByBatchIdsSystem.mockResolvedValue(
+      new Map([['batch-1', 15]]),
+    );
+    expect(await getSeatsRemaining('batch-1')).toBe(0);
+  });
+});
+
+describe('updateBatch — capacity write-through and waitlist notification', () => {
+  beforeEach(() => {
+    coursesRepositoryMock.updateBatchById.mockResolvedValue(batchRow({ capacity: 30 }));
+    coursesRepositoryMock.selectBatchByIdSystem.mockResolvedValue(batchRow({ capacity: 30 }));
+    coursesRepositoryMock.countRegistrationsByBatchIdsSystem.mockResolvedValue(
+      new Map([['batch-1', 20]]),
+    );
+    coursesRepositoryMock.selectCourseByIdSystem.mockResolvedValue(courseRow());
+  });
+
+  it('actually writes a capacity change through to the repository (regression: this used to be silently dropped)', async () => {
+    await updateBatch('batch-1', { capacity: 30 });
+    expect(coursesRepositoryMock.updateBatchById).toHaveBeenCalledWith(
+      'batch-1',
+      expect.objectContaining({ capacity: 30 }),
+    );
+  });
+
+  it('checks for a freed waitlist seat after any edit to a capacity-limited batch', async () => {
+    await updateBatch('batch-1', { cohortLabel: 'AUG-2026' });
+    expect(waitlistServiceMock.notifyNextIfSeatAvailable).toHaveBeenCalledWith(
+      'batch-1',
+      10,
+      expect.objectContaining({ cohortLabel: 'JUL-2026' }),
+    );
+  });
+
+  it('skips the waitlist check entirely for an unlimited-capacity batch', async () => {
+    coursesRepositoryMock.updateBatchById.mockResolvedValue(batchRow({ capacity: null }));
+    await updateBatch('batch-1', { cohortLabel: 'AUG-2026' });
+    expect(waitlistServiceMock.notifyNextIfSeatAvailable).not.toHaveBeenCalled();
+  });
+
+  it('still returns the updated batch even if the waitlist notification fails', async () => {
+    waitlistServiceMock.notifyNextIfSeatAvailable.mockRejectedValue(new Error('resend down'));
+    const batch = await updateBatch('batch-1', { cohortLabel: 'AUG-2026' });
+    expect(batch.id).toBe('batch-1');
   });
 });

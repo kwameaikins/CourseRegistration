@@ -191,6 +191,15 @@ export interface Registration360 {
     discountReason?: string | null;
     discountGrantedByName?: string | null;
     discountGrantedAt?: string | null;
+    // Payment plan (founder-approved 2026-07-24) — empty when none exists.
+    // Same visibility rule as the rest of this payment object (admin/finance).
+    installments?: Array<{
+      installmentNumber: number;
+      amountDue: number;
+      amountPaid: number;
+      dueDate: string;
+      paymentStatus: 'Pending' | 'Paid';
+    }>;
   } | null;
   messages?: {
     email: Array<{ type: string; sentAt: string; success: boolean; error: string | null }>;
@@ -228,12 +237,23 @@ export interface Registration360 {
   }>;
 }
 
-export interface CreateRegistrationResult {
-  registrationId: string;
-  registrationStatus: RegistrationStatus;
-  paymentStatus: PaymentStatus;
-  message: string;
-}
+// Discriminated on `outcome` (waitlist feature, founder-approved
+// 2026-07-24): a Batch at capacity yields a waitlist entry instead of a
+// Registration — same public endpoint, same input, a different result
+// shape the client branches on.
+export type CreateRegistrationResult =
+  | {
+      outcome: 'registered';
+      registrationId: string;
+      registrationStatus: RegistrationStatus;
+      paymentStatus: PaymentStatus;
+      message: string;
+    }
+  | {
+      outcome: 'waitlisted';
+      waitlistId: string;
+      message: string;
+    };
 
 // Bulk import (staff backfill of registrations collected outside the
 // system, e.g. a Google Form) — one Batch, one Payment Method, one Lead

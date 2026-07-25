@@ -367,6 +367,7 @@ export async function selectRegistration360(registrationId: string): Promise<{
   feedback: Database['public']['Tables']['feedback']['Row'] | null;
   certificates: Array<Database['public']['Tables']['certificates']['Row']>;
   calls: Array<Database['public']['Tables']['call_log']['Row']>;
+  installments: Array<Database['public']['Tables']['payment_installments']['Row']>;
 } | null> {
   const supabase = createSupabaseServiceRoleClient();
 
@@ -390,6 +391,7 @@ export async function selectRegistration360(registrationId: string): Promise<{
     { data: feedback },
     { data: certificates },
     { data: calls },
+    { data: installments },
   ] = await Promise.all([
     supabase.from('participants').select('*').eq('id', registration.participant_id).maybeSingle(),
     supabase.from('batches').select('*').eq('id', registration.batch_id).maybeSingle(),
@@ -430,6 +432,11 @@ export async function selectRegistration360(registrationId: string): Promise<{
       .select('*')
       .eq('registration_id', registrationId)
       .order('created_at', { ascending: false }),
+    supabase
+      .from('payment_installments')
+      .select('*')
+      .eq('registration_id', registrationId)
+      .order('installment_number', { ascending: true }),
   ]);
 
   const course = batch
@@ -477,6 +484,7 @@ export async function selectRegistration360(registrationId: string): Promise<{
     feedback,
     certificates: certificates ?? [],
     calls: calls ?? [],
+    installments: installments ?? [],
   };
 }
 

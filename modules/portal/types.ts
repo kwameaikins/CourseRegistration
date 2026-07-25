@@ -72,6 +72,15 @@ export interface PortalDashboardRegistration {
     issuedDate: string;
     revoked: boolean;
   }>;
+  // Payment plan (founder-approved 2026-07-24) — empty when no plan has
+  // been set up for this registration.
+  installments: Array<{
+    installmentNumber: number;
+    amountDue: number;
+    amountPaid: number;
+    dueDate: string;
+    paymentStatus: 'Pending' | 'Paid';
+  }>;
 }
 
 export interface PortalDashboard {
@@ -99,3 +108,13 @@ export const portalUpdateNameSchema = z.object({
   surname: z.string().trim().min(1).max(100),
 });
 export type PortalUpdateNameInput = z.infer<typeof portalUpdateNameSchema>;
+
+// Simple fixed-split payment plan (founder-approved 2026-07-24) — the
+// participant picks which of their own registrations to split into two
+// installments. registrationId is validated against the caller's own
+// session-scoped registrations in portalService.setUpInstallmentPlan, never
+// trusted as an arbitrary id.
+export const portalSetUpInstallmentPlanSchema = z.object({
+  registrationId: z.uuid(),
+});
+export type PortalSetUpInstallmentPlanInput = z.infer<typeof portalSetUpInstallmentPlanSchema>;

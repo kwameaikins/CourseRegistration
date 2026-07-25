@@ -3,7 +3,10 @@
 export { sendEmailOnce, renderTemplateBody } from '@/modules/communications/email-engine';
 export { sendWhatsappOnce } from '@/modules/communications/whatsapp-engine';
 export { sendSmsOnce } from '@/modules/communications/sms-engine';
-export { runDailyReminders } from '@/modules/communications/reminder-scheduler';
+export {
+  runDailyReminders,
+  runInstallmentReminders,
+} from '@/modules/communications/reminder-scheduler';
 export {
   getTemplatesForCourse,
   saveTemplate,

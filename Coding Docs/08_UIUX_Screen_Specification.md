@@ -243,3 +243,9 @@ confusion per P5.01 — do not force the user to discover a restriction by hitti
 ---
 
 *Document 9 of 12: Test Specification follows.*
+
+---
+
+## 11. Planned Live Learning Screens
+
+Add a Student Next Class/Session page and a Tutor Live Session workspace. Student views show Ghana-time countdown, protected Join state with a clear reason when unavailable, agenda/materials, calendar download, released recordings, catch-up tasks, and support. Tutor views show assigned sessions, host action, roster, attendance review, materials, notes, learner flags, and post-session checklist. Admin controls publish/reschedule/access override with reason. Never render payment details to tutors or host links to students. See Document 14.

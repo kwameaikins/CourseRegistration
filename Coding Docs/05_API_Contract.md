@@ -488,3 +488,9 @@ is a two-step orchestration the endpoint performs atomically from the caller's p
 ---
 
 *Document 6 of 12: Security and Authentication Specification follows.*
+
+---
+
+## 14. Planned Live Session API Surface
+
+Future routes will include staff session CRUD and publish/reschedule actions, tutor session dashboard and attendance-exception decisions, student next-session and protected Join resolution, materials/recording reads, calendar download, and provider webhook/sync endpoints. Every write must use the existing route -> service -> repository boundary. Join resolution returns a short-lived redirect/action only after server-side eligibility validation; raw host URLs are never returned to student endpoints. See Document 14 before implementation.

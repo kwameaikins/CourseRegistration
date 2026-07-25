@@ -504,3 +504,9 @@ accepted budget exception like SMS and the assistant.
 ---
 
 *Document 8 of 12: UI/UX Screen Specification follows.*
+
+---
+
+## 12. Zoom Live Session Integration (Planned)
+
+Zoom remains the first classroom provider. The LiveSession module will create/link provider meetings, register eligible learners, store personal join references server-side, sync participant reports idempotently, and ingest recording metadata. The provider adapter must support session-level meeting references now and future Teams/Google Meet implementations later. Rate-limit, retry, webhook-signature, idempotency, and provider-outage handling must be specified in the implementation PR. Document 14 is the functional contract.
