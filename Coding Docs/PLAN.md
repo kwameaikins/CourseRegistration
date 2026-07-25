@@ -255,6 +255,17 @@ Deferred until Phase 1 is stable in production. See `/docs/01_PRD.md`, Section 7
 
 ---
 
+## Revenue OS Phase 2 add-ons (2026-07-25)
+
+- [x] Lead assignment rules by source, admin-managed at `/leads/assignment-rules`
+- [x] Campaign workspace with dry-run Queue, audience preview, and logged campaign members
+- [x] AI follow-up suggestions grounded in real lead status, score, and history
+- [x] Live email sending via Resend with per-channel toggles, separate Send action, 100-recipient cap, exact recipient count, and typed `SEND <count>` confirmation
+- [x] Live SMS sending via Arkesel with the same per-channel toggle, separate Send action, 100-recipient cap, exact recipient count, and typed `SEND <count>` confirmation
+- [ ] Live WhatsApp dispatch wiring; its setting remains disabled until Meta credentials and templates are ready
+
+---
+
 ## Risk watch (carried from `/docs/01_PRD.md` risk register)
 
 | ID | Risk | Status |

@@ -1,9 +1,10 @@
 import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import type { Database } from '@/lib/supabase/database.types';
-import type { CreateCampaignInput } from '@/modules/campaigns/types';
+import type { CampaignChannel, CreateCampaignInput } from '@/modules/campaigns/types';
 
 type CampaignRow = Database['public']['Tables']['campaigns']['Row'];
 type CampaignMemberRow = Database['public']['Tables']['campaign_members']['Row'];
+type CampaignSendSettingRow = Database['public']['Tables']['campaign_send_settings']['Row'];
 
 export async function insertCampaign(
   input: CreateCampaignInput,
@@ -87,4 +88,76 @@ export async function selectCampaignMembers(campaignId: string): Promise<Campaig
 
   if (error) throw error;
   return data ?? [];
+}
+
+export async function markCampaignMemberSent(id: string, sentAt: string): Promise<void> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase
+    .from('campaign_members')
+    .update({ sent_at: sentAt, send_error: null })
+    .eq('id', id);
+
+  if (error) throw error;
+}
+
+export async function markCampaignMemberFailed(id: string, sendError: string): Promise<void> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase
+    .from('campaign_members')
+    .update({ send_error: sendError })
+    .eq('id', id);
+
+  if (error) throw error;
+}
+
+export async function markCampaignSent(id: string): Promise<CampaignRow> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('campaigns')
+    .update({ status: 'sent', updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function selectSendSettings(): Promise<CampaignSendSettingRow[]> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase.from('campaign_send_settings').select('*');
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function selectSendSettingByChannel(
+  channel: CampaignChannel,
+): Promise<CampaignSendSettingRow | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('campaign_send_settings')
+    .select('*')
+    .eq('channel', channel)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function updateSendSetting(
+  channel: CampaignChannel,
+  liveEnabled: boolean,
+  updatedBy: string | null,
+): Promise<CampaignSendSettingRow> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('campaign_send_settings')
+    .update({ live_enabled: liveEnabled, updated_at: new Date().toISOString(), updated_by: updatedBy })
+    .eq('channel', channel)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
 }

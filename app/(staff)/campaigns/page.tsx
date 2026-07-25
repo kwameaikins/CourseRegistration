@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 import { apiFetch } from '@/components/api-client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface Campaign {
@@ -18,8 +19,18 @@ interface Campaign {
   filterLeadSource: string | null;
   filterStatus: string | null;
   filterMinScore: number | null;
-  status: 'draft' | 'queued';
+  status: 'draft' | 'queued' | 'sent';
   queuedAt: string | null;
+  createdAt: string;
+}
+
+interface CampaignMember {
+  id: string;
+  campaignId: string;
+  leadId: string;
+  previewMessage: string;
+  sentAt: string | null;
+  sendError: string | null;
   createdAt: string;
 }
 
@@ -28,11 +39,21 @@ interface CampaignPreview {
   sample: { leadId: string; leadName: string; previewMessage: string }[];
 }
 
+interface CampaignSendSetting {
+  channel: Campaign['channel'];
+  liveEnabled: boolean;
+  updatedAt: string;
+  updatedBy: string | null;
+}
+
 const CHANNELS: Campaign['channel'][] = ['email', 'whatsapp', 'sms'];
+const LIVE_CHANNELS: Campaign['channel'][] = ['email', 'sms'];
 
 export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [settings, setSettings] = useState<CampaignSendSetting[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [channel, setChannel] = useState<Campaign['channel']>('email');
   const [messageSubject, setMessageSubject] = useState('');
@@ -45,24 +66,60 @@ export default function CampaignsPage() {
   const [previewFor, setPreviewFor] = useState<string | null>(null);
   const [preview, setPreview] = useState<CampaignPreview | null>(null);
   const [queuingId, setQueuingId] = useState<string | null>(null);
+  const [sendingId, setSendingId] = useState<string | null>(null);
+  const [savingSetting, setSavingSetting] = useState<string | null>(null);
 
-  async function loadCampaigns() {
+  const loadCampaigns = useCallback(async () => {
+    const result = await apiFetch<{ campaigns: Campaign[] }>('/api/campaigns');
+    setCampaigns(result.campaigns);
+  }, []);
+
+  const loadSettings = useCallback(async () => {
+    const result = await apiFetch<{ settings: CampaignSendSetting[] }>(
+      '/api/campaigns/send-settings',
+    );
+    setSettings(result.settings);
+  }, []);
+
+  const reload = useCallback(async () => {
     try {
-      const result = await apiFetch<{ campaigns: Campaign[] }>('/api/campaigns');
-      setCampaigns(result.campaigns);
+      await Promise.all([loadCampaigns(), loadSettings()]);
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to load campaigns.');
     }
-  }
+  }, [loadCampaigns, loadSettings]);
 
   useEffect(() => {
-    void loadCampaigns();
-  }, []);
+    void reload();
+  }, [reload]);
+
+  function isLiveEnabled(campaignChannel: Campaign['channel']) {
+    return settings.find((setting) => setting.channel === campaignChannel)?.liveEnabled ?? false;
+  }
+
+  async function updateSetting(setting: CampaignSendSetting, liveEnabled: boolean) {
+    setSavingSetting(setting.channel);
+    setErrorMessage(null);
+    setStatusMessage(null);
+    try {
+      await apiFetch('/api/campaigns/send-settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ channel: setting.channel, liveEnabled }),
+      });
+      setStatusMessage(`${setting.channel} live sending ${liveEnabled ? 'enabled' : 'disabled'}.`);
+      await loadSettings();
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to update send setting.');
+    } finally {
+      setSavingSetting(null);
+    }
+  }
 
   async function createCampaign() {
     if (!name.trim() || !messageBody.trim()) return;
     setCreating(true);
     setErrorMessage(null);
+    setStatusMessage(null);
     try {
       await apiFetch('/api/campaigns', {
         method: 'POST',
@@ -82,6 +139,7 @@ export default function CampaignsPage() {
       setFilterLeadSource('');
       setFilterStatus('');
       setFilterMinScore('');
+      setStatusMessage('Campaign saved as draft.');
       await loadCampaigns();
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to create campaign.');
@@ -105,8 +163,10 @@ export default function CampaignsPage() {
   async function queueCampaign(campaignId: string) {
     setQueuingId(campaignId);
     setErrorMessage(null);
+    setStatusMessage(null);
     try {
       await apiFetch(`/api/campaigns/${campaignId}/queue`, { method: 'POST' });
+      setStatusMessage('Campaign queued as a dry run. No message was sent.');
       await loadCampaigns();
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to queue campaign.');
@@ -115,14 +175,44 @@ export default function CampaignsPage() {
     }
   }
 
+  async function sendCampaign(campaign: Campaign) {
+    setSendingId(campaign.id);
+    setErrorMessage(null);
+    setStatusMessage(null);
+    try {
+      const detail = await apiFetch<{ campaign: Campaign; members: CampaignMember[] }>(
+        `/api/campaigns/${campaign.id}`,
+      );
+      const recipientCount = detail.members.length;
+      const confirmationText = window.prompt(
+        `This will send a real ${campaign.channel} message to ${recipientCount} recipient${recipientCount === 1 ? '' : 's'}. Type SEND ${recipientCount} to continue.`,
+      );
+      if (confirmationText === null) return;
+      const result = await apiFetch<{ attempted: number; sent: number; failed: number }>(
+        `/api/campaigns/${campaign.id}/send`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ confirmedRecipientCount: recipientCount, confirmationText }),
+        },
+      );
+      setStatusMessage(
+        `Live ${campaign.channel} send complete: ${result.sent}/${result.attempted} sent, ${result.failed} failed.`,
+      );
+      await loadCampaigns();
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to send campaign.');
+    } finally {
+      setSendingId(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Campaigns</h1>
         <p className="text-sm text-muted-foreground">
-          Draft a message to a filtered slice of leads. Queueing a campaign is a{' '}
-          <strong>dry run</strong> — it logs the leads that would be contacted and a preview of
-          each message, but does not send anything.
+          Draft a message to a filtered slice of leads. Queueing is still a{' '}
+          <strong>dry run</strong>; real dispatch only happens through the separate Send action.
         </p>
       </div>
 
@@ -131,6 +221,34 @@ export default function CampaignsPage() {
           {errorMessage}
         </p>
       )}
+      {statusMessage && (
+        <p className="rounded-md bg-emerald-50 p-3 text-sm text-emerald-700">{statusMessage}</p>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Live send settings</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-6">
+          {settings.map((setting) => (
+            <div key={setting.channel} className="flex items-center gap-2">
+              <Switch
+                id={`live-${setting.channel}`}
+                checked={setting.liveEnabled}
+                disabled={savingSetting === setting.channel}
+                onCheckedChange={(checked) => void updateSetting(setting, checked)}
+              />
+              <label htmlFor={`live-${setting.channel}`} className="text-sm capitalize">
+                {setting.channel} live sending
+                {!LIVE_CHANNELS.includes(setting.channel) && ' (not wired yet)'}
+              </label>
+            </div>
+          ))}
+          {settings.length === 0 && (
+            <p className="text-sm text-muted-foreground">No send settings found.</p>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -149,9 +267,9 @@ export default function CampaignsPage() {
                 value={channel}
                 onChange={(event) => setChannel(event.target.value as Campaign['channel'])}
               >
-                {CHANNELS.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
+                {CHANNELS.map((channelOption) => (
+                  <option key={channelOption} value={channelOption}>
+                    {channelOption}
                   </option>
                 ))}
               </select>
@@ -228,6 +346,7 @@ export default function CampaignsPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>Channel</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Live</TableHead>
                 <TableHead>Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -237,10 +356,23 @@ export default function CampaignsPage() {
                   <TableCell>{campaign.name}</TableCell>
                   <TableCell className="capitalize">{campaign.channel}</TableCell>
                   <TableCell>
-                    <Badge variant={campaign.status === 'queued' ? 'outline' : 'secondary'}>
-                      {campaign.status === 'queued' ? 'Queued (dry run)' : 'Draft'}
+                    <Badge
+                      variant={
+                        campaign.status === 'sent'
+                          ? 'default'
+                          : campaign.status === 'queued'
+                            ? 'outline'
+                            : 'secondary'
+                      }
+                    >
+                      {campaign.status === 'queued'
+                        ? 'Queued (dry run)'
+                        : campaign.status === 'sent'
+                          ? 'Sent'
+                          : 'Draft'}
                     </Badge>
                   </TableCell>
+                  <TableCell>{isLiveEnabled(campaign.channel) ? 'Enabled' : 'Off'}</TableCell>
                   <TableCell className="space-x-2">
                     <Button size="sm" variant="outline" onClick={() => void loadPreview(campaign.id)}>
                       Preview
@@ -252,6 +384,15 @@ export default function CampaignsPage() {
                         disabled={queuingId === campaign.id}
                       >
                         Queue (dry run)
+                      </Button>
+                    )}
+                    {campaign.status === 'queued' && LIVE_CHANNELS.includes(campaign.channel) && (
+                      <Button
+                        size="sm"
+                        onClick={() => void sendCampaign(campaign)}
+                        disabled={sendingId === campaign.id || !isLiveEnabled(campaign.channel)}
+                      >
+                        {sendingId === campaign.id ? 'Sending...' : `Send live ${campaign.channel}`}
                       </Button>
                     )}
                   </TableCell>
@@ -269,7 +410,7 @@ export default function CampaignsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">
-              Preview — {preview.matchedLeadCount} matching lead
+              Preview - {preview.matchedLeadCount} matching lead
               {preview.matchedLeadCount === 1 ? '' : 's'}
             </CardTitle>
           </CardHeader>
@@ -277,9 +418,7 @@ export default function CampaignsPage() {
             {preview.sample.map((item) => (
               <div key={item.leadId} className="rounded-md border p-3 text-sm">
                 <p className="font-medium">{item.leadName}</p>
-                <p className="whitespace-pre-wrap text-muted-foreground">
-                  {item.previewMessage}
-                </p>
+                <p className="whitespace-pre-wrap text-muted-foreground">{item.previewMessage}</p>
               </div>
             ))}
             {preview.sample.length === 0 && (

@@ -1,3 +1,5 @@
+import { sendTransactionalEmail } from '@/lib/resend/client';
+import { sendSmsMessage } from '@/lib/arkesel/client';
 import { AppError } from '@/lib/errors';
 import * as campaignsRepository from '@/modules/campaigns/repository';
 import * as leadsService from '@/modules/leads/service';
@@ -6,12 +8,22 @@ import type {
   Campaign,
   CampaignMember,
   CampaignPreview,
+  CampaignSendSettings,
   CreateCampaignInput,
+  SendCampaignInput,
+  SendCampaignResult,
+} from '@/modules/campaigns/types';
+import {
+  LIVE_SEND_SUPPORTED_CHANNELS,
+  MAX_LIVE_SEND_RECIPIENTS,
 } from '@/modules/campaigns/types';
 import type { Database } from '@/lib/supabase/database.types';
 
+const DEFAULT_CAMPAIGN_FROM = 'Knowsia <reg@knowsia.com>';
+
 type CampaignRow = Database['public']['Tables']['campaigns']['Row'];
 type CampaignMemberRow = Database['public']['Tables']['campaign_members']['Row'];
+type CampaignSendSettingRow = Database['public']['Tables']['campaign_send_settings']['Row'];
 
 // Mirrors the toLead/toOpportunity mapper pattern used elsewhere.
 function toCampaign(row: CampaignRow): Campaign {
@@ -38,18 +50,38 @@ function toCampaignMember(row: CampaignMemberRow): CampaignMember {
     campaignId: row.campaign_id,
     leadId: row.lead_id,
     previewMessage: row.preview_message,
+    sentAt: row.sent_at,
+    sendError: row.send_error,
     createdAt: row.created_at,
   };
 }
 
-// Fills {{firstName}}, {{fullName}}, {{company}} tokens in the campaign's
-// message body with the lead's own details. Unknown tokens are left as-is.
+function toSendSetting(row: CampaignSendSettingRow): CampaignSendSettings {
+  return {
+    channel: row.channel as CampaignSendSettings['channel'],
+    liveEnabled: row.live_enabled,
+    updatedAt: row.updated_at,
+    updatedBy: row.updated_by,
+  };
+}
+
+// Fills {{firstName}}, {{fullName}}, {{company}} tokens in campaign copy.
+// Unknown tokens are left as-is so typos remain visible in previews.
 function renderMessage(template: string, lead: Lead): string {
   const firstName = lead.fullName.trim().split(/\s+/)[0] ?? lead.fullName;
   return template
     .replaceAll('{{firstName}}', firstName)
     .replaceAll('{{fullName}}', lead.fullName)
     .replaceAll('{{company}}', lead.company ?? '');
+}
+
+function renderHtml(message: string): string {
+  const escaped = message
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+  return `<div style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6;color:#111827;white-space:pre-wrap">${escaped}</div>`;
 }
 
 async function matchLeads(campaign: Campaign): Promise<Lead[]> {
@@ -93,6 +125,20 @@ export async function getCampaignMembers(campaignId: string): Promise<CampaignMe
   return rows.map(toCampaignMember);
 }
 
+export async function listSendSettings(): Promise<CampaignSendSettings[]> {
+  const rows = await campaignsRepository.selectSendSettings();
+  return rows.map(toSendSetting);
+}
+
+export async function updateSendSetting(
+  channel: Campaign['channel'],
+  liveEnabled: boolean,
+  updatedBy: string | null,
+): Promise<CampaignSendSettings> {
+  const row = await campaignsRepository.updateSendSetting(channel, liveEnabled, updatedBy);
+  return toSendSetting(row);
+}
+
 // DRY RUN ONLY: computes who a campaign would reach and what they'd receive
 // without persisting anything or contacting any provider.
 export async function previewCampaign(id: string): Promise<CampaignPreview> {
@@ -108,10 +154,7 @@ export async function previewCampaign(id: string): Promise<CampaignPreview> {
   };
 }
 
-// DRY RUN ONLY (Phase 2 scope, explicitly approved): "queueing" a campaign
-// records a preview_message row per matched lead for staff review — it never
-// calls Resend/Arkesel/WhatsApp or any other real send API. Enabling live
-// dispatch is a separate, explicitly-approved future change.
+// Queue remains dry run: records rendered previews only, never dispatches.
 export async function queueCampaign(id: string): Promise<Campaign> {
   const campaign = await getCampaignById(id);
   if (campaign.status !== 'draft') {
@@ -120,7 +163,7 @@ export async function queueCampaign(id: string): Promise<Campaign> {
 
   const matched = await matchLeads(campaign);
   if (matched.length === 0) {
-    throw new AppError('NO_MATCHING_LEADS', 'No leads match this campaign\u2019s filters.', 400);
+    throw new AppError('NO_MATCHING_LEADS', "No leads match this campaign's filters.", 400);
   }
 
   const memberRows = matched.map((lead) => ({
@@ -132,4 +175,101 @@ export async function queueCampaign(id: string): Promise<Campaign> {
 
   const updated = await campaignsRepository.markCampaignQueued(id);
   return toCampaign(updated);
+}
+
+export async function sendCampaign(
+  id: string,
+  input: SendCampaignInput,
+): Promise<SendCampaignResult> {
+  const campaign = await getCampaignById(id);
+  if (campaign.status !== 'queued') {
+    throw new AppError('CONFLICT', 'Only a queued campaign can be sent.', 409);
+  }
+  if (!(LIVE_SEND_SUPPORTED_CHANNELS as readonly string[]).includes(campaign.channel)) {
+    throw new AppError(
+      'UNSUPPORTED_CHANNEL',
+      'Live sending is currently wired for email and SMS campaigns only.',
+      400,
+    );
+  }
+
+  const setting = await campaignsRepository.selectSendSettingByChannel(campaign.channel);
+  if (!setting?.live_enabled) {
+    throw new AppError(
+      'LIVE_SEND_DISABLED',
+      'Live sending is disabled for this campaign channel.',
+      403,
+    );
+  }
+
+  const members = await campaignsRepository.selectCampaignMembers(campaign.id);
+  if (members.length === 0) {
+    throw new AppError('NO_RECIPIENTS', 'This campaign has no queued recipients.', 400);
+  }
+  if (members.length > MAX_LIVE_SEND_RECIPIENTS) {
+    throw new AppError(
+      'RECIPIENT_LIMIT_EXCEEDED',
+      `Live sends are capped at ${MAX_LIVE_SEND_RECIPIENTS} recipients per campaign.`,
+      400,
+    );
+  }
+  if (input.confirmedRecipientCount !== members.length) {
+    throw new AppError(
+      'CONFIRMATION_MISMATCH',
+      'The confirmed recipient count does not match the queued audience.',
+      400,
+    );
+  }
+  if (input.confirmationText !== `SEND ${members.length}`) {
+    throw new AppError(
+      'CONFIRMATION_MISMATCH',
+      `Type SEND ${members.length} to confirm this live send.`,
+      400,
+    );
+  }
+
+  const leads = await leadsService.listLeads();
+  const leadById = new Map(leads.map((lead) => [lead.id, lead]));
+  let sent = 0;
+  let failed = 0;
+
+  for (const member of members) {
+    if (member.sent_at) {
+      sent += 1;
+      continue;
+    }
+    const lead = leadById.get(member.lead_id);
+    const destination = campaign.channel === 'email' ? lead?.email : lead?.phone;
+    if (!destination) {
+      failed += 1;
+      await campaignsRepository.markCampaignMemberFailed(
+        member.id,
+        `Lead has no ${campaign.channel === 'email' ? 'email address' : 'phone number'}.`,
+      );
+      continue;
+    }
+
+    try {
+      if (campaign.channel === 'email') {
+        await sendTransactionalEmail({
+          to: destination,
+          from: process.env.CAMPAIGN_EMAIL_FROM ?? DEFAULT_CAMPAIGN_FROM,
+          subject: campaign.messageSubject || campaign.name,
+          html: renderHtml(member.preview_message),
+        });
+      } else {
+        await sendSmsMessage({ toPhone: destination, message: member.preview_message });
+      }
+      sent += 1;
+      await campaignsRepository.markCampaignMemberSent(member.id, new Date().toISOString());
+    } catch (err) {
+      failed += 1;
+      await campaignsRepository.markCampaignMemberFailed(
+        member.id,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+  const updated = await campaignsRepository.markCampaignSent(id);
+  return { campaign: toCampaign(updated), attempted: members.length, sent, failed };
 }

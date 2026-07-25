@@ -717,6 +717,8 @@ export type Database = {
           id: string
           lead_id: string
           preview_message: string
+          send_error: string | null
+          sent_at: string | null
         }
         Insert: {
           campaign_id: string
@@ -724,6 +726,8 @@ export type Database = {
           id?: string
           lead_id: string
           preview_message: string
+          send_error?: string | null
+          sent_at?: string | null
         }
         Update: {
           campaign_id?: string
@@ -731,6 +735,8 @@ export type Database = {
           id?: string
           lead_id?: string
           preview_message?: string
+          send_error?: string | null
+          sent_at?: string | null
         }
         Relationships: [
           {
@@ -745,6 +751,35 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaign_send_settings: {
+        Row: {
+          channel: string
+          live_enabled: boolean
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          channel: string
+          live_enabled?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          channel?: string
+          live_enabled?: boolean
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_send_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
             referencedColumns: ["id"]
           },
         ]

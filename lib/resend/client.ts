@@ -19,14 +19,17 @@ function formatFromAddress(rawFromEmail: string): string {
 
 export async function sendTransactionalEmail(params: {
   to: string;
+  from?: string;
   subject: string;
   html: string;
-  // Additive (system review, 2026-07-24) — content is base64, matching what
+  // Additive (system review, 2026-07-24) - content is base64, matching what
   // Resend's API expects. Optional so every existing call site is unchanged.
   attachments?: Array<{ filename: string; content: string; contentType: string }>;
 }): Promise<void> {
   const { error } = await getResendClient().emails.send({
-    from: formatFromAddress(process.env.RESEND_FROM_EMAIL!),
+    from: params.from
+      ? formatFromAddress(params.from)
+      : formatFromAddress(process.env.RESEND_FROM_EMAIL!),
     to: params.to,
     subject: params.subject,
     html: params.html,

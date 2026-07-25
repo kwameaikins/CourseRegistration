@@ -178,6 +178,8 @@ Add:
 - Lead assignment rules
 - AI-generated follow-up suggestions
 
+Current implementation note (2026-07-25): the campaign workspace keeps Queue as a dry-run preview/logging action. Real dispatch uses a separate Send action, guarded by per-channel live-send toggles, a 100-recipient cap, exact recipient-count confirmation, and typed `SEND <count>` confirmation. Email sends via Resend and SMS sends via Arkesel; WhatsApp remains toggle-tracked but is not dispatch-wired.
+
 ### Phase 3 — Agentic intelligence
 Add:
 - Lead qualification agent
