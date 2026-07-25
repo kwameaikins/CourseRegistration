@@ -1,7 +1,46 @@
 import { AppError } from '@/lib/errors';
 import * as leadsRepository from '@/modules/leads/repository';
-import type { CreateLeadInput } from '@/modules/leads/types';
+import type { CreateLeadInput, Lead, LeadActivity } from '@/modules/leads/types';
 import { createLeadInputSchema } from '@/modules/leads/types';
+import type { Database } from '@/lib/supabase/database.types';
+
+type LeadRow = Database['public']['Tables']['leads']['Row'];
+type LeadActivityRow = Database['public']['Tables']['lead_activities']['Row'];
+
+// The repository only ever deals in raw snake_case DB rows; everything this
+// service hands back to routes/UI must be the camelCase domain shape
+// instead (same convention as modules/payments/service.ts's toPayment).
+function toLead(row: LeadRow): Lead {
+  return {
+    id: row.id,
+    registrationId: row.registration_id,
+    participantId: row.participant_id,
+    fullName: row.full_name,
+    email: row.email,
+    phone: row.phone,
+    jobTitle: row.job_title,
+    company: row.company,
+    leadSource: row.lead_source,
+    status: row.status,
+    score: row.score,
+    assignedTo: row.assigned_to,
+    notes: row.notes,
+    nextFollowUpAt: row.next_follow_up_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function toLeadActivity(row: LeadActivityRow): LeadActivity {
+  return {
+    id: row.id,
+    leadId: row.lead_id,
+    activityType: row.activity_type as LeadActivity['activityType'],
+    description: row.description,
+    performedBy: row.performed_by,
+    createdAt: row.created_at,
+  };
+}
 
 // Lead source channels ranked by how likely they are to convert, per the
 // founders' informal read of past intake data (referrals and LinkedIn
@@ -43,7 +82,7 @@ export function calculateLeadScore(input: {
 // P4.01): a logging failure must never sink lead creation/updates.
 async function logActivity(
   leadId: string,
-  activityType: 'created' | 'status_changed' | 'assigned' | 'unassigned' | 'score_changed' | 'note_updated',
+  activityType: LeadActivity['activityType'],
   description: string,
   performedBy: string | null,
 ): Promise<void> {
@@ -59,13 +98,13 @@ async function logActivity(
   }
 }
 
-export async function createLead(input: CreateLeadInput) {
+export async function createLead(input: CreateLeadInput): Promise<Lead> {
   try {
     const parsed = createLeadInputSchema.parse(input);
     const score = parsed.score ?? calculateLeadScore(parsed);
     const lead = await leadsRepository.insertLead({ ...parsed, score });
     await logActivity(lead.id, 'created', `Lead captured from ${parsed.leadSource}.`, null);
-    return lead;
+    return toLead(lead);
   } catch (err) {
     console.error('[leads createLead]', err);
     if (err instanceof AppError) throw err;
@@ -73,24 +112,27 @@ export async function createLead(input: CreateLeadInput) {
   }
 }
 
-export async function listLeads() {
-  return leadsRepository.selectLeads();
+export async function listLeads(): Promise<Lead[]> {
+  const rows = await leadsRepository.selectLeads();
+  return rows.map(toLead);
 }
 
-export async function getLeadById(id: string) {
+export async function getLeadById(id: string): Promise<Lead> {
   const lead = await leadsRepository.selectLeadById(id);
   if (!lead) {
     throw new AppError('NOT_FOUND', 'Lead not found.', 404);
   }
-  return lead;
+  return toLead(lead);
 }
 
 // Lead detail view (Phase 1 Revenue OS roadmap): the current record plus
 // its full activity timeline, newest first.
-export async function getLeadWithActivities(id: string) {
+export async function getLeadWithActivities(
+  id: string,
+): Promise<{ lead: Lead; activities: LeadActivity[] }> {
   const lead = await getLeadById(id);
-  const activities = await leadsRepository.selectLeadActivities(id);
-  return { lead, activities };
+  const activityRows = await leadsRepository.selectLeadActivities(id);
+  return { lead, activities: activityRows.map(toLeadActivity) };
 }
 
 export async function getPipelineSummary() {
@@ -113,9 +155,15 @@ export async function getPipelineSummary() {
 
 export async function updateLead(
   id: string,
-  input: { status?: string; notes?: string | null; assignedTo?: string | null; score?: number },
+  input: {
+    status?: string;
+    notes?: string | null;
+    assignedTo?: string | null;
+    score?: number;
+    nextFollowUpAt?: string | null;
+  },
   performedBy: string | null = null,
-) {
+): Promise<Lead> {
   if (!id) {
     throw new AppError('VALIDATION_ERROR', 'Lead id is required.', 400);
   }
@@ -130,6 +178,7 @@ export async function updateLead(
   if (input.notes !== undefined) changes.notes = input.notes;
   if (input.assignedTo !== undefined) changes.assigned_to = input.assignedTo;
   if (input.score !== undefined) changes.score = input.score;
+  if (input.nextFollowUpAt !== undefined) changes.next_follow_up_at = input.nextFollowUpAt;
 
   const updated = await leadsRepository.updateLead(id, changes);
 
@@ -160,6 +209,15 @@ export async function updateLead(
   if (input.notes !== undefined && input.notes !== existing.notes) {
     await logActivity(id, 'note_updated', 'Note updated.', performedBy);
   }
+  if (
+    input.nextFollowUpAt !== undefined &&
+    input.nextFollowUpAt !== existing.next_follow_up_at
+  ) {
+    const description = updated.next_follow_up_at
+      ? `Follow-up scheduled for ${new Date(updated.next_follow_up_at).toLocaleDateString()}.`
+      : 'Follow-up reminder cleared.';
+    await logActivity(id, 'follow_up_scheduled', description, performedBy);
+  }
 
-  return updated;
+  return toLead(updated);
 }

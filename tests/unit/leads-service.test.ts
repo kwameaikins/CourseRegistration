@@ -113,6 +113,7 @@ describe('updateLead', () => {
       notes: null,
       assigned_to: null,
       score: 30,
+      next_follow_up_at: null,
       ...overrides,
     };
   }
@@ -172,16 +173,84 @@ describe('updateLead', () => {
 
     expect(leadsRepositoryMock.insertLeadActivity).not.toHaveBeenCalled();
   });
+
+  it('logs a follow_up_scheduled activity naming the new date when a follow-up is set', async () => {
+    leadsRepositoryMock.selectLeadById.mockResolvedValue(existingLead());
+    leadsRepositoryMock.updateLead.mockResolvedValue(
+      existingLead({ next_follow_up_at: '2026-08-01T00:00:00Z' }),
+    );
+
+    await updateLead('lead-1', { nextFollowUpAt: '2026-08-01T00:00:00Z' }, 'staff-1');
+
+    expect(leadsRepositoryMock.insertLeadActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activity_type: 'follow_up_scheduled',
+        description: expect.stringContaining('Follow-up scheduled for'),
+      }),
+    );
+  });
+
+  it('logs a follow_up_scheduled activity noting the reminder was cleared', async () => {
+    leadsRepositoryMock.selectLeadById.mockResolvedValue(
+      existingLead({ next_follow_up_at: '2026-08-01T00:00:00Z' }),
+    );
+    leadsRepositoryMock.updateLead.mockResolvedValue(existingLead({ next_follow_up_at: null }));
+
+    await updateLead('lead-1', { nextFollowUpAt: null }, 'staff-1');
+
+    expect(leadsRepositoryMock.insertLeadActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activity_type: 'follow_up_scheduled',
+        description: expect.stringContaining('cleared'),
+      }),
+    );
+  });
 });
 
 describe('getLeadWithActivities', () => {
-  it('returns the lead paired with its activity timeline', async () => {
-    leadsRepositoryMock.selectLeadById.mockResolvedValue({ id: 'lead-1', status: 'New' });
-    leadsRepositoryMock.selectLeadActivities.mockResolvedValue([{ id: 'act-1' }]);
+  it('returns the lead (mapped to camelCase) paired with its activity timeline', async () => {
+    leadsRepositoryMock.selectLeadById.mockResolvedValue({
+      id: 'lead-1',
+      registration_id: null,
+      participant_id: null,
+      full_name: 'Ama Owusu',
+      email: 'ama@example.com',
+      phone: '+233241234567',
+      job_title: null,
+      company: null,
+      lead_source: 'Website',
+      status: 'New',
+      score: 25,
+      assigned_to: null,
+      notes: null,
+      next_follow_up_at: null,
+      created_at: '2026-07-01T00:00:00Z',
+      updated_at: '2026-07-01T00:00:00Z',
+    });
+    leadsRepositoryMock.selectLeadActivities.mockResolvedValue([
+      {
+        id: 'act-1',
+        lead_id: 'lead-1',
+        activity_type: 'created',
+        description: 'Lead captured from Website.',
+        performed_by: null,
+        created_at: '2026-07-01T00:00:00Z',
+      },
+    ]);
 
     const result = await getLeadWithActivities('lead-1');
 
-    expect(result).toEqual({ lead: { id: 'lead-1', status: 'New' }, activities: [{ id: 'act-1' }] });
+    expect(result.lead).toEqual(
+      expect.objectContaining({ id: 'lead-1', fullName: 'Ama Owusu', status: 'New' }),
+    );
+    expect(result.activities).toEqual([
+      expect.objectContaining({
+        id: 'act-1',
+        leadId: 'lead-1',
+        activityType: 'created',
+        description: 'Lead captured from Website.',
+      }),
+    ]);
   });
 });
 

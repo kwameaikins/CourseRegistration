@@ -21,6 +21,7 @@ interface LeadRow {
   status: string;
   score: number;
   assignedTo: string | null;
+  nextFollowUpAt: string | null;
   createdAt: string;
 }
 
@@ -44,6 +45,7 @@ export default function LeadsPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [viewingLeadId, setViewingLeadId] = useState<string | null>(null);
+  const [dueOnly, setDueOnly] = useState(false);
 
   async function loadLeads() {
     try {
@@ -115,6 +117,16 @@ export default function LeadsPage() {
     }
   }
 
+  // A lead is "due" once its follow-up date has arrived or passed — today
+  // counts as due so nothing scheduled for today gets missed.
+  function isDue(row: LeadRow): boolean {
+    if (!row.nextFollowUpAt) return false;
+    return new Date(row.nextFollowUpAt).getTime() <= Date.now();
+  }
+
+  const dueCount = rows.filter(isDue).length;
+  const visibleRows = dueOnly ? rows.filter(isDue) : rows;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -124,6 +136,9 @@ export default function LeadsPage() {
             A first step toward the Revenue OS lead pipeline.
           </p>
         </div>
+        <Button variant="outline" onClick={() => setDueOnly((value) => !value)}>
+          {dueOnly ? 'Show all leads' : `Show due for follow-up (${dueCount})`}
+        </Button>
       </div>
 
       {errorMessage && (
@@ -133,7 +148,7 @@ export default function LeadsPage() {
       )}
 
       {summary && (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm text-muted-foreground">Total leads</CardTitle>
@@ -151,6 +166,12 @@ export default function LeadsPage() {
               <CardTitle className="text-sm text-muted-foreground">Unassigned</CardTitle>
             </CardHeader>
             <CardContent className="text-2xl font-semibold">{summary.unassigned}</CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm text-muted-foreground">Due for follow-up</CardTitle>
+            </CardHeader>
+            <CardContent className="text-2xl font-semibold">{dueCount}</CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
@@ -180,12 +201,13 @@ export default function LeadsPage() {
                 <TableHead>Source</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Score</TableHead>
+                <TableHead>Follow-up</TableHead>
                 <TableHead>Created</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => (
-                <TableRow key={row.id}>
+              {visibleRows.map((row) => (
+                <TableRow key={row.id} className={isDue(row) ? 'bg-amber-50' : undefined}>
                   <TableCell>
                     <div className="font-medium">{row.fullName}</div>
                     <div className="text-sm text-muted-foreground">{row.email}</div>
@@ -231,6 +253,21 @@ export default function LeadsPage() {
                     </div>
                   </TableCell>
                   <TableCell>{row.score}</TableCell>
+                  <TableCell>
+                    <Input
+                      type="date"
+                      className="h-8 w-36"
+                      value={row.nextFollowUpAt ? row.nextFollowUpAt.slice(0, 10) : ''}
+                      onChange={(event) =>
+                        void updateLeadField(row.id, {
+                          nextFollowUpAt: event.target.value
+                            ? new Date(event.target.value).toISOString()
+                            : null,
+                        })
+                      }
+                      disabled={savingId === row.id}
+                    />
+                  </TableCell>
                   <TableCell>
                     <div className="space-y-2">
                       <div>{new Date(row.createdAt).toLocaleDateString()}</div>

@@ -14,6 +14,7 @@ export interface Lead {
   score: number;
   assignedTo: string | null;
   notes: string | null;
+  nextFollowUpAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -30,7 +31,8 @@ export interface LeadActivity {
     | 'assigned'
     | 'unassigned'
     | 'score_changed'
-    | 'note_updated';
+    | 'note_updated'
+    | 'follow_up_scheduled';
   description: string;
   performedBy: string | null;
   createdAt: string;

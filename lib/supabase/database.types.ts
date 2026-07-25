@@ -543,6 +543,7 @@ export type Database = {
           id: string
           job_title: string | null
           lead_source: string
+          next_follow_up_at: string | null
           notes: string | null
           participant_id: string | null
           phone: string
@@ -560,6 +561,7 @@ export type Database = {
           id?: string
           job_title?: string | null
           lead_source?: string
+          next_follow_up_at?: string | null
           notes?: string | null
           participant_id?: string | null
           phone: string
@@ -577,6 +579,7 @@ export type Database = {
           id?: string
           job_title?: string | null
           lead_source?: string
+          next_follow_up_at?: string | null
           notes?: string | null
           participant_id?: string | null
           phone?: string

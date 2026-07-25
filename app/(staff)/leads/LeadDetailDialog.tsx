@@ -13,25 +13,26 @@ import {
 
 interface LeadDetail {
   id: string;
-  full_name: string;
+  fullName: string;
   email: string;
   phone: string;
   company: string | null;
-  job_title: string | null;
-  lead_source: string;
+  jobTitle: string | null;
+  leadSource: string;
   status: string;
   score: number;
-  assigned_to: string | null;
+  assignedTo: string | null;
   notes: string | null;
-  created_at: string;
-  updated_at: string;
+  nextFollowUpAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface LeadActivity {
   id: string;
-  activity_type: string;
+  activityType: string;
   description: string;
-  created_at: string;
+  createdAt: string;
 }
 
 export function LeadDetailDialog({
@@ -74,14 +75,14 @@ export function LeadDetailDialog({
         {lead && (
           <div className="space-y-3 text-sm">
             <div>
-              <p className="font-medium">{lead.full_name}</p>
+              <p className="font-medium">{lead.fullName}</p>
               <p className="text-muted-foreground">{lead.email}</p>
               <p className="text-muted-foreground">{lead.phone}</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <Badge variant="outline">{lead.status}</Badge>
               <Badge variant="secondary">Score {lead.score}</Badge>
-              <Badge variant="outline">{lead.lead_source}</Badge>
+              <Badge variant="outline">{lead.leadSource}</Badge>
             </div>
             <div>
               <p className="text-muted-foreground">Company</p>
@@ -89,15 +90,23 @@ export function LeadDetailDialog({
             </div>
             <div>
               <p className="text-muted-foreground">Job title</p>
-              <p>{lead.job_title ?? '—'}</p>
+              <p>{lead.jobTitle ?? '—'}</p>
             </div>
             <div>
               <p className="text-muted-foreground">Notes</p>
               <p className="whitespace-pre-wrap">{lead.notes ?? 'No notes yet.'}</p>
             </div>
+            <div>
+              <p className="text-muted-foreground">Next follow-up</p>
+              <p>
+                {lead.nextFollowUpAt
+                  ? new Date(lead.nextFollowUpAt).toLocaleDateString()
+                  : 'Not scheduled'}
+              </p>
+            </div>
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Created {new Date(lead.created_at).toLocaleString()}</span>
-              <span>Updated {new Date(lead.updated_at).toLocaleString()}</span>
+              <span>Created {new Date(lead.createdAt).toLocaleString()}</span>
+              <span>Updated {new Date(lead.updatedAt).toLocaleString()}</span>
             </div>
             <div>
               <p className="mb-2 text-muted-foreground">Activity</p>
@@ -109,7 +118,7 @@ export function LeadDetailDialog({
                     <li key={activity.id}>
                       <p>{activity.description}</p>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(activity.created_at).toLocaleString()}
+                        {new Date(activity.createdAt).toLocaleString()}
                       </p>
                     </li>
                   ))}
