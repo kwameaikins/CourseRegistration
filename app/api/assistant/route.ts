@@ -7,6 +7,7 @@ import * as coursesService from '@/modules/courses/service';
 import * as usersService from '@/modules/users/service';
 import * as dashboardService from '@/modules/dashboard/service';
 import * as communicationsService from '@/modules/communications/service';
+import * as leadsService from '@/modules/leads/service';
 import {
   batchInputSchema,
   batchUpdateSchema,
@@ -46,6 +47,7 @@ Rules:
 - Before a destructive or hard-to-reverse change (deactivating a user, deactivating a batch), confirm the target with the admin first unless they were explicit.
 - Email templates use {{placeholder}} syntax: participant_name, course_name, course_code, cohort_label, course_fee, amount_paid, balance, start_date, start_time, end_date, zoom_link, whatsapp_group_link, facilitator_name.
 - Report what you did plainly, including IDs the admin may need. If a tool fails, relay the error message honestly and suggest the fix.
+- Lead follow-ups: when asked to suggest a follow-up (for one lead or for leads due for follow-up), call get_lead_follow_up_context (or list_leads_due_for_follow_up first if no leadId was given) and use the lead's status, score, job title, company, and activity timeline to draft a short, specific follow-up message and a recommended next action. Present it as a suggestion for the admin to send manually — you never send anything yourself.
 
 Today's date: ${new Date().toISOString().slice(0, 10)}`;
 
@@ -171,6 +173,36 @@ function buildTools() {
         JSON.stringify(
           await communicationsService.saveTemplate(templateUpsertSchema.parse(input)),
         ),
+    }),
+    betaZodTool({
+      name: 'list_leads_due_for_follow_up',
+      description:
+        'List leads whose next follow-up reminder is due now or overdue, with id, name, status, score, and lead source. Use this to find candidates before drafting follow-up suggestions when the admin has not named a specific lead.',
+      inputSchema: z.object({}),
+      run: async () => {
+        const leads = await leadsService.listLeads();
+        const now = Date.now();
+        const due = leads.filter(
+          (lead) => lead.nextFollowUpAt && new Date(lead.nextFollowUpAt).getTime() <= now,
+        );
+        return JSON.stringify(
+          due.map((lead) => ({
+            id: lead.id,
+            fullName: lead.fullName,
+            status: lead.status,
+            score: lead.score,
+            leadSource: lead.leadSource,
+            nextFollowUpAt: lead.nextFollowUpAt,
+          })),
+        );
+      },
+    }),
+    betaZodTool({
+      name: 'get_lead_follow_up_context',
+      description:
+        'Get one lead\u2019s full details (status, score, job title, company, notes) plus its activity timeline. Use this before drafting a follow-up suggestion for that lead.',
+      inputSchema: z.object({ leadId: z.string() }),
+      run: async (input) => JSON.stringify(await leadsService.getLeadWithActivities(input.leadId)),
     }),
   ];
 }
