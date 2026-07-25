@@ -18,6 +18,7 @@ export const ROLE_ROUTES: Record<string, StaffRole[]> = {
   // this one for every /registrations/import request.
   '/registrations/import': ['admin', 'finance', 'marketing', 'management'],
   '/registrations': ['admin', 'finance', 'marketing'],
+  '/leads': ['admin', 'marketing', 'management'],
   '/payments': ['admin', 'finance'],
   '/courses': ['admin'],
   '/users': ['admin'],
@@ -66,11 +67,13 @@ export const NAV_ITEMS_BY_ROLE: Record<StaffRole, { href: string; label: string 
   ],
   marketing: [
     { href: '/registrations', label: 'Registrations' },
+    { href: '/leads', label: 'Leads' },
     { href: '/registrations/import', label: 'Import Registrations' },
   ],
   tutor: [{ href: '/my-courses', label: 'My Courses' }],
   management: [
     { href: '/dashboard', label: 'Dashboard' },
+    { href: '/leads', label: 'Leads' },
     { href: '/registrations/import', label: 'Import Registrations' },
     { href: '/attendance', label: 'Attendance' },
     { href: '/course-feedback', label: 'Feedback' },

@@ -93,7 +93,13 @@ export async function selectActiveFutureBatchesPublic(): Promise<
   Array<
     Pick<
       BatchRow,
-      'id' | 'cohort_label' | 'start_date' | 'course_fee' | 'discount_cutoff_date' | 'discounted_fee'
+      | 'id'
+      | 'cohort_label'
+      | 'start_date'
+      | 'course_fee'
+      | 'capacity'
+      | 'discount_cutoff_date'
+      | 'discounted_fee'
     > & {
       courses: Pick<CourseRow, 'course_name'> | null;
     }
@@ -102,7 +108,9 @@ export async function selectActiveFutureBatchesPublic(): Promise<
   const supabase = createSupabaseServiceRoleClient();
   const { data: batches, error: batchesError } = await supabase
     .from('batches')
-    .select('id, course_id, cohort_label, start_date, course_fee, discount_cutoff_date, discounted_fee')
+    .select(
+      'id, course_id, cohort_label, start_date, course_fee, capacity, discount_cutoff_date, discounted_fee',
+    )
     .eq('is_active', true)
     .gte('start_date', new Date().toISOString().slice(0, 10))
     .order('start_date', { ascending: true });
@@ -128,6 +136,7 @@ export async function selectActiveFutureBatchesPublic(): Promise<
     cohort_label: batch.cohort_label,
     start_date: batch.start_date,
     course_fee: batch.course_fee,
+    capacity: batch.capacity,
     discount_cutoff_date: batch.discount_cutoff_date,
     discounted_fee: batch.discounted_fee,
     courses: courseNameById.has(batch.course_id)
@@ -135,6 +144,32 @@ export async function selectActiveFutureBatchesPublic(): Promise<
       : null,
   }));
 }
+
+// Capacity check (BR-19 addendum, waitlist feature 2026-07-24): counts only
+// active registrations (Cancelled excluded) per batch, so a cancellation
+// frees up a seat. Service-role client — same public/system posture as
+// selectActiveFutureBatchesPublic above; this runs as part of the same
+// public-form data load, before any staff session exists.
+export async function countRegistrationsByBatchIdsSystem(
+  batchIds: string[],
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (batchIds.length === 0) return counts;
+
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('registrations')
+    .select('batch_id')
+    .in('batch_id', batchIds)
+    .neq('registration_status', 'Cancelled');
+  if (error) throw error;
+
+  for (const row of data) {
+    counts.set(row.batch_id, (counts.get(row.batch_id) ?? 0) + 1);
+  }
+  return counts;
+}
+
 
 // System-context course read used by the public registration orchestration,
 // where no staff session exists.

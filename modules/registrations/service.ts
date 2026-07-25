@@ -19,6 +19,7 @@ import * as communicationsService from '@/modules/communications/service';
 // bulkImportRegistrations for why it calls the un-gated helper directly
 // instead of the finance/admin-only updatePaymentByStaff.
 import * as paymentsService from '@/modules/payments/service';
+import * as leadsService from '@/modules/leads/service';
 // Permitted cross-module call, same posture as communications: every new/
 // returning registrant gets student-portal access (system review, 2026-07-22).
 import { ensureParticipantAuth } from '@/modules/portal/service';
@@ -124,6 +125,23 @@ export async function createRegistration(
   const payment = await registrationsRepository.insertInitialPayment({
     registration_id: registration.id,
     course_fee: effectiveCourseFee(batch, todayIso),
+  });
+
+  await leadsService.createLead({
+    registrationId: registration.id,
+    participantId: participant.id,
+    fullName,
+    email: input.email,
+    phone: input.phone,
+    jobTitle: input.jobTitle,
+    company: input.company,
+    leadSource: input.leadSource,
+    status: 'New',
+    score: 20,
+  }).catch((err) => {
+    // Same non-blocking posture as email/WhatsApp/SMS (P4.01): a lead-record
+    // failure must never fail the registration itself.
+    console.error('[registration lead creation]', err);
   });
 
   // E01, E02, E03 — email failures never fail the registration itself

@@ -81,6 +81,7 @@ export type Database = {
         Row: {
           class_reminder_enabled: boolean
           cohort_label: string
+          capacity: number | null
           course_fee: number
           course_id: string
           created_at: string
@@ -105,6 +106,7 @@ export type Database = {
         Insert: {
           class_reminder_enabled?: boolean
           cohort_label: string
+          capacity?: number | null
           course_fee: number
           course_id: string
           created_at?: string
@@ -129,6 +131,7 @@ export type Database = {
         Update: {
           class_reminder_enabled?: boolean
           cohort_label?: string
+          capacity?: number | null
           course_fee?: number
           course_id?: string
           created_at?: string
@@ -530,6 +533,82 @@ export type Database = {
           },
         ]
       }
+      leads: {
+        Row: {
+          assigned_to: string | null
+          company: string | null
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          job_title: string | null
+          lead_source: string
+          notes: string | null
+          participant_id: string | null
+          phone: string
+          registration_id: string | null
+          score: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          company?: string | null
+          created_at?: string
+          email: string
+          full_name: string
+          id?: string
+          job_title?: string | null
+          lead_source?: string
+          notes?: string | null
+          participant_id?: string | null
+          phone: string
+          registration_id?: string | null
+          score?: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          company?: string | null
+          created_at?: string
+          email?: string
+          full_name?: string
+          id?: string
+          job_title?: string | null
+          lead_source?: string
+          notes?: string | null
+          participant_id?: string | null
+          phone?: string
+          registration_id?: string | null
+          score?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "leads_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "participants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       participants: {
         Row: {
           company: string | null
@@ -653,6 +732,66 @@ export type Database = {
             columns: ["participant_id"]
             isOneToOne: false
             referencedRelation: "participants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_installments: {
+        Row: {
+          amount_due: number
+          amount_paid: number
+          created_at: string
+          due_date: string
+          id: string
+          installment_number: number
+          paid_at: string | null
+          payment_id: string
+          payment_status: string
+          registration_id: string
+          transaction_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          amount_due: number
+          amount_paid?: number
+          created_at?: string
+          due_date: string
+          id?: string
+          installment_number: number
+          paid_at?: string | null
+          payment_id: string
+          payment_status?: string
+          registration_id: string
+          transaction_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          amount_due?: number
+          amount_paid?: number
+          created_at?: string
+          due_date?: string
+          id?: string
+          installment_number?: number
+          paid_at?: string | null
+          payment_id?: string
+          payment_status?: string
+          registration_id?: string
+          transaction_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_installments_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_installments_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
             referencedColumns: ["id"]
           },
         ]
@@ -938,6 +1077,70 @@ export type Database = {
           },
         ]
       }
+      waitlist_entries: {
+        Row: {
+          batch_id: string
+          consent_given: boolean
+          converted_registration_id: string | null
+          created_at: string
+          id: string
+          lead_source: string
+          notes: string | null
+          offered_at: string | null
+          participant_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          batch_id: string
+          consent_given?: boolean
+          converted_registration_id?: string | null
+          created_at?: string
+          id?: string
+          lead_source: string
+          notes?: string | null
+          offered_at?: string | null
+          participant_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          batch_id?: string
+          consent_given?: boolean
+          converted_registration_id?: string | null
+          created_at?: string
+          id?: string
+          lead_source?: string
+          notes?: string | null
+          offered_at?: string | null
+          participant_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "waitlist_entries_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_converted_registration_id_fkey"
+            columns: ["converted_registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "waitlist_entries_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "participants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       zoom_registrants: {
         Row: {
           created_at: string
@@ -1136,3 +1339,7 @@ export const Constants = {
     Enums: {},
   },
 } as const
+
+
+
+

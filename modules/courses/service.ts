@@ -38,6 +38,7 @@ function toBatch(row: BatchRow): Batch {
     id: row.id,
     courseId: row.course_id,
     cohortLabel: row.cohort_label,
+    capacity: row.capacity,
     courseFee: Number(row.course_fee),
     startDate: row.start_date,
     startTime: row.start_time,
@@ -209,15 +210,23 @@ export async function updateBatch(batchId: string, changes: BatchUpdate): Promis
 // start date of today or later.
 export async function getActiveBatchesForPublicForm(): Promise<PublicBatchOption[]> {
   const rows = await coursesRepository.selectActiveFutureBatchesPublic();
-  return rows.map((row) => ({
+  const usage = await coursesRepository.countRegistrationsByBatchIdsSystem(rows.map((row) => row.id));
+  return rows.map((row) => {
+    const registered = usage.get(row.id) ?? 0;
+    const seatsRemaining = row.capacity === null ? null : Math.max(row.capacity - registered, 0);
+    return {
     batchId: row.id,
     courseName: row.courses?.course_name ?? '',
     cohortLabel: row.cohort_label,
     startDate: row.start_date,
     courseFee: Number(row.course_fee),
+    capacity: row.capacity,
+    seatsRemaining,
+    isFull: seatsRemaining !== null && seatsRemaining <= 0,
     discountCutoffDate: row.discount_cutoff_date,
     discountedFee: row.discounted_fee === null ? null : Number(row.discounted_fee),
-  }));
+    };
+  });
 }
 
 // Exposed to the registrations module for BR-01 validation and fee copy.
@@ -237,6 +246,7 @@ function toBatchInsert(input: BatchInput): Database['public']['Tables']['batches
   return {
     course_id: input.courseId,
     cohort_label: input.cohortLabel,
+    capacity: input.capacity ?? null,
     course_fee: input.courseFee,
     start_date: input.startDate,
     start_time: input.startTime,
@@ -263,3 +273,4 @@ export function isPostgresUniqueViolation(err: unknown): boolean {
     (err as { code: unknown }).code === '23505'
   );
 }
+

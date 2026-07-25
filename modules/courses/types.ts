@@ -24,6 +24,7 @@ export interface Batch {
   id: string;
   courseId: string;
   cohortLabel: string;
+  capacity: number | null;
   courseFee: number;
   startDate: string;
   startTime: string;
@@ -56,6 +57,9 @@ export interface PublicBatchOption {
   cohortLabel: string;
   startDate: string;
   courseFee: number;
+  capacity: number | null;
+  seatsRemaining: number | null;
+  isFull: boolean;
   discountCutoffDate: string | null;
   discountedFee: number | null;
 }
@@ -123,6 +127,7 @@ export const batchInputSchema = z
   .object({
     courseId: z.uuid(),
     cohortLabel: z.string().trim().min(1),
+    capacity: z.number().int().positive().nullable().optional(),
     courseFee: z.number().min(0),
     startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     startTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
@@ -162,6 +167,7 @@ export const batchInputSchema = z
 export const batchUpdateSchema = z
   .object({
     cohortLabel: z.string().trim().min(1).optional(),
+    capacity: z.number().int().positive().nullable().optional(),
     courseFee: z.number().min(0).optional(),
     startDate: z
       .string()
@@ -199,3 +205,5 @@ export const batchUpdateSchema = z
 export type CourseInput = z.infer<typeof courseInputSchema>;
 export type BatchInput = z.infer<typeof batchInputSchema>;
 export type BatchUpdate = z.infer<typeof batchUpdateSchema>;
+
+

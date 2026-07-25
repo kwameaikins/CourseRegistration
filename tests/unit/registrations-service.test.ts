@@ -24,6 +24,9 @@ const usersServiceMock = {
 const paymentsServiceMock = {
   applyPaymentUpdate: vi.fn(),
 };
+const leadsServiceMock = {
+  createLead: vi.fn(),
+};
 const attendanceServiceMock = {
   reregisterForZoomAfterTransfer: vi.fn(),
 };
@@ -36,6 +39,7 @@ vi.mock('@/modules/registrations/repository', () => registrationsRepositoryMock)
 vi.mock('@/modules/courses/service', () => coursesServiceMock);
 vi.mock('@/modules/users/service', () => usersServiceMock);
 vi.mock('@/modules/payments/service', () => paymentsServiceMock);
+vi.mock('@/modules/leads/service', () => leadsServiceMock);
 vi.mock('@/modules/attendance/service', () => attendanceServiceMock);
 vi.mock('@/modules/communications/service', () => ({
   sendEmailOnce: (...args: unknown[]) => sendEmailOnceMock(...args),
@@ -138,6 +142,7 @@ beforeEach(() => {
     registrationStatus: 'Confirmed',
     verifiedBy: 'Jane Doe (marketing)',
   });
+  leadsServiceMock.createLead.mockResolvedValue({ id: 'lead-1' });
   sendEmailOnceMock.mockResolvedValue('sent');
   sendWhatsappOnceMock.mockResolvedValue('sent');
   sendSmsOnceMock.mockResolvedValue('sent');
@@ -211,6 +216,23 @@ describe('deep-endpoint orchestration (Document 5, Section 2)', () => {
 
     expect(registrationsRepositoryMock.findOrCreateParticipant).toHaveBeenCalledWith(
       expect.objectContaining({ job_title: 'Finance Manager', company: 'Acme Ltd' }),
+    );
+  });
+
+  it('creates a lead record from the registration flow', async () => {
+    await createRegistration(validInput());
+
+    expect(leadsServiceMock.createLead).toHaveBeenCalledWith(
+      expect.objectContaining({
+        registrationId: 'reg-1',
+        participantId: 'participant-1',
+        fullName: 'Ama Owusu',
+        email: 'ama.owusu@example.com',
+        phone: '+233241234567',
+        company: 'N/A',
+        jobTitle: 'N/A',
+        leadSource: 'WhatsApp',
+      }),
     );
   });
 
