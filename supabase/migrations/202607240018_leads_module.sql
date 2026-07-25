@@ -22,7 +22,7 @@ create index if not exists leads_created_at_idx on public.leads (created_at desc
 
 alter table public.leads enable row level security;
 
-create policy if not exists "staff can read leads" on public.leads
+create policy staff_read_leads on public.leads
 for select to authenticated
 using (
   exists (
@@ -31,7 +31,7 @@ using (
   )
 );
 
-create policy if not exists "staff can insert leads" on public.leads
+create policy staff_insert_leads on public.leads
 for insert to authenticated
 with check (
   exists (
@@ -40,7 +40,7 @@ with check (
   )
 );
 
-create policy if not exists "staff can update leads" on public.leads
+create policy staff_update_leads on public.leads
 for update to authenticated
 using (
   exists (
