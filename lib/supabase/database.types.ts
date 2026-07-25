@@ -654,6 +654,41 @@ export type Database = {
           },
         ]
       }
+      lead_assignment_rules: {
+        Row: {
+          assigned_to: string
+          created_at: string
+          id: string
+          is_active: boolean
+          lead_source: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          lead_source: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          lead_source?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_assignment_rules_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       opportunities: {
         Row: {
           amount: number

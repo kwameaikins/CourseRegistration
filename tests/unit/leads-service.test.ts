@@ -8,15 +8,28 @@ const leadsRepositoryMock = {
   insertLeadActivity: vi.fn(),
   selectLeadActivities: vi.fn(),
   selectStaffFullName: vi.fn(),
+  selectActiveAssignmentRuleByLeadSource: vi.fn(),
+  selectAssignmentRules: vi.fn(),
+  insertAssignmentRule: vi.fn(),
+  updateAssignmentRule: vi.fn(),
 };
 
 vi.mock('@/modules/leads/repository', () => leadsRepositoryMock);
 
-const { calculateLeadScore, createLead, getPipelineSummary, getLeadWithActivities, updateLead } =
-  await import('@/modules/leads/service');
+const {
+  calculateLeadScore,
+  createLead,
+  getPipelineSummary,
+  getLeadWithActivities,
+  updateLead,
+  listAssignmentRules,
+  createAssignmentRule,
+  updateAssignmentRule: updateAssignmentRuleService,
+} = await import('@/modules/leads/service');
 
 beforeEach(() => {
   vi.clearAllMocks();
+  leadsRepositoryMock.selectActiveAssignmentRuleByLeadSource.mockResolvedValue(null);
 });
 
 describe('calculateLeadScore', () => {
@@ -102,6 +115,124 @@ describe('createLead', () => {
     expect(leadsRepositoryMock.insertLeadActivity).toHaveBeenCalledWith(
       expect.objectContaining({ lead_id: 'lead-1', activity_type: 'created', performed_by: null }),
     );
+  });
+
+  it('auto-assigns to the matching active rule when no assignee is given', async () => {
+    leadsRepositoryMock.insertLead.mockResolvedValue({ id: 'lead-1' });
+    leadsRepositoryMock.selectActiveAssignmentRuleByLeadSource.mockResolvedValue({
+      id: 'rule-1',
+      lead_source: 'WhatsApp',
+      assigned_to: 'staff-1',
+      is_active: true,
+    });
+    leadsRepositoryMock.selectStaffFullName.mockResolvedValue('Jane Doe');
+
+    await createLead(validInput());
+
+    expect(leadsRepositoryMock.selectActiveAssignmentRuleByLeadSource).toHaveBeenCalledWith(
+      'WhatsApp',
+    );
+    expect(leadsRepositoryMock.insertLead).toHaveBeenCalledWith(
+      expect.objectContaining({ assignedTo: 'staff-1' }),
+    );
+    expect(leadsRepositoryMock.insertLeadActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lead_id: 'lead-1',
+        activity_type: 'assigned',
+        description: expect.stringContaining('Jane Doe'),
+      }),
+    );
+  });
+
+  it('does not look up a rule when an explicit assignee is provided', async () => {
+    leadsRepositoryMock.insertLead.mockResolvedValue({ id: 'lead-1' });
+
+    await createLead(validInput({ assignedTo: '11111111-1111-4111-8111-111111111111' }));
+
+    expect(leadsRepositoryMock.selectActiveAssignmentRuleByLeadSource).not.toHaveBeenCalled();
+    expect(leadsRepositoryMock.insertLead).toHaveBeenCalledWith(
+      expect.objectContaining({ assignedTo: '11111111-1111-4111-8111-111111111111' }),
+    );
+  });
+
+  it('leaves the lead unassigned when no matching rule exists', async () => {
+    leadsRepositoryMock.insertLead.mockResolvedValue({ id: 'lead-1' });
+    leadsRepositoryMock.selectActiveAssignmentRuleByLeadSource.mockResolvedValue(null);
+
+    await createLead(validInput());
+
+    expect(leadsRepositoryMock.insertLead).toHaveBeenCalledWith(
+      expect.objectContaining({ assignedTo: null }),
+    );
+    expect(leadsRepositoryMock.insertLeadActivity).not.toHaveBeenCalledWith(
+      expect.objectContaining({ activity_type: 'assigned' }),
+    );
+  });
+});
+
+describe('lead assignment rules', () => {
+  it('lists rules mapped to camelCase', async () => {
+    leadsRepositoryMock.selectAssignmentRules.mockResolvedValue([
+      {
+        id: 'rule-1',
+        lead_source: 'WhatsApp',
+        assigned_to: 'staff-1',
+        is_active: true,
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+      },
+    ]);
+
+    const result = await listAssignmentRules();
+
+    expect(result).toEqual([
+      {
+        id: 'rule-1',
+        leadSource: 'WhatsApp',
+        assignedTo: 'staff-1',
+        isActive: true,
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-01T00:00:00Z',
+      },
+    ]);
+  });
+
+  it('creates a rule via the repository and maps the result', async () => {
+    leadsRepositoryMock.insertAssignmentRule.mockResolvedValue({
+      id: 'rule-2',
+      lead_source: 'Referral',
+      assigned_to: 'staff-3',
+      is_active: true,
+      created_at: '2026-01-02T00:00:00Z',
+      updated_at: '2026-01-02T00:00:00Z',
+    });
+
+    const result = await createAssignmentRule({ leadSource: 'Referral', assignedTo: 'staff-3' });
+
+    expect(leadsRepositoryMock.insertAssignmentRule).toHaveBeenCalledWith({
+      leadSource: 'Referral',
+      assignedTo: 'staff-3',
+    });
+    expect(result.leadSource).toBe('Referral');
+    expect(result.assignedTo).toBe('staff-3');
+  });
+
+  it('updates a rule via the repository and maps the result', async () => {
+    leadsRepositoryMock.updateAssignmentRule.mockResolvedValue({
+      id: 'rule-2',
+      lead_source: 'Referral',
+      assigned_to: 'staff-3',
+      is_active: false,
+      created_at: '2026-01-02T00:00:00Z',
+      updated_at: '2026-01-03T00:00:00Z',
+    });
+
+    const result = await updateAssignmentRuleService('rule-2', { isActive: false });
+
+    expect(leadsRepositoryMock.updateAssignmentRule).toHaveBeenCalledWith('rule-2', {
+      isActive: false,
+    });
+    expect(result.isActive).toBe(false);
   });
 });
 

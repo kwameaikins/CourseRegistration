@@ -1,11 +1,19 @@
 import { AppError } from '@/lib/errors';
 import * as leadsRepository from '@/modules/leads/repository';
-import type { CreateLeadInput, Lead, LeadActivity } from '@/modules/leads/types';
+import type {
+  CreateLeadAssignmentRuleInput,
+  CreateLeadInput,
+  Lead,
+  LeadActivity,
+  LeadAssignmentRule,
+  UpdateLeadAssignmentRuleInput,
+} from '@/modules/leads/types';
 import { createLeadInputSchema } from '@/modules/leads/types';
 import type { Database } from '@/lib/supabase/database.types';
 
 type LeadRow = Database['public']['Tables']['leads']['Row'];
 type LeadActivityRow = Database['public']['Tables']['lead_activities']['Row'];
+type LeadAssignmentRuleRow = Database['public']['Tables']['lead_assignment_rules']['Row'];
 
 // The repository only ever deals in raw snake_case DB rows; everything this
 // service hands back to routes/UI must be the camelCase domain shape
@@ -39,6 +47,17 @@ function toLeadActivity(row: LeadActivityRow): LeadActivity {
     description: row.description,
     performedBy: row.performed_by,
     createdAt: row.created_at,
+  };
+}
+
+function toAssignmentRule(row: LeadAssignmentRuleRow): LeadAssignmentRule {
+  return {
+    id: row.id,
+    leadSource: row.lead_source,
+    assignedTo: row.assigned_to,
+    isActive: row.is_active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -102,8 +121,30 @@ export async function createLead(input: CreateLeadInput): Promise<Lead> {
   try {
     const parsed = createLeadInputSchema.parse(input);
     const score = parsed.score ?? calculateLeadScore(parsed);
-    const lead = await leadsRepository.insertLead({ ...parsed, score });
+
+    // Lead assignment rules (Phase 2 roadmap item): only auto-route when the
+    // caller didn't already specify an assignee — an explicit assignedTo
+    // (e.g. staff manually creating a lead for themselves) always wins.
+    let assignedTo = parsed.assignedTo ?? null;
+    let autoAssignedRule: LeadAssignmentRuleRow | null = null;
+    if (!assignedTo) {
+      autoAssignedRule = await leadsRepository.selectActiveAssignmentRuleByLeadSource(
+        parsed.leadSource,
+      );
+      if (autoAssignedRule) assignedTo = autoAssignedRule.assigned_to;
+    }
+
+    const lead = await leadsRepository.insertLead({ ...parsed, score, assignedTo });
     await logActivity(lead.id, 'created', `Lead captured from ${parsed.leadSource}.`, null);
+    if (autoAssignedRule) {
+      const staffName = await leadsRepository.selectStaffFullName(autoAssignedRule.assigned_to);
+      await logActivity(
+        lead.id,
+        'assigned',
+        `Auto-assigned to ${staffName ?? 'a staff member'} (${parsed.leadSource} rule).`,
+        null,
+      );
+    }
     return toLead(lead);
   } catch (err) {
     console.error('[leads createLead]', err);
@@ -220,4 +261,27 @@ export async function updateLead(
   }
 
   return toLead(updated);
+}
+
+// Lead assignment rules (Phase 2 roadmap item) — admin-managed routing
+// config; enforcement of the admin-only write happens in the API routes,
+// same pattern as every other admin-gated write in this codebase.
+export async function listAssignmentRules(): Promise<LeadAssignmentRule[]> {
+  const rows = await leadsRepository.selectAssignmentRules();
+  return rows.map(toAssignmentRule);
+}
+
+export async function createAssignmentRule(
+  input: CreateLeadAssignmentRuleInput,
+): Promise<LeadAssignmentRule> {
+  const row = await leadsRepository.insertAssignmentRule(input);
+  return toAssignmentRule(row);
+}
+
+export async function updateAssignmentRule(
+  id: string,
+  input: UpdateLeadAssignmentRuleInput,
+): Promise<LeadAssignmentRule> {
+  const row = await leadsRepository.updateAssignmentRule(id, input);
+  return toAssignmentRule(row);
 }

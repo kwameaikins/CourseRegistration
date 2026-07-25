@@ -51,6 +51,7 @@ export const NAV_ITEMS_BY_ROLE: Record<StaffRole, { href: string; label: string 
     { href: '/registrations', label: 'Registrations' },
     { href: '/registrations/import', label: 'Import Registrations' },
     { href: '/sales', label: 'Sales Pipeline' },
+    { href: '/leads/assignment-rules', label: 'Lead Routing Rules' },
     { href: '/payments', label: 'Payments' },
     { href: '/courses', label: 'Courses' },
     { href: '/attendance', label: 'Attendance' },

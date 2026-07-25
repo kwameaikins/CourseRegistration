@@ -58,3 +58,29 @@ export const createLeadInputSchema = z.object({
 });
 
 export type CreateLeadInput = z.infer<typeof createLeadInputSchema>;
+
+// Lead assignment rules (Revenue OS Phase 2 roadmap item): auto-route a new
+// lead to a staff member based on its lead_source, one active rule per
+// source.
+export interface LeadAssignmentRule {
+  id: string;
+  leadSource: string;
+  assignedTo: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const createLeadAssignmentRuleInputSchema = z.object({
+  leadSource: z.string().trim().min(1).max(50),
+  assignedTo: z.string().uuid(),
+});
+
+export type CreateLeadAssignmentRuleInput = z.infer<typeof createLeadAssignmentRuleInputSchema>;
+
+export const updateLeadAssignmentRuleInputSchema = z.object({
+  assignedTo: z.string().uuid().optional(),
+  isActive: z.boolean().optional(),
+});
+
+export type UpdateLeadAssignmentRuleInput = z.infer<typeof updateLeadAssignmentRuleInputSchema>;

@@ -1,9 +1,14 @@
 import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import type { Database } from '@/lib/supabase/database.types';
-import type { CreateLeadInput } from '@/modules/leads/types';
+import type {
+  CreateLeadAssignmentRuleInput,
+  CreateLeadInput,
+  UpdateLeadAssignmentRuleInput,
+} from '@/modules/leads/types';
 
 type LeadRow = Database['public']['Tables']['leads']['Row'];
 type LeadActivityRow = Database['public']['Tables']['lead_activities']['Row'];
+type LeadAssignmentRuleRow = Database['public']['Tables']['lead_assignment_rules']['Row'];
 
 export async function insertLead(input: CreateLeadInput): Promise<LeadRow> {
   const supabase = createSupabaseServiceRoleClient();
@@ -103,3 +108,65 @@ export async function selectStaffFullName(staffId: string): Promise<string | nul
   if (error) throw error;
   return data?.full_name ?? null;
 }
+
+// Lead assignment rules (Revenue OS Phase 2 roadmap item).
+export async function selectActiveAssignmentRuleByLeadSource(
+  leadSource: string,
+): Promise<LeadAssignmentRuleRow | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('lead_assignment_rules')
+    .select('*')
+    .ilike('lead_source', leadSource)
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function selectAssignmentRules(): Promise<LeadAssignmentRuleRow[]> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('lead_assignment_rules')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function insertAssignmentRule(
+  input: CreateLeadAssignmentRuleInput,
+): Promise<LeadAssignmentRuleRow> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('lead_assignment_rules')
+    .insert({ lead_source: input.leadSource, assigned_to: input.assignedTo })
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function updateAssignmentRule(
+  id: string,
+  changes: UpdateLeadAssignmentRuleInput,
+): Promise<LeadAssignmentRuleRow> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('lead_assignment_rules')
+    .update({
+      ...(changes.assignedTo !== undefined ? { assigned_to: changes.assignedTo } : {}),
+      ...(changes.isActive !== undefined ? { is_active: changes.isActive } : {}),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
