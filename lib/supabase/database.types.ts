@@ -654,6 +654,101 @@ export type Database = {
           },
         ]
       }
+      campaigns: {
+        Row: {
+          channel: string
+          created_at: string
+          created_by: string | null
+          filter_lead_source: string | null
+          filter_min_score: number | null
+          filter_status: string | null
+          id: string
+          message_body: string
+          message_subject: string | null
+          name: string
+          queued_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          channel: string
+          created_at?: string
+          created_by?: string | null
+          filter_lead_source?: string | null
+          filter_min_score?: number | null
+          filter_status?: string | null
+          id?: string
+          message_body: string
+          message_subject?: string | null
+          name: string
+          queued_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          created_by?: string | null
+          filter_lead_source?: string | null
+          filter_min_score?: number | null
+          filter_status?: string | null
+          id?: string
+          message_body?: string
+          message_subject?: string | null
+          name?: string
+          queued_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaigns_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaign_members: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          id: string
+          lead_id: string
+          preview_message: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          id?: string
+          lead_id: string
+          preview_message: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          id?: string
+          lead_id?: string
+          preview_message?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_members_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_members_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_assignment_rules: {
         Row: {
           assigned_to: string
