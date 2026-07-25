@@ -137,7 +137,8 @@ export async function createRegistration(
     company: input.company,
     leadSource: input.leadSource,
     status: 'New',
-    score: 20,
+    // score omitted on purpose — leadsService.createLead computes it
+    // automatically from these same signals (calculateLeadScore).
   }).catch((err) => {
     // Same non-blocking posture as email/WhatsApp/SMS (P4.01): a lead-record
     // failure must never fail the registration itself.

@@ -27,6 +27,13 @@ interface LeadDetail {
   updated_at: string;
 }
 
+interface LeadActivity {
+  id: string;
+  activity_type: string;
+  description: string;
+  created_at: string;
+}
+
 export function LeadDetailDialog({
   leadId,
   onClose,
@@ -35,17 +42,22 @@ export function LeadDetailDialog({
   onClose: () => void;
 }) {
   const [lead, setLead] = useState<LeadDetail | null>(null);
+  const [activities, setActivities] = useState<LeadActivity[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!leadId) {
       setLead(null);
+      setActivities([]);
       return;
     }
     void (async () => {
       try {
-        const result = await apiFetch<{ lead: LeadDetail }>(`/api/leads/${leadId}`);
+        const result = await apiFetch<{ lead: LeadDetail; activities: LeadActivity[] }>(
+          `/api/leads/${leadId}`,
+        );
         setLead(result.lead);
+        setActivities(result.activities);
       } catch (err) {
         setErrorMessage(err instanceof Error ? err.message : 'Failed to load lead.');
       }
@@ -86,6 +98,23 @@ export function LeadDetailDialog({
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>Created {new Date(lead.created_at).toLocaleString()}</span>
               <span>Updated {new Date(lead.updated_at).toLocaleString()}</span>
+            </div>
+            <div>
+              <p className="mb-2 text-muted-foreground">Activity</p>
+              {activities.length === 0 ? (
+                <p className="text-muted-foreground">No activity recorded yet.</p>
+              ) : (
+                <ul className="max-h-48 space-y-2 overflow-y-auto border-l pl-3">
+                  {activities.map((activity) => (
+                    <li key={activity.id}>
+                      <p>{activity.description}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(activity.created_at).toLocaleString()}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
         )}

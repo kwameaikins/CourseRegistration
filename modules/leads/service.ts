@@ -3,10 +3,69 @@ import * as leadsRepository from '@/modules/leads/repository';
 import type { CreateLeadInput } from '@/modules/leads/types';
 import { createLeadInputSchema } from '@/modules/leads/types';
 
+// Lead source channels ranked by how likely they are to convert, per the
+// founders' informal read of past intake data (referrals and LinkedIn
+// professionals convert best; Facebook/organic traffic is the coldest).
+// Unlisted/unknown sources score 0 for this component.
+const LEAD_SOURCE_WEIGHTS: Record<string, number> = {
+  Referral: 30,
+  LinkedIn: 20,
+  Website: 15,
+  WhatsApp: 10,
+  Facebook: 5,
+};
+
+// A registrant who typed "N/A" (the form's own suggested placeholder for
+// "not applicable") hasn't actually told us anything — treat it the same as
+// a blank field rather than rewarding it as a present value.
+function isMeaningfulValue(value: string | null | undefined): boolean {
+  return !!value && value.trim().length > 0 && value.trim().toLowerCase() !== 'n/a';
+}
+
+// Automatic lead score (Phase 1 Revenue OS roadmap): a lightweight,
+// explainable heuristic from signals already available at lead-creation
+// time — no external data or ML involved. Staff can always override the
+// result afterwards via the leads page's score field. Capped at 100.
+export function calculateLeadScore(input: {
+  jobTitle?: string | null;
+  company?: string | null;
+  leadSource: string;
+}): number {
+  let score = 10; // base score — every captured lead has some value.
+  if (isMeaningfulValue(input.jobTitle)) score += 20;
+  if (isMeaningfulValue(input.company)) score += 15;
+  score += LEAD_SOURCE_WEIGHTS[input.leadSource] ?? 0;
+  return Math.min(score, 100);
+}
+
+// Activity logging is a side effect of the primary lead write, never the
+// other way around (same non-blocking posture as email/WhatsApp/SMS —
+// P4.01): a logging failure must never sink lead creation/updates.
+async function logActivity(
+  leadId: string,
+  activityType: 'created' | 'status_changed' | 'assigned' | 'unassigned' | 'score_changed' | 'note_updated',
+  description: string,
+  performedBy: string | null,
+): Promise<void> {
+  try {
+    await leadsRepository.insertLeadActivity({
+      lead_id: leadId,
+      activity_type: activityType,
+      description,
+      performed_by: performedBy,
+    });
+  } catch (err) {
+    console.error('[leads activity log]', err);
+  }
+}
+
 export async function createLead(input: CreateLeadInput) {
   try {
     const parsed = createLeadInputSchema.parse(input);
-    return await leadsRepository.insertLead(parsed);
+    const score = parsed.score ?? calculateLeadScore(parsed);
+    const lead = await leadsRepository.insertLead({ ...parsed, score });
+    await logActivity(lead.id, 'created', `Lead captured from ${parsed.leadSource}.`, null);
+    return lead;
   } catch (err) {
     console.error('[leads createLead]', err);
     if (err instanceof AppError) throw err;
@@ -24,6 +83,14 @@ export async function getLeadById(id: string) {
     throw new AppError('NOT_FOUND', 'Lead not found.', 404);
   }
   return lead;
+}
+
+// Lead detail view (Phase 1 Revenue OS roadmap): the current record plus
+// its full activity timeline, newest first.
+export async function getLeadWithActivities(id: string) {
+  const lead = await getLeadById(id);
+  const activities = await leadsRepository.selectLeadActivities(id);
+  return { lead, activities };
 }
 
 export async function getPipelineSummary() {
@@ -47,9 +114,15 @@ export async function getPipelineSummary() {
 export async function updateLead(
   id: string,
   input: { status?: string; notes?: string | null; assignedTo?: string | null; score?: number },
+  performedBy: string | null = null,
 ) {
   if (!id) {
     throw new AppError('VALIDATION_ERROR', 'Lead id is required.', 400);
+  }
+
+  const existing = await leadsRepository.selectLeadById(id);
+  if (!existing) {
+    throw new AppError('NOT_FOUND', 'Lead not found.', 404);
   }
 
   const changes: Record<string, string | number | null> = {};
@@ -58,5 +131,35 @@ export async function updateLead(
   if (input.assignedTo !== undefined) changes.assigned_to = input.assignedTo;
   if (input.score !== undefined) changes.score = input.score;
 
-  return leadsRepository.updateLead(id, changes);
+  const updated = await leadsRepository.updateLead(id, changes);
+
+  if (input.status !== undefined && input.status !== existing.status) {
+    await logActivity(
+      id,
+      'status_changed',
+      `Status changed from "${existing.status}" to "${updated.status}".`,
+      performedBy,
+    );
+  }
+  if (input.assignedTo !== undefined && input.assignedTo !== existing.assigned_to) {
+    if (updated.assigned_to) {
+      const staffName = await leadsRepository.selectStaffFullName(updated.assigned_to).catch(() => null);
+      await logActivity(id, 'assigned', `Assigned to ${staffName ?? 'a staff member'}.`, performedBy);
+    } else {
+      await logActivity(id, 'unassigned', 'Unassigned.', performedBy);
+    }
+  }
+  if (input.score !== undefined && input.score !== existing.score) {
+    await logActivity(
+      id,
+      'score_changed',
+      `Score changed from ${existing.score} to ${updated.score}.`,
+      performedBy,
+    );
+  }
+  if (input.notes !== undefined && input.notes !== existing.notes) {
+    await logActivity(id, 'note_updated', 'Note updated.', performedBy);
+  }
+
+  return updated;
 }

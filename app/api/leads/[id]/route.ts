@@ -6,8 +6,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   try {
     await usersService.requireRole(['admin', 'marketing', 'management']);
     const { id } = await params;
-    const lead = await leadsService.getLeadById(id);
-    return successResponse({ lead });
+    const { lead, activities } = await leadsService.getLeadWithActivities(id);
+    return successResponse({ lead, activities });
   } catch (err) {
     return handleRouteError(err);
   }
@@ -15,10 +15,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await usersService.requireRole(['admin', 'marketing', 'management']);
+    const staffUser = await usersService.requireRole(['admin', 'marketing', 'management']);
     const { id } = await params;
     const body = await request.json();
-    const result = await leadsService.updateLead(id, body);
+    const result = await leadsService.updateLead(id, body, staffUser.id);
     return successResponse(result);
   } catch (err) {
     return handleRouteError(err);
