@@ -11,12 +11,16 @@ const usersServiceMock = {
   requireRole: vi.fn(),
 };
 const sendTransactionalEmailMock = vi.fn();
+const leadsServiceMock = {
+  createLead: vi.fn(),
+};
 
 vi.mock('@/modules/waitlist/repository', () => waitlistRepositoryMock);
 vi.mock('@/modules/users/service', () => usersServiceMock);
 vi.mock('@/lib/resend/client', () => ({
   sendTransactionalEmail: (...args: unknown[]) => sendTransactionalEmailMock(...args),
 }));
+vi.mock('@/modules/leads/service', () => leadsServiceMock);
 
 const { joinWaitlist, notifyNextIfSeatAvailable, getWaitlistForBatch } = await import(
   '@/modules/waitlist/service'
@@ -32,6 +36,7 @@ beforeEach(() => {
     fullName: 'Jane Doe',
     role: 'admin',
   });
+  leadsServiceMock.createLead.mockResolvedValue({ id: 'lead-1' });
 });
 
 describe('joinWaitlist', () => {
@@ -39,11 +44,30 @@ describe('joinWaitlist', () => {
     participantId: 'participant-1',
     participantEmail: 'ama@example.com',
     participantFullName: 'Ama Owusu',
+    participantPhone: '+233241234567',
     batchId: 'batch-1',
     courseName: 'AI for Business',
     cohortLabel: 'Cohort 4',
     leadSource: 'WhatsApp' as const,
   };
+
+  it('also creates a lead (2026-07-26) — waitlisted signups previously never became leads', async () => {
+    await joinWaitlist(input);
+    expect(leadsServiceMock.createLead).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fullName: 'Ama Owusu',
+        email: 'ama@example.com',
+        phone: '+233241234567',
+        leadSource: 'WhatsApp',
+        status: 'New',
+      }),
+    );
+  });
+
+  it('still succeeds if lead creation fails (non-blocking)', async () => {
+    leadsServiceMock.createLead.mockRejectedValue(new Error('lead service down'));
+    await expect(joinWaitlist(input)).resolves.toEqual({ waitlistId: 'waitlist-1' });
+  });
 
   it('inserts a waitlist entry and returns its id', async () => {
     const result = await joinWaitlist(input);

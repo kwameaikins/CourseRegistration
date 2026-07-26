@@ -92,6 +92,26 @@ export default function LeadAssignmentRulesPage() {
     }
   }
 
+  // Explicit, staff-triggered bulk action — a new/reactivated rule never
+  // used to retroactively catch existing unassigned leads matching its
+  // source; this applies it on demand, with a visible result count, rather
+  // than silently reassigning things in the background.
+  async function applyToExisting(rule: AssignmentRule) {
+    setSavingId(rule.id);
+    setErrorMessage(null);
+    try {
+      const result = await apiFetch<{ assignedCount: number }>(
+        `/api/leads/assignment-rules/${rule.id}/backfill`,
+        { method: 'POST' },
+      );
+      window.alert(`Assigned ${result.assignedCount} existing unassigned lead(s) to ${staffName(rule.assignedTo)}.`);
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to apply this rule to existing leads.');
+    } finally {
+      setSavingId(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -168,14 +188,26 @@ export default function LeadAssignmentRulesPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => void toggleActive(rule)}
-                      disabled={savingId === rule.id}
-                    >
-                      {rule.isActive ? 'Deactivate' : 'Activate'}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void toggleActive(rule)}
+                        disabled={savingId === rule.id}
+                      >
+                        {rule.isActive ? 'Deactivate' : 'Activate'}
+                      </Button>
+                      {rule.isActive && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => void applyToExisting(rule)}
+                          disabled={savingId === rule.id}
+                        >
+                          Apply to existing unassigned leads
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

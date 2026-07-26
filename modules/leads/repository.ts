@@ -3,6 +3,7 @@ import type { Database } from '@/lib/supabase/database.types';
 import type {
   CreateLeadAssignmentRuleInput,
   CreateLeadInput,
+  ListLeadsFilters,
   UpdateLeadAssignmentRuleInput,
 } from '@/modules/leads/types';
 
@@ -35,12 +36,31 @@ export async function insertLead(input: CreateLeadInput): Promise<LeadRow> {
   return data;
 }
 
-export async function selectLeads(): Promise<LeadRow[]> {
+// Server-side filtering (replaces "fetch everything, filter in the
+// browser") — a sane cap, not full pagination infrastructure, since this
+// business's lead volume doesn't warrant it yet.
+const LEADS_QUERY_LIMIT = 500;
+
+export async function selectLeads(filters: ListLeadsFilters = {}): Promise<LeadRow[]> {
   const supabase = createSupabaseServiceRoleClient();
-  const { data, error } = await supabase
-    .from('leads')
-    .select('*')
-    .order('created_at', { ascending: false });
+  let query = supabase.from('leads').select('*');
+
+  if (filters.status) query = query.eq('status', filters.status);
+  if (filters.leadSource) query = query.eq('lead_source', filters.leadSource);
+  if (filters.assignedTo) query = query.eq('assigned_to', filters.assignedTo);
+  if (filters.dueForFollowUp) {
+    query = query.not('next_follow_up_at', 'is', null).lte('next_follow_up_at', new Date().toISOString());
+  }
+  if (filters.search) {
+    const term = `%${filters.search}%`;
+    query = query.or(
+      `full_name.ilike.${term},email.ilike.${term},company.ilike.${term}`,
+    );
+  }
+
+  const { data, error } = await query
+    .order('created_at', { ascending: false })
+    .limit(LEADS_QUERY_LIMIT);
 
   if (error) throw error;
   return data ?? [];
@@ -56,6 +76,61 @@ export async function selectLeadById(id: string): Promise<LeadRow | null> {
 
   if (error) throw error;
   return data;
+}
+
+// Dedup lookup (closes the "same person registers twice" gap) — email is
+// already lowercased by createLeadInputSchema, so a plain eq is enough.
+export async function selectLeadByEmail(email: string): Promise<LeadRow | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('leads')
+    .select('*')
+    .eq('email', email)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function selectLeadByRegistrationId(registrationId: string): Promise<LeadRow | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('leads')
+    .select('*')
+    .eq('registration_id', registrationId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
+// The first real query against leads_next_follow_up_at_idx — every prior
+// consumer (UI, agent tool) fetched the whole table and filtered in memory.
+export async function selectLeadsDueForFollowUp(nowIso: string): Promise<LeadRow[]> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('leads')
+    .select('*')
+    .not('next_follow_up_at', 'is', null)
+    .lte('next_follow_up_at', nowIso)
+    .order('next_follow_up_at', { ascending: true });
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function selectUnassignedLeadsByLeadSource(leadSource: string): Promise<LeadRow[]> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('leads')
+    .select('*')
+    .ilike('lead_source', leadSource)
+    .is('assigned_to', null);
+
+  if (error) throw error;
+  return data ?? [];
 }
 
 export async function updateLead(id: string, changes: Partial<LeadRow>): Promise<LeadRow> {
@@ -109,6 +184,22 @@ export async function selectStaffFullName(staffId: string): Promise<string | nul
   return data?.full_name ?? null;
 }
 
+// Same narrow-lookup posture as selectStaffFullName, but also carrying
+// email — used only by the follow-up nudge dispatch to know where to send.
+export async function selectStaffContact(
+  staffId: string,
+): Promise<{ fullName: string; email: string } | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('staff_users')
+    .select('full_name, email')
+    .eq('id', staffId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? { fullName: data.full_name, email: data.email } : null;
+}
+
 // Lead assignment rules (Revenue OS Phase 2 roadmap item).
 export async function selectActiveAssignmentRuleByLeadSource(
   leadSource: string,
@@ -134,6 +225,18 @@ export async function selectAssignmentRules(): Promise<LeadAssignmentRuleRow[]> 
 
   if (error) throw error;
   return data ?? [];
+}
+
+export async function selectAssignmentRuleById(id: string): Promise<LeadAssignmentRuleRow | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('lead_assignment_rules')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
 }
 
 export async function insertAssignmentRule(
@@ -169,4 +272,3 @@ export async function updateAssignmentRule(
   if (error) throw error;
   return data;
 }
-

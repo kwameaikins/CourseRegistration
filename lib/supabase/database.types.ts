@@ -1564,6 +1564,51 @@ export type Database = {
           },
         ]
       }
+      staff_action_audit_log: {
+        Row: {
+          action_type: string
+          actor_staff_id: string | null
+          created_at: string
+          details: Json
+          id: string
+          reason: string | null
+          target_registration_id: string | null
+        }
+        Insert: {
+          action_type: string
+          actor_staff_id?: string | null
+          created_at?: string
+          details?: Json
+          id?: string
+          reason?: string | null
+          target_registration_id?: string | null
+        }
+        Update: {
+          action_type?: string
+          actor_staff_id?: string | null
+          created_at?: string
+          details?: Json
+          id?: string
+          reason?: string | null
+          target_registration_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_action_audit_log_actor_staff_id_fkey"
+            columns: ["actor_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_action_audit_log_target_registration_id_fkey"
+            columns: ["target_registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       staff_users: {
         Row: {
           created_at: string

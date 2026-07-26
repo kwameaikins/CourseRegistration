@@ -2,6 +2,7 @@ import { captureToSentry, errorResponse, successResponse } from '@/lib/errors';
 import * as communicationsService from '@/modules/communications/service';
 import * as feedbackService from '@/modules/feedback/service';
 import * as voiceService from '@/modules/voice/service';
+import * as leadsService from '@/modules/leads/service';
 
 // GET /api/cron/reminders — F1.07 (E03–E06), triggered daily at 07:00 UTC by
 // Vercel Cron (BR-17). Also dispatches post-course feedback requests for
@@ -25,7 +26,10 @@ export async function GET(request: Request) {
     // Voice calls are dispatched now but dialed inside the 10:00 Ghana
     // calling window via Vapi schedulePlan.
     const voice = await voiceService.runVoiceCallDispatch();
-    return successResponse({ ...summary, installments, feedback, voice });
+    // Lead follow-up nudges (2026-07-26) — bundled here for the same
+    // Vercel Hobby two-cron-job cap reason as feedback/voice above.
+    const leadFollowUps = await leadsService.runFollowUpDispatch();
+    return successResponse({ ...summary, installments, feedback, voice, leadFollowUps });
   } catch (err) {
     // A failed cron run affects many participants at once — must be visible
     // immediately (Document 7, Section 5.2).

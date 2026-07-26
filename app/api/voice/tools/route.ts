@@ -1,11 +1,14 @@
 import { captureToSentry, errorResponse } from '@/lib/errors';
 import { isValidVapiSecret } from '@/lib/vapi/client';
-import { sendSmsMessage } from '@/lib/arkesel/client';
-import * as coursesService from '@/modules/courses/service';
-import * as voiceService from '@/modules/voice/service';
+import * as agentToolsService from '@/modules/agent-tools/service';
 
 // POST /api/voice/tools — custom tool calls from the Vapi assistants (both
-// the inbound line and outbound calls). Authenticated by x-vapi-secret.
+// the inbound line and outbound calls), authenticated by x-vapi-secret (no
+// staff session exists on this path — that's the 'system' trust tier in
+// modules/agent-tools/registry.ts). Sourced from the same shared tool
+// registry the Admin Assistant uses, so a tool's business logic and role/
+// trust checks live in exactly one place regardless of which AI surface
+// calls it.
 //
 // Tools the dashboard assistants declare against this URL:
 //   get_course_catalog      → open batches with fees and start dates
@@ -44,7 +47,7 @@ export async function POST(request: Request) {
         typeof rawArguments === 'string'
           ? (JSON.parse(rawArguments) as Record<string, unknown>)
           : rawArguments;
-      results.push({ toolCallId: toolCall.id, result: await runTool(name, args) });
+      results.push({ toolCallId: toolCall.id, result: await runVoiceTool(name, args) });
     }
 
     return Response.json({ results }, { status: 200 });
@@ -58,57 +61,17 @@ export async function POST(request: Request) {
   }
 }
 
-async function runTool(name: string, args: Record<string, unknown>): Promise<string> {
+// Every call here is caught individually so one bad/unknown tool call never
+// fails the whole batch — same posture as before this route moved onto the
+// shared registry, just now with real Zod validation per tool instead of
+// manual typeof checks (a malformed call now fails gracefully here instead
+// of silently proceeding with empty-string defaults).
+async function runVoiceTool(name: string, args: Record<string, unknown>): Promise<string> {
+  const known = agentToolsService.getToolsForSurface('voice', null).some((tool) => tool.name === name);
+  if (!known) return `Unknown tool: ${name}`;
   try {
-    switch (name) {
-      case 'get_course_catalog': {
-        const batches = await coursesService.getActiveBatchesForPublicForm();
-        if (batches.length === 0) return 'No batches are currently open for registration.';
-        return batches
-          .map(
-            (batch) =>
-              `${batch.courseName} (${batch.cohortLabel}): starts ${batch.startDate}, fee GHS ${batch.courseFee}` +
-              (batch.discountedFee !== null && batch.discountCutoffDate !== null
-                ? `, early-bird GHS ${batch.discountedFee} until ${batch.discountCutoffDate}`
-                : ''),
-          )
-          .join('. ');
-      }
-      case 'send_registration_link': {
-        const phone = typeof args.phone === 'string' ? args.phone : '';
-        if (!phone) return 'A phone number is required to send the link.';
-        await sendSmsMessage({
-          toPhone: phone,
-          message:
-            'Register for a Knowsia course here: https://reg.knowsia.com/register - Knowsia',
-        });
-        return 'Registration link sent by SMS.';
-      }
-      case 'lookup_customer': {
-        const identifier =
-          typeof args.identifier === 'string'
-            ? args.identifier
-            : typeof args.phone === 'string'
-              ? args.phone
-              : typeof args.email === 'string'
-                ? args.email
-                : '';
-        if (!identifier) return 'An email or phone number is required to look up a customer.';
-        return voiceService.lookupCustomerForAgent(identifier);
-      }
-      case 'request_human_callback': {
-        const phone = typeof args.phone === 'string' ? args.phone : '';
-        const reason = typeof args.reason === 'string' ? args.reason : '';
-        await voiceService.recordInboundCall({
-          phone,
-          summary: reason ? `Callback requested: ${reason}` : 'Callback requested.',
-          needsHumanFollowup: true,
-        });
-        return 'A member of the team will call back shortly.';
-      }
-      default:
-        return `Unknown tool: ${name}`;
-    }
+    const result = await agentToolsService.runTool(name, args, null);
+    return typeof result === 'string' ? result : JSON.stringify(result);
   } catch (err) {
     console.error(`[vapi tool ${name}]`, err);
     return 'The action failed — apologise and offer a human callback.';

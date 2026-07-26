@@ -6,6 +6,7 @@ import * as usersService from '@/modules/users/service';
 import * as communicationsService from '@/modules/communications/service';
 import * as attendanceService from '@/modules/attendance/service';
 import * as opportunitiesService from '@/modules/opportunities/service';
+import * as leadsService from '@/modules/leads/service';
 import type {
   Installment,
   Payment,
@@ -89,6 +90,14 @@ export async function runPaidTransitionSideEffects(registrationId: string): Prom
     await opportunitiesService.markWonByRegistrationId(registrationId);
   } catch (err) {
     console.error('[payment_confirmation opportunity stage sync]', err);
+  }
+  // Lead lifecycle sync (2026-07-26): a lead never used to become
+  // "Enrolled" automatically even after its registration was fully paid.
+  // Same non-blocking posture as every other side effect here.
+  try {
+    await leadsService.markEnrolledByRegistrationId(registrationId);
+  } catch (err) {
+    console.error('[payment_confirmation lead status sync]', err);
   }
 }
 
@@ -216,6 +225,19 @@ export async function setUpTwoInstallmentPlan(
       due_date: secondDueDate,
     },
   ]);
+}
+
+// Staff-facing variant of the same plan (Admin Assistant write action,
+// reached only via the propose-then-confirm flow in
+// modules/agent-tools/service.ts) — same eligibility rules and row shape
+// as the portal's self-service version above, just gated by staff role
+// instead of "the requesting participant owns this registration."
+export async function setUpInstallmentPlanForRegistration(
+  registrationId: string,
+  context: { courseFee: number; batchStartDate: string },
+): Promise<void> {
+  await usersService.requireRole(['admin', 'finance']);
+  await setUpTwoInstallmentPlan(registrationId, context);
 }
 
 // Redistributes the Payment's current amount_paid across installments in

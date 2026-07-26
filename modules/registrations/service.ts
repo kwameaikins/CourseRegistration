@@ -115,10 +115,13 @@ export async function createRegistration(
       participantId: participant.id,
       participantEmail: input.email,
       participantFullName: fullName,
+      participantPhone: input.phone,
       batchId: input.batchId,
       courseName: course?.courseName ?? batch.cohortLabel,
       cohortLabel: batch.cohortLabel,
       leadSource: input.leadSource,
+      jobTitle: input.jobTitle,
+      company: input.company,
     });
     return {
       outcome: 'waitlisted',

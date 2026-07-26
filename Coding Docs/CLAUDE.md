@@ -139,7 +139,28 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     treat as live pending a real end-to-end check.
   Admin Messaging screen — edit every per-course email template in-app.
   Admin AI Assistant (/assistant) — claude-opus-4-8 tool runner over
-    courses/batches/users/templates/dashboard.
+    modules/agent-tools, the shared tool registry (see below). Write-capable
+    actions use propose-then-confirm: any write-confirm tool only ever
+    prepares a confirmation card — the model has no tool that executes a
+    write. Only the admin's own "Confirm & Execute" click calls
+    POST /api/assistant/execute-action, which delegates to the wrapped
+    service function and logs to staff_action_audit_log (migration
+    202607260029, CHECK constraint dropped in 202607260030 — neither yet
+    applied to production).
+  Unified agentic OS (2026-07-26) — modules/agent-tools is the one shared
+    tool registry every AI surface (the Admin Assistant and the Vapi
+    voice-tools endpoint) draws from and dispatches through. Each tool
+    declares its own trust tier (staff roles, or 'system' for Vapi's
+    shared-secret callers) enforced by the registry itself regardless of
+    whether the wrapped service.ts function also gates internally — this
+    closes a real gap several modules had (role checks only at the
+    app/api/**/route.ts layer). modules/staff-actions was folded in and
+    deleted. Write-confirm tools: discount, installment_plan, transfer,
+    propose_cancel_or_reschedule_live_session, propose_revoke_certificate,
+    propose_queue_and_send_campaign, propose_update_lead,
+    propose_create_opportunity. Adding a new write-confirm tool is now just
+    registering an object in modules/agent-tools/registry.ts — no schema
+    migration needed.
   Post-course feedback — public form at /feedback/<registration-uuid>,
     dispatch via the 07:00 cron the day after a batch's end_date,
     review screen at /course-feedback.
@@ -188,6 +209,21 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     sending — per-channel toggle, separate Send action, 100-recipient cap,
     typed `SEND <count>` confirmation; WhatsApp dispatch still disabled
     pending Meta credentials/templates. See `Coding Docs/13_Revenue_OS_Integration_Plan.md`.
+  Lead system hardening + automation (2026-07-26) — status/leadSource are
+    real enums with a DB CHECK constraint (added a "Lost" status);
+    PATCH /api/leads/[id] is now schema-validated; a second intake matching
+    an existing lead's email merges into it instead of duplicating; a lead
+    now auto-transitions to Enrolled when its registration's payment clears
+    (wired into runPaidTransitionSideEffects); a waitlist join now also
+    captures a lead; runFollowUpDispatch (bundled into the existing 07:00
+    reminders cron — Vercel Hobby's two-job cap is already fully used)
+    emails each due lead's assigned staff a templated nudge, sharing one
+    server-side "due" query with the Admin Assistant's
+    list_leads_due_for_follow_up tool and the leads page's filter (all
+    three used to independently full-table-scan in memory); the Assistant
+    gained propose_create_lead; the leads page has real server-side
+    filters and note-taking that preserves history in the activity log;
+    assignment rules can be explicitly applied to existing unassigned leads.
   Live Learning Operations — L1 foundation in progress (`Coding Docs/
     14_Live_Learning_Operations.md`). Existing batch-level Zoom personal
     links and attendance sync remain live and unchanged throughout. Built:

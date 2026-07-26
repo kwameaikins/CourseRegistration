@@ -1,0 +1,280 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const arkeselMock = { sendSmsMessage: vi.fn() };
+const attendanceServiceMock = { getAttendanceForBatch: vi.fn() };
+const campaignsServiceMock = {
+  listCampaigns: vi.fn(),
+  getCampaignById: vi.fn(),
+  previewCampaign: vi.fn(),
+  queueCampaign: vi.fn(),
+  sendCampaign: vi.fn(),
+  getCampaignMembers: vi.fn(),
+};
+const certificatesServiceMock = {
+  listCertificates: vi.fn(),
+  verifyCertificate: vi.fn(),
+  revokeCertificate: vi.fn(),
+};
+const communicationsServiceMock = {
+  getTemplatesForCourse: vi.fn(),
+  saveTemplate: vi.fn(),
+  getMessageLog: vi.fn(),
+};
+const coursesServiceMock = {
+  getCourses: vi.fn(),
+  createCourse: vi.fn(),
+  getBatches: vi.fn(),
+  createBatch: vi.fn(),
+  updateBatch: vi.fn(),
+  getActiveBatchesForPublicForm: vi.fn(),
+  getBatchByIdSystem: vi.fn(),
+};
+const dashboardServiceMock = { getDashboardSummary: vi.fn() };
+const feedbackServiceMock = { getBatchFeedbackSummary: vi.fn() };
+const leadsServiceMock = {
+  listLeads: vi.fn(),
+  listLeadsDueForFollowUp: vi.fn(),
+  getLeadWithActivities: vi.fn(),
+  getLeadById: vi.fn(),
+  updateLead: vi.fn(),
+  createLead: vi.fn(),
+};
+const liveSessionsServiceMock = { getLiveSessions: vi.fn(), updateLiveSession: vi.fn() };
+const opportunitiesServiceMock = {
+  listOpportunities: vi.fn(),
+  getPipelineSummary: vi.fn(),
+  createOpportunity: vi.fn(),
+};
+const paymentsServiceMock = { applyDiscount: vi.fn(), setUpInstallmentPlanForRegistration: vi.fn() };
+const registrationsServiceMock = { getRegistration360: vi.fn(), transferRegistration: vi.fn() };
+const usersServiceMock = { getStaffUsers: vi.fn(), createStaffUser: vi.fn(), updateStaffUser: vi.fn() };
+const voiceServiceMock = { lookupCustomerForAgent: vi.fn(), recordInboundCall: vi.fn() };
+const waitlistServiceMock = { getWaitlistForBatch: vi.fn() };
+const agentToolsRepositoryMock = { insertStaffActionAuditLog: vi.fn() };
+
+vi.mock('@/lib/arkesel/client', () => arkeselMock);
+vi.mock('@/modules/attendance/service', () => attendanceServiceMock);
+vi.mock('@/modules/campaigns/service', () => campaignsServiceMock);
+vi.mock('@/modules/certificates/service', () => certificatesServiceMock);
+vi.mock('@/modules/communications/service', () => communicationsServiceMock);
+vi.mock('@/modules/courses/service', () => coursesServiceMock);
+vi.mock('@/modules/dashboard/service', () => dashboardServiceMock);
+vi.mock('@/modules/feedback/service', () => feedbackServiceMock);
+vi.mock('@/modules/leads/service', () => leadsServiceMock);
+vi.mock('@/modules/live-sessions/service', () => liveSessionsServiceMock);
+vi.mock('@/modules/opportunities/service', () => opportunitiesServiceMock);
+vi.mock('@/modules/payments/service', () => paymentsServiceMock);
+vi.mock('@/modules/registrations/service', () => registrationsServiceMock);
+vi.mock('@/modules/users/service', () => usersServiceMock);
+vi.mock('@/modules/voice/service', () => voiceServiceMock);
+vi.mock('@/modules/waitlist/service', () => waitlistServiceMock);
+vi.mock('@/modules/agent-tools/repository', () => agentToolsRepositoryMock);
+
+const { getToolsForSurface, runTool, proposeTool, confirmAndExecuteTool } = await import(
+  '@/modules/agent-tools/service'
+);
+
+const ADMIN_STAFF = {
+  id: 'staff-admin-1',
+  userId: 'auth-1',
+  fullName: 'Ama Admin',
+  email: 'admin@business.com',
+  role: 'admin' as const,
+  isActive: true,
+  createdAt: '2026-06-01T00:00:00Z',
+};
+
+const TUTOR_STAFF = { ...ADMIN_STAFF, id: 'staff-tutor-1', role: 'tutor' as const };
+
+function registration360(overrides: Record<string, unknown> = {}) {
+  return {
+    canDelete: true,
+    registration: { id: 'reg-1', registrationStatus: 'Registered', leadSource: 'Website', notes: null, registeredAt: '2026-06-01T00:00:00Z' },
+    participant: { fullName: 'Kojo Participant', email: 'k@x.com', phone: '+233...', jobTitle: null, company: null, gender: null, deleted: false },
+    course: { courseId: 'course-1', batchId: 'batch-1', courseName: 'AI For Business', courseCode: 'AI01', cohortLabel: 'AUG-2026', startDate: '2099-08-01', endDate: '2099-08-05', facilitatorName: 'Tutor' },
+    payment: { paymentStatus: 'Unpaid', courseFee: 1200, amountPaid: 0, balance: 1200 },
+    ...overrides,
+  };
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
+
+describe('getToolsForSurface / trust enforcement', () => {
+  it('excludes voice-only tools from the assistant surface and vice versa', () => {
+    const assistantTools = getToolsForSurface('assistant', ADMIN_STAFF);
+    const voiceTools = getToolsForSurface('voice', null);
+    expect(assistantTools.some((t) => t.name === 'get_course_catalog')).toBe(false);
+    expect(voiceTools.some((t) => t.name === 'list_courses')).toBe(false);
+    expect(voiceTools.some((t) => t.name === 'get_course_catalog')).toBe(true);
+  });
+
+  it('excludes admin-only tools for a non-admin staff role', () => {
+    const tutorTools = getToolsForSurface('assistant', TUTOR_STAFF);
+    expect(tutorTools.some((t) => t.name === 'create_staff_user')).toBe(false);
+    expect(tutorTools.some((t) => t.name === 'list_live_sessions')).toBe(true);
+  });
+
+  it('rejects a tool call for a role outside its trust list, even for a module whose service.ts has no internal gate (campaigns)', async () => {
+    await expect(runTool('list_campaigns', {}, TUTOR_STAFF)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(campaignsServiceMock.listCampaigns).not.toHaveBeenCalled();
+  });
+
+  it('allows a system-trust (Vapi) tool with no staff user at all', async () => {
+    coursesServiceMock.getActiveBatchesForPublicForm.mockResolvedValue([]);
+    const result = await runTool('get_course_catalog', {}, null);
+    expect(result).toBe('No batches are currently open for registration.');
+  });
+});
+
+describe('runTool — read/write-direct execute immediately', () => {
+  it('rejects calling a write-confirm tool through runTool', async () => {
+    await expect(runTool('discount', { registrationId: 'reg-1', discountAmount: 50, reason: 'x' }, ADMIN_STAFF)).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    expect(paymentsServiceMock.applyDiscount).not.toHaveBeenCalled();
+  });
+
+  it('validates input against the tool schema before calling run', async () => {
+    await expect(runTool('create_course', { courseCode: 'A' }, ADMIN_STAFF)).rejects.toThrow();
+    expect(coursesServiceMock.createCourse).not.toHaveBeenCalled();
+  });
+});
+
+describe('proposeTool — write-confirm tools are only ever previewed, never executed', () => {
+  it('never calls run() for the discount tool', async () => {
+    registrationsServiceMock.getRegistration360.mockResolvedValue(registration360());
+    const proposal = await proposeTool(
+      'discount',
+      { registrationId: 'reg-1', discountAmount: 100, reason: 'Loyal repeat participant' },
+      ADMIN_STAFF,
+    );
+    expect(paymentsServiceMock.applyDiscount).not.toHaveBeenCalled();
+    expect(proposal.toolName).toBe('discount');
+    expect(proposal.preview.currentCourseFee).toBe(1200);
+  });
+
+  it('rejects proposing a read tool', async () => {
+    await expect(proposeTool('list_courses', {}, ADMIN_STAFF)).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+    });
+  });
+
+  it('rejects a mandatory-reason validation failure for cancel/reschedule before any preview is built', async () => {
+    await expect(
+      proposeTool(
+        'propose_cancel_or_reschedule_live_session',
+        { liveSessionId: 'ls-1', status: 'cancelled', statusReason: 'hi' },
+        ADMIN_STAFF,
+      ),
+    ).rejects.toThrow();
+    expect(liveSessionsServiceMock.getLiveSessions).not.toHaveBeenCalled();
+  });
+
+  it('never calls createLead for propose_create_lead — only builds a preview', async () => {
+    const proposal = await proposeTool(
+      'propose_create_lead',
+      { fullName: 'New Person', email: 'new@example.com', phone: '+233241234567', leadSource: 'Website' },
+      ADMIN_STAFF,
+    );
+    expect(leadsServiceMock.createLead).not.toHaveBeenCalled();
+    expect(proposal.toolName).toBe('propose_create_lead');
+    expect(proposal.preview.fullName).toBe('New Person');
+  });
+});
+
+describe('confirmAndExecuteTool — the sole path to a real write', () => {
+  it('calls run then writes the audit row with the reason', async () => {
+    paymentsServiceMock.applyDiscount.mockResolvedValue({ registrationId: 'reg-1', originalFee: 1200 });
+
+    const result = await confirmAndExecuteTool(
+      'discount',
+      { registrationId: 'reg-1', discountAmount: 100, reason: 'Loyal repeat participant' },
+      ADMIN_STAFF,
+    );
+
+    expect(paymentsServiceMock.applyDiscount).toHaveBeenCalledWith('reg-1', {
+      discountAmount: 100,
+      reason: 'Loyal repeat participant',
+    });
+    expect(agentToolsRepositoryMock.insertStaffActionAuditLog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor_staff_id: 'staff-admin-1',
+        action_type: 'discount',
+        target_registration_id: 'reg-1',
+        reason: 'Loyal repeat participant',
+      }),
+    );
+    expect(result).toEqual({ registrationId: 'reg-1', originalFee: 1200 });
+  });
+
+  it('does not let an audit-log failure mask a successful write', async () => {
+    paymentsServiceMock.applyDiscount.mockResolvedValue({ registrationId: 'reg-1' });
+    agentToolsRepositoryMock.insertStaffActionAuditLog.mockRejectedValue(new Error('db down'));
+
+    const result = await confirmAndExecuteTool(
+      'discount',
+      { registrationId: 'reg-1', discountAmount: 50, reason: 'Test discount reason' },
+      ADMIN_STAFF,
+    );
+
+    expect(result).toEqual({ registrationId: 'reg-1' });
+  });
+
+  it('rejects a non-admin caller for an admin-only write-confirm tool', async () => {
+    await expect(
+      confirmAndExecuteTool(
+        'propose_revoke_certificate',
+        { certificateId: 'cert-1', reason: 'Issued in error' },
+        TUTOR_STAFF,
+      ),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(certificatesServiceMock.revokeCertificate).not.toHaveBeenCalled();
+  });
+
+  it('queue-and-send campaign: queues if draft, then re-derives a fresh count rather than trusting a stale one', async () => {
+    campaignsServiceMock.getCampaignById.mockResolvedValue({ id: 'camp-1', status: 'draft' });
+    campaignsServiceMock.queueCampaign.mockResolvedValue(undefined);
+    campaignsServiceMock.getCampaignMembers.mockResolvedValue([{ id: 'm1' }, { id: 'm2' }, { id: 'm3' }]);
+    campaignsServiceMock.sendCampaign.mockResolvedValue({ campaign: {}, attempted: 3, sent: 3, failed: 0 });
+
+    await confirmAndExecuteTool('propose_queue_and_send_campaign', { campaignId: 'camp-1' }, ADMIN_STAFF);
+
+    expect(campaignsServiceMock.queueCampaign).toHaveBeenCalledWith('camp-1');
+    expect(campaignsServiceMock.sendCampaign).toHaveBeenCalledWith('camp-1', {
+      confirmedRecipientCount: 3,
+      confirmationText: 'SEND 3',
+    });
+  });
+
+  it('queue-and-send campaign: skips re-queueing an already-queued campaign', async () => {
+    campaignsServiceMock.getCampaignById.mockResolvedValue({ id: 'camp-1', status: 'queued' });
+    campaignsServiceMock.getCampaignMembers.mockResolvedValue([{ id: 'm1' }]);
+    campaignsServiceMock.sendCampaign.mockResolvedValue({ campaign: {}, attempted: 1, sent: 1, failed: 0 });
+
+    await confirmAndExecuteTool('propose_queue_and_send_campaign', { campaignId: 'camp-1' }, ADMIN_STAFF);
+
+    expect(campaignsServiceMock.queueCampaign).not.toHaveBeenCalled();
+    expect(campaignsServiceMock.sendCampaign).toHaveBeenCalledWith('camp-1', {
+      confirmedRecipientCount: 1,
+      confirmationText: 'SEND 1',
+    });
+  });
+
+  it('cancel/reschedule live session passes the staff user id as actor', async () => {
+    liveSessionsServiceMock.updateLiveSession.mockResolvedValue({ id: 'ls-1', status: 'cancelled' });
+
+    await confirmAndExecuteTool(
+      'propose_cancel_or_reschedule_live_session',
+      { liveSessionId: 'ls-1', status: 'cancelled', statusReason: 'Facilitator unavailable' },
+      ADMIN_STAFF,
+    );
+
+    expect(liveSessionsServiceMock.updateLiveSession).toHaveBeenCalledWith(
+      'ls-1',
+      { status: 'cancelled', statusReason: 'Facilitator unavailable' },
+      'staff-admin-1',
+    );
+  });
+});

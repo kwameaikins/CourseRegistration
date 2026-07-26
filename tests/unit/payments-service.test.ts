@@ -21,6 +21,9 @@ const sendSmsOnceMock = vi.fn();
 const opportunitiesServiceMock = {
   markWonByRegistrationId: vi.fn(),
 };
+const leadsServiceMock = {
+  markEnrolledByRegistrationId: vi.fn(),
+};
 
 vi.mock('@/modules/payments/repository', () => paymentsRepositoryMock);
 vi.mock('@/modules/users/service', () => usersServiceMock);
@@ -30,11 +33,13 @@ vi.mock('@/modules/communications/service', () => ({
   sendSmsOnce: (...args: unknown[]) => sendSmsOnceMock(...args),
 }));
 vi.mock('@/modules/opportunities/service', () => opportunitiesServiceMock);
+vi.mock('@/modules/leads/service', () => leadsServiceMock);
 
 const {
   updatePaymentByStaff,
   applyDiscount,
   setUpTwoInstallmentPlan,
+  setUpInstallmentPlanForRegistration,
   reconcileInstallments,
   rebalanceInstallmentsForDiscount,
   getDueInstallmentReminderCandidates,
@@ -98,6 +103,7 @@ beforeEach(() => {
   );
   sendEmailOnceMock.mockResolvedValue('sent');
   opportunitiesServiceMock.markWonByRegistrationId.mockResolvedValue(undefined);
+  leadsServiceMock.markEnrolledByRegistrationId.mockResolvedValue(undefined);
   paymentsRepositoryMock.selectInstallmentsForRegistration.mockResolvedValue([]);
   paymentsRepositoryMock.updateInstallmentAmountPaid.mockResolvedValue(undefined);
   paymentsRepositoryMock.updateInstallmentAmountDue.mockResolvedValue(undefined);
@@ -133,6 +139,14 @@ describe('E07 — confirmation email only on the transition to Paid', () => {
   it('marks the linked sales opportunity as Won on the transition to Paid', async () => {
     await updatePaymentByStaff('reg-1', { amountPaid: 1200, paymentMethod: 'Bank Transfer' });
     expect(opportunitiesServiceMock.markWonByRegistrationId).toHaveBeenCalledWith('reg-1');
+  });
+
+  it('marks the linked lead as Enrolled on the transition to Paid, non-blockingly', async () => {
+    leadsServiceMock.markEnrolledByRegistrationId.mockRejectedValue(new Error('lead sync down'));
+    await expect(
+      updatePaymentByStaff('reg-1', { amountPaid: 1200, paymentMethod: 'Bank Transfer' }),
+    ).resolves.toBeDefined();
+    expect(leadsServiceMock.markEnrolledByRegistrationId).toHaveBeenCalledWith('reg-1');
   });
 
   it('does not send when the payment was already Paid (EC-05 double-mark)', async () => {
@@ -351,6 +365,54 @@ describe('setUpTwoInstallmentPlan — simple fixed-split payment plan (founder-a
     await expect(
       setUpTwoInstallmentPlan('reg-1', { courseFee: 1200, batchStartDate: FAR_FUTURE_START }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});
+
+describe('setUpInstallmentPlanForRegistration — staff-facing variant (Admin Assistant write action)', () => {
+  beforeEach(() => {
+    usersServiceMock.requireRole.mockResolvedValue(FINANCE_STAFF);
+    paymentsRepositoryMock.selectPaymentByRegistrationIdSystem.mockResolvedValue(
+      existingPayment({ id: 'pay-1', payment_status: 'Unpaid' }),
+    );
+    paymentsRepositoryMock.selectInstallmentCountForRegistration.mockResolvedValue(0);
+    paymentsRepositoryMock.insertInstallments.mockResolvedValue(undefined);
+  });
+
+  it('requires finance or admin, then shares the exact same validation/row logic as the portal path', async () => {
+    await setUpInstallmentPlanForRegistration('reg-1', {
+      courseFee: 1200,
+      batchStartDate: FAR_FUTURE_START,
+    });
+
+    expect(usersServiceMock.requireRole).toHaveBeenCalledWith(['admin', 'finance']);
+    expect(paymentsRepositoryMock.insertInstallments).toHaveBeenCalledWith([
+      expect.objectContaining({ installment_number: 1, amount_due: 600 }),
+      expect.objectContaining({ installment_number: 2, amount_due: 600 }),
+    ]);
+  });
+
+  it('rejects a non-finance/admin caller before touching the payment', async () => {
+    usersServiceMock.requireRole.mockRejectedValue(
+      Object.assign(new Error('Your role does not permit this action.'), { code: 'FORBIDDEN' }),
+    );
+
+    await expect(
+      setUpInstallmentPlanForRegistration('reg-1', {
+        courseFee: 1200,
+        batchStartDate: FAR_FUTURE_START,
+      }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect(paymentsRepositoryMock.insertInstallments).not.toHaveBeenCalled();
+  });
+
+  it('still rejects when the course starts too soon, same as the portal path', async () => {
+    await expect(
+      setUpInstallmentPlanForRegistration('reg-1', {
+        courseFee: 1200,
+        batchStartDate: NEAR_FUTURE_START,
+      }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+    expect(paymentsRepositoryMock.insertInstallments).not.toHaveBeenCalled();
   });
 });
 

@@ -8,6 +8,7 @@ import { AppError } from '@/lib/errors';
 import { sendTransactionalEmail } from '@/lib/resend/client';
 import * as usersService from '@/modules/users/service';
 import * as waitlistRepository from '@/modules/waitlist/repository';
+import * as leadsService from '@/modules/leads/service';
 import type { LeadSource } from '@/lib/domain/types';
 import type { WaitlistEntryView, WaitlistStatus } from '@/modules/waitlist/types';
 
@@ -26,10 +27,13 @@ export async function joinWaitlist(input: {
   participantId: string;
   participantEmail: string;
   participantFullName: string;
+  participantPhone: string;
   batchId: string;
   courseName: string;
   cohortLabel: string;
   leadSource: LeadSource;
+  jobTitle?: string | null;
+  company?: string | null;
 }): Promise<{ waitlistId: string }> {
   let row;
   try {
@@ -64,6 +68,25 @@ export async function joinWaitlist(input: {
     });
   } catch (err) {
     console.error('[waitlist join confirmation email]', err);
+  }
+
+  // Lead capture (2026-07-26): a waitlisted signup used to never produce a
+  // lead at all, even though it carries the same contact info and lead
+  // source a successful registration would. Non-blocking, same posture as
+  // registrations/service.ts's own best-effort lead creation.
+  try {
+    await leadsService.createLead({
+      participantId: input.participantId,
+      fullName: input.participantFullName,
+      email: input.participantEmail,
+      phone: input.participantPhone,
+      jobTitle: input.jobTitle,
+      company: input.company,
+      leadSource: input.leadSource,
+      status: 'New',
+    });
+  } catch (err) {
+    console.error('[waitlist lead creation]', err);
   }
 
   return { waitlistId: row.id };

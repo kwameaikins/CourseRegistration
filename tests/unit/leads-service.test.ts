@@ -1,20 +1,31 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { CreateLeadInput } from '@/modules/leads/types';
 
 const leadsRepositoryMock = {
   insertLead: vi.fn(),
   selectLeads: vi.fn(),
   selectLeadById: vi.fn(),
+  selectLeadByEmail: vi.fn(),
+  selectLeadByRegistrationId: vi.fn(),
+  selectLeadsDueForFollowUp: vi.fn(),
+  selectUnassignedLeadsByLeadSource: vi.fn(),
   updateLead: vi.fn(),
   insertLeadActivity: vi.fn(),
   selectLeadActivities: vi.fn(),
   selectStaffFullName: vi.fn(),
+  selectStaffContact: vi.fn(),
   selectActiveAssignmentRuleByLeadSource: vi.fn(),
   selectAssignmentRules: vi.fn(),
+  selectAssignmentRuleById: vi.fn(),
   insertAssignmentRule: vi.fn(),
   updateAssignmentRule: vi.fn(),
 };
+const sendTransactionalEmailMock = vi.fn();
 
 vi.mock('@/modules/leads/repository', () => leadsRepositoryMock);
+vi.mock('@/lib/resend/client', () => ({
+  sendTransactionalEmail: (...args: unknown[]) => sendTransactionalEmailMock(...args),
+}));
 
 const {
   calculateLeadScore,
@@ -25,11 +36,16 @@ const {
   listAssignmentRules,
   createAssignmentRule,
   updateAssignmentRule: updateAssignmentRuleService,
+  markEnrolledByRegistrationId,
+  listLeadsDueForFollowUp,
+  runFollowUpDispatch,
+  backfillAssignmentRule,
 } = await import('@/modules/leads/service');
 
 beforeEach(() => {
   vi.clearAllMocks();
   leadsRepositoryMock.selectActiveAssignmentRuleByLeadSource.mockResolvedValue(null);
+  leadsRepositoryMock.selectLeadByEmail.mockResolvedValue(null);
 });
 
 describe('calculateLeadScore', () => {
@@ -74,7 +90,7 @@ describe('calculateLeadScore', () => {
 });
 
 describe('createLead', () => {
-  function validInput(overrides: Record<string, unknown> = {}) {
+  function validInput(overrides: Record<string, unknown> = {}): CreateLeadInput {
     return {
       fullName: 'Ama Owusu',
       email: 'ama@example.com',
@@ -84,7 +100,7 @@ describe('createLead', () => {
       leadSource: 'WhatsApp',
       status: 'New',
       ...overrides,
-    };
+    } as CreateLeadInput;
   }
 
   it('computes an automatic score when none is supplied', async () => {
@@ -167,6 +183,269 @@ describe('createLead', () => {
     expect(leadsRepositoryMock.insertLeadActivity).not.toHaveBeenCalledWith(
       expect.objectContaining({ activity_type: 'assigned' }),
     );
+  });
+});
+
+describe('createLead — dedup on email', () => {
+  function validInput(overrides: Record<string, unknown> = {}): CreateLeadInput {
+    return {
+      fullName: 'Ama Owusu',
+      email: 'ama@example.com',
+      phone: '+233241234567',
+      jobTitle: null,
+      company: null,
+      leadSource: 'WhatsApp',
+      status: 'New',
+      ...overrides,
+    } as CreateLeadInput;
+  }
+
+  it('merges into an existing lead found by email instead of creating a duplicate', async () => {
+    leadsRepositoryMock.selectLeadByEmail.mockResolvedValue({
+      id: 'lead-existing',
+      registration_id: null,
+      participant_id: null,
+      score: 5,
+    });
+    leadsRepositoryMock.updateLead.mockResolvedValue({ id: 'lead-existing', score: 20 });
+
+    const result = await createLead(
+      validInput({ registrationId: '33333333-3333-4333-8333-333333333333' }),
+    );
+
+    expect(leadsRepositoryMock.insertLead).not.toHaveBeenCalled();
+    expect(leadsRepositoryMock.updateLead).toHaveBeenCalledWith(
+      'lead-existing',
+      expect.objectContaining({
+        registration_id: '33333333-3333-4333-8333-333333333333',
+        score: expect.any(Number),
+      }),
+    );
+    expect(leadsRepositoryMock.insertLeadActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ lead_id: 'lead-existing', activity_type: 'duplicate_merged' }),
+    );
+    expect(result.id).toBe('lead-existing');
+  });
+
+  it('never lowers an existing higher score when merging', async () => {
+    leadsRepositoryMock.selectLeadByEmail.mockResolvedValue({
+      id: 'lead-existing',
+      registration_id: 'already-set',
+      participant_id: 'already-set',
+      score: 90,
+    });
+
+    await createLead(validInput());
+
+    // No field needed changing (registration/participant already set, new
+    // computed score 20 is lower than the existing 90) — no-op update.
+    expect(leadsRepositoryMock.updateLead).not.toHaveBeenCalled();
+  });
+});
+
+describe('markEnrolledByRegistrationId', () => {
+  it('transitions the lead to Enrolled and bumps its score', async () => {
+    leadsRepositoryMock.selectLeadByRegistrationId.mockResolvedValue({
+      id: 'lead-1',
+      status: 'Qualified',
+      score: 50,
+    });
+
+    await markEnrolledByRegistrationId('reg-1');
+
+    expect(leadsRepositoryMock.updateLead).toHaveBeenCalledWith('lead-1', {
+      status: 'Enrolled',
+      score: 75,
+    });
+    expect(leadsRepositoryMock.insertLeadActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ lead_id: 'lead-1', activity_type: 'status_changed' }),
+    );
+  });
+
+  it('caps the score bump at 100', async () => {
+    leadsRepositoryMock.selectLeadByRegistrationId.mockResolvedValue({
+      id: 'lead-1',
+      status: 'New',
+      score: 90,
+    });
+
+    await markEnrolledByRegistrationId('reg-1');
+
+    expect(leadsRepositoryMock.updateLead).toHaveBeenCalledWith('lead-1', {
+      status: 'Enrolled',
+      score: 100,
+    });
+  });
+
+  it('no-ops when no lead exists for the registration', async () => {
+    leadsRepositoryMock.selectLeadByRegistrationId.mockResolvedValue(null);
+
+    await markEnrolledByRegistrationId('reg-1');
+
+    expect(leadsRepositoryMock.updateLead).not.toHaveBeenCalled();
+  });
+
+  it('no-ops when the lead is already Enrolled or Lost', async () => {
+    leadsRepositoryMock.selectLeadByRegistrationId.mockResolvedValue({
+      id: 'lead-1',
+      status: 'Lost',
+      score: 10,
+    });
+
+    await markEnrolledByRegistrationId('reg-1');
+
+    expect(leadsRepositoryMock.updateLead).not.toHaveBeenCalled();
+  });
+});
+
+describe('listLeadsDueForFollowUp / runFollowUpDispatch', () => {
+  it('listLeadsDueForFollowUp maps the repository rows to camelCase', async () => {
+    leadsRepositoryMock.selectLeadsDueForFollowUp.mockResolvedValue([
+      {
+        id: 'lead-1',
+        registration_id: null,
+        participant_id: null,
+        full_name: 'Ama Owusu',
+        email: 'ama@example.com',
+        phone: '+233241234567',
+        job_title: null,
+        company: null,
+        lead_source: 'Website',
+        status: 'Follow-up',
+        score: 40,
+        assigned_to: null,
+        notes: null,
+        next_follow_up_at: '2026-01-01T00:00:00Z',
+        created_at: '2026-01-01T00:00:00Z',
+        updated_at: '2026-01-01T00:00:00Z',
+      },
+    ]);
+
+    const result = await listLeadsDueForFollowUp();
+
+    expect(result).toEqual([expect.objectContaining({ id: 'lead-1', fullName: 'Ama Owusu' })]);
+  });
+
+  function dueLeadRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'lead-1',
+      registration_id: null,
+      participant_id: null,
+      full_name: 'Ama Owusu',
+      email: 'ama@example.com',
+      phone: '+233241234567',
+      job_title: null,
+      company: null,
+      lead_source: 'Website',
+      status: 'Follow-up',
+      score: 40,
+      assigned_to: 'staff-1',
+      notes: null,
+      next_follow_up_at: '2026-01-01T00:00:00Z',
+      created_at: '2026-01-01T00:00:00Z',
+      updated_at: '2026-01-01T00:00:00Z',
+      ...overrides,
+    };
+  }
+
+  it('emails the assigned staff member for each due lead', async () => {
+    leadsRepositoryMock.selectLeadsDueForFollowUp.mockResolvedValue([dueLeadRow()]);
+    leadsRepositoryMock.selectStaffContact.mockResolvedValue({
+      fullName: 'Kofi Mensah',
+      email: 'kofi@business.com',
+    });
+
+    const summary = await runFollowUpDispatch();
+
+    expect(sendTransactionalEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'kofi@business.com' }),
+    );
+    expect(summary).toEqual({ notified: 1, skipped: 0, errors: [] });
+  });
+
+  it('skips an unassigned lead when no fallback email is configured', async () => {
+    const original = process.env.LEADS_FALLBACK_NOTIFY_EMAIL;
+    delete process.env.LEADS_FALLBACK_NOTIFY_EMAIL;
+    leadsRepositoryMock.selectLeadsDueForFollowUp.mockResolvedValue([
+      dueLeadRow({ assigned_to: null }),
+    ]);
+
+    const summary = await runFollowUpDispatch();
+
+    expect(sendTransactionalEmailMock).not.toHaveBeenCalled();
+    expect(summary).toEqual({ notified: 0, skipped: 1, errors: [] });
+    if (original !== undefined) process.env.LEADS_FALLBACK_NOTIFY_EMAIL = original;
+  });
+
+  it('records a per-lead error without blocking the rest of the batch', async () => {
+    leadsRepositoryMock.selectLeadsDueForFollowUp.mockResolvedValue([
+      dueLeadRow({ id: 'lead-1' }),
+      dueLeadRow({ id: 'lead-2' }),
+    ]);
+    leadsRepositoryMock.selectStaffContact.mockResolvedValue({
+      fullName: 'Kofi Mensah',
+      email: 'kofi@business.com',
+    });
+    sendTransactionalEmailMock.mockRejectedValueOnce(new Error('send failed')).mockResolvedValueOnce(undefined);
+
+    const summary = await runFollowUpDispatch();
+
+    expect(summary.notified).toBe(1);
+    expect(summary.errors).toHaveLength(1);
+  });
+});
+
+describe('backfillAssignmentRule', () => {
+  it('assigns only currently-unassigned leads matching the rule source', async () => {
+    leadsRepositoryMock.selectAssignmentRuleById.mockResolvedValue({
+      id: 'rule-1',
+      lead_source: 'WhatsApp',
+      assigned_to: 'staff-1',
+      is_active: true,
+    });
+    leadsRepositoryMock.selectUnassignedLeadsByLeadSource.mockResolvedValue([
+      { id: 'lead-1' },
+      { id: 'lead-2' },
+    ]);
+    leadsRepositoryMock.selectStaffFullName.mockResolvedValue('Jane Doe');
+
+    const result = await backfillAssignmentRule('rule-1');
+
+    expect(leadsRepositoryMock.selectUnassignedLeadsByLeadSource).toHaveBeenCalledWith('WhatsApp');
+    expect(leadsRepositoryMock.updateLead).toHaveBeenCalledTimes(2);
+    expect(result).toEqual({ assignedCount: 2 });
+  });
+
+  it('rejects applying an inactive rule', async () => {
+    leadsRepositoryMock.selectAssignmentRuleById.mockResolvedValue({
+      id: 'rule-1',
+      lead_source: 'WhatsApp',
+      assigned_to: 'staff-1',
+      is_active: false,
+    });
+
+    await expect(backfillAssignmentRule('rule-1')).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+    });
+    expect(leadsRepositoryMock.selectUnassignedLeadsByLeadSource).not.toHaveBeenCalled();
+  });
+
+  it('throws NOT_FOUND for a missing rule', async () => {
+    leadsRepositoryMock.selectAssignmentRuleById.mockResolvedValue(null);
+
+    await expect(backfillAssignmentRule('missing')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});
+
+describe('updateLead — schema validation', () => {
+  it('rejects an invalid status', async () => {
+    await expect(updateLead('lead-1', { status: 'NotARealStatus' as never })).rejects.toThrow();
+    expect(leadsRepositoryMock.selectLeadById).not.toHaveBeenCalled();
+  });
+
+  it('rejects an out-of-range score', async () => {
+    await expect(updateLead('lead-1', { score: 9999 })).rejects.toThrow();
+    expect(leadsRepositoryMock.selectLeadById).not.toHaveBeenCalled();
   });
 });
 
@@ -271,11 +550,12 @@ describe('updateLead', () => {
   });
 
   it('logs an assigned activity naming the staff member', async () => {
+    const staffId = '22222222-2222-4222-8222-222222222222';
     leadsRepositoryMock.selectLeadById.mockResolvedValue(existingLead());
-    leadsRepositoryMock.updateLead.mockResolvedValue(existingLead({ assigned_to: 'staff-2' }));
+    leadsRepositoryMock.updateLead.mockResolvedValue(existingLead({ assigned_to: staffId }));
     leadsRepositoryMock.selectStaffFullName.mockResolvedValue('Kofi Mensah');
 
-    await updateLead('lead-1', { assignedTo: 'staff-2' }, 'staff-1');
+    await updateLead('lead-1', { assignedTo: staffId }, 'staff-1');
 
     expect(leadsRepositoryMock.insertLeadActivity).toHaveBeenCalledWith(
       expect.objectContaining({

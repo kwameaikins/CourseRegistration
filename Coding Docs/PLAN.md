@@ -123,6 +123,8 @@ dashboard). Automate the webhook as a fast-follow in Week 6. **Do not let this b
 - [x] `/api/templates` GET/PUT (admin), upsert via RLS-enforced admin policy
 - [x] Assistant screen (admin): Claude tool-runner over existing services (courses, batches, users, templates, dashboard)
 - [x] *(external)* `ANTHROPIC_API_KEY` set in Vercel — confirmed by founder 2026-07-20
+- [x] Write-capable actions (2026-07-25, propose-then-confirm): `propose_discount`, `propose_installment_plan`, and `propose_transfer` let the model prepare a discount, payment plan, or batch transfer for a registration, but none of them execute anything — each only surfaces a confirmation card in the UI. The only path to a real write is the admin's own "Confirm & Execute" click, which calls `POST /api/assistant/execute-action` (a route the model has no access to) and delegates to the exact same service functions (`applyDiscount`, `setUpInstallmentPlanForRegistration`, `transferRegistration`) the manual screens use. Every executed action is logged to the new `staff_action_audit_log` table (migration `202607260029`, not yet applied to production).
+- [x] Unified agentic OS (2026-07-26): `modules/agent-tools` is now the one shared tool registry every AI surface reads from and dispatches through — the Admin Assistant chat and the Vapi voice-tools endpoint (`app/api/voice/tools`) both source their tool lists from it, closing the gap where role/trust gating used to depend on which route you went through (several modules only gated at the route layer, not in `service.ts`). `modules/staff-actions` was folded into it and deleted. Added 5 new write-confirm actions (cancel/reschedule a live session, revoke a certificate, queue-and-send a campaign, update a lead, create a sales opportunity) plus read-only tools for every module that previously had none (campaigns, live sessions, waitlist, attendance, certificates, feedback, opportunities, message log). `staff_action_audit_log.action_type`'s CHECK constraint was dropped (migration `202607260030`) so a new write-confirm tool never needs a schema migration — adding one is just registering an object in `modules/agent-tools/registry.ts`.
 
 ### Post-course feedback (scope addition, approved 2026-07-19 — supersedes the F2.05 email-only plan)
 
@@ -263,6 +265,24 @@ Deferred until Phase 1 is stable in production. See `/docs/01_PRD.md`, Section 7
 - [x] Live email sending via Resend with per-channel toggles, separate Send action, 100-recipient cap, exact recipient count, and typed `SEND <count>` confirmation
 - [x] Live SMS sending via Arkesel with the same per-channel toggle, separate Send action, 100-recipient cap, exact recipient count, and typed `SEND <count>` confirmation
 - [ ] Live WhatsApp dispatch wiring; its setting remains disabled until Meta credentials and templates are ready
+
+---
+
+## Lead system hardening + automation (2026-07-26)
+
+Migration `202607260031_leads_hardening.sql` (status/activity-type CHECK constraints). Closes
+gaps found in a full review: unenforced status/source strings, an unvalidated PATCH route, no
+dedup, no automatic Enrolled transition, no waitlist lead capture, and zero follow-up automation.
+
+- [x] `LeadStatus`/`LeadSource` are now real enums end-to-end (added a terminal "Lost" status), enforced by a DB CHECK constraint and zod schemas on both create and update
+- [x] `PATCH /api/leads/[id]` now validates against `updateLeadInputSchema` (previously accepted an unvalidated raw body)
+- [x] Dedup on create: a second intake matching an existing lead's email merges into it (attaches a missing registration/participant id, only ever raises the score) instead of creating a disconnected duplicate
+- [x] A lead now automatically transitions to `Enrolled` (with a score bump) the moment its linked registration's payment clears — wired non-blockingly into `runPaidTransitionSideEffects`, same posture as the existing opportunity-won sync
+- [x] Waitlist joins now also capture a lead (previously only direct registrations did)
+- [x] Follow-up automation: `runFollowUpDispatch` (bundled into the existing 07:00 `reminders` cron — Vercel Hobby's two-job cap was already fully used) emails each due lead's assigned staff member a templated nudge; `list_leads_due_for_follow_up` and the leads page's due-for-follow-up filter now share the same server-side query (`selectLeadsDueForFollowUp`) instead of each independently full-table-scanning in memory
+- [x] Admin Assistant gains `propose_create_lead` (write-confirm) — the agent could previously only read/update leads, never originate one
+- [x] Leads page: real server-side filters (status/source/assignee/search/due), status options driven by the shared `LEAD_STATUSES` constant, and note-taking now preserves history in the activity timeline (previously `window.prompt` silently overwrote the single `notes` field)
+- [x] Assignment rules screen: explicit "Apply to existing unassigned leads" action per active rule (previously a new/reactivated rule only ever applied to leads created afterward)
 
 ---
 

@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { LeadDetailDialog } from '@/app/(staff)/leads/LeadDetailDialog';
+import { LEAD_SOURCE_VALUES, LEAD_STATUSES } from '@/modules/leads/types';
 
 interface LeadRow {
   id: string;
@@ -47,9 +48,32 @@ export default function LeadsPage() {
   const [viewingLeadId, setViewingLeadId] = useState<string | null>(null);
   const [dueOnly, setDueOnly] = useState(false);
 
+  // Real server-side filters (used to fetch everything and filter in the
+  // browser) — replaces that with a query string against GET /api/leads.
+  const [statusFilter, setStatusFilter] = useState('');
+  const [sourceFilter, setSourceFilter] = useState('');
+  const [assigneeFilter, setAssigneeFilter] = useState('');
+  const [search, setSearch] = useState('');
+
+  // Only one row's note editor is open at a time (mirrors how
+  // viewingLeadId already gates the detail dialog).
+  const [noteEditorLeadId, setNoteEditorLeadId] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState('');
+
+  function buildQuery(): string {
+    const params = new URLSearchParams();
+    if (statusFilter) params.set('status', statusFilter);
+    if (sourceFilter) params.set('leadSource', sourceFilter);
+    if (assigneeFilter) params.set('assignedTo', assigneeFilter);
+    if (search.trim()) params.set('search', search.trim());
+    if (dueOnly) params.set('dueForFollowUp', 'true');
+    const query = params.toString();
+    return query ? `/api/leads?${query}` : '/api/leads';
+  }
+
   async function loadLeads() {
     try {
-      const result = await apiFetch<{ leads: LeadRow[] }>('/api/leads');
+      const result = await apiFetch<{ leads: LeadRow[] }>(buildQuery());
       setRows(result.leads);
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to load leads.');
@@ -67,6 +91,10 @@ export default function LeadsPage() {
 
   useEffect(() => {
     void loadLeads();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, sourceFilter, assigneeFilter, search, dueOnly]);
+
+  useEffect(() => {
     void loadSummary();
     void (async () => {
       try {
@@ -86,6 +114,7 @@ export default function LeadsPage() {
         body: JSON.stringify({ status }),
       });
       await loadLeads();
+      await loadSummary();
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to update lead.');
     } finally {
@@ -109,23 +138,15 @@ export default function LeadsPage() {
     }
   }
 
-  async function addFollowUpNote(id: string, note: string) {
-    try {
-      await updateLeadField(id, { notes: note });
-    } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Failed to save follow-up note.');
-    }
+  async function saveNote(id: string) {
+    const note = noteDraft.trim();
+    if (!note) return;
+    await updateLeadField(id, { notes: note });
+    setNoteEditorLeadId(null);
+    setNoteDraft('');
   }
 
-  // A lead is "due" once its follow-up date has arrived or passed — today
-  // counts as due so nothing scheduled for today gets missed.
-  function isDue(row: LeadRow): boolean {
-    if (!row.nextFollowUpAt) return false;
-    return new Date(row.nextFollowUpAt).getTime() <= Date.now();
-  }
-
-  const dueCount = rows.filter(isDue).length;
-  const visibleRows = dueOnly ? rows.filter(isDue) : rows;
+  const dueCount = rows.filter((row) => row.nextFollowUpAt && new Date(row.nextFollowUpAt).getTime() <= Date.now()).length;
 
   return (
     <div className="space-y-6">
@@ -190,6 +211,65 @@ export default function LeadsPage() {
       )}
 
       <Card>
+        <CardContent className="flex flex-wrap items-end gap-3 pt-6">
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Search</label>
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Name, email, company…"
+              className="h-9 w-48"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Status</label>
+            <select
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+            >
+              <option value="">All statuses</option>
+              {LEAD_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Source</label>
+            <select
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+              value={sourceFilter}
+              onChange={(event) => setSourceFilter(event.target.value)}
+            >
+              <option value="">All sources</option>
+              {LEAD_SOURCE_VALUES.map((source) => (
+                <option key={source} value={source}>
+                  {source}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Assigned to</label>
+            <select
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+              value={assigneeFilter}
+              onChange={(event) => setAssigneeFilter(event.target.value)}
+            >
+              <option value="">Anyone</option>
+              {staffUsers.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.fullName}
+                </option>
+              ))}
+            </select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader>
           <CardTitle>Recent leads</CardTitle>
         </CardHeader>
@@ -206,8 +286,10 @@ export default function LeadsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {visibleRows.map((row) => (
-                <TableRow key={row.id} className={isDue(row) ? 'bg-amber-50' : undefined}>
+              {rows.map((row) => {
+                const isDue = Boolean(row.nextFollowUpAt && new Date(row.nextFollowUpAt).getTime() <= Date.now());
+                return (
+                <TableRow key={row.id} className={isDue ? 'bg-amber-50' : undefined}>
                   <TableCell>
                     <div className="font-medium">{row.fullName}</div>
                     <div className="text-sm text-muted-foreground">{row.email}</div>
@@ -222,10 +304,11 @@ export default function LeadsPage() {
                         onChange={(event) => void updateLeadStatus(row.id, event.target.value)}
                         disabled={savingId === row.id}
                       >
-                        <option value="New">New</option>
-                        <option value="Qualified">Qualified</option>
-                        <option value="Follow-up">Follow-up</option>
-                        <option value="Enrolled">Enrolled</option>
+                        {LEAD_STATUSES.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
                       </select>
                       <select
                         className="h-8 rounded-md border border-input bg-background px-2 text-sm"
@@ -279,19 +362,48 @@ export default function LeadsPage() {
                           size="sm"
                           variant="outline"
                           onClick={() => {
-                            const note = window.prompt('Add a follow-up note', 'Follow up this week');
-                            if (note) void addFollowUpNote(row.id, note);
+                            setNoteEditorLeadId(noteEditorLeadId === row.id ? null : row.id);
+                            setNoteDraft('');
                           }}
                         >
-                          Follow-up
+                          Add note
                         </Button>
                       </div>
+                      {noteEditorLeadId === row.id && (
+                        <div className="space-y-2 rounded-md border p-2">
+                          <textarea
+                            className="h-16 w-56 rounded-md border border-input bg-background p-2 text-sm"
+                            value={noteDraft}
+                            onChange={(event) => setNoteDraft(event.target.value)}
+                            placeholder="What happened / next step…"
+                          />
+                          <div className="flex gap-2">
+                            <Button size="sm" onClick={() => void saveNote(row.id)} disabled={!noteDraft.trim()}>
+                              Save note
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setNoteEditorLeadId(null);
+                                setNoteDraft('');
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
+          {rows.length === 0 && (
+            <p className="py-4 text-sm text-muted-foreground">No leads match these filters.</p>
+          )}
         </CardContent>
       </Card>
 

@@ -1,12 +1,23 @@
 import { AppError, handleRouteError, successResponse } from '@/lib/errors';
 import * as leadsService from '@/modules/leads/service';
-import { createLeadInputSchema } from '@/modules/leads/types';
+import { createLeadInputSchema, listLeadsFiltersSchema } from '@/modules/leads/types';
 import * as usersService from '@/modules/users/service';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await usersService.requireRole(['admin', 'marketing', 'management']);
-    const rows = await leadsService.listLeads();
+    const { searchParams } = new URL(request.url);
+    const parsed = listLeadsFiltersSchema.safeParse({
+      status: searchParams.get('status') ?? undefined,
+      leadSource: searchParams.get('leadSource') ?? undefined,
+      assignedTo: searchParams.get('assignedTo') ?? undefined,
+      search: searchParams.get('search') ?? undefined,
+      dueForFollowUp: searchParams.get('dueForFollowUp') === 'true' ? true : undefined,
+    });
+    if (!parsed.success) {
+      throw new AppError('VALIDATION_ERROR', 'Invalid lead filters.', 400);
+    }
+    const rows = await leadsService.listLeads(parsed.data);
     return successResponse({ leads: rows });
   } catch (err) {
     return handleRouteError(err);
