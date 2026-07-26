@@ -19,6 +19,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 
 import { apiFetch } from '@/components/api-client';
 import { AddToLinkedInButton } from '@/components/AddToLinkedInButton';
@@ -291,7 +292,7 @@ export default function PortalDashboardPage() {
       <div className="app">
         <aside className="rail" aria-label="Portal navigation">
           <div className="rail-brand">
-            <div className="mark">K</div>
+            <Image src="/knowsia-icon.png" alt="Knowsia" width={34} height={34} className="mark" priority />
             <div>
               <span className="name">Knowsia</span>
               <span className="tag">Student Portal</span>
@@ -339,7 +340,10 @@ export default function PortalDashboardPage() {
 
         <div className="topbar">
           <div className="row1">
-            <div className="brand"><span className="mark">K</span>Knowsia</div>
+            <div className="brand">
+              <Image src="/knowsia-icon.png" alt="Knowsia" width={26} height={26} className="mark" priority />
+              Knowsia
+            </div>
             <button className="logout" type="button" onClick={handleLogout}>
               <svg className="icon" style={{ width: 14, height: 14 }}><use href="#i-logout" /></svg>Log out
             </button>
@@ -1035,7 +1039,7 @@ const PORTAL_STYLES = `
   position: sticky; top: 0; height: 100vh;
 }
 .portal-app .rail-brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 20px; }
-.portal-app .rail-brand .mark { width: 34px; height: 34px; border-radius: 50%; background: var(--rail-accent); color: var(--rail-bg); display: grid; place-items: center; font-family: var(--font-display); font-weight: 700; font-size: 16px; }
+.portal-app .rail-brand .mark { width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0; object-fit: cover; }
 .portal-app .rail-brand .name { font-family: var(--font-display); font-size: 17px; font-weight: 600; }
 .portal-app .rail-brand .tag { display: block; font-size: 11px; color: var(--rail-fg-muted); letter-spacing: 0.04em; }
 .portal-app .identity { display: flex; align-items: center; gap: 10px; padding: 12px; margin: 0 4px 18px; background: rgba(255,255,255,0.05); border: 1px solid var(--rail-line); border-radius: 10px; }
@@ -1194,7 +1198,7 @@ const PORTAL_STYLES = `
   .portal-app .topbar { display: block; position: sticky; top: 0; z-index: 10; background: var(--rail-bg); color: var(--rail-fg); padding: 12px 16px; }
   .portal-app .topbar .row1 { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
   .portal-app .topbar .row1 .brand { display: flex; align-items: center; gap: 8px; font-family: var(--font-display); font-size: 15px; font-weight: 600; }
-  .portal-app .topbar .row1 .mark { width: 26px; height: 26px; border-radius: 50%; background: var(--rail-accent); color: var(--rail-bg); display: grid; place-items: center; font-family: var(--font-display); font-weight: 700; font-size: 13px; }
+  .portal-app .topbar .row1 .mark { width: 26px; height: 26px; border-radius: 50%; flex-shrink: 0; object-fit: cover; }
   .portal-app .topbar .row1 button.logout { background: none; border: 1px solid var(--rail-line); color: var(--rail-fg); border-radius: 7px; padding: 6px 10px; font-size: 12px; display: flex; align-items: center; gap: 6px; }
   .portal-app .topbar-nav { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
   .portal-app .topbar-nav button { flex-shrink: 0; background: none; border: 1px solid var(--rail-line); color: var(--rail-fg-muted); padding: 7px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
