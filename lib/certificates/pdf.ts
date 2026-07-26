@@ -1,7 +1,8 @@
-// Certificate PDF generator (founder-approved 2026-07-19). Replicates the
-// Knowsia "Certificate of Competence" design (purple border, orange name,
-// purple course title, QR-coded verification) in code with pdf-lib —
-// generated on demand from the registry row, no file storage.
+// Certificate PDF generator (founder-approved 2026-07-19, recolored
+// 2026-07-26 to the real Knowsia brand palette). Replicates the Knowsia
+// "Certificate of Competence" design (navy border, orange name, navy course
+// title, QR-coded verification) in code with pdf-lib — generated on demand
+// from the registry row, no file storage.
 //
 // The real brand lockup and both handwritten signatures are inlined as
 // base64 (logo.ts, signatures.ts) so the serverless PDF generator has no
@@ -16,7 +17,7 @@ import {
   SIGNATURE_BONNEY_PNG_BASE64,
 } from '@/lib/certificates/signatures';
 
-const PURPLE = rgb(75 / 255, 33 / 255, 168 / 255);
+const NAVY = rgb(30 / 255, 58 / 255, 138 / 255);
 const ORANGE = rgb(244 / 255, 158 / 255, 32 / 255);
 const INK = rgb(26 / 255, 26 / 255, 46 / 255);
 const GREY = rgb(90 / 255, 90 / 255, 100 / 255);
@@ -96,7 +97,7 @@ export async function generateCertificatePdf(
     y: 28,
     width: width - 56,
     height: height - 56,
-    borderColor: PURPLE,
+    borderColor: NAVY,
     borderWidth: 5,
   });
 
@@ -148,8 +149,8 @@ export async function generateCertificatePdf(
   cursorX += italic.widthOfTextAtSize(italicText, lineSize);
   page.drawText(postText, { x: cursorX, y: y(318), size: lineSize, font: helvetica, color: INK });
 
-  // Course title — purple.
-  drawCentered(data.courseTitle, 372, 20, bold, PURPLE);
+  // Course title — navy.
+  drawCentered(data.courseTitle, 372, 20, bold, NAVY);
 
   // Description, wrapped and centered (up to 3 lines).
   const descriptionLines = wrapText(

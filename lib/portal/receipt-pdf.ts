@@ -6,7 +6,10 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
 import { KNOWSIA_LOGO_PNG_BASE64 } from '@/lib/certificates/logo';
 
-const PURPLE = rgb(75 / 255, 33 / 255, 168 / 255);
+// Brand colors (2026-07-26) — the real Knowsia orange from the logo (also
+// used for the recipient name on the certificate PDF, lib/certificates/pdf.ts),
+// black/grey for everything that needs to stay legible on a printed document.
+const ORANGE = rgb(244 / 255, 158 / 255, 32 / 255);
 const INK = rgb(26 / 255, 26 / 255, 46 / 255);
 const GREY = rgb(90 / 255, 90 / 255, 100 / 255);
 
@@ -48,7 +51,7 @@ export async function generateReceiptPdf(data: ReceiptPdfData): Promise<Uint8Arr
   const logoWidth = (740 / 270) * logoHeight;
   page.drawImage(logoImage, { x: 48, y: y(88), width: logoWidth, height: logoHeight });
 
-  page.drawText('RECEIPT', { x: width - 48 - bold.widthOfTextAtSize('RECEIPT', 22), y: y(78), size: 22, font: bold, color: PURPLE });
+  page.drawText('RECEIPT', { x: width - 48 - bold.widthOfTextAtSize('RECEIPT', 22), y: y(78), size: 22, font: bold, color: ORANGE });
   const receiptNumber = `Ref: RCPT-${data.registrationId.slice(0, 8).toUpperCase()}`;
   page.drawText(receiptNumber, {
     x: width - 48 - helvetica.widthOfTextAtSize(receiptNumber, 10),
@@ -57,6 +60,7 @@ export async function generateReceiptPdf(data: ReceiptPdfData): Promise<Uint8Arr
     font: helvetica,
     color: GREY,
   });
+  page.drawLine({ start: { x: 48, y: y(118) }, end: { x: width - 48, y: y(118) }, thickness: 2, color: ORANGE });
 
   let cursorTop = 150;
   const line = (text: string, size = 11, font = helvetica, color = INK, gap = 16) => {
@@ -76,7 +80,7 @@ export async function generateReceiptPdf(data: ReceiptPdfData): Promise<Uint8Arr
 
   cursorTop += 20;
   const columns = { desc: 48, fee: 420, paid: 500 };
-  page.drawRectangle({ x: 48, y: y(cursorTop) - 4, width: width - 96, height: 22, color: PURPLE });
+  page.drawRectangle({ x: 48, y: y(cursorTop) - 4, width: width - 96, height: 22, color: INK });
   page.drawText('Description', { x: columns.desc + 6, y: y(cursorTop + 12), size: 10, font: bold, color: rgb(1, 1, 1) });
   page.drawText('Fee', { x: columns.fee, y: y(cursorTop + 12), size: 10, font: bold, color: rgb(1, 1, 1) });
   page.drawText('Paid', { x: columns.paid, y: y(cursorTop + 12), size: 10, font: bold, color: rgb(1, 1, 1) });
@@ -91,7 +95,7 @@ export async function generateReceiptPdf(data: ReceiptPdfData): Promise<Uint8Arr
   page.drawLine({ start: { x: 48, y: y(cursorTop) }, end: { x: width - 48, y: y(cursorTop) }, thickness: 1, color: GREY });
   cursorTop += 24;
   page.drawText('Balance Remaining', { x: columns.fee, y: y(cursorTop), size: 12, font: bold, color: INK });
-  page.drawText(formatGhs(data.balance), { x: columns.paid, y: y(cursorTop), size: 12, font: bold, color: data.balance > 0 ? PURPLE : INK });
+  page.drawText(formatGhs(data.balance), { x: columns.paid, y: y(cursorTop), size: 12, font: bold, color: INK });
 
   cursorTop += 50;
   const footer = 'Knowsia — reg.knowsia.com — Questions? info.knowsia@gmail.com';
