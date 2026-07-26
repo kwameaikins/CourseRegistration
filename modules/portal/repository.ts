@@ -221,6 +221,50 @@ export async function consumeLoginToken(
   return { participantId: data[0].participant_id };
 }
 
+// Forgot-PIN token support (2026-07-26) — same opaque single-use token
+// pattern as portal_login_tokens: the row's id IS the token, service-role
+// only, consumed atomically the same race-safe way as consumeLoginToken.
+export async function insertPinResetToken(
+  participantId: string,
+  expiresAt: string,
+): Promise<{ id: string }> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('participant_pin_reset_tokens')
+    .insert({ participant_id: participantId, expires_at: expiresAt })
+    .select('id')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function consumePinResetToken(
+  token: string,
+): Promise<{ participantId: string } | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('participant_pin_reset_tokens')
+    .update({ consumed_at: new Date().toISOString() })
+    .eq('id', token)
+    .is('consumed_at', null)
+    .gt('expires_at', new Date().toISOString())
+    .select('participant_id');
+  if (error) throw error;
+  if (!data || data.length === 0) return null;
+  return { participantId: data[0].participant_id };
+}
+
+// Lets a successful PIN reset also recover a locked-out account — there is
+// no other self-service path back in once locked_until is in the future.
+export async function clearLockout(participantId: string): Promise<void> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase
+    .from('participant_auth')
+    .update({ failed_attempts: 0, locked_until: null, updated_at: new Date().toISOString() })
+    .eq('participant_id', participantId);
+  if (error) throw error;
+}
+
 // Everything the portal dashboard needs about one Participant, across every
 // Registration they have — service-role client, explicit participant_id
 // scoping (never trusts a client-supplied id past the session lookup).

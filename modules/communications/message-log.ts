@@ -12,3 +12,11 @@ export async function getMessageLog(filters: MessageLogFilters): Promise<{
   const { rows, total } = await communicationsRepository.selectMessageLog(filters);
   return { rows, pagination: { page: filters.page, limit: filters.limit, total } };
 }
+
+// Participant-scoped message history (student portal, 2026-07-26) — ungated
+// helper, same posture as paymentsService.applyPaymentUpdate: the caller
+// (modules/portal/service.ts) has already verified the registration ids
+// belong to the requesting participant before calling this.
+export async function getMessageLogForRegistrations(registrationIds: string[]) {
+  return communicationsRepository.selectMessageLogForRegistrationIds(registrationIds);
+}

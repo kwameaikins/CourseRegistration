@@ -385,6 +385,65 @@ async function fetchSmsLogEntries(status?: 'success' | 'failed'): Promise<RawLog
   }));
 }
 
+// Participant-scoped message history (student portal, 2026-07-26) — same
+// three-table read as selectMessageLog below, but filtered to specific
+// registration ids instead of a global cap/status filter, and with no
+// participant/course enrichment (the portal already knows which
+// registration/course it's rendering under).
+export async function selectMessageLogForRegistrationIds(
+  registrationIds: string[],
+): Promise<RawLogEntry[]> {
+  if (registrationIds.length === 0) return [];
+  const supabase = createSupabaseServiceRoleClient();
+
+  const [emailResult, whatsappResult, smsResult] = await Promise.all([
+    supabase
+      .from('email_log')
+      .select('registration_id, email_type, sent_at, success, error_message')
+      .in('registration_id', registrationIds),
+    supabase
+      .from('whatsapp_log')
+      .select('registration_id, message_type, sent_at, success, error_message')
+      .in('registration_id', registrationIds),
+    supabase
+      .from('sms_log')
+      .select('registration_id, message_type, sent_at, success, error_message')
+      .in('registration_id', registrationIds),
+  ]);
+  if (emailResult.error) throw emailResult.error;
+  if (whatsappResult.error) throw whatsappResult.error;
+  if (smsResult.error) throw smsResult.error;
+
+  const combined: RawLogEntry[] = [
+    ...emailResult.data.map((row) => ({
+      channel: 'email' as const,
+      messageType: row.email_type,
+      sentAt: row.sent_at,
+      success: row.success,
+      errorMessage: row.error_message,
+      registrationId: row.registration_id,
+    })),
+    ...whatsappResult.data.map((row) => ({
+      channel: 'whatsapp' as const,
+      messageType: row.message_type,
+      sentAt: row.sent_at,
+      success: row.success,
+      errorMessage: row.error_message,
+      registrationId: row.registration_id,
+    })),
+    ...smsResult.data.map((row) => ({
+      channel: 'sms' as const,
+      messageType: row.message_type,
+      sentAt: row.sent_at,
+      success: row.success,
+      errorMessage: row.error_message,
+      registrationId: row.registration_id,
+    })),
+  ];
+  combined.sort((a, b) => (a.sentAt < b.sentAt ? 1 : a.sentAt > b.sentAt ? -1 : 0));
+  return combined;
+}
+
 export async function selectMessageLog(
   filters: MessageLogFilters,
 ): Promise<{ rows: MessageLogRow[]; total: number }> {

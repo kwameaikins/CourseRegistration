@@ -118,3 +118,42 @@ export const portalSetUpInstallmentPlanSchema = z.object({
   registrationId: z.uuid(),
 });
 export type PortalSetUpInstallmentPlanInput = z.infer<typeof portalSetUpInstallmentPlanSchema>;
+
+// Receipt (student portal, 2026-07-26) — rendered on demand from the
+// registration's live payment data, same posture as the certificate/invoice
+// PDF generators; never a stored record.
+export interface PortalReceiptData {
+  participantName: string;
+  participantEmail: string;
+  courseName: string;
+  cohortLabel: string;
+  courseFee: number;
+  amountPaid: number;
+  balance: number;
+  paymentMethod: string | null;
+  transactionId: string | null;
+  paymentDate: string | null;
+  registrationId: string;
+}
+
+// Message history (student portal, 2026-07-26) — a participant's own
+// communications, scoped to one registration they own.
+export interface PortalMessageHistoryEntry {
+  channel: 'email' | 'whatsapp' | 'sms';
+  messageType: string;
+  sentAt: string;
+  success: boolean;
+}
+
+// Forgot-PIN (student portal, 2026-07-26) — identical email-or-phone
+// identifier shape as portalLoginSchema.
+export const portalForgotPinSchema = z.object({
+  identifier: z.string().trim().min(3).max(200),
+});
+export type PortalForgotPinInput = z.infer<typeof portalForgotPinSchema>;
+
+export const portalResetPinSchema = z.object({
+  token: z.string().trim().min(1),
+  newPin: z.string().trim().regex(/^\d{4}$/, 'PIN must be 4 digits'),
+});
+export type PortalResetPinInput = z.infer<typeof portalResetPinSchema>;

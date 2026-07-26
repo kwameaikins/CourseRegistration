@@ -14,12 +14,25 @@ import * as certificatesService from '@/modules/certificates/service';
 // module); portal only verifies the registration belongs to this session
 // before delegating (founder-approved 2026-07-24).
 import * as paymentsService from '@/modules/payments/service';
+// Permitted cross-module call (2026-07-26) — communications owns the
+// email/whatsapp/sms log tables; portal only ever asks for the subset
+// scoped to registrations it has already verified belong to this session.
+import * as communicationsService from '@/modules/communications/service';
+// Permitted cross-module call (2026-07-26) — the "browse other courses"
+// section reuses the exact same public-batch read the registration form
+// uses; courses stays unaware the portal exists.
+import * as coursesService from '@/modules/courses/service';
+import { sendTransactionalEmail } from '@/lib/resend/client';
 import type {
   PortalChangePinInput,
   PortalDashboard,
   PortalExchangeLoginTokenResult,
+  PortalForgotPinInput,
   PortalLoginInput,
   PortalLoginResult,
+  PortalMessageHistoryEntry,
+  PortalReceiptData,
+  PortalResetPinInput,
   PortalSetUpInstallmentPlanInput,
   PortalUpdateNameInput,
 } from '@/modules/portal/types';
@@ -317,4 +330,110 @@ export async function setUpInstallmentPlan(
     courseFee: Number(match.payment.course_fee),
     batchStartDate: match.batch.start_date,
   });
+}
+
+// Receipt (2026-07-26) — same "never trust a client-supplied registrationId
+// blindly" posture as setUpInstallmentPlan above: the registration must
+// appear in this session's own dashboard data before anything is returned.
+export async function getReceiptData(
+  sessionId: string | undefined,
+  registrationId: string,
+): Promise<PortalReceiptData> {
+  const { participantId } = await requirePortalSession(sessionId);
+  const data = await portalRepository.selectPortalDashboardData(participantId);
+  const match = data.registrations.find((row) => row.registration.id === registrationId);
+  if (!match || !match.payment || !match.course || !match.batch || !data.participant) {
+    throw new AppError('NOT_FOUND', 'Registration not found.', 404);
+  }
+
+  return {
+    participantName: data.participant.full_name,
+    participantEmail: data.participant.email,
+    courseName: match.course.course_name,
+    cohortLabel: match.batch.cohort_label,
+    courseFee: Number(match.payment.course_fee),
+    amountPaid: Number(match.payment.amount_paid),
+    balance: Number(match.payment.balance),
+    paymentMethod: match.payment.payment_method,
+    transactionId: match.payment.transaction_id,
+    paymentDate: match.payment.payment_date,
+    registrationId,
+  };
+}
+
+// Message history (2026-07-26) — same ownership check as getReceiptData,
+// then delegates the actual read to communications (which owns the log
+// tables) via its ungated getMessageLogForRegistrations helper.
+export async function getMessageHistory(
+  sessionId: string | undefined,
+  registrationId: string,
+): Promise<PortalMessageHistoryEntry[]> {
+  const { participantId } = await requirePortalSession(sessionId);
+  const data = await portalRepository.selectPortalDashboardData(participantId);
+  const owns = data.registrations.some((row) => row.registration.id === registrationId);
+  if (!owns) {
+    throw new AppError('NOT_FOUND', 'Registration not found.', 404);
+  }
+
+  const rows = await communicationsService.getMessageLogForRegistrations([registrationId]);
+  return rows.map((row) => ({
+    channel: row.channel,
+    messageType: row.messageType,
+    sentAt: row.sentAt,
+    success: row.success,
+  }));
+}
+
+// Browse other courses (2026-07-26) — reuses the exact same public-batch
+// read the registration form uses, filtered to exclude batches this
+// participant is already registered in.
+export async function getOtherCourses(sessionId: string | undefined) {
+  const { participantId } = await requirePortalSession(sessionId);
+  const data = await portalRepository.selectPortalDashboardData(participantId);
+  const registeredBatchIds = new Set(data.registrations.map((row) => row.registration.batch_id));
+  const batches = await coursesService.getActiveBatchesForPublicForm();
+  return batches.filter((batch) => !registeredBatchIds.has(batch.batchId));
+}
+
+const PIN_RESET_TOKEN_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+const APP_URL = () => process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com';
+
+// Forgot-PIN (2026-07-26) — the one genuinely new security-sensitive flow.
+// Always returns void regardless of whether the identifier matched anything
+// — same no-enumeration posture as login's failure branches. Email only
+// (not SMS): free via Resend and already the primary channel for every
+// other participant communication, unlike per-send-cost SMS.
+export async function requestPinReset(input: PortalForgotPinInput): Promise<void> {
+  const participant = await portalRepository.selectParticipantByIdentifier(input.identifier);
+  if (!participant || participant.deleted_at !== null) return;
+
+  const expiresAt = new Date(Date.now() + PIN_RESET_TOKEN_DURATION_MS).toISOString();
+  const token = await portalRepository.insertPinResetToken(participant.id, expiresAt);
+
+  try {
+    await sendTransactionalEmail({
+      to: participant.email,
+      subject: 'Reset your Knowsia portal PIN',
+      html: `
+<p>Dear ${participant.full_name},</p>
+<p>We received a request to reset your student portal PIN. Click below to set a new one —
+this link works once and expires in 15 minutes:</p>
+<p style="margin:24px 0;"><a href="${APP_URL()}/portal/reset-pin?token=${token.id}" style="background:#4B21A8;color:#ffffff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;">Reset my PIN</a></p>
+<p>If you didn't request this, you can safely ignore this email — your PIN will not change.</p>`,
+    });
+  } catch (err) {
+    console.error('[portal forgot-pin email]', err);
+  }
+}
+
+// Resetting the PIN also clears any lockout — this is the only self-service
+// path back into an account for someone who both forgot their PIN AND is
+// currently locked out, since there is no other recovery mechanism today.
+export async function resetPin(input: PortalResetPinInput): Promise<void> {
+  const consumed = await portalRepository.consumePinResetToken(input.token);
+  if (!consumed) {
+    throw new AppError('INVALID_TOKEN', 'This reset link is invalid or has expired.', 400);
+  }
+  await portalRepository.updateParticipantPin(consumed.participantId, hashPin(input.newPin));
+  await portalRepository.clearLockout(consumed.participantId);
 }

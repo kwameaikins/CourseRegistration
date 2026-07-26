@@ -349,9 +349,30 @@ company_admin_auth/sessions, registrations.company_allocation_id). See
       sections added to Docs 1/3/4/5/8; Doc 6 backfilled with the previously-undocumented
       participant/company portal auth model (Section 13); PRD Section 9/4.2's stale
       "no participant self-service portal" lines corrected (that feature shipped 2026-07-22)
-- [ ] *(external)* Apply migration `202607260032` to production (`npx supabase db push`)
+- [x] *(external)* Apply migration `202607260032` to production — confirmed via
+      `npx supabase migration list` (2026-07-26)
 - [ ] *(external)* Founder creates the first real Company + sells its first seat allocation
       against a real batch to confirm the end-to-end flow before the live session
+
+---
+
+## Student portal gap-closing (founder-approved 2026-07-26)
+
+Audit of `modules/portal` against portal best practices found the architecture sound; five
+additive gaps closed, no rebuild needed. See `Coding Docs/06_Security_and_Authentication.md`
+Section 13 for the forgot-PIN token pattern.
+
+- [x] Phase A — Receipt PDF (`lib/portal/receipt-pdf.ts`, on-demand, never stored), message
+      history (`communicationsService.getMessageLogForRegistrations`, new registration-scoped
+      repository query), "Explore other courses" section
+      (`coursesService.getActiveBatchesForPublicForm`, excludes already-registered batches),
+      support-contact footer
+- [x] Phase B — Self-service PIN recovery: `/portal/forgot-pin` → emailed single-use link →
+      `/portal/reset-pin`, backed by a new `participant_pin_reset_tokens` table (migration
+      `202607260033`, RLS enabled with zero policies, same posture as `portal_login_tokens`).
+      No enumeration (same generic result regardless of match). Resetting also clears any
+      lockout, so this doubles as locked-out-account recovery.
+- [ ] *(external)* Apply migration `202607260033` to production (`npx supabase db push`)
 
 ---
 

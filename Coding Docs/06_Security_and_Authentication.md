@@ -352,3 +352,16 @@ write. It can also never cause a payment to be marked Paid (BR-12): the employee
 available to a company session forces every row's `amountPaid` to zero before delegating to
 the shared registration-creation function, regardless of what was submitted, since there is no
 staff identity for such a write to be attributed to.
+
+**Self-service PIN recovery (2026-07-26):** a third token table, `participant_pin_reset_tokens`
+(`id` is the token itself), same RLS-enabled-zero-policies/service-role-only posture as
+`portal_login_tokens`. `portalService.requestPinReset(identifier)` looks up the participant via
+the same email-or-phone lookup as `login`, and — only if found — mints a 15-minute single-use
+token and emails a reset link via Resend; **it always returns the same generic result
+regardless of whether a match was found**, so this endpoint cannot be used to enumerate
+registered emails/phone numbers. `portalService.resetPin(token, newPin)` validates the token
+(exists, unconsumed, unexpired — enforced by the same race-safe single-UPDATE consume pattern
+as `consumeLoginToken`), updates the PIN, and also clears `failed_attempts`/`locked_until` —
+so this is the only self-service path back into an account that is both forgotten-PIN *and*
+locked out. Not yet built for the company admin tier (no reported need as of this writing);
+the pattern is directly reusable if one arises.

@@ -70,6 +70,25 @@ interface NextClass {
   joinUrl: string | null;
 }
 
+interface MessageHistoryEntry {
+  channel: 'email' | 'whatsapp' | 'sms';
+  messageType: string;
+  sentAt: string;
+  success: boolean;
+}
+
+interface OtherCourse {
+  batchId: string;
+  courseName: string;
+  cohortLabel: string;
+  startDate: string;
+  courseFee: number;
+  seatsRemaining: number | null;
+  isFull: boolean;
+  discountCutoffDate: string | null;
+  discountedFee: number | null;
+}
+
 interface Dashboard {
   fullName: string;
   firstName: string;
@@ -116,6 +135,14 @@ export default function PortalDashboardPage() {
   const [planSaving, setPlanSaving] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
 
+  // Message history (2026-07-26) — fetched on demand per registration
+  // rather than up front, since most visits won't need it.
+  const [messagesByRegistration, setMessagesByRegistration] = useState<
+    Record<string, MessageHistoryEntry[] | 'loading'>
+  >({});
+
+  const [otherCourses, setOtherCourses] = useState<OtherCourse[]>([]);
+
   const loadDashboard = useCallback(() => {
     return apiFetch<Dashboard>('/api/portal/me')
       .then((data) => {
@@ -125,9 +152,26 @@ export default function PortalDashboardPage() {
         }
         setDashboard(data);
         void apiFetch<{ nextClass: NextClass | null }>('/api/portal/next-class').then((result) => setNextClass(result.nextClass)).catch(() => setNextClass(null));
+        void apiFetch<OtherCourse[]>('/api/portal/other-courses').then(setOtherCourses).catch(() => setOtherCourses([]));
       })
       .catch(() => router.push('/portal/login'));
   }, [router]);
+
+  async function toggleMessages(registrationId: string) {
+    if (messagesByRegistration[registrationId]) {
+      setMessagesByRegistration((current) => {
+        const next = { ...current };
+        delete next[registrationId];
+        return next;
+      });
+      return;
+    }
+    setMessagesByRegistration((current) => ({ ...current, [registrationId]: 'loading' }));
+    const messages = await apiFetch<MessageHistoryEntry[]>(
+      `/api/portal/messages/${registrationId}`,
+    ).catch(() => []);
+    setMessagesByRegistration((current) => ({ ...current, [registrationId]: messages }));
+  }
 
   useEffect(() => {
     loadDashboard().finally(() => setLoading(false));
@@ -407,6 +451,17 @@ export default function PortalDashboardPage() {
               </div>
             </div>
 
+            {reg.amountPaid > 0 && (
+              <a
+                href={`/api/portal/receipt/${reg.registrationId}`}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 inline-block text-sm font-medium text-primary underline-offset-2 hover:underline"
+              >
+                Download receipt
+              </a>
+            )}
+
             {reg.balance > 0 && (
               <div className="mt-4 space-y-3 border-t pt-4">
                 {confirmingRegistrationId === reg.registrationId ? (
@@ -508,6 +563,39 @@ export default function PortalDashboardPage() {
               </div>
             )}
 
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={() => void toggleMessages(reg.registrationId)}
+                className="text-xs font-semibold uppercase tracking-wide text-primary underline-offset-2 hover:underline"
+              >
+                {messagesByRegistration[reg.registrationId] ? 'Hide' : 'View'} message history
+              </button>
+              {messagesByRegistration[reg.registrationId] === 'loading' && (
+                <p className="mt-1 text-sm text-muted-foreground">Loading…</p>
+              )}
+              {Array.isArray(messagesByRegistration[reg.registrationId]) && (
+                <ul className="mt-1 space-y-1 text-sm">
+                  {(messagesByRegistration[reg.registrationId] as MessageHistoryEntry[]).length === 0 ? (
+                    <li className="text-muted-foreground">No messages sent yet.</li>
+                  ) : (
+                    (messagesByRegistration[reg.registrationId] as MessageHistoryEntry[]).map(
+                      (message, index) => (
+                        <li key={index} className="text-muted-foreground">
+                          {new Date(message.sentAt).toLocaleString('en-GB', {
+                            dateStyle: 'medium',
+                            timeStyle: 'short',
+                          })}{' '}
+                          — {message.channel.toUpperCase()}: {message.messageType}
+                          {!message.success && ' (failed to deliver)'}
+                        </li>
+                      ),
+                    )
+                  )}
+                </ul>
+              )}
+            </div>
+
             {reg.certificates.length > 0 && (
               <div className="mt-4">
                 <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -544,7 +632,50 @@ export default function PortalDashboardPage() {
             )}
           </section>
         ))}
+
+        {otherCourses.length > 0 && (
+          <section className="rounded-lg border p-5">
+            <h2 className="text-lg font-semibold">Explore other courses</h2>
+            <ul className="mt-3 space-y-3">
+              {otherCourses.map((course) => (
+                <li
+                  key={course.batchId}
+                  className="flex flex-wrap items-center justify-between gap-2 border-b pb-3 last:border-b-0 last:pb-0"
+                >
+                  <div>
+                    <p className="font-medium">{course.courseName}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {course.cohortLabel} · Starts {formatDate(course.startDate)} ·{' '}
+                      {course.discountedFee !== null ? (
+                        <>
+                          <span className="line-through">{formatGhs(course.courseFee)}</span>{' '}
+                          <span className="text-emerald-700">{formatGhs(course.discountedFee)}</span>
+                        </>
+                      ) : (
+                        formatGhs(course.courseFee)
+                      )}
+                    </p>
+                  </div>
+                  {course.isFull ? (
+                    <Badge variant="secondary">Full — join waitlist</Badge>
+                  ) : (
+                    <Button asChild size="sm">
+                      <a href={`/register?batchId=${course.batchId}`}>Register</a>
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </div>
+
+      <footer className="mt-10 border-t pt-6 text-center text-sm text-muted-foreground">
+        Need help? Email{' '}
+        <a href="mailto:info.knowsia@gmail.com" className="text-primary underline-offset-2 hover:underline">
+          info.knowsia@gmail.com
+        </a>
+      </footer>
     </main>
   );
 }

@@ -264,6 +264,22 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     `202607260032_corporate_registration.sql` — pending production
     application (run `npx supabase db push` when ready).
 
+  Student portal gap-closing (2026-07-26) — closed five best-practice gaps
+    identified in an audit: on-demand payment receipt PDF (lib/portal/
+    receipt-pdf.ts, same generated-never-stored pattern as invoices/
+    certificates); a per-registration message history section reusing the
+    email/whatsapp/sms log tables via a new ungated
+    communicationsService.getMessageLogForRegistrations; an "Explore other
+    courses" section reusing coursesService.getActiveBatchesForPublicForm;
+    a support-contact footer; and self-service PIN recovery
+    (/portal/forgot-pin → email → /portal/reset-pin) via a third opaque
+    single-use token table, participant_pin_reset_tokens (migration
+    202607260033, same RLS-enabled-zero-policies posture as
+    portal_login_tokens) — resetting also clears any lockout, so it is
+    also the only self-service recovery path for a locked-out account.
+    Migration 202607260033 pending production application (run
+    `npx supabase db push` when ready).
+
   Registration 360° view — "View" action on the Registrations list
     opens a detail dialog aggregating payment, every message channel,
     Zoom, attendance, feedback, certificates, and calls for one

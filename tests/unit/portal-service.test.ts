@@ -17,6 +17,9 @@ const repositoryMock = {
   selectParticipantIdForRegistration: vi.fn(),
   insertLoginToken: vi.fn(),
   consumeLoginToken: vi.fn(),
+  insertPinResetToken: vi.fn(),
+  consumePinResetToken: vi.fn(),
+  clearLockout: vi.fn(),
 };
 const paymentsRepositoryMock = {
   selectPaymentSummaryByTransactionIdSystem: vi.fn(),
@@ -24,10 +27,22 @@ const paymentsRepositoryMock = {
 const certificatesServiceMock = {
   renameExistingCertificates: vi.fn(),
 };
+const communicationsServiceMock = {
+  getMessageLogForRegistrations: vi.fn(),
+};
+const coursesServiceMock = {
+  getActiveBatchesForPublicForm: vi.fn(),
+};
+const resendClientMock = {
+  sendTransactionalEmail: vi.fn(),
+};
 
 vi.mock('@/modules/portal/repository', () => repositoryMock);
 vi.mock('@/modules/payments/repository', () => paymentsRepositoryMock);
 vi.mock('@/modules/certificates/service', () => certificatesServiceMock);
+vi.mock('@/modules/communications/service', () => communicationsServiceMock);
+vi.mock('@/modules/courses/service', () => coursesServiceMock);
+vi.mock('@/lib/resend/client', () => resendClientMock);
 
 const {
   login,
@@ -39,6 +54,11 @@ const {
   issuePortalLoginToken,
   exchangeLoginToken,
   updateName,
+  getReceiptData,
+  getMessageHistory,
+  getOtherCourses,
+  requestPinReset,
+  resetPin,
 } = await import('@/modules/portal/service');
 const { hashPin } = await import('@/lib/portal-auth/pin');
 
@@ -476,5 +496,152 @@ describe('exchangeLoginToken', () => {
     repositoryMock.consumeLoginToken.mockResolvedValueOnce(null);
     const second = await exchangeLoginToken('REG-reg-1-123');
     expect(second).toEqual({ status: 'invalid' });
+  });
+});
+
+// Student portal gap-closing (2026-07-26): receipt, message history, browse
+// other courses, forgot-PIN.
+function receiptDashboardRow(overrides: Record<string, unknown> = {}) {
+  return {
+    registration: { id: 'reg-1', batch_id: 'batch-1' },
+    batch: { cohort_label: 'JUL-2026', start_date: '2026-08-01' },
+    course: { course_name: 'ICAG Level 1 Prep', course_code: 'ICAG-L1' },
+    payment: {
+      course_fee: '1200.00',
+      amount_paid: '1200.00',
+      balance: '0.00',
+      payment_method: 'Mobile Money',
+      transaction_id: 'TXN-123',
+      payment_date: '2026-07-20',
+    },
+    zoomRegistrant: null,
+    attendance: [],
+    certificates: [],
+    ...overrides,
+  };
+}
+
+describe('getReceiptData', () => {
+  beforeEach(() => {
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [receiptDashboardRow()],
+    });
+  });
+
+  it('returns the receipt fields for a registration owned by this session', async () => {
+    const receipt = await getReceiptData('session-1', 'reg-1');
+    expect(receipt).toMatchObject({
+      participantName: 'Ama Owusu',
+      courseName: 'ICAG Level 1 Prep',
+      courseFee: 1200,
+      amountPaid: 1200,
+      balance: 0,
+      paymentMethod: 'Mobile Money',
+      transactionId: 'TXN-123',
+      registrationId: 'reg-1',
+    });
+  });
+
+  it('rejects a registration id that does not belong to this session', async () => {
+    await expect(getReceiptData('session-1', 'reg-not-mine')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+});
+
+describe('getMessageHistory', () => {
+  beforeEach(() => {
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [receiptDashboardRow()],
+    });
+  });
+
+  it('delegates to communications, scoped to the owned registration id', async () => {
+    communicationsServiceMock.getMessageLogForRegistrations.mockResolvedValue([
+      { channel: 'email', messageType: 'RegistrationConfirmation', sentAt: '2026-07-01T09:00:00Z', success: true },
+    ]);
+    const messages = await getMessageHistory('session-1', 'reg-1');
+    expect(communicationsServiceMock.getMessageLogForRegistrations).toHaveBeenCalledWith(['reg-1']);
+    expect(messages).toEqual([
+      { channel: 'email', messageType: 'RegistrationConfirmation', sentAt: '2026-07-01T09:00:00Z', success: true },
+    ]);
+  });
+
+  it('rejects a registration id that does not belong to this session', async () => {
+    await expect(getMessageHistory('session-1', 'reg-not-mine')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    expect(communicationsServiceMock.getMessageLogForRegistrations).not.toHaveBeenCalled();
+  });
+});
+
+describe('getOtherCourses', () => {
+  it('excludes batches the participant is already registered in', async () => {
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [receiptDashboardRow({ registration: { id: 'reg-1', batch_id: 'batch-1' } })],
+    });
+    coursesServiceMock.getActiveBatchesForPublicForm.mockResolvedValue([
+      { batchId: 'batch-1', courseName: 'Already Registered' },
+      { batchId: 'batch-2', courseName: 'New Course' },
+    ]);
+
+    const result = await getOtherCourses('session-1');
+    expect(result).toEqual([{ batchId: 'batch-2', courseName: 'New Course' }]);
+  });
+});
+
+describe('requestPinReset', () => {
+  beforeEach(() => {
+    repositoryMock.insertPinResetToken.mockResolvedValue({ id: 'token-1' });
+    resendClientMock.sendTransactionalEmail.mockResolvedValue(undefined);
+  });
+
+  it('mints a token and emails a reset link when the identifier matches', async () => {
+    await requestPinReset({ identifier: 'ama@example.com' });
+    expect(repositoryMock.insertPinResetToken).toHaveBeenCalledWith(
+      'participant-1',
+      expect.any(String),
+    );
+    expect(resendClientMock.sendTransactionalEmail).toHaveBeenCalledTimes(1);
+  });
+
+  it('does nothing (no enumeration) when the identifier does not match any account', async () => {
+    repositoryMock.selectParticipantByIdentifier.mockResolvedValue(null);
+    await requestPinReset({ identifier: 'nobody@example.com' });
+    expect(repositoryMock.insertPinResetToken).not.toHaveBeenCalled();
+    expect(resendClientMock.sendTransactionalEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe('resetPin', () => {
+  it('rejects an invalid or expired token', async () => {
+    repositoryMock.consumePinResetToken.mockResolvedValue(null);
+    await expect(resetPin({ token: 'bad-token', newPin: '5678' })).rejects.toMatchObject({
+      code: 'INVALID_TOKEN',
+    });
+    expect(repositoryMock.updateParticipantPin).not.toHaveBeenCalled();
+  });
+
+  it('updates the PIN and clears lockout on a valid token', async () => {
+    repositoryMock.consumePinResetToken.mockResolvedValue({ participantId: 'participant-1' });
+    await resetPin({ token: 'good-token', newPin: '5678' });
+    expect(repositoryMock.updateParticipantPin).toHaveBeenCalledWith(
+      'participant-1',
+      expect.any(String),
+    );
+    expect(repositoryMock.clearLockout).toHaveBeenCalledWith('participant-1');
+  });
+
+  it('cannot be used twice — the second consume call resolves null and rejects', async () => {
+    repositoryMock.consumePinResetToken.mockResolvedValueOnce({ participantId: 'participant-1' });
+    await resetPin({ token: 'good-token', newPin: '5678' });
+
+    repositoryMock.consumePinResetToken.mockResolvedValueOnce(null);
+    await expect(resetPin({ token: 'good-token', newPin: '9999' })).rejects.toMatchObject({
+      code: 'INVALID_TOKEN',
+    });
   });
 });

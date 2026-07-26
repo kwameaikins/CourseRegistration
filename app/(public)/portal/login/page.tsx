@@ -6,6 +6,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
+import Link from 'next/link';
+
 import { apiFetch } from '@/components/api-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -84,6 +86,11 @@ export default function PortalLoginPage() {
         <Button type="submit" className="h-11 w-full" disabled={submitting || pin.length !== 4}>
           {submitting ? 'Logging in…' : 'Log in'}
         </Button>
+        <p className="text-center text-sm">
+          <Link href="/portal/forgot-pin" className="text-primary underline-offset-2 hover:underline">
+            Forgot your PIN?
+          </Link>
+        </p>
       </form>
     </main>
   );

@@ -11,7 +11,7 @@ export {
   getTemplatesForCourse,
   saveTemplate,
 } from '@/modules/communications/template-admin';
-export { getMessageLog } from '@/modules/communications/message-log';
+export { getMessageLog, getMessageLogForRegistrations } from '@/modules/communications/message-log';
 export type {
   EmailTemplateView,
   EmailType,
