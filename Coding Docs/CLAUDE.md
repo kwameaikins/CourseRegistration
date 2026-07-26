@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 This file is read automatically at the start of every session. It is the single source of
-truth for how to work on this codebase. It does not replace the 14 documents in `Coding Docs` —
+truth for how to work on this codebase. It does not replace the 15 documents in `Coding Docs` —
 it tells you which one to read for what, and states the rules that apply regardless of
 which task you are doing.
 
@@ -28,10 +28,11 @@ your summary of it.
 
 | Task | Read first |
 |---|---|
-| Any new feature or screen | `/docs/01_PRD.md` — find the Feature ID (F1.xx), read its full spec |
+| Any new feature or screen | `/docs/01_PRD.md` — find the Feature ID (F1.xx) if one exists, else check for a trailing "Extension" section pointing at a companion doc (the convention used for every major feature added since the original PRD — Revenue OS, Live Learning Operations, Corporate Registration) |
 | Live sessions, Zoom delivery, attendance review, recordings, tutor/student learning workflows | Coding Docs/14_Live_Learning_Operations.md |
+| Corporate registration, seat allocations, company portal | Coding Docs/15_Corporate_Operations.md |
 | Database, schema, migrations | `/docs/03_Data_Schema_and_ERD.md` — full SQL, triggers, RLS |
-| Business logic, validation, edge cases | `/docs/04_Business_Logic_Rules.md` — BR-01 through BR-19 |
+| Business logic, validation, edge cases | `/docs/04_Business_Logic_Rules.md` — BR-01 through BR-30 |
 | API routes | `/docs/05_API_Contract.md` — exact request/response shapes |
 | Auth, RLS, secrets | `/docs/06_Security_and_Authentication.md` |
 | Paystack, Resend, Supabase, Sentry, Uptime Robot | `/docs/07_Integration_Specifications.md` |
@@ -242,6 +243,27 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     authentication rows are backfilled and normal login self-heals an absent
     row from the participant phone without replacing an existing PIN.
 
+  Corporate Registration, Portal, and Dashboard (2026-07-26, all 4 phases
+    shipped) — see `Coding Docs/15_Corporate_Operations.md`. A Company buys
+    a Seat Allocation (N seats in one Batch, invoice/bank-transfer billing);
+    staff (or the company's own portal session) add named employees up to
+    the purchased quota, each becoming a normal Registration (certificates/
+    attendance/individual portal all work unmodified). Capacity is reserved
+    the moment seats are sold via a new silent
+    coursesService.adjustBatchCapacityInternal nudge, then released one seat
+    at a time as employees fill in (net-zero change in public availability)
+    or fully released on cancellation (which does go through the real
+    updateBatch, so the existing waitlist-notify fires correctly). No
+    invoice table — amountInvoiced/amountSettled/seatsUsed are always
+    computed live from the linked registrations/payments rows. The company
+    admin portal (`/company-portal`) reuses the participant portal's exact
+    PIN + session-cookie pattern (`modules/portal` was the template),
+    scoped to `company_id`; it can never mark a payment Paid (BR-12 — no
+    staff identity exists for that write). Staff screens live at
+    `/corporate`; the dashboard gained a Corporate summary card. Migration
+    `202607260032_corporate_registration.sql` — pending production
+    application (run `npx supabase db push` when ready).
+
   Registration 360° view — "View" action on the Registrations list
     opens a detail dialog aggregating payment, every message channel,
     Zoom, attendance, feedback, certificates, and calls for one
@@ -285,5 +307,5 @@ still isn't covered:
 
 ---
 
-*Full documentation suite: `Coding Docs/01_PRD.md` through `Coding Docs/14_Live_Learning_Operations.md`.*
+*Full documentation suite: `Coding Docs/01_PRD.md` through `Coding Docs/15_Corporate_Operations.md`.*
 *Live task tracker: `PLAN.md`.*

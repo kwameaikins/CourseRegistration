@@ -35,6 +35,7 @@ import * as attendanceService from '@/modules/attendance/service';
 import type {
   BulkImportRequest,
   BulkImportResult,
+  BulkImportRow,
   BulkImportRowResult,
   CreateRegistrationResult,
   Registration360,
@@ -237,6 +238,108 @@ export async function createRegistration(
 // these are historical entries for a cohort that may already be running or
 // closed. Unlike createRegistration, failures are per-row (duplicates,
 // bad data) rather than aborting the whole run.
+// Shared per-row body for both bulkImportRegistrations (below) and
+// modules/corporate/service.ts's employee-add flow (2026-07-26): participant
+// find-or-create -> portal auth provisioning -> registration insert
+// (duplicate-safe) -> initial payment -> notes -> welcome comms -> optional
+// payment applied. Neither caller's role gate lives here — this assumes the
+// caller has already authorized the write at a broader entry point, same
+// posture as paymentsService.applyPaymentUpdate.
+async function registerOneParticipant(params: {
+  row: BulkImportRow;
+  batchId: string;
+  leadSource: RegistrationInput['leadSource'];
+  paymentMethod: BulkImportRequest['paymentMethod'];
+  courseFee: number;
+  notesSuffix: string;
+  companyAllocationId?: string | null;
+  actor: { id: string; fullName: string; role: string };
+  paymentNotes: string;
+}): Promise<
+  | { status: 'created'; registrationId: string; paymentStatus: RegistrationListRow['paymentStatus'] }
+  | { status: 'duplicate' }
+> {
+  const { row, actor } = params;
+  const fullName = [row.firstName, row.middleName, row.surname].filter(Boolean).join(' ');
+
+  const participant = await registrationsRepository.findOrCreateParticipant({
+    full_name: fullName,
+    first_name: row.firstName,
+    middle_name: row.middleName,
+    surname: row.surname,
+    gender: row.gender,
+    email: row.email,
+    phone: row.phone,
+    job_title: row.jobTitle,
+    company: row.company,
+  });
+
+  try {
+    await ensureParticipantAuth(participant.id, row.phone);
+  } catch (err) {
+    console.error('[registerOneParticipant portal auth provision]', err);
+  }
+
+  let registration;
+  try {
+    registration = await registrationsRepository.insertRegistration({
+      participant_id: participant.id,
+      batch_id: params.batchId,
+      lead_source: params.leadSource,
+      consent_given: true,
+      ...(params.companyAllocationId ? { company_allocation_id: params.companyAllocationId } : {}),
+    });
+  } catch (err) {
+    if (isUniqueViolation(err)) return { status: 'duplicate' };
+    throw err;
+  }
+
+  await registrationsRepository.insertInitialPayment({
+    registration_id: registration.id,
+    course_fee: row.courseFee ?? params.courseFee,
+  });
+
+  await registrationsRepository.updateRegistrationNotes(registration.id, params.notesSuffix);
+
+  // Same non-blocking comms posture as createRegistration — a messaging
+  // failure never fails the row itself.
+  for (const emailType of ['welcome', 'payment_instruction', 'reminder_1'] as const) {
+    try {
+      await communicationsService.sendEmailOnce(registration.id, emailType);
+    } catch (err) {
+      console.error(`[registerOneParticipant email ${emailType}]`, err);
+    }
+  }
+  try {
+    await communicationsService.sendWhatsappOnce(registration.id, 'welcome');
+  } catch (err) {
+    console.error('[registerOneParticipant whatsapp welcome]', err);
+  }
+  try {
+    await communicationsService.sendSmsOnce(registration.id, 'welcome');
+  } catch (err) {
+    console.error('[registerOneParticipant sms welcome]', err);
+  }
+
+  let paymentStatus: RegistrationListRow['paymentStatus'] = 'Unpaid';
+  if (row.amountPaid > 0) {
+    const paymentResult = await paymentsService.applyPaymentUpdate(
+      registration.id,
+      {
+        amountPaid: row.amountPaid,
+        paymentMethod: params.paymentMethod,
+        transactionId: null,
+        paymentDate: null,
+        paymentNotes: params.paymentNotes,
+      },
+      { id: actor.id, fullName: actor.fullName, role: actor.role },
+    );
+    paymentStatus = paymentResult.paymentStatus;
+  }
+
+  return { status: 'created', registrationId: registration.id, paymentStatus };
+}
+
 export async function bulkImportRegistrations(
   input: BulkImportRequest,
 ): Promise<BulkImportResult> {
@@ -261,91 +364,31 @@ export async function bulkImportRegistrations(
   for (let index = 0; index < input.rows.length; index++) {
     const row = input.rows[index];
     try {
-      const fullName = [row.firstName, row.middleName, row.surname]
-        .filter(Boolean)
-        .join(' ');
-
-      const participant = await registrationsRepository.findOrCreateParticipant({
-        full_name: fullName,
-        first_name: row.firstName,
-        middle_name: row.middleName,
-        surname: row.surname,
-        gender: row.gender,
-        email: row.email,
-        phone: row.phone,
-        job_title: row.jobTitle,
-        company: row.company,
+      const result = await registerOneParticipant({
+        row,
+        batchId: input.batchId,
+        leadSource: input.leadSource,
+        paymentMethod: input.paymentMethod,
+        courseFee: defaultCourseFee,
+        notesSuffix,
+        actor: { id: staffUser.id, fullName: staffUser.fullName, role: staffUser.role },
+        paymentNotes: 'Bulk import',
       });
 
-      try {
-        await ensureParticipantAuth(participant.id, row.phone);
-      } catch (err) {
-        console.error('[bulk import portal auth provision]', err);
-      }
-
-      let registration;
-      try {
-        registration = await registrationsRepository.insertRegistration({
-          participant_id: participant.id,
-          batch_id: input.batchId,
-          lead_source: input.leadSource,
-          consent_given: true,
+      if (result.status === 'duplicate') {
+        results.push({
+          index,
+          email: row.email,
+          status: 'duplicate',
+          message: 'Already registered for this course intake.',
         });
-      } catch (err) {
-        if (isUniqueViolation(err)) {
-          results.push({ index, email: row.email, status: 'duplicate', message: 'Already registered for this course intake.' });
-          summary.duplicates++;
-          continue;
-        }
-        throw err;
+        summary.duplicates++;
+        continue;
       }
 
-      await registrationsRepository.insertInitialPayment({
-        registration_id: registration.id,
-        course_fee: row.courseFee ?? defaultCourseFee,
-      });
-
-      await registrationsRepository.updateRegistrationNotes(registration.id, notesSuffix);
-
-      // Same non-blocking comms posture as createRegistration — a
-      // messaging failure never fails the import row itself.
-      for (const emailType of ['welcome', 'payment_instruction', 'reminder_1'] as const) {
-        try {
-          await communicationsService.sendEmailOnce(registration.id, emailType);
-        } catch (err) {
-          console.error(`[bulk import email ${emailType}]`, err);
-        }
-      }
-      try {
-        await communicationsService.sendWhatsappOnce(registration.id, 'welcome');
-      } catch (err) {
-        console.error('[bulk import whatsapp welcome]', err);
-      }
-      try {
-        await communicationsService.sendSmsOnce(registration.id, 'welcome');
-      } catch (err) {
-        console.error('[bulk import sms welcome]', err);
-      }
-
-      let paymentStatus: RegistrationListRow['paymentStatus'] = 'Unpaid';
-      if (row.amountPaid > 0) {
-        const paymentResult = await paymentsService.applyPaymentUpdate(
-          registration.id,
-          {
-            amountPaid: row.amountPaid,
-            paymentMethod: input.paymentMethod,
-            transactionId: null,
-            paymentDate: null,
-            paymentNotes: 'Bulk import',
-          },
-          { id: staffUser.id, fullName: staffUser.fullName, role: staffUser.role },
-        );
-        paymentStatus = paymentResult.paymentStatus;
-      }
-
-      results.push({ index, email: row.email, status: 'created', paymentStatus });
+      results.push({ index, email: row.email, status: 'created', paymentStatus: result.paymentStatus });
       summary.created++;
-      if (paymentStatus === 'Unpaid') summary.unpaid++;
+      if (result.paymentStatus === 'Unpaid') summary.unpaid++;
       else summary.paid++;
     } catch (err) {
       console.error('[bulk import row]', err);
@@ -360,6 +403,43 @@ export async function bulkImportRegistrations(
   }
 
   return { results, summary };
+}
+
+// Corporate employee registration (founder-approved 2026-07-26) — the same
+// per-row body as bulk import, called once per employee by
+// modules/corporate/service.ts's addEmployeesToAllocation, tagged with the
+// company_allocation_id so seatsUsed/roster queries can trace each
+// registration back to the purchase that covered it. The caller (corporate
+// module) is responsible for authorization (staff role OR a valid company
+// portal session) and for the BR-26 seat-capacity check before calling this
+// — this function does not re-check either, same ungated-helper posture as
+// applyPaymentUpdate.
+export async function createCorporateEmployeeRegistration(
+  row: BulkImportRow,
+  context: {
+    batchId: string;
+    leadSource: RegistrationInput['leadSource'];
+    paymentMethod: BulkImportRequest['paymentMethod'];
+    courseFee: number;
+    companyAllocationId: string;
+    companyName: string;
+  },
+  actor: { id: string; fullName: string; role: string },
+): Promise<
+  | { status: 'created'; registrationId: string; paymentStatus: RegistrationListRow['paymentStatus'] }
+  | { status: 'duplicate' }
+> {
+  return registerOneParticipant({
+    row,
+    batchId: context.batchId,
+    leadSource: context.leadSource,
+    paymentMethod: context.paymentMethod,
+    courseFee: context.courseFee,
+    notesSuffix: `Corporate registration — ${context.companyName}`,
+    companyAllocationId: context.companyAllocationId,
+    actor,
+    paymentNotes: `Corporate registration — ${context.companyName}`,
+  });
 }
 
 // Shared row shaping between listRegistrations and exportRegistrationsCsv —

@@ -64,6 +64,7 @@ vi.mock('@/lib/resend/client', () => ({
 const {
   createRegistration,
   bulkImportRegistrations,
+  createCorporateEmployeeRegistration,
   deleteRegistration,
   deleteParticipantImmediately,
   transferRegistration,
@@ -512,6 +513,62 @@ describe('bulkImportRegistrations — backfill of registrations collected outsid
     expect(registrationsRepositoryMock.updateRegistrationNotes).toHaveBeenCalledWith(
       'reg-1',
       'Imported from Google Form',
+    );
+  });
+});
+
+describe('createCorporateEmployeeRegistration — one employee row under a company seat allocation (2026-07-26)', () => {
+  const actor = { id: 'staff-1', fullName: 'Jane Doe', role: 'admin' };
+  function employeeRow(overrides: Record<string, unknown> = {}) {
+    return {
+      firstName: 'Ama',
+      middleName: null,
+      surname: 'Owusu',
+      gender: 'Female' as const,
+      email: 'ama.owusu@acme.com',
+      phone: '+233201234567',
+      jobTitle: null,
+      company: null,
+      amountPaid: 0,
+      ...overrides,
+    };
+  }
+  const context = {
+    batchId: '4c9f6ae2-0000-4000-8000-000000000001',
+    leadSource: 'Other' as const,
+    paymentMethod: 'Bank Transfer' as const,
+    courseFee: 1200,
+    companyAllocationId: 'allocation-1',
+    companyName: 'Acme Ltd',
+  };
+
+  it('tags the registration with the company_allocation_id', async () => {
+    await createCorporateEmployeeRegistration(employeeRow(), context, actor);
+
+    expect(registrationsRepositoryMock.insertRegistration).toHaveBeenCalledWith(
+      expect.objectContaining({ company_allocation_id: 'allocation-1' }),
+    );
+  });
+
+  it('returns duplicate status instead of throwing on a unique-violation', async () => {
+    registrationsRepositoryMock.insertRegistration.mockRejectedValueOnce({ code: '23505' });
+
+    const result = await createCorporateEmployeeRegistration(employeeRow(), context, actor);
+
+    expect(result).toEqual({ status: 'duplicate' });
+  });
+
+  it('notes the company name on the registration and, if paid, on the payment', async () => {
+    await createCorporateEmployeeRegistration(employeeRow({ amountPaid: 600 }), context, actor);
+
+    expect(registrationsRepositoryMock.updateRegistrationNotes).toHaveBeenCalledWith(
+      'reg-1',
+      'Corporate registration — Acme Ltd',
+    );
+    expect(paymentsServiceMock.applyPaymentUpdate).toHaveBeenCalledWith(
+      'reg-1',
+      expect.objectContaining({ paymentNotes: 'Corporate registration — Acme Ltd', paymentMethod: 'Bank Transfer' }),
+      actor,
     );
   });
 });

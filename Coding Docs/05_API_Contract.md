@@ -494,3 +494,18 @@ is a two-step orchestration the endpoint performs atomically from the caller's p
 ## 14. Planned Live Session API Surface
 
 Future routes will include staff session CRUD and publish/reschedule actions, tutor session dashboard and attendance-exception decisions, student next-session and protected Join resolution, materials/recording reads, calendar download, and provider webhook/sync endpoints. Every write must use the existing route -> service -> repository boundary. Join resolution returns a short-lived redirect/action only after server-side eligibility validation; raw host URLs are never returned to student endpoints. See Document 14 before implementation.
+
+## 15. Corporate Registration API Surface (2026-07-26)
+
+Staff-facing (`app/api/corporate/**`, admin/finance write, admin/finance/marketing/management
+read — Document 4 BR-26/BR-27/BR-30): `companies` (list/create), `companies/[id]`,
+`companies/[id]/allocations`, `allocations` (create — validates BR-26 before writing),
+`allocations/[id]`, `allocations/[id]/employees` (add, per-row duplicate/seats-exhausted
+results, mirrors the existing bulk-import response shape), `allocations/[id]/status` (cancel/
+complete — BR-30), `allocations/[id]/invoice` (PDF, generated on demand, no stored record).
+
+Company-portal-facing (`app/api/company-portal/**`, its own session cookie, never a staff
+role): `login`/`logout`/`me`/`change-pin` (mirrors `app/api/portal/*` exactly, scoped to
+`company_id`), `allocations/[id]/employees` (same add action, scoped to the session's own
+company and capped at its own remaining seats — BR-29), `allocations/[id]/invoice`. See
+Document 15 before implementation.

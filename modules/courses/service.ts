@@ -243,6 +243,25 @@ export async function getSeatsRemaining(batchId: string): Promise<number | null>
   return Math.max(batch.capacity - (usage.get(batchId) ?? 0), 0);
 }
 
+// Corporate seat reservation (founder-approved 2026-07-26) — a thin, silent
+// capacity nudge with NONE of updateBatch's side effects (no audit-relevant
+// change, no waitlist-notify). Used only by modules/corporate/service.ts to
+// reserve seats at allocation-sale time and release them one at a time as
+// employees fill in (net-zero change in public availability either way — a
+// waitlist notification would be wrong here). Courses stays unaware that
+// "corporate" exists; this is a generic primitive, not a corporate-specific
+// hook. A genuine net increase in public availability (cancelling unfilled
+// seats) goes through the real updateBatch instead, deliberately, so the
+// existing waitlist-notify side effect fires exactly when it should.
+export async function adjustBatchCapacityInternal(batchId: string, delta: number): Promise<void> {
+  if (delta === 0) return;
+  const batch = await coursesRepository.selectBatchByIdSystem(batchId);
+  if (!batch || batch.capacity === null) return;
+  await coursesRepository.updateBatchById(batchId, {
+    capacity: Math.max(batch.capacity + delta, 0),
+  });
+}
+
 // BR-19: the public registration form only lists Active batches with a
 // start date of today or later.
 export async function getActiveBatchesForPublicForm(): Promise<PublicBatchOption[]> {

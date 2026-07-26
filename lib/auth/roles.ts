@@ -32,6 +32,7 @@ export const ROLE_ROUTES: Record<string, StaffRole[]> = {
   '/certificates': ['admin'],
   '/messaging': ['admin'],
   '/assistant': ['admin'],
+  '/corporate': ['admin', 'finance', 'marketing', 'management'],
   '/follow-up': ['admin', 'marketing'], // Phase 2
 };
 
@@ -57,6 +58,7 @@ export const NAV_ITEMS_BY_ROLE: Record<StaffRole, { href: string; label: string 
     { href: '/campaigns', label: 'Campaigns' },
     { href: '/payments', label: 'Payments' },
     { href: '/courses', label: 'Courses' },
+    { href: '/corporate', label: 'Corporate' },
     { href: '/attendance', label: 'Attendance' },
     { href: '/live-sessions', label: 'Live Sessions' },
     { href: '/course-feedback', label: 'Feedback' },
@@ -70,6 +72,7 @@ export const NAV_ITEMS_BY_ROLE: Record<StaffRole, { href: string; label: string 
     { href: '/payments', label: 'Payments' },
     { href: '/registrations', label: 'Registrations' },
     { href: '/registrations/import', label: 'Import Registrations' },
+    { href: '/corporate', label: 'Corporate' },
     { href: '/calls', label: 'Calls' },
   ],
   marketing: [
@@ -78,6 +81,7 @@ export const NAV_ITEMS_BY_ROLE: Record<StaffRole, { href: string; label: string 
     { href: '/sales', label: 'Sales Pipeline' },
     { href: '/campaigns', label: 'Campaigns' },
     { href: '/registrations/import', label: 'Import Registrations' },
+    { href: '/corporate', label: 'Corporate' },
   ],
   tutor: [{ href: '/my-courses', label: 'My Courses' }],
   management: [
@@ -86,6 +90,7 @@ export const NAV_ITEMS_BY_ROLE: Record<StaffRole, { href: string; label: string 
     { href: '/sales', label: 'Sales Pipeline' },
     { href: '/campaigns', label: 'Campaigns' },
     { href: '/registrations/import', label: 'Import Registrations' },
+    { href: '/corporate', label: 'Corporate' },
     { href: '/attendance', label: 'Attendance' },
     { href: '/live-sessions', label: 'Live Sessions' },
     { href: '/course-feedback', label: 'Feedback' },

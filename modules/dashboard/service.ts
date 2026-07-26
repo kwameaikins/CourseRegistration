@@ -3,6 +3,7 @@ import * as dashboardRepository from '@/modules/dashboard/repository';
 import * as usersService from '@/modules/users/service';
 import * as leadsService from '@/modules/leads/service';
 import * as opportunitiesService from '@/modules/opportunities/service';
+import * as corporateService from '@/modules/corporate/service';
 
 export interface DashboardSummary {
   courses: Array<{
@@ -39,6 +40,16 @@ export interface DashboardSummary {
     wonValue: number;
     byStage: Record<string, number>;
   };
+  // Corporate registration (2026-07-26) — companies/seats/invoicing summary,
+  // computed live from the same source as the individual company/allocation
+  // detail screens (never a separately-maintained counter).
+  corporateSummary: {
+    totalCompanies: number;
+    seatsSold: number;
+    seatsFilled: number;
+    amountInvoiced: number;
+    amountSettled: number;
+  };
 }
 
 function round2(value: number): number {
@@ -48,10 +59,11 @@ function round2(value: number): number {
 export async function getDashboardSummary(): Promise<DashboardSummary> {
   await usersService.requireRole(['admin', 'management']);
 
-  const [batches, leadPipeline, salesPipeline] = await Promise.all([
+  const [batches, leadPipeline, salesPipeline, corporateSummary] = await Promise.all([
     dashboardRepository.selectDashboardData(),
     leadsService.getPipelineSummary(),
     opportunitiesService.getPipelineSummary(),
+    corporateService.getCorporateSummary(),
   ]);
 
   const courses = batches.map((batch) => {
@@ -128,5 +140,6 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       wonValue: salesPipeline.wonValue,
       byStage: salesPipeline.byStage,
     },
+    corporateSummary,
   };
 }

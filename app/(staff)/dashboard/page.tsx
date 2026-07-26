@@ -157,7 +157,7 @@ export default async function ManagementDashboardPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Lead Pipeline</CardTitle>
@@ -215,6 +215,35 @@ export default async function ManagementDashboardPage() {
                 <p className="text-sm text-muted-foreground">No opportunities yet.</p>
               )}
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Corporate</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex gap-4 text-sm">
+              <span>
+                <strong>{summary.corporateSummary.totalCompanies}</strong> companies
+              </span>
+              <span>
+                <strong>{summary.corporateSummary.seatsFilled}</strong>/{summary.corporateSummary.seatsSold} seats filled
+              </span>
+            </div>
+            <div className="space-y-1 text-sm">
+              <div className="flex justify-between border-b py-1">
+                <span className="text-muted-foreground">Invoiced</span>
+                <span className="font-medium">{formatGhs(summary.corporateSummary.amountInvoiced)}</span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground">Settled</span>
+                <span className="font-medium">{formatGhs(summary.corporateSummary.amountSettled)}</span>
+              </div>
+            </div>
+            <Link href="/corporate" className="text-sm font-medium text-primary hover:underline">
+              View corporate clients →
+            </Link>
           </CardContent>
         </Card>
       </div>

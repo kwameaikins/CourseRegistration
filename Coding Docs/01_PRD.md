@@ -133,13 +133,15 @@ registration form and email only.
 
 ### 4.2 External Actor: Participant
 
-A Participant is not a Staff User and does not have a login account. A Participant
-interacts with the System through:
+A Participant is not a Staff User and does not have a Supabase Auth login account. A
+Participant interacts with the System through:
 
 - The public registration form (submit registration)
 - Automated emails (receive information, links, and reminders)
-
-Participants cannot log in, view their own record, or modify any data.
+- The student portal (system review, 2026-07-22) — a custom PIN + session-cookie login
+  (not Supabase Auth; see `06_Security_and_Authentication.md`), where a participant can view
+  their own registration/payment/schedule/certificates, pay any outstanding balance, correct
+  their own name, and set up a payment plan.
 
 ---
 
@@ -643,7 +645,7 @@ development, the request must be escalated to the founder before any work begins
 |---|---|
 | Course content delivery (video, quizzes, certificates) | This is a management system, not an LMS |
 | Public course catalog for participants to browse | Registrations come via direct links shared by marketing staff |
-| Participant self-service portal (view own registration, download receipts) | Out of Phase 1–3 scope; consider Phase 4 if demand exists |
+| Participant self-service portal (view own registration, download receipts) | Built 2026-07-22 (system review) — see Section 4.2 and `06_Security_and_Authentication.md`; this exclusion no longer applies |
 | Payment splitting or escrow (holding funds for third parties) | Single-merchant setup; no third-party payouts |
 | Built-in video hosting or Zoom meeting management | System sends Zoom links; it does not host or manage meetings |
 | Invoicing or formal receipt generation | Out of Phase 1–3 scope |
@@ -912,3 +914,12 @@ and API surface map — used as input to Document 3 (Data Schema and ERD).*
 ## 18. Live Learning Operations Extension (Approved 2026-07-25)
 
 Knowsia will manage a complete Zoom-powered learning journey. Zoom remains the delivery provider; Knowsia owns scheduled `LiveSession` records, student eligibility, personal access, materials, attendance review, recording release, follow-up, completion, and certificates. The authoritative detail is Document 14, `Live_Learning_Operations.md`. This is a phased extension after the current core system, not a replacement for registration, payments, or the student portal.
+
+## 19. Corporate Registration Extension (Approved 2026-07-26)
+
+A Company (a corporate client, not a training-provider tenant — Section 9's multi-tenancy
+exclusion is unaffected) can buy a Seat Allocation — N seats in one Batch — and manage its own
+employee roster through a dedicated Company Admin portal, paying by invoice/bank transfer
+rather than per-seat card payment. Every employee still becomes a normal Registration; nothing
+about certificates, attendance, or the individual student portal changes. The authoritative
+detail is Document 15, `15_Corporate_Operations.md`.

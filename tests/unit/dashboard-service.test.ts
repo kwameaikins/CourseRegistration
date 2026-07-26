@@ -12,11 +12,15 @@ const leadsServiceMock = {
 const opportunitiesServiceMock = {
   getPipelineSummary: vi.fn(),
 };
+const corporateServiceMock = {
+  getCorporateSummary: vi.fn(),
+};
 
 vi.mock('@/modules/dashboard/repository', () => dashboardRepositoryMock);
 vi.mock('@/modules/users/service', () => usersServiceMock);
 vi.mock('@/modules/leads/service', () => leadsServiceMock);
 vi.mock('@/modules/opportunities/service', () => opportunitiesServiceMock);
+vi.mock('@/modules/corporate/service', () => corporateServiceMock);
 
 const { getDashboardSummary } = await import('@/modules/dashboard/service');
 
@@ -36,6 +40,13 @@ beforeEach(() => {
     openValue: 2400,
     wonValue: 1200,
     byStage: { New: 2, Won: 1, Lost: 1 },
+  });
+  corporateServiceMock.getCorporateSummary.mockResolvedValue({
+    totalCompanies: 2,
+    seatsSold: 30,
+    seatsFilled: 18,
+    amountInvoiced: 24000,
+    amountSettled: 14400,
   });
   dashboardRepositoryMock.selectDashboardData.mockResolvedValue([
     {
@@ -78,6 +89,17 @@ describe('F1.08 — dashboard aggregation (computed live)', () => {
   it('restricts access to admin and management', async () => {
     await getDashboardSummary();
     expect(usersServiceMock.requireRole).toHaveBeenCalledWith(['admin', 'management']);
+  });
+
+  it('folds in the corporate summary (2026-07-26) unchanged from corporateService', async () => {
+    const summary = await getDashboardSummary();
+    expect(summary.corporateSummary).toEqual({
+      totalCompanies: 2,
+      seatsSold: 30,
+      seatsFilled: 18,
+      amountInvoiced: 24000,
+      amountSettled: 14400,
+    });
   });
 
   it('computes per-batch totals, revenue, and conversion rate', async () => {

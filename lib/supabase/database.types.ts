@@ -292,6 +292,190 @@ export type Database = {
           },
         ]
       }
+      companies: {
+        Row: {
+          billing_address: string | null
+          billing_contact_name: string
+          billing_email: string
+          billing_phone: string
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          notes: string | null
+          tin: string | null
+          updated_at: string
+        }
+        Insert: {
+          billing_address?: string | null
+          billing_contact_name: string
+          billing_email: string
+          billing_phone: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          tin?: string | null
+          updated_at?: string
+        }
+        Update: {
+          billing_address?: string | null
+          billing_contact_name?: string
+          billing_email?: string
+          billing_phone?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          tin?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "companies_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_admin_auth: {
+        Row: {
+          company_id: string
+          created_at: string
+          failed_attempts: number
+          last_login_at: string | null
+          locked_until: string | null
+          must_change_pin: boolean
+          pin_hash: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          failed_attempts?: number
+          last_login_at?: string | null
+          locked_until?: string | null
+          must_change_pin?: boolean
+          pin_hash: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          failed_attempts?: number
+          last_login_at?: string | null
+          locked_until?: string | null
+          must_change_pin?: boolean
+          pin_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_admin_auth_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_admin_sessions: {
+        Row: {
+          company_id: string
+          created_at: string
+          expires_at: string
+          id: string
+          revoked_at: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          revoked_at?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          revoked_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_admin_sessions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_batch_allocations: {
+        Row: {
+          batch_id: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          notes: string | null
+          price_per_seat: number
+          seats_purchased: number
+          status: string
+          status_reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          batch_id: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          price_per_seat: number
+          seats_purchased: number
+          status?: string
+          status_reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          batch_id?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          price_per_seat?: number
+          seats_purchased?: number
+          status?: string
+          status_reason?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_batch_allocations_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_batch_allocations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_batch_allocations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courses: {
         Row: {
           certificate_description: string
@@ -1193,6 +1377,7 @@ export type Database = {
       registrations: {
         Row: {
           batch_id: string
+          company_allocation_id: string | null
           consent_given: boolean
           id: string
           lead_source: string
@@ -1204,6 +1389,7 @@ export type Database = {
         }
         Insert: {
           batch_id: string
+          company_allocation_id?: string | null
           consent_given: boolean
           id?: string
           lead_source: string
@@ -1215,6 +1401,7 @@ export type Database = {
         }
         Update: {
           batch_id?: string
+          company_allocation_id?: string | null
           consent_given?: boolean
           id?: string
           lead_source?: string
@@ -1230,6 +1417,13 @@ export type Database = {
             columns: ["batch_id"]
             isOneToOne: false
             referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registrations_company_allocation_id_fkey"
+            columns: ["company_allocation_id"]
+            isOneToOne: false
+            referencedRelation: "company_batch_allocations"
             referencedColumns: ["id"]
           },
           {

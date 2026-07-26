@@ -472,3 +472,23 @@ order by b.start_date asc;
 - **BR-25:** AI may draft learning summaries, reminders, catch-up tasks, and risk lists, but cannot finalise grades, attendance, access overrides, or certificates.
 
 See Document 14 for the workflow and acceptance criteria.
+
+## 6. Corporate Registration Rules (2026-07-26)
+
+- **BR-26:** A seat allocation's `seats_purchased` must never exceed the batch's seats
+  remaining at time of sale; capacity is reserved immediately (via a silent capacity nudge),
+  not just at fill time.
+- **BR-27:** A participant cannot be registered twice under the same seat allocation — same
+  dedup posture as BR-03, enforced by the same `unique(participant_id, batch_id)` constraint
+  plus a partial unique index scoped to `company_allocation_id`.
+- **BR-28:** Company admin portal sessions follow the same lockout (5 attempts / 15 minutes)
+  and PIN-hashing posture as participant portal sessions.
+- **BR-29:** A company admin session may only ever read or write data scoped to its own
+  `company_id` — enforced entirely in the service layer (no per-row RLS for this identity
+  tier, same as the participant portal) — and can never mark a payment Paid, since no staff
+  identity exists for that write to be attributed to (BR-12).
+- **BR-30:** Cancelling a seat allocation releases only its unfilled seats back to public
+  capacity and triggers the existing waitlist-notify side effect; already-created employee
+  registrations are never touched (same "don't destroy history" posture as BR-18).
+
+See Document 15 for the full workflow and acceptance criteria.

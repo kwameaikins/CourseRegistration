@@ -249,3 +249,16 @@ confusion per P5.01 — do not force the user to discover a restriction by hitti
 ## 11. Planned Live Learning Screens
 
 Add a Student Next Class/Session page and a Tutor Live Session workspace. Student views show Ghana-time countdown, protected Join state with a clear reason when unavailable, agenda/materials, calendar download, released recordings, catch-up tasks, and support. Tutor views show assigned sessions, host action, roster, attendance review, materials, notes, learner flags, and post-session checklist. Admin controls publish/reschedule/access override with reason. Never render payment details to tutors or host links to students. See Document 14.
+
+## 12. Corporate Registration Screens (2026-07-26)
+
+Staff: `/corporate` (companies list + create), `/corporate/[id]` (company detail — seat
+allocations, sell seats against a batch), `/corporate/allocations/[id]` (roster, paste-based
+add-employees, invoice download, cancel action) — same Card/Table primitives as every other
+staff screen. Dashboard gains a "Corporate" summary card (companies, seats filled/sold,
+invoiced/settled) alongside Lead Pipeline and Sales Pipeline.
+
+Company portal (public route, own auth — never the staff layout): `/company-portal/login`,
+`/company-portal/change-pin`, `/company-portal` (dashboard — every allocation with seats/
+roster/payment-status, self-service add-employees capped at remaining seats, invoice
+download). Mirrors `/portal/*`'s structure exactly. See Document 15.

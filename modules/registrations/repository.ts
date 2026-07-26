@@ -60,6 +60,7 @@ export async function insertRegistration(input: {
   batch_id: string;
   lead_source: RegistrationRow['lead_source'];
   consent_given: boolean;
+  company_allocation_id?: string;
 }): Promise<RegistrationRow> {
   const supabase = createSupabaseServiceRoleClient();
   const { data, error } = await supabase

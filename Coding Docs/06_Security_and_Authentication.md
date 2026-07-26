@@ -305,3 +305,50 @@ Minimal but explicit, appropriate for a 6-person team with no dedicated security
 ## 12. Live Learning Security Controls (Planned)
 
 Live session provider credentials and host URLs remain server-only. Student access is scoped to the session, registration, eligibility, and join window; tutor access is scoped to assigned sessions. Access overrides, reschedules, attendance corrections, and recording release require actor/reason/time audit records. New LiveSession tables require RLS and explicit least-privilege policies. Recording consent, retention, and enrolment-scoped access must be reviewed against the Ghana DPA before release.
+
+## 13. Non-Staff Session Model: Participant Portal and Company Admin Portal
+
+Section 1 above documents only the Supabase-Auth staff login model. Two other identity tiers
+exist in this system and were built without a corresponding write-up here until now — this
+section backfills the participant portal (shipped 2026-07-22) and documents the company admin
+portal (shipped 2026-07-26), which deliberately reuses the exact same pattern.
+
+**Why not Supabase Auth for these two tiers:** neither a course participant nor a corporate
+billing contact is a Staff User, and neither needs RLS-driven row access the way staff do —
+they only ever need to see their own single record (one participant, one company). A full
+Supabase Auth account per participant/company was judged unnecessary complexity; a lightweight
+PIN + opaque session token, fully custom, is sufficient and easier to provision automatically
+(a PIN is seeded the moment a registration/company is created, with no invite-email round
+trip required before first login).
+
+**The pattern (identical for both tiers, only the scoped id differs):**
+- Two tables: `{scope}_auth` (credentials: `pin_hash`, `must_change_pin`, `failed_attempts`,
+  `locked_until`, `last_login_at`) and `{scope}_sessions` (`id` — the session's own UUID *is*
+  the bearer token — `expires_at`, `revoked_at`). Participant: `participant_auth`/
+  `participant_sessions`. Company: `company_admin_auth`/`company_admin_sessions`.
+- **RLS is enabled on both tables with zero policies and no grant to `anon`/`authenticated`.**
+  They are reachable exclusively via the service-role client from the owning module's
+  `repository.ts` (`modules/portal/repository.ts`, `modules/corporate/repository.ts`).
+  Authorization is enforced entirely in the service layer — a session cookie resolves to a
+  scoped id (`participantId`/`companyId`), and every read/write is filtered by that id in
+  application code. This is the same posture already used for other unauthenticated-caller
+  tables (waitlist joins, feedback submission, the public registration form) — RLS is defense
+  in depth here, not the enforcing mechanism, by deliberate design.
+- Initial PIN = last 4 digits of the participant's phone / the company's billing phone
+  (`lib/portal-auth/pin.ts`'s `lastFourDigits`), hashed with Node's `scryptSync` (deliberately
+  slow, given a 4-digit PIN's tiny keyspace) and verified with `timingSafeEqual`.
+- Lockout: 5 failed attempts locks the session for 15 minutes. Every failure branch returns
+  the same generic "invalid" status — never reveals whether the identifier/email existed —
+  except lockout, which is deliberately distinguishable so the user knows to wait.
+- Session cookie: httpOnly, `secure` in production, `sameSite: 'lax'`, `path: '/'`, expiring
+  with the session (7 days). Participant: `portal_session`. Company: `company_portal_session`.
+- `requirePortalSession`/`requireCompanyPortalSession` is the one guard every other function in
+  each module calls first, throwing `AppError('UNAUTHENTICATED', ..., 401)` on a missing/
+  expired/revoked session.
+
+**Company admin scoping (BR-29):** a company session can only ever resolve to its own
+`companyId` — there is no code path that accepts a client-supplied company id for a read or
+write. It can also never cause a payment to be marked Paid (BR-12): the employee-add action
+available to a company session forces every row's `amountPaid` to zero before delegating to
+the shared registration-creation function, regardless of what was submitted, since there is no
+staff identity for such a write to be attributed to.

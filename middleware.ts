@@ -79,5 +79,6 @@ export const config = {
     '/messaging/:path*',
     '/assistant/:path*',
     '/follow-up/:path*',
+    '/corporate/:path*',
   ],
 };

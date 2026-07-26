@@ -26,9 +26,8 @@ vi.mock('@/modules/communications/default-templates', () => ({
 vi.mock('@/lib/zoom/client', () => zoomClientMock);
 vi.mock('@/modules/waitlist/service', () => waitlistServiceMock);
 
-const { createCourse, createBatch, updateBatch, getSeatsRemaining } = await import(
-  '@/modules/courses/service'
-);
+const { createCourse, createBatch, updateBatch, getSeatsRemaining, adjustBatchCapacityInternal } =
+  await import('@/modules/courses/service');
 
 function courseRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -331,6 +330,35 @@ describe('getSeatsRemaining — batch capacity check (founder-approved 2026-07-2
       new Map([['batch-1', 15]]),
     );
     expect(await getSeatsRemaining('batch-1')).toBe(0);
+  });
+});
+
+describe('adjustBatchCapacityInternal — silent corporate seat reservation nudge (2026-07-26)', () => {
+  it('adjusts capacity by the given delta with no waitlist-notify side effect', async () => {
+    coursesRepositoryMock.selectBatchByIdSystem.mockResolvedValue(batchRow({ capacity: 30 }));
+    coursesRepositoryMock.updateBatchById.mockResolvedValue(batchRow({ capacity: 25 }));
+
+    await adjustBatchCapacityInternal('batch-1', -5);
+
+    expect(coursesRepositoryMock.updateBatchById).toHaveBeenCalledWith('batch-1', { capacity: 25 });
+    expect(waitlistServiceMock.notifyNextIfSeatAvailable).not.toHaveBeenCalled();
+  });
+
+  it('never drops capacity below zero', async () => {
+    coursesRepositoryMock.selectBatchByIdSystem.mockResolvedValue(batchRow({ capacity: 3 }));
+    await adjustBatchCapacityInternal('batch-1', -10);
+    expect(coursesRepositoryMock.updateBatchById).toHaveBeenCalledWith('batch-1', { capacity: 0 });
+  });
+
+  it('is a no-op for an unlimited-capacity batch', async () => {
+    coursesRepositoryMock.selectBatchByIdSystem.mockResolvedValue(batchRow({ capacity: null }));
+    await adjustBatchCapacityInternal('batch-1', -5);
+    expect(coursesRepositoryMock.updateBatchById).not.toHaveBeenCalled();
+  });
+
+  it('is a no-op for a zero delta', async () => {
+    await adjustBatchCapacityInternal('batch-1', 0);
+    expect(coursesRepositoryMock.selectBatchByIdSystem).not.toHaveBeenCalled();
   });
 });
 

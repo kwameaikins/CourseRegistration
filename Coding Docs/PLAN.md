@@ -327,6 +327,34 @@ payment_installments) plus `202607250028_installment_reminder_email_type.sql` (a
 
 ---
 
+## Corporate Registration, Portal, and Dashboard (founder-approved 2026-07-26, urgent — all 4 phases shipped)
+
+Migration `202607260032_corporate_registration.sql` (companies, company_batch_allocations,
+company_admin_auth/sessions, registrations.company_allocation_id). See
+`Coding Docs/15_Corporate_Operations.md` for the full spec and BR-26 through BR-30.
+
+- [x] Phase 1 — Staff-side: `modules/corporate` (companies, seat allocations, employee
+      add-by-paste reusing the bulk-import row logic), on-demand invoice PDF
+      (`lib/corporate/invoice-pdf.ts`, no stored invoice record), staff screens at
+      `/corporate`, capacity reservation (`coursesService.adjustBatchCapacityInternal`) so a
+      sold-but-unfilled seat is never oversold to the public
+- [x] Phase 2 — Company portal: `company_admin_auth`/`company_admin_sessions` mirror the
+      participant portal's PIN + session-cookie pattern exactly, scoped to `company_id`;
+      `/company-portal` dashboard with self-service employee add (capped at the company's own
+      remaining seats, and can never mark a payment Paid — BR-12) and invoice download
+- [x] Phase 3 — Dashboard: `corporateService.getCorporateSummary()` (companies, seats sold/
+      filled, invoiced/settled, computed live) folded into `dashboardService
+      .getDashboardSummary()`; new Corporate card on the Management Dashboard
+- [x] Phase 4 — Docs: new `Coding Docs/15_Corporate_Operations.md`; trailing Extension
+      sections added to Docs 1/3/4/5/8; Doc 6 backfilled with the previously-undocumented
+      participant/company portal auth model (Section 13); PRD Section 9/4.2's stale
+      "no participant self-service portal" lines corrected (that feature shipped 2026-07-22)
+- [ ] *(external)* Apply migration `202607260032` to production (`npx supabase db push`)
+- [ ] *(external)* Founder creates the first real Company + sells its first seat allocation
+      against a real batch to confirm the end-to-end flow before the live session
+
+---
+
 ## Risk watch (carried from `/docs/01_PRD.md` risk register)
 
 | ID | Risk | Status |

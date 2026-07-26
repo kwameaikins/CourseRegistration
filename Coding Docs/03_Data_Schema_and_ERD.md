@@ -590,3 +590,13 @@ real operational setup):
 ## 11. Planned Live Learning Operations Extension
 
 The next schema extension adds `live_sessions`, `live_session_tutors`, `live_session_access`, `session_materials`, `attendance_exceptions`, `session_recordings`, and `session_audit_log`. `attendance` will gain an optional `live_session_id` with a backfill plan so historical rows remain valid. Every new table requires RLS, explicit policies, indexes on session/batch/status access paths, and immutable evidence for access overrides, reschedules, attendance review, and recording release. Full definitions and ownership rules are in Document 14.
+
+## 12. Corporate Registration Extension (2026-07-26)
+
+Migration `202607260032_corporate_registration.sql` adds `companies`, `company_batch_allocations`
+(a company's seat purchase in one batch — `seats_purchased`, `price_per_seat`, `status`),
+`company_admin_auth`/`company_admin_sessions` (RLS enabled, zero policies — service-role only,
+same posture as `participant_auth`/`participant_sessions`), and a nullable
+`registrations.company_allocation_id` FK. `seatsUsed`/`amountInvoiced`/`amountSettled` are
+never stored columns — always computed live from linked `registrations`/`payments` rows. Full
+definitions and the capacity-reservation mechanism are in Document 15.
