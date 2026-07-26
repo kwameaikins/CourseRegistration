@@ -10,7 +10,12 @@
 --   T-BR05-01 (generated balance), T-BR06-01/02 (status sync + guard),
 --   T-BR07 (email_log dedup), T-BR14 (transaction_id uniqueness),
 --   BR-01 trigger, fn_soft_delete_participant, hard-delete 30-day guard,
---   T-RLS-01/02/04/05/07 (role simulation via request.jwt.claims).
+--   T-RLS-01/02/04/05/06/07 (role simulation via request.jwt.claims; T-RLS-06
+--   also does a real anon INSERT, not just a permission-grant check).
+--
+-- T-RLS-03 (marketing's payments-row read is API-shaped, not RLS-shaped) is
+-- covered instead by tests/unit/registrations-service.test.ts's
+-- "listRegistrations — role-based field shaping" block.
 --
 -- API-level cases (T-BR13, T-BR15, T-INT-*) are covered by the Vitest unit
 -- suite and the live integration checklist.
@@ -218,6 +223,29 @@ begin
       into v_count;
     if v_count <> 0 then raise exception 'T-RLS-05 FAILED: inactive account sees % rows', v_count; end if;
     raise notice 'T-RLS-05 PASSED';
+end $$;
+reset role;
+
+-- T-RLS-06 — anon can INSERT a new registration against an Active batch
+-- (the public registration form's actual write path, not just a permission
+-- grant check — confirms the anon INSERT policies on participants and
+-- registrations actually allow the real two-row write the form performs).
+set local role anon;
+do $$
+declare v_participant_id uuid; v_registration_id uuid;
+begin
+    insert into public.participants (full_name, email, phone, consent_given, consent_at)
+    values ('Test RLS Anon Participant', 'rls-anon@test.local', '+233200000099', true, now())
+    returning id into v_participant_id;
+
+    insert into public.registrations (participant_id, batch_id, lead_source, consent_given)
+    values (v_participant_id, '00000000-0000-4000-8000-00000000d001', 'Website', true)
+    returning id into v_registration_id;
+
+    if v_registration_id is null then
+        raise exception 'T-RLS-06 FAILED: anon insert did not return a registration id';
+    end if;
+    raise notice 'T-RLS-06 PASSED';
 end $$;
 reset role;
 

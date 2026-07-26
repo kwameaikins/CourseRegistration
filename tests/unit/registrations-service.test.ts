@@ -9,6 +9,7 @@ const registrationsRepositoryMock = {
   updateRegistrationNotes: vi.fn(),
   updateRegistrationBatch: vi.fn(),
   selectRegistration360: vi.fn(),
+  selectRegistrationList: vi.fn(),
   selectAllRegistrationsForExport: vi.fn(),
   callDeleteRegistrationImmediately: vi.fn(),
   callDeleteParticipantImmediately: vi.fn(),
@@ -67,6 +68,7 @@ const {
   deleteParticipantImmediately,
   transferRegistration,
   exportRegistrationsCsv,
+  listRegistrations,
 } = await import('@/modules/registrations/service');
 const { registrationInputSchema } = await import('@/modules/registrations/types');
 
@@ -798,6 +800,83 @@ describe('exportRegistrationsCsv — CSV export (system review, 2026-07-24)', ()
     const csv = await exportRegistrationsCsv({ paymentStatus: 'Unpaid' });
     const dataLines = csv.split('\r\n').slice(1);
     expect(dataLines).toHaveLength(1);
+  });
+});
+
+describe('listRegistrations — role-based field shaping (T-RLS-03)', () => {
+  function listRow(overrides: Record<string, unknown> = {}) {
+    return {
+      registration: {
+        id: 'reg-1',
+        batch_id: 'batch-1',
+        registration_status: 'Confirmed',
+        lead_source: 'WhatsApp',
+        notes: null,
+        registered_at: '2026-07-01T09:00:00Z',
+      },
+      participant: {
+        full_name: 'Ama Owusu',
+        email: 'ama.owusu@example.com',
+        phone: '+233241234567',
+        job_title: 'Accountant',
+        company: 'Acme Ltd',
+        gender: 'Female',
+      },
+      payment: {
+        payment_status: 'Paid',
+        course_fee: '1200.00',
+        original_fee: null,
+        amount_paid: '1200.00',
+        balance: '0.00',
+        payment_method: 'Paystack Card',
+        payment_notes: 'Paid via card, ref 88213',
+        transaction_id: 'TXN-1',
+      },
+      batch: { cohort_label: 'JUL-2026', course_id: 'course-1' },
+      course: { course_name: 'AI-Powered Financial Reporting and Modeling', course_code: 'AI05' },
+      verifiedByName: 'Jane Doe',
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    registrationsRepositoryMock.selectRegistrationList.mockResolvedValue({
+      rows: [listRow()],
+      total: 1,
+    });
+  });
+
+  it('admin and finance see payment audit fields, including payment_notes', async () => {
+    for (const role of ['admin', 'finance'] as const) {
+      usersServiceMock.requireRole.mockResolvedValue({ id: 's-1', fullName: 'Jane', role });
+      const { registrations } = await listRegistrations({ page: 1, limit: 50 });
+      expect(registrations[0].paymentNotes).toBe('Paid via card, ref 88213');
+      expect(registrations[0].transactionId).toBe('TXN-1');
+      expect(registrations[0].verifiedBy).toBe('Jane Doe');
+    }
+  });
+
+  it('marketing never sees payment_notes, transactionId, or verifiedBy (T-RLS-03)', async () => {
+    usersServiceMock.requireRole.mockResolvedValue({ id: 's-1', fullName: 'Jane', role: 'marketing' });
+
+    const { registrations } = await listRegistrations({ page: 1, limit: 50 });
+
+    expect(registrations[0].paymentStatus).toBe('Paid'); // Payment Status itself is still visible
+    expect(registrations[0].paymentNotes).toBeUndefined();
+    expect(registrations[0].transactionId).toBeUndefined();
+    expect(registrations[0].verifiedBy).toBeUndefined();
+  });
+
+  it('tutor sees no payment fields at all, on top of the marketing exclusions', async () => {
+    usersServiceMock.requireRole.mockResolvedValue({ id: 's-1', fullName: 'Jane', role: 'tutor' });
+
+    const { registrations } = await listRegistrations({ page: 1, limit: 50 });
+
+    expect(registrations[0].paymentNotes).toBeUndefined();
+    expect(registrations[0].paymentMethod).toBeUndefined();
+    expect(registrations[0].courseFee).toBe(0);
+    expect(registrations[0].amountPaid).toBe(0);
+    expect(registrations[0].balance).toBe(0);
   });
 });
 

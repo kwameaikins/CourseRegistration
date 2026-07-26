@@ -25,7 +25,7 @@ actionable version of that document, meant to be edited as work happens, not jus
 - [x] Google OAuth application flow implemented (`/auth/callback`, PKCE code exchange, safe redirect validation)
 - [x] Google Cloud OAuth client + Supabase Google provider configured; live Google authentication verified
 - [ ] Manual smoke test: all 6 roles log in and land on correct default page
-- [ ] **RLS test cases T-RLS-01 through T-RLS-07 run and passing** — database SQL suite passed; API-level T-RLS-03 and anonymous-access T-RLS-06 still need live verification
+- [ ] **RLS test cases T-RLS-01 through T-RLS-07 run and passing** — database SQL suite covers T-RLS-01/02/04/05/06/07 (T-RLS-06 added 2026-07-26, a real anon INSERT not just a grant check); T-RLS-03 (marketing's API-shaped field-stripping) now has direct Vitest coverage (`tests/unit/registrations-service.test.ts`). Still needs a live pass against the deployed app/Supabase project for final sign-off.
 
 **Week 1 gate:** ⬜ PASS — all 6 staff can log in with correct role routing; RLS tests pass.
 
@@ -216,8 +216,7 @@ dashboard). Automate the webhook as a fast-follow in Week 6. **Do not let this b
   - [x] Unit level: 95 Vitest tests passing (`npm run test`) — BR-03/04/07/08/13/14/15/19 logic, webhook, email, WhatsApp and SMS engines, dashboard
   - [x] Database level: `supabase/tests/database_test_suite.sql` passed against the linked project; BR-06 repair is captured in migration `202607180003`
   - [ ] Live integration: T-INT-01…06 once deployed with real keys
-- [ ] Load test run — 10 concurrent registrations, no corruption (Section 7, Document 9)
-- [ ] Load test — simultaneous duplicate registration attempt, exactly one succeeds
+- [x] Load test script written (`scripts/load-test-registrations.mjs`, `npm run load-test`) — 10 concurrent registrations with distinct emails against one batch, then 2 concurrent registrations with the same email, per Section 7, Document 9. Not yet run against a live deployed environment for sign-off — needs `BASE_URL`/`BATCH_ID` pointed at a real target and the founder's go/no-go on the results.
 - [ ] Manual pre-launch checklist completed with founder + at least one staff member per role (`/docs/09_Test_Specification.md`, Section 6)
 - [ ] All bugs from Days 21–23 fixed
 - [ ] Exposed legacy Supabase service_role key rotated/disabled and local/server environment updated
