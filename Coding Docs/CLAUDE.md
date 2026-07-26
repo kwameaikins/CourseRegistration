@@ -145,8 +145,8 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     write. Only the admin's own "Confirm & Execute" click calls
     POST /api/assistant/execute-action, which delegates to the wrapped
     service function and logs to staff_action_audit_log (migration
-    202607260029, CHECK constraint dropped in 202607260030 — neither yet
-    applied to production).
+    202607260029, CHECK constraint dropped in 202607260030 — both applied
+    to production 2026-07-26).
   Unified agentic OS (2026-07-26) — modules/agent-tools is the one shared
     tool registry every AI surface (the Admin Assistant and the Vapi
     voice-tools endpoint) draws from and dispatches through. Each tool
