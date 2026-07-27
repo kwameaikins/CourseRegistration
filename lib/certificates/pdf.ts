@@ -16,6 +16,7 @@ import {
   SIGNATURE_AIKINS_PNG_BASE64,
   SIGNATURE_BONNEY_PNG_BASE64,
 } from '@/lib/certificates/signatures';
+import { wrapText } from '@/lib/pdf-text';
 
 const NAVY = rgb(30 / 255, 58 / 255, 138 / 255);
 const ORANGE = rgb(244 / 255, 158 / 255, 32 / 255);
@@ -41,29 +42,6 @@ function formatDate(iso: string): string {
     year: 'numeric',
     timeZone: 'UTC',
   });
-}
-
-// Splits text into centered lines that fit maxWidth at the given size.
-function wrapText(
-  text: string,
-  maxWidth: number,
-  size: number,
-  widthOf: (t: string, s: number) => number,
-): string[] {
-  const words = text.split(/\s+/).filter(Boolean);
-  const lines: string[] = [];
-  let current = '';
-  for (const word of words) {
-    const attempt = current ? `${current} ${word}` : word;
-    if (widthOf(attempt, size) <= maxWidth || !current) {
-      current = attempt;
-    } else {
-      lines.push(current);
-      current = word;
-    }
-  }
-  if (current) lines.push(current);
-  return lines;
 }
 
 export async function generateCertificatePdf(

@@ -5,6 +5,7 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
 import { KNOWSIA_LOGO_PNG_BASE64 } from '@/lib/certificates/logo';
+import { wrapText } from '@/lib/pdf-text';
 
 // Brand colors (2026-07-26) — the real Knowsia orange from the logo (also
 // used for the recipient name on the certificate PDF, lib/certificates/pdf.ts),
@@ -87,13 +88,30 @@ export async function generateCorporateInvoicePdf(data: CorporateInvoicePdfData)
   cursorTop += 40;
 
   const total = data.seatsPurchased * data.pricePerSeat;
+  // Long course names would otherwise run straight through the Seats/Price/
+  // Total columns on the same line — wrap the description to fit before them.
+  const DESC_LINE_HEIGHT = 13;
   const description = `${data.courseName} — ${data.cohortLabel} (starts ${formatDate(data.batchStartDate)})`;
-  page.drawText(description, { x: columns.desc + 6, y: y(cursorTop), size: 10.5, font: helvetica, color: INK });
+  const descriptionLines = wrapText(
+    description,
+    columns.seats - (columns.desc + 6) - 12,
+    10.5,
+    (t, s) => helvetica.widthOfTextAtSize(t, s),
+  );
+  descriptionLines.forEach((descLine, index) => {
+    page.drawText(descLine, {
+      x: columns.desc + 6,
+      y: y(cursorTop + index * DESC_LINE_HEIGHT),
+      size: 10.5,
+      font: helvetica,
+      color: INK,
+    });
+  });
   page.drawText(String(data.seatsPurchased), { x: columns.seats, y: y(cursorTop), size: 10.5, font: helvetica, color: INK });
   page.drawText(formatGhs(data.pricePerSeat), { x: columns.price, y: y(cursorTop), size: 10.5, font: helvetica, color: INK });
   page.drawText(formatGhs(total), { x: columns.total, y: y(cursorTop), size: 10.5, font: helvetica, color: INK });
 
-  cursorTop += 30;
+  cursorTop += descriptionLines.length * DESC_LINE_HEIGHT + 17;
   page.drawLine({ start: { x: 48, y: y(cursorTop) }, end: { x: width - 48, y: y(cursorTop) }, thickness: 1, color: GREY });
   cursorTop += 24;
   const totalLabel = 'Total Due';
