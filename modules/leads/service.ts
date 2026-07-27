@@ -1,4 +1,5 @@
 import { sendTransactionalEmail } from '@/lib/resend/client';
+import { sendSmsMessage } from '@/lib/arkesel/client';
 import { AppError } from '@/lib/errors';
 import * as leadsRepository from '@/modules/leads/repository';
 import type {
@@ -210,6 +211,35 @@ export async function getLeadWithActivities(
   const lead = await getLeadById(id);
   const activityRows = await leadsRepository.selectLeadActivities(id);
   return { lead, activities: activityRows.map(toLeadActivity) };
+}
+
+// Ad-hoc lead messaging (2026-07-27, Admin Assistant tools) — a free-text
+// send to one lead, distinct from the campaign engine's template+audience
+// flow. Calls the raw channel clients directly rather than going through
+// modules/communications (whose engines are registration-scoped template
+// sends), same posture as modules/portal/service.ts's requestPinReset
+// calling sendTransactionalEmail directly. Not yet logged to the lead's
+// activity timeline — LeadActivity's activityType is a closed DB-backed
+// enum with no 'message_sent' value; adding one is a schema change, out
+// of scope for this pass.
+export async function sendSmsToLead(leadId: string, message: string): Promise<void> {
+  const lead = await getLeadById(leadId);
+  if (!lead.phone) {
+    throw new AppError('VALIDATION_ERROR', 'This lead has no phone number on file.', 400);
+  }
+  await sendSmsMessage({ toPhone: lead.phone, message });
+}
+
+export async function sendEmailToLead(
+  leadId: string,
+  subject: string,
+  body: string,
+): Promise<void> {
+  const lead = await getLeadById(leadId);
+  if (!lead.email) {
+    throw new AppError('VALIDATION_ERROR', 'This lead has no email address on file.', 400);
+  }
+  await sendTransactionalEmail({ to: lead.email, subject, html: body });
 }
 
 export async function getPipelineSummary() {

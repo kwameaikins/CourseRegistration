@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
 import { sendSmsMessage } from '@/lib/arkesel/client';
+import { sendTransactionalEmail } from '@/lib/resend/client';
+import { generateReceiptPdf } from '@/lib/portal/receipt-pdf';
 import * as attendanceService from '@/modules/attendance/service';
 import * as campaignsService from '@/modules/campaigns/service';
 import * as certificatesService from '@/modules/certificates/service';
@@ -17,6 +19,7 @@ import * as opportunitiesService from '@/modules/opportunities/service';
 import { createOpportunityInputSchema } from '@/modules/opportunities/types';
 import * as paymentsService from '@/modules/payments/service';
 import { paymentDiscountSchema } from '@/modules/payments/types';
+import * as portalService from '@/modules/portal/service';
 import * as registrationsService from '@/modules/registrations/service';
 import { transferRegistrationSchema } from '@/modules/registrations/types';
 import { tool } from '@/modules/agent-tools/types';
@@ -449,6 +452,165 @@ export const AGENT_TOOLS: AgentTool[] = [
     run: async (input) => opportunitiesService.createOpportunity(input),
   }),
 
+  // --- New write-confirm tools (2026-07-27) — student-support tooling ---
+  tool({
+    name: 'propose_send_sms_to_lead',
+    description:
+      'Propose sending a one-off free-text SMS to a lead. Only prepares a confirmation card — never sends it itself. Not a campaign; use propose_create_campaign for bulk sends to a filtered audience.',
+    inputSchema: z.object({ leadId: z.string(), message: z.string().min(1).max(480) }),
+    trust: { kind: 'staff', roles: ['admin', 'marketing', 'management'] },
+    mode: 'write-confirm',
+    surfaces: ['assistant'],
+    buildPreview: async (input) => {
+      const lead = await leadsService.getLeadById(input.leadId);
+      return { fullName: lead.fullName, phone: lead.phone, message: input.message };
+    },
+    run: async (input) => {
+      await leadsService.sendSmsToLead(input.leadId, input.message);
+      return { leadId: input.leadId, channel: 'sms', sent: true };
+    },
+  }),
+  tool({
+    name: 'propose_send_email_to_lead',
+    description:
+      'Propose sending a one-off free-text email to a lead. Only prepares a confirmation card — never sends it itself. Not a campaign; use propose_create_campaign for bulk sends to a filtered audience.',
+    inputSchema: z.object({
+      leadId: z.string(),
+      subject: z.string().min(1).max(200),
+      body: z.string().min(1).max(5000),
+    }),
+    trust: { kind: 'staff', roles: ['admin', 'marketing', 'management'] },
+    mode: 'write-confirm',
+    surfaces: ['assistant'],
+    buildPreview: async (input) => {
+      const lead = await leadsService.getLeadById(input.leadId);
+      return { fullName: lead.fullName, email: lead.email, subject: input.subject, body: input.body };
+    },
+    run: async (input) => {
+      await leadsService.sendEmailToLead(input.leadId, input.subject, input.body);
+      return { leadId: input.leadId, channel: 'email', sent: true };
+    },
+  }),
+  tool({
+    name: 'propose_create_campaign',
+    description:
+      'Propose creating a new campaign (name, channel, message, audience filters by lead source/status/minimum score) as a draft. Only prepares a confirmation card — never creates it itself. Does not queue or send — use propose_queue_and_send_campaign afterward for that, as a separate confirmation.',
+    inputSchema: z.object({
+      name: z.string().min(2).max(200),
+      channel: z.enum(['email', 'whatsapp', 'sms']),
+      messageSubject: z.string().max(200).optional(),
+      messageBody: z.string().min(1),
+      filterLeadSource: z.enum(['WhatsApp', 'Facebook', 'LinkedIn', 'Referral', 'Website', 'Other']).optional(),
+      filterStatus: z.string().optional(),
+      filterMinScore: z.number().optional(),
+    }),
+    trust: { kind: 'staff', roles: ['admin', 'marketing'] },
+    mode: 'write-confirm',
+    surfaces: ['assistant'],
+    buildPreview: async (input) => {
+      const leads = await leadsService.listLeads();
+      const matchedLeadCount = leads.filter(
+        (lead) =>
+          (!input.filterLeadSource || lead.leadSource === input.filterLeadSource) &&
+          (!input.filterStatus || lead.status === input.filterStatus) &&
+          (input.filterMinScore === undefined || lead.score >= input.filterMinScore),
+      ).length;
+      return {
+        name: input.name,
+        channel: input.channel,
+        filterLeadSource: input.filterLeadSource ?? null,
+        filterStatus: input.filterStatus ?? null,
+        filterMinScore: input.filterMinScore ?? null,
+        matchedLeadCount,
+      };
+    },
+    run: async (input, ctx) => campaignsService.createCampaign(input, ctx.staffUser!.id),
+  }),
+  tool({
+    name: 'propose_resend_receipt',
+    description:
+      "Propose emailing a registration's payment receipt (PDF) to the participant again. Only prepares a confirmation card — never sends it itself.",
+    inputSchema: z.object({ registrationId: z.string() }),
+    trust: { kind: 'staff', roles: ['admin', 'finance'] },
+    mode: 'write-confirm',
+    surfaces: ['assistant'],
+    buildPreview: async (input) => {
+      const receipt = await portalService.getReceiptDataForStaff(input.registrationId);
+      return {
+        participantName: receipt.participantName,
+        participantEmail: receipt.participantEmail,
+        courseName: receipt.courseName,
+        balance: receipt.balance,
+      };
+    },
+    run: async (input) => {
+      const receipt = await portalService.getReceiptDataForStaff(input.registrationId);
+      const bytes = await generateReceiptPdf({
+        ...receipt,
+        issuedDate: new Date().toISOString().slice(0, 10),
+      });
+      await sendTransactionalEmail({
+        to: receipt.participantEmail,
+        subject: `Your Knowsia receipt — ${receipt.courseName}`,
+        html: `<p>Dear ${receipt.participantName},</p><p>Attached is your payment receipt for <strong>${receipt.courseName}</strong>.</p>`,
+        attachments: [
+          {
+            filename: `receipt-${input.registrationId.slice(0, 8)}.pdf`,
+            content: Buffer.from(bytes).toString('base64'),
+            contentType: 'application/pdf',
+          },
+        ],
+      });
+      return { registrationId: input.registrationId, sent: true };
+    },
+  }),
+  tool({
+    name: 'propose_resend_certificate',
+    description:
+      'Propose emailing an already-issued certificate (PDF + verification link) to its recipient again. Only prepares a confirmation card — never sends it itself.',
+    inputSchema: z.object({ certificateId: z.string() }),
+    trust: { kind: 'staff', roles: ['admin'] },
+    mode: 'write-confirm',
+    surfaces: ['assistant'],
+    buildPreview: async (input) => {
+      const certificates = await certificatesService.listCertificates();
+      const certificate = certificates.find((candidate) => candidate.id === input.certificateId);
+      return {
+        certificateNumber: certificate?.certificateNumber ?? 'Unknown',
+        recipientName: certificate?.recipientName ?? 'Unknown',
+        recipientEmail: certificate?.recipientEmail ?? null,
+        courseTitle: certificate?.courseTitle ?? 'Unknown',
+      };
+    },
+    run: async (input) => {
+      const sent = await certificatesService.resendCertificateEmail(input.certificateId);
+      return { certificateId: input.certificateId, sent };
+    },
+  }),
+  tool({
+    name: 'propose_offer_waitlist_seat',
+    description:
+      'Propose manually offering the next waitlisted person a seat right now, if one is actually available (does not force an offer when the batch has no free seat). Only prepares a confirmation card — never sends the offer itself.',
+    inputSchema: z.object({ batchId: z.string() }),
+    trust: { kind: 'staff', roles: ['admin', 'finance', 'marketing', 'management'] },
+    mode: 'write-confirm',
+    surfaces: ['assistant'],
+    buildPreview: async (input) => {
+      const [batch, entries] = await Promise.all([
+        coursesService.getBatchByIdSystem(input.batchId),
+        waitlistService.getWaitlistForBatch(input.batchId),
+      ]);
+      const seatsRemaining = await coursesService.getSeatsRemaining(input.batchId);
+      const nextPerson = entries.find((entry) => entry.status === 'Waiting');
+      return {
+        cohortLabel: batch?.cohortLabel ?? 'Unknown',
+        seatsRemaining,
+        nextPerson: nextPerson ? { fullName: nextPerson.fullName, email: nextPerson.email } : null,
+      };
+    },
+    run: async (input) => coursesService.offerNextWaitlistSeat(input.batchId),
+  }),
+
   // --- New read-only tools (2026-07-26) — every module with no prior AI-surface ---
   tool({
     name: 'list_campaigns',
@@ -554,6 +716,28 @@ export const AGENT_TOOLS: AgentTool[] = [
     mode: 'read',
     surfaces: ['assistant'],
     run: async (input) => communicationsService.getMessageLog(input),
+  }),
+
+  // --- New read-only tools (2026-07-27) — student-support tooling ---
+  tool({
+    name: 'get_student_status',
+    description:
+      'Look up a student by email or phone: their registrations, payment status/balance, and certificates. A richer, structured version of the voice-only lookup_customer tool.',
+    inputSchema: z.object({ identifier: z.string().min(3) }),
+    trust: { kind: 'staff', roles: ['admin', 'finance', 'marketing', 'management'] },
+    mode: 'read',
+    surfaces: ['assistant'],
+    run: async (input) => portalService.getStudentStatusForStaff(input.identifier),
+  }),
+  tool({
+    name: 'get_certificate_candidates_for_batch',
+    description:
+      "List a batch's certificate-eligible participants (paid, feedback submitted, attendance percent, already-issued status). Visibility only — issuing still requires the Certificates screen.",
+    inputSchema: z.object({ batchId: z.string() }),
+    trust: { kind: 'staff', roles: ['admin'] },
+    mode: 'read',
+    surfaces: ['assistant'],
+    run: async (input) => certificatesService.getBatchIssueContext(input.batchId),
   }),
 
   // --- Vapi voice tools (system trust — no staff identity, gated by the

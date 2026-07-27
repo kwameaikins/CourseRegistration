@@ -21,10 +21,14 @@ const leadsRepositoryMock = {
   updateAssignmentRule: vi.fn(),
 };
 const sendTransactionalEmailMock = vi.fn();
+const sendSmsMessageMock = vi.fn();
 
 vi.mock('@/modules/leads/repository', () => leadsRepositoryMock);
 vi.mock('@/lib/resend/client', () => ({
   sendTransactionalEmail: (...args: unknown[]) => sendTransactionalEmailMock(...args),
+}));
+vi.mock('@/lib/arkesel/client', () => ({
+  sendSmsMessage: (...args: unknown[]) => sendSmsMessageMock(...args),
 }));
 
 const {
@@ -40,6 +44,8 @@ const {
   listLeadsDueForFollowUp,
   runFollowUpDispatch,
   backfillAssignmentRule,
+  sendSmsToLead,
+  sendEmailToLead,
 } = await import('@/modules/leads/service');
 
 beforeEach(() => {
@@ -662,6 +668,110 @@ describe('getLeadWithActivities', () => {
         description: 'Lead captured from Website.',
       }),
     ]);
+  });
+});
+
+describe('sendSmsToLead', () => {
+  function leadRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'lead-1',
+      registration_id: null,
+      participant_id: null,
+      full_name: 'Ama Owusu',
+      email: 'ama@example.com',
+      phone: '+233241234567',
+      job_title: null,
+      company: null,
+      lead_source: 'Facebook',
+      status: 'New',
+      score: 25,
+      assigned_to: null,
+      notes: null,
+      next_follow_up_at: null,
+      created_at: '2026-07-01T00:00:00Z',
+      updated_at: '2026-07-01T00:00:00Z',
+      ...overrides,
+    };
+  }
+
+  it('sends via Arkesel with the lead phone and message', async () => {
+    leadsRepositoryMock.selectLeadById.mockResolvedValue(leadRow());
+
+    await sendSmsToLead('lead-1', 'Hi Ama, following up on your inquiry.');
+
+    expect(sendSmsMessageMock).toHaveBeenCalledWith({
+      toPhone: '+233241234567',
+      message: 'Hi Ama, following up on your inquiry.',
+    });
+  });
+
+  it('rejects a lead with no phone number on file', async () => {
+    leadsRepositoryMock.selectLeadById.mockResolvedValue(leadRow({ phone: null }));
+
+    await expect(sendSmsToLead('lead-1', 'Hi')).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+    });
+    expect(sendSmsMessageMock).not.toHaveBeenCalled();
+  });
+
+  it('throws NOT_FOUND for an unknown lead', async () => {
+    leadsRepositoryMock.selectLeadById.mockResolvedValue(null);
+
+    await expect(sendSmsToLead('missing', 'Hi')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(sendSmsMessageMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('sendEmailToLead', () => {
+  function leadRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'lead-1',
+      registration_id: null,
+      participant_id: null,
+      full_name: 'Ama Owusu',
+      email: 'ama@example.com',
+      phone: '+233241234567',
+      job_title: null,
+      company: null,
+      lead_source: 'Facebook',
+      status: 'New',
+      score: 25,
+      assigned_to: null,
+      notes: null,
+      next_follow_up_at: null,
+      created_at: '2026-07-01T00:00:00Z',
+      updated_at: '2026-07-01T00:00:00Z',
+      ...overrides,
+    };
+  }
+
+  it('sends via Resend with the lead email, subject, and body', async () => {
+    leadsRepositoryMock.selectLeadById.mockResolvedValue(leadRow());
+
+    await sendEmailToLead('lead-1', 'Following up', '<p>Hi Ama</p>');
+
+    expect(sendTransactionalEmailMock).toHaveBeenCalledWith({
+      to: 'ama@example.com',
+      subject: 'Following up',
+      html: '<p>Hi Ama</p>',
+    });
+  });
+
+  it('rejects a lead with no email on file', async () => {
+    leadsRepositoryMock.selectLeadById.mockResolvedValue(leadRow({ email: null }));
+
+    await expect(sendEmailToLead('lead-1', 'Subject', 'Body')).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+    });
+    expect(sendTransactionalEmailMock).not.toHaveBeenCalled();
+  });
+
+  it('throws NOT_FOUND for an unknown lead', async () => {
+    leadsRepositoryMock.selectLeadById.mockResolvedValue(null);
+
+    await expect(sendEmailToLead('missing', 'Subject', 'Body')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
   });
 });
 

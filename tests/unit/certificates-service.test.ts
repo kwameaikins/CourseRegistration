@@ -23,6 +23,7 @@ const {
   getCertificatePdf,
   issueForBatch,
   issueManual,
+  resendCertificateEmail,
   verifyCertificate,
 } = await import('@/modules/certificates/service');
 
@@ -182,6 +183,51 @@ describe('batch issuance', () => {
     expect(sendTransactionalEmailMock).toHaveBeenCalledWith(
       expect.objectContaining({ to: 'ama@example.com' }),
     );
+  });
+});
+
+describe('resendCertificateEmail', () => {
+  function certRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'cert-1',
+      certificate_number: 'KNS-AI01-2026-0036',
+      recipient_name: 'Nicholina Nyumutei',
+      course_title: 'AI for Business Productivity',
+      recipient_email: 'nicholina@example.com',
+      revoked: false,
+      ...overrides,
+    };
+  }
+
+  it('sends via the existing certificate-email logic and reports success', async () => {
+    repositoryMock.selectCertificateById.mockResolvedValue(certRow());
+
+    const sent = await resendCertificateEmail('cert-1');
+
+    expect(sent).toBe(true);
+    expect(sendTransactionalEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'nicholina@example.com' }),
+    );
+  });
+
+  it('returns false with no email on file, without throwing', async () => {
+    repositoryMock.selectCertificateById.mockResolvedValue(certRow({ recipient_email: null }));
+
+    const sent = await resendCertificateEmail('cert-1');
+
+    expect(sent).toBe(false);
+    expect(sendTransactionalEmailMock).not.toHaveBeenCalled();
+  });
+
+  it('throws NOT_FOUND for a missing certificate', async () => {
+    repositoryMock.selectCertificateById.mockResolvedValue(null);
+    await expect(resendCertificateEmail('missing')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('refuses to resend a revoked certificate', async () => {
+    repositoryMock.selectCertificateById.mockResolvedValue(certRow({ revoked: true }));
+    await expect(resendCertificateEmail('cert-1')).rejects.toMatchObject({ code: 'CONFLICT' });
+    expect(sendTransactionalEmailMock).not.toHaveBeenCalled();
   });
 });
 

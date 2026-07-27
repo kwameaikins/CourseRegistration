@@ -157,3 +157,26 @@ export const portalResetPinSchema = z.object({
   newPin: z.string().trim().regex(/^\d{4}$/, 'PIN must be 4 digits'),
 });
 export type PortalResetPinInput = z.infer<typeof portalResetPinSchema>;
+
+// Staff-facing student lookup (Admin Assistant tools, 2026-07-27) — a
+// richer, structured equivalent of the voice-only lookup_customer tool,
+// reusing the exact same dashboard data the student portal itself shows.
+export interface StudentStatusRegistration {
+  registrationId: string;
+  courseName: string;
+  courseCode: string;
+  cohortLabel: string;
+  registrationStatus: string;
+  paymentStatus: string;
+  courseFee: number;
+  amountPaid: number;
+  balance: number;
+  certificates: Array<{ certificateNumber: string; issuedDate: string; revoked: boolean }>;
+}
+
+export interface StudentStatusSummary {
+  fullName: string;
+  email: string;
+  phone: string;
+  registrations: StudentStatusRegistration[];
+}

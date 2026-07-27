@@ -23,6 +23,7 @@ import * as communicationsService from '@/modules/communications/service';
 // uses; courses stays unaware the portal exists.
 import * as coursesService from '@/modules/courses/service';
 import { sendTransactionalEmail } from '@/lib/resend/client';
+import { parsePaymentStatus } from '@/lib/domain/parsers';
 import type {
   PortalChangePinInput,
   PortalDashboard,
@@ -35,6 +36,7 @@ import type {
   PortalResetPinInput,
   PortalSetUpInstallmentPlanInput,
   PortalUpdateNameInput,
+  StudentStatusSummary,
 } from '@/modules/portal/types';
 
 const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -335,17 +337,14 @@ export async function setUpInstallmentPlan(
 // Receipt (2026-07-26) — same "never trust a client-supplied registrationId
 // blindly" posture as setUpInstallmentPlan above: the registration must
 // appear in this session's own dashboard data before anything is returned.
-export async function getReceiptData(
-  sessionId: string | undefined,
+function buildReceiptData(
+  data: Awaited<ReturnType<typeof portalRepository.selectPortalDashboardData>>,
   registrationId: string,
-): Promise<PortalReceiptData> {
-  const { participantId } = await requirePortalSession(sessionId);
-  const data = await portalRepository.selectPortalDashboardData(participantId);
+): PortalReceiptData {
   const match = data.registrations.find((row) => row.registration.id === registrationId);
   if (!match || !match.payment || !match.course || !match.batch || !data.participant) {
     throw new AppError('NOT_FOUND', 'Registration not found.', 404);
   }
-
   return {
     participantName: data.participant.full_name,
     participantEmail: data.participant.email,
@@ -358,6 +357,69 @@ export async function getReceiptData(
     transactionId: match.payment.transaction_id,
     paymentDate: match.payment.payment_date,
     registrationId,
+  };
+}
+
+export async function getReceiptData(
+  sessionId: string | undefined,
+  registrationId: string,
+): Promise<PortalReceiptData> {
+  const { participantId } = await requirePortalSession(sessionId);
+  const data = await portalRepository.selectPortalDashboardData(participantId);
+  return buildReceiptData(data, registrationId);
+}
+
+// Staff-facing equivalent of getReceiptData (Admin Assistant tools,
+// 2026-07-27) — same data assembly, but resolves participantId from the
+// registrationId directly instead of a portal session, since the caller
+// is already staff-authorized by the calling agent tool's own trust
+// check. Reuses selectParticipantIdForRegistration (existing, otherwise
+// used for portal login tokens).
+export async function getReceiptDataForStaff(registrationId: string): Promise<PortalReceiptData> {
+  const participantId = await portalRepository.selectParticipantIdForRegistration(registrationId);
+  if (!participantId) {
+    throw new AppError('NOT_FOUND', 'Registration not found.', 404);
+  }
+  const data = await portalRepository.selectPortalDashboardData(participantId);
+  return buildReceiptData(data, registrationId);
+}
+
+// One-shot staff lookup by email or phone (Admin Assistant tools,
+// 2026-07-27) — reuses the exact dashboard data the student portal itself
+// shows (selectPortalDashboardData), so this is never a second,
+// independently-drifting source of truth. Richer than the voice-only
+// lookup_customer tool (modules/voice/service.ts), which has no
+// certificate data and returns unstructured text instead of JSON.
+export async function getStudentStatusForStaff(identifier: string): Promise<StudentStatusSummary> {
+  const participant = await portalRepository.selectParticipantByIdentifier(identifier);
+  if (!participant || participant.deleted_at !== null) {
+    throw new AppError('NOT_FOUND', 'No student found with that email or phone number.', 404);
+  }
+  const data = await portalRepository.selectPortalDashboardData(participant.id);
+  if (!data.participant) {
+    throw new AppError('NOT_FOUND', 'No student found with that email or phone number.', 404);
+  }
+
+  return {
+    fullName: data.participant.full_name,
+    email: data.participant.email,
+    phone: data.participant.phone,
+    registrations: data.registrations.map(({ registration, batch, course, payment, certificates }) => ({
+      registrationId: registration.id,
+      courseName: course?.course_name ?? '',
+      courseCode: course?.course_code ?? '',
+      cohortLabel: batch?.cohort_label ?? '',
+      registrationStatus: registration.registration_status,
+      paymentStatus: payment ? parsePaymentStatus(payment.payment_status) : 'Unpaid',
+      courseFee: payment ? Number(payment.course_fee) : 0,
+      amountPaid: payment ? Number(payment.amount_paid) : 0,
+      balance: payment ? Number(payment.balance) : 0,
+      certificates: certificates.map((c) => ({
+        certificateNumber: c.certificate_number,
+        issuedDate: c.issued_date,
+        revoked: c.revoked,
+      })),
+    })),
   };
 }
 

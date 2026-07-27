@@ -55,6 +55,8 @@ const {
   exchangeLoginToken,
   updateName,
   getReceiptData,
+  getReceiptDataForStaff,
+  getStudentStatusForStaff,
   getMessageHistory,
   getOtherCourses,
   requestPinReset,
@@ -545,6 +547,90 @@ describe('getReceiptData', () => {
 
   it('rejects a registration id that does not belong to this session', async () => {
     await expect(getReceiptData('session-1', 'reg-not-mine')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+});
+
+describe('getReceiptDataForStaff', () => {
+  beforeEach(() => {
+    repositoryMock.selectParticipantIdForRegistration.mockResolvedValue('participant-1');
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [receiptDashboardRow()],
+    });
+  });
+
+  it('returns the receipt fields with no session required', async () => {
+    const receipt = await getReceiptDataForStaff('reg-1');
+    expect(receipt).toMatchObject({
+      participantName: 'Ama Owusu',
+      courseName: 'ICAG Level 1 Prep',
+      courseFee: 1200,
+      registrationId: 'reg-1',
+    });
+  });
+
+  it('rejects an unknown registration id (cannot be resolved to a participant)', async () => {
+    repositoryMock.selectParticipantIdForRegistration.mockResolvedValue(null);
+    await expect(getReceiptDataForStaff('reg-missing')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    expect(repositoryMock.selectPortalDashboardData).not.toHaveBeenCalled();
+  });
+});
+
+describe('getStudentStatusForStaff', () => {
+  it('resolves a student by email or phone and returns their registrations', async () => {
+    repositoryMock.selectParticipantByIdentifier.mockResolvedValue(PARTICIPANT);
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [
+        receiptDashboardRow({
+          payment: {
+            payment_status: 'Paid',
+            course_fee: '1200.00',
+            amount_paid: '1200.00',
+            balance: '0.00',
+            payment_method: 'Mobile Money',
+            transaction_id: 'TXN-123',
+            payment_date: '2026-07-20',
+          },
+        }),
+      ],
+    });
+
+    const status = await getStudentStatusForStaff('ama@example.com');
+
+    expect(status).toMatchObject({
+      fullName: 'Ama Owusu',
+      email: 'ama@example.com',
+      phone: '0245121941',
+    });
+    expect(status.registrations).toEqual([
+      expect.objectContaining({
+        registrationId: 'reg-1',
+        courseName: 'ICAG Level 1 Prep',
+        courseFee: 1200,
+        amountPaid: 1200,
+        balance: 0,
+      }),
+    ]);
+  });
+
+  it('throws NOT_FOUND for an unknown identifier', async () => {
+    repositoryMock.selectParticipantByIdentifier.mockResolvedValue(null);
+    await expect(getStudentStatusForStaff('nobody@example.com')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+
+  it('throws NOT_FOUND for a soft-deleted participant', async () => {
+    repositoryMock.selectParticipantByIdentifier.mockResolvedValue({
+      ...PARTICIPANT,
+      deleted_at: '2026-01-01T00:00:00Z',
+    });
+    await expect(getStudentStatusForStaff('ama@example.com')).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
   });

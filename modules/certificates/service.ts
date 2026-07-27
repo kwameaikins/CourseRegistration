@@ -118,6 +118,21 @@ Anyone can confirm its authenticity at:<br/><a href="${verifyUrlFor(row.certific
   return true;
 }
 
+// Standalone resend (Admin Assistant tools, 2026-07-27) — reuses the exact
+// same send logic issueForBatch/issueManual already call at issuance time,
+// just loading the row from an id instead of having it in hand already.
+// Zero risk to those existing paths (pure addition).
+export async function resendCertificateEmail(certificateId: string): Promise<boolean> {
+  const row = await certificatesRepository.selectCertificateById(certificateId);
+  if (!row) {
+    throw new AppError('NOT_FOUND', 'Certificate not found.', 404);
+  }
+  if (row.revoked) {
+    throw new AppError('CONFLICT', 'This certificate has been revoked.', 409);
+  }
+  return sendCertificateEmail(row);
+}
+
 export async function listCertificates(limit = 200): Promise<CertificateView[]> {
   const rows = await certificatesRepository.selectCertificates(limit);
   return rows.map(toView);

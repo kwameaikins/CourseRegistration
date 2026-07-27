@@ -97,18 +97,24 @@ export async function joinWaitlist(input: {
 // actually free up today — registrations/service.ts's deleteRegistration,
 // and courses/service.ts's updateBatch when capacity increases — always
 // non-blocking, same posture as every other side-effect in this codebase.
+// Return value (2026-07-27) added for the manual trigger
+// (coursesService.offerNextWaitlistSeat, used by the Admin Assistant's
+// propose_offer_waitlist_seat tool) to report what happened — the two
+// original fire-and-forget callers (registrations/service.ts's
+// deleteRegistration, courses/service.ts's updateBatch) already ignore the
+// return value, so this is backward compatible.
 export async function notifyNextIfSeatAvailable(
   batchId: string,
   seatsRemaining: number | null,
   batchContext: { courseName: string; cohortLabel: string },
-): Promise<void> {
-  if (seatsRemaining === null || seatsRemaining <= 0) return;
+): Promise<{ offered: boolean; participantName?: string }> {
+  if (seatsRemaining === null || seatsRemaining <= 0) return { offered: false };
 
   const entry = await waitlistRepository.selectOldestWaitingEntry(batchId);
-  if (!entry) return;
+  if (!entry) return { offered: false };
 
   const participant = await waitlistRepository.selectParticipantContact(entry.participant_id);
-  if (!participant) return;
+  if (!participant) return { offered: false };
 
   await waitlistRepository.updateWaitlistEntryStatus(entry.id, {
     status: 'Offered',
@@ -123,6 +129,8 @@ export async function notifyNextIfSeatAvailable(
 <p>Good news — a seat has opened up for <strong>${batchContext.courseName}</strong> (${batchContext.cohortLabel}), and you're next on the waitlist.</p>
 <p><a href="${APP_URL()}/register?batchId=${batchId}">Register now</a> to secure it — seats are offered in waitlist order, so we recommend registering promptly.</p>`,
   });
+
+  return { offered: true, participantName: participant.fullName };
 }
 
 export async function getWaitlistForBatch(batchId: string): Promise<WaitlistEntryView[]> {

@@ -326,6 +326,24 @@ function toBatchInsert(input: BatchInput): Database['public']['Tables']['batches
   };
 }
 
+// Manual seat offer (Admin Assistant tools, 2026-07-27) — same underlying
+// notification as the automatic capacity-increase trigger in updateBatch
+// above, just triggered on demand by staff instead of waiting for a batch
+// edit. Still only offers if a real seat is actually free — never blindly
+// offers a nonexistent seat.
+export async function offerNextWaitlistSeat(
+  batchId: string,
+): Promise<{ offered: boolean; participantName?: string }> {
+  const batch = await getBatchByIdSystem(batchId);
+  if (!batch) return { offered: false };
+  const seatsRemaining = await getSeatsRemaining(batchId);
+  const course = await getCourseByIdSystem(batch.courseId);
+  return waitlistService.notifyNextIfSeatAvailable(batchId, seatsRemaining, {
+    courseName: course?.courseName ?? '',
+    cohortLabel: batch.cohortLabel,
+  });
+}
+
 export function isPostgresUniqueViolation(err: unknown): boolean {
   return (
     typeof err === 'object' &&

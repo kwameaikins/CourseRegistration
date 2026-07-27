@@ -26,8 +26,14 @@ vi.mock('@/modules/communications/default-templates', () => ({
 vi.mock('@/lib/zoom/client', () => zoomClientMock);
 vi.mock('@/modules/waitlist/service', () => waitlistServiceMock);
 
-const { createCourse, createBatch, updateBatch, getSeatsRemaining, adjustBatchCapacityInternal } =
-  await import('@/modules/courses/service');
+const {
+  createCourse,
+  createBatch,
+  updateBatch,
+  getSeatsRemaining,
+  adjustBatchCapacityInternal,
+  offerNextWaitlistSeat,
+} = await import('@/modules/courses/service');
 
 function courseRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -359,6 +365,38 @@ describe('adjustBatchCapacityInternal — silent corporate seat reservation nudg
   it('is a no-op for a zero delta', async () => {
     await adjustBatchCapacityInternal('batch-1', 0);
     expect(coursesRepositoryMock.selectBatchByIdSystem).not.toHaveBeenCalled();
+  });
+});
+
+describe('offerNextWaitlistSeat — manual trigger (Admin Assistant tool, 2026-07-27)', () => {
+  it('returns not-offered when the batch does not exist', async () => {
+    coursesRepositoryMock.selectBatchByIdSystem.mockResolvedValue(null);
+
+    const result = await offerNextWaitlistSeat('batch-missing');
+
+    expect(result).toEqual({ offered: false });
+    expect(waitlistServiceMock.notifyNextIfSeatAvailable).not.toHaveBeenCalled();
+  });
+
+  it('delegates to the same notify path updateBatch already uses, with the current seat count', async () => {
+    coursesRepositoryMock.selectBatchByIdSystem.mockResolvedValue(batchRow({ capacity: 30 }));
+    coursesRepositoryMock.countRegistrationsByBatchIdsSystem.mockResolvedValue(
+      new Map([['batch-1', 20]]),
+    );
+    coursesRepositoryMock.selectCourseByIdSystem.mockResolvedValue(courseRow());
+    waitlistServiceMock.notifyNextIfSeatAvailable.mockResolvedValue({
+      offered: true,
+      participantName: 'Ama Owusu',
+    });
+
+    const result = await offerNextWaitlistSeat('batch-1');
+
+    expect(waitlistServiceMock.notifyNextIfSeatAvailable).toHaveBeenCalledWith(
+      'batch-1',
+      10,
+      expect.objectContaining({ cohortLabel: 'JUL-2026' }),
+    );
+    expect(result).toEqual({ offered: true, participantName: 'Ama Owusu' });
   });
 });
 
