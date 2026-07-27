@@ -101,15 +101,31 @@ on public.courses for select
 to authenticated
 using (public.fn_current_role() in ('finance', 'marketing', 'management'));
 
+-- Any existing staff_users row with role = 'tutor' predates this feature
+-- and must be removed before the stricter CHECK constraint below can be
+-- added — tutors are external parties and should never have had a staff
+-- account (founder-confirmed 2026-07-27, discovered when this migration
+-- first failed against production data). Their name/email are surfaced
+-- via RAISE NOTICE (visible in `supabase db push` output) rather than
+-- silently dropped, so the founder can recreate them properly as a Tutor
+-- record via the /tutors staff screen — including their phone number,
+-- which staff_users has no column for and so cannot be carried over
+-- automatically.
+do $$
+declare
+  r record;
+begin
+  for r in select id, full_name, email from public.staff_users where role = 'tutor' loop
+    raise notice 'Removed staff account for external tutor: % <%> (was staff_users id %) — recreate them via /tutors with their phone number to restore portal access.', r.full_name, r.email, r.id;
+  end loop;
+  delete from public.staff_users where role = 'tutor';
+end $$;
+
 -- Drop 'tutor' from the staff_users.role CHECK constraint. Looked up by
 -- introspection rather than a hardcoded constraint name, since the
 -- original constraint was declared inline (unnamed) in the foundation
 -- migration and Postgres' auto-generated name was never confirmed against
--- a live database. If any staff_users row still has role = 'tutor', adding
--- the new, stricter constraint fails loudly (Postgres validates existing
--- rows by default) rather than silently corrupting data — confirmed no
--- such row exists in any committed seed/migration, but production should
--- be checked before this migration runs.
+-- a live database.
 do $$
 declare
   v_constraint_name text;

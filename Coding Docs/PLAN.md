@@ -400,9 +400,14 @@ batches.facilitator_tutor_id, live_sessions.tutor_id, drops the 4 dead tutor RLS
 - [x] Docs: new `Coding Docs/16_Tutor_Operations.md`; trailing Extension sections added to
       Docs 1/3/5/8; Doc 6 Section 13 extended to a three-tier non-staff session model; Doc 14's
       "Tutor workspace" vision section marked superseded; BR-31 through BR-34 added to Doc 4
-- [ ] *(external)* Apply migration `202607270034` to production (`npx supabase db push`) —
-      **pre-check first**: confirm no `staff_users` row has `role = 'tutor'`, since the
-      CHECK-constraint drop fails loudly (not silently) if one exists
+- [ ] *(external)* Apply migration `202607270034` to production (`npx supabase db push`) — the
+      pre-check caught exactly the case it was designed for: a real `staff_users` row with
+      `role = 'tutor'` existed in production (first `db push` attempt, 2026-07-27, failed
+      loudly with no data corruption — the whole migration rolled back cleanly since it runs in
+      one transaction). The migration now removes any such row itself and prints its name/email
+      via `RAISE NOTICE` (visible in the `db push` output) instead of failing outright — rerun
+      the push, then recreate that person as a proper Tutor via `/tutors` with their phone
+      number (not carried over automatically — `staff_users` has no phone column).
 - [ ] *(external)* Founder creates the first real Tutor record and confirms the end-to-end
       portal login flow before relying on it
 
