@@ -15,12 +15,12 @@ export interface StaffUser {
 export const staffUserInputSchema = z.object({
   email: z.email(),
   fullName: z.string().trim().min(2),
-  role: z.enum(['admin', 'finance', 'marketing', 'tutor', 'management']),
+  role: z.enum(['admin', 'finance', 'marketing', 'management']),
 });
 
 export const staffUserUpdateSchema = z.object({
   fullName: z.string().trim().min(2).optional(),
-  role: z.enum(['admin', 'finance', 'marketing', 'tutor', 'management']).optional(),
+  role: z.enum(['admin', 'finance', 'marketing', 'management']).optional(),
   isActive: z.boolean().optional(),
 });
 

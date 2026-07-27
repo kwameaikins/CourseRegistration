@@ -3,10 +3,10 @@ import * as coursesService from '@/modules/courses/service';
 import * as usersService from '@/modules/users/service';
 import { batchInputSchema } from '@/modules/courses/types';
 
-// GET /api/batches?courseId=... — staff read (Tutor sees own only via RLS).
+// GET /api/batches?courseId=... — staff read.
 export async function GET(request: Request) {
   try {
-    await usersService.requireRole(['admin', 'finance', 'marketing', 'tutor', 'management']);
+    await usersService.requireRole(['admin', 'finance', 'marketing', 'management']);
     const courseId = new URL(request.url).searchParams.get('courseId') ?? undefined;
     const batches = await coursesService.getBatches(courseId);
     return successResponse({ batches });

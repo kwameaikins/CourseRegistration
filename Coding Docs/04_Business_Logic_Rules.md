@@ -492,3 +492,20 @@ See Document 14 for the workflow and acceptance criteria.
   registrations are never touched (same "don't destroy history" posture as BR-18).
 
 See Document 15 for the full workflow and acceptance criteria.
+
+## 7. Tutor Portal Rules (2026-07-27)
+
+- **BR-31:** Tutors are external parties, not Knowsia staff — they never get a `staff_users`
+  row or a Supabase Auth login. Authentication is exclusively via the tutor portal (PIN +
+  opaque session cookie), the same non-staff pattern as the participant and company portals.
+- **BR-32:** A tutor portal session may only ever read data scoped to its own `tutor_id` (its
+  own batches, live sessions, rosters, attendance, certificate eligibility) — enforced entirely
+  in the service layer, since these tables have RLS enabled with zero policies (no per-row RLS
+  for this identity tier, same posture as BR-29).
+- **BR-33:** A tutor can never see any participant's payment/financial data. The roster read
+  never selects the `payments` table at all — stronger than a role-based field-strip, since the
+  data is never fetched in the first place.
+- **BR-34:** Attendance stays exclusively owned by the Zoom-sync cron job; the tutor portal is
+  read-only in v1 — there is no tutor-facing attendance write path.
+
+See Document 16 for the full workflow and acceptance criteria.

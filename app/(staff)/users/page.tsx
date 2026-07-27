@@ -44,7 +44,7 @@ interface ParticipantRow {
   deleted_at: string | null;
 }
 
-const ROLES = ['admin', 'finance', 'marketing', 'tutor', 'management'] as const;
+const ROLES = ['admin', 'finance', 'marketing', 'management'] as const;
 
 export default function StaffUserManagementPage() {
   const [users, setUsers] = useState<StaffUser[]>([]);

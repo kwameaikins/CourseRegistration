@@ -83,7 +83,7 @@ app/ -> modules/live-sessions/service.ts -> repository.ts -> lib/supabase
 
 Student portal additions: Next Class card, Ghana-time countdown, protected Join button, preparation material, calendar download, session history, released recordings, catch-up tasks, support request, attendance percentage, and progress.
 
-Tutor workspace additions: Today and upcoming sessions, host action, roster, agenda/materials, attendance review queue, late/no-show flags, learner follow-ups, substitute handover, recording release, and post-session completion checklist.
+Tutor workspace additions: Today and upcoming sessions, host action, roster, agenda/materials, attendance review queue, late/no-show flags, learner follow-ups, substitute handover, recording release, and post-session completion checklist. **Superseded 2026-07-27** by `16_Tutor_Operations.md` as the source of truth for what's actually shipped (today/upcoming sessions, roster, attendance visibility, certificate eligibility) versus what's still future work (materials, no-show flagging, follow-ups, substitute handover, recording release) — this list was written assuming the tutor stayed inside the staff auth system, which is no longer the model (see Document 16).
 
 ## 9. Delivery Roadmap
 

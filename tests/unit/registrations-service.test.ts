@@ -835,13 +835,6 @@ describe('exportRegistrationsCsv — CSV export (system review, 2026-07-24)', ()
     expect(csv.split('\r\n')[0]).not.toContain('Verified By');
   });
 
-  it('also strips Payment Method for Tutor, on top of the Marketing exclusions', async () => {
-    usersServiceMock.requireRole.mockResolvedValue({ id: 's-1', fullName: 'Jane', role: 'tutor' });
-    const csv = await exportRegistrationsCsv({});
-    expect(csv.split('\r\n')[0]).not.toContain('Payment Method');
-    expect(csv.split('\r\n')[0]).not.toContain('Transaction ID');
-  });
-
   it('filters by paymentStatus over the full unpaginated set (not just one page)', async () => {
     registrationsRepositoryMock.selectAllRegistrationsForExport.mockResolvedValue({
       rows: [
@@ -924,17 +917,6 @@ describe('listRegistrations — role-based field shaping (T-RLS-03)', () => {
     expect(registrations[0].verifiedBy).toBeUndefined();
   });
 
-  it('tutor sees no payment fields at all, on top of the marketing exclusions', async () => {
-    usersServiceMock.requireRole.mockResolvedValue({ id: 's-1', fullName: 'Jane', role: 'tutor' });
-
-    const { registrations } = await listRegistrations({ page: 1, limit: 50 });
-
-    expect(registrations[0].paymentNotes).toBeUndefined();
-    expect(registrations[0].paymentMethod).toBeUndefined();
-    expect(registrations[0].courseFee).toBe(0);
-    expect(registrations[0].amountPaid).toBe(0);
-    expect(registrations[0].balance).toBe(0);
-  });
 });
 
 describe('AppError shape', () => {

@@ -31,6 +31,7 @@ your summary of it.
 | Any new feature or screen | `/docs/01_PRD.md` — find the Feature ID (F1.xx) if one exists, else check for a trailing "Extension" section pointing at a companion doc (the convention used for every major feature added since the original PRD — Revenue OS, Live Learning Operations, Corporate Registration) |
 | Live sessions, Zoom delivery, attendance review, recordings, tutor/student learning workflows | Coding Docs/14_Live_Learning_Operations.md |
 | Corporate registration, seat allocations, company portal | Coding Docs/15_Corporate_Operations.md |
+| Tutor portal, tutor management, facilitator assignment | Coding Docs/16_Tutor_Operations.md |
 | Database, schema, migrations | `/docs/03_Data_Schema_and_ERD.md` — full SQL, triggers, RLS |
 | Business logic, validation, edge cases | `/docs/04_Business_Logic_Rules.md` — BR-01 through BR-30 |
 | API routes | `/docs/05_API_Contract.md` — exact request/response shapes |
@@ -285,9 +286,35 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     Zoom, attendance, feedback, certificates, and calls for one
     Registration; role-shaped per Document 5 Section 3 (Admin sees all,
     Finance sees payment audit + Calls, Marketing sees Payment Status
-    only, Tutor sees no payment section) — sections omitted from the
-    API response entirely when the role can't see them, not just hidden
-    client-side. `GET /api/registrations/[id]`.
+    only) — sections omitted from the API response entirely when the
+    role can't see them, not just hidden client-side.
+    `GET /api/registrations/[id]`.
+
+  Tutor Portal (2026-07-27, both phases shipped) — tutors are external
+    parties, not Knowsia staff; retires the earlier staff-role Tutor
+    experience (`/my-courses`, a bare roster page with no working Zoom
+    join link and zero attendance/certificate visibility) in favor of a
+    third non-staff portal tier, identical architecture to the
+    participant and company portals (PIN + session cookie, RLS enabled
+    with zero policies, service-layer authorization). New `modules/tutors`
+    owns both the staff-facing `/tutors` management screen (create/edit
+    tutors, batch counts) and the tutor portal's auth/dashboard reads —
+    same one-module-per-domain precedent as `modules/corporate`. The
+    Courses and Live Sessions screens' facilitator/tutor picker now draws
+    from `tutors` instead of staff accounts (additive
+    `batches.facilitator_tutor_id` / `live_sessions.tutor_id` columns;
+    the legacy `facilitator_staff_id` / `tutor_staff_id` FKs are left in
+    place but no longer written to). `'tutor'` is fully removed from
+    `StaffRole`, the `staff_users.role` CHECK constraint, and every
+    role allow-list. Tutor portal dashboard: Overview, My Schedule (with
+    a working Zoom join link — the gap the old page had), Roster,
+    Attendance (read-only), Certificate Eligibility (read-only), Account.
+    See `Coding Docs/16_Tutor_Operations.md` and BR-31 through BR-34.
+    Migration `202607270034_tutor_portal.sql` pending production
+    application (run `npx supabase db push` when ready) — includes a
+    pre-check: if any `staff_users` row still has `role = 'tutor'`, the
+    CHECK-constraint drop fails loudly rather than silently corrupting
+    data; confirmed no such row exists in any committed seed/migration.
 
 Open decisions (founder):
   - AI05 ("...Reporting and Modeling") vs AI02 ("...Reporting and
@@ -323,5 +350,5 @@ still isn't covered:
 
 ---
 
-*Full documentation suite: `Coding Docs/01_PRD.md` through `Coding Docs/15_Corporate_Operations.md`.*
+*Full documentation suite: `Coding Docs/01_PRD.md` through `Coding Docs/16_Tutor_Operations.md`.*
 *Live task tracker: `PLAN.md`.*

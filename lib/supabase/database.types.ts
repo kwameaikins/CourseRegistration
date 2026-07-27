@@ -90,6 +90,7 @@ export type Database = {
           end_date: string
           facilitator_name: string
           facilitator_staff_id: string | null
+          facilitator_tutor_id: string | null
           id: string
           is_active: boolean
           payment_reminder_enabled: boolean
@@ -115,6 +116,7 @@ export type Database = {
           end_date: string
           facilitator_name: string
           facilitator_staff_id?: string | null
+          facilitator_tutor_id?: string | null
           id?: string
           is_active?: boolean
           payment_reminder_enabled?: boolean
@@ -140,6 +142,7 @@ export type Database = {
           end_date?: string
           facilitator_name?: string
           facilitator_staff_id?: string | null
+          facilitator_tutor_id?: string | null
           id?: string
           is_active?: boolean
           payment_reminder_enabled?: boolean
@@ -166,6 +169,13 @@ export type Database = {
             columns: ["facilitator_staff_id"]
             isOneToOne: false
             referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "batches_facilitator_tutor_id_fkey"
+            columns: ["facilitator_tutor_id"]
+            isOneToOne: false
+            referencedRelation: "tutors"
             referencedColumns: ["id"]
           },
         ]
@@ -1716,6 +1726,7 @@ export type Database = {
           status_reason: string | null
           timezone: string
           title: string
+          tutor_id: string | null
           tutor_staff_id: string | null
           updated_at: string
           updated_by: string | null
@@ -1735,6 +1746,7 @@ export type Database = {
           status_reason?: string | null
           timezone?: string
           title: string
+          tutor_id?: string | null
           tutor_staff_id?: string | null
           updated_at?: string
           updated_by?: string | null
@@ -1754,6 +1766,7 @@ export type Database = {
           status_reason?: string | null
           timezone?: string
           title?: string
+          tutor_id?: string | null
           tutor_staff_id?: string | null
           updated_at?: string
           updated_by?: string | null
@@ -1775,6 +1788,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "live_sessions_tutor_id_fkey"
+            columns: ["tutor_id"]
+            isOneToOne: false
+            referencedRelation: "tutors"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "live_sessions_tutor_staff_id_fkey"
             columns: ["tutor_staff_id"]
             isOneToOne: false
@@ -1786,6 +1806,103 @@ export type Database = {
             columns: ["updated_by"]
             isOneToOne: false
             referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tutors: {
+        Row: {
+          id: string
+          full_name: string
+          email: string
+          phone: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          full_name: string
+          email: string
+          phone: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          full_name?: string
+          email?: string
+          phone?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tutor_auth: {
+        Row: {
+          tutor_id: string
+          pin_hash: string
+          must_change_pin: boolean
+          failed_attempts: number
+          locked_until: string | null
+          last_login_at: string | null
+          created_at: string
+        }
+        Insert: {
+          tutor_id: string
+          pin_hash: string
+          must_change_pin?: boolean
+          failed_attempts?: number
+          locked_until?: string | null
+          last_login_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          tutor_id?: string
+          pin_hash?: string
+          must_change_pin?: boolean
+          failed_attempts?: number
+          locked_until?: string | null
+          last_login_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tutor_auth_tutor_id_fkey"
+            columns: ["tutor_id"]
+            isOneToOne: true
+            referencedRelation: "tutors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tutor_sessions: {
+        Row: {
+          id: string
+          tutor_id: string
+          expires_at: string
+          revoked_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tutor_id: string
+          expires_at: string
+          revoked_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tutor_id?: string
+          expires_at?: string
+          revoked_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tutor_sessions_tutor_id_fkey"
+            columns: ["tutor_id"]
+            isOneToOne: false
+            referencedRelation: "tutors"
             referencedColumns: ["id"]
           },
         ]

@@ -26,6 +26,7 @@ function toLiveSession(row: LiveSessionRow): LiveSession {
     id: row.id,
     batchId: row.batch_id,
     tutorStaffId: row.tutor_staff_id,
+    tutorId: row.tutor_id,
     title: row.title,
     agenda: row.agenda,
     learningOutcomes: row.learning_outcomes,
@@ -53,6 +54,7 @@ export async function createLiveSession(
   const row = await liveSessionsRepository.insertLiveSession({
     batch_id: input.batchId,
     tutor_staff_id: input.tutorStaffId ?? null,
+    tutor_id: input.tutorId ?? null,
     title: input.title,
     agenda: input.agenda ?? null,
     learning_outcomes: input.learningOutcomes ?? null,
@@ -108,6 +110,7 @@ export async function updateLiveSession(
 
   const row = await liveSessionsRepository.updateLiveSessionById(id, {
     ...(input.tutorStaffId !== undefined && { tutor_staff_id: input.tutorStaffId }),
+    ...(input.tutorId !== undefined && { tutor_id: input.tutorId }),
     ...(input.title !== undefined && { title: input.title }),
     ...(input.agenda !== undefined && { agenda: input.agenda }),
     ...(input.learningOutcomes !== undefined && { learning_outcomes: input.learningOutcomes }),

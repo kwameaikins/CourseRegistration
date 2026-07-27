@@ -155,18 +155,7 @@ describe('getRegistration360 — role shaping', () => {
     expect(view.calls).toBeUndefined();
   });
 
-  it('tutor sees no payment section and no engagement sections', async () => {
-    usersServiceMock.requireRole.mockResolvedValue({ id: 'staff-4', role: 'tutor' });
-    repositoryMock.selectRegistration360.mockResolvedValue(fullFixture());
-
-    const view = await getRegistration360('reg-1');
-
-    expect(view.payment).toBeNull();
-    expect(view.messages).toBeUndefined();
-    expect(view.calls).toBeUndefined();
-  });
-
-  it('admin/finance see discount audit fields; marketing/tutor do not', async () => {
+  it('admin/finance see discount audit fields; marketing does not', async () => {
     const fixture = fullFixture();
     fixture.payment.original_fee = '1500.00';
     fixture.payment.discount_amount = '300.00';

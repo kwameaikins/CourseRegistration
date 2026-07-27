@@ -923,3 +923,12 @@ employee roster through a dedicated Company Admin portal, paying by invoice/bank
 rather than per-seat card payment. Every employee still becomes a normal Registration; nothing
 about certificates, attendance, or the individual student portal changes. The authoritative
 detail is Document 15, `15_Corporate_Operations.md`.
+
+## 20. Tutor Portal Extension (Approved 2026-07-27)
+
+Tutors are external facilitators, not Knowsia staff. The earlier staff-role-based Tutor
+experience is retired in favor of a dedicated, PIN-protected Tutor Portal — the same
+non-staff, session-cookie architecture as the participant and company portals — giving tutors
+their own teaching schedule (with a working Zoom join link), roster, attendance visibility, and
+certificate-eligibility visibility, scoped strictly to their own assigned batches. The
+authoritative detail is Document 16, `16_Tutor_Operations.md`.

@@ -71,7 +71,7 @@ export const config = {
     '/payments/:path*',
     '/courses/:path*',
     '/users/:path*',
-    '/my-courses/:path*',
+    '/tutors/:path*',
     '/attendance/:path*',
     '/course-feedback/:path*',
     '/calls/:path*',

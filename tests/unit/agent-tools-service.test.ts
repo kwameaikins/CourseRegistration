@@ -84,7 +84,8 @@ const ADMIN_STAFF = {
   createdAt: '2026-06-01T00:00:00Z',
 };
 
-const TUTOR_STAFF = { ...ADMIN_STAFF, id: 'staff-tutor-1', role: 'tutor' as const };
+const MANAGEMENT_STAFF = { ...ADMIN_STAFF, id: 'staff-management-1', role: 'management' as const };
+const FINANCE_STAFF = { ...ADMIN_STAFF, id: 'staff-finance-1', role: 'finance' as const };
 
 function registration360(overrides: Record<string, unknown> = {}) {
   return {
@@ -111,13 +112,13 @@ describe('getToolsForSurface / trust enforcement', () => {
   });
 
   it('excludes admin-only tools for a non-admin staff role', () => {
-    const tutorTools = getToolsForSurface('assistant', TUTOR_STAFF);
-    expect(tutorTools.some((t) => t.name === 'create_staff_user')).toBe(false);
-    expect(tutorTools.some((t) => t.name === 'list_live_sessions')).toBe(true);
+    const managementTools = getToolsForSurface('assistant', MANAGEMENT_STAFF);
+    expect(managementTools.some((t) => t.name === 'create_staff_user')).toBe(false);
+    expect(managementTools.some((t) => t.name === 'list_live_sessions')).toBe(true);
   });
 
   it('rejects a tool call for a role outside its trust list, even for a module whose service.ts has no internal gate (campaigns)', async () => {
-    await expect(runTool('list_campaigns', {}, TUTOR_STAFF)).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    await expect(runTool('list_campaigns', {}, FINANCE_STAFF)).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(campaignsServiceMock.listCampaigns).not.toHaveBeenCalled();
   });
 
@@ -227,7 +228,7 @@ describe('confirmAndExecuteTool — the sole path to a real write', () => {
       confirmAndExecuteTool(
         'propose_revoke_certificate',
         { certificateId: 'cert-1', reason: 'Issued in error' },
-        TUTOR_STAFF,
+        MANAGEMENT_STAFF,
       ),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
     expect(certificatesServiceMock.revokeCertificate).not.toHaveBeenCalled();

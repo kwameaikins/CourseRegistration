@@ -306,45 +306,59 @@ Minimal but explicit, appropriate for a 6-person team with no dedicated security
 
 Live session provider credentials and host URLs remain server-only. Student access is scoped to the session, registration, eligibility, and join window; tutor access is scoped to assigned sessions. Access overrides, reschedules, attendance corrections, and recording release require actor/reason/time audit records. New LiveSession tables require RLS and explicit least-privilege policies. Recording consent, retention, and enrolment-scoped access must be reviewed against the Ghana DPA before release.
 
-## 13. Non-Staff Session Model: Participant Portal and Company Admin Portal
+## 13. Non-Staff Session Model: Participant, Company Admin, and Tutor Portals
 
-Section 1 above documents only the Supabase-Auth staff login model. Two other identity tiers
-exist in this system and were built without a corresponding write-up here until now — this
-section backfills the participant portal (shipped 2026-07-22) and documents the company admin
-portal (shipped 2026-07-26), which deliberately reuses the exact same pattern.
+Section 1 above documents only the Supabase-Auth staff login model. Three other identity tiers
+exist in this system — this section backfills the participant portal (shipped 2026-07-22),
+documents the company admin portal (shipped 2026-07-26), and the tutor portal (shipped
+2026-07-27), all three of which deliberately reuse the exact same pattern.
 
-**Why not Supabase Auth for these two tiers:** neither a course participant nor a corporate
-billing contact is a Staff User, and neither needs RLS-driven row access the way staff do —
-they only ever need to see their own single record (one participant, one company). A full
-Supabase Auth account per participant/company was judged unnecessary complexity; a lightweight
-PIN + opaque session token, fully custom, is sufficient and easier to provision automatically
-(a PIN is seeded the moment a registration/company is created, with no invite-email round
-trip required before first login).
+**Why not Supabase Auth for these tiers:** a course participant, a corporate billing contact,
+and a tutor are none of them a Staff User, and none need RLS-driven row access the way staff
+do — they only ever need to see their own single record (one participant, one company, one
+tutor). A full Supabase Auth account per identity was judged unnecessary complexity; a
+lightweight PIN + opaque session token, fully custom, is sufficient and easier to provision
+automatically (a PIN is seeded the moment a registration/company/tutor record is created, with
+no invite-email round trip required before first login). The tutor tier additionally corrects
+an earlier design mistake: Tutor briefly existed as a `staff_users.role` value, which
+implicitly treated an external party as staff — retired 2026-07-27 in favor of this pattern.
 
-**The pattern (identical for both tiers, only the scoped id differs):**
+**The pattern (identical for all three tiers, only the scoped id differs):**
 - Two tables: `{scope}_auth` (credentials: `pin_hash`, `must_change_pin`, `failed_attempts`,
   `locked_until`, `last_login_at`) and `{scope}_sessions` (`id` — the session's own UUID *is*
   the bearer token — `expires_at`, `revoked_at`). Participant: `participant_auth`/
-  `participant_sessions`. Company: `company_admin_auth`/`company_admin_sessions`.
+  `participant_sessions`. Company: `company_admin_auth`/`company_admin_sessions`. Tutor:
+  `tutor_auth`/`tutor_sessions`.
 - **RLS is enabled on both tables with zero policies and no grant to `anon`/`authenticated`.**
   They are reachable exclusively via the service-role client from the owning module's
-  `repository.ts` (`modules/portal/repository.ts`, `modules/corporate/repository.ts`).
-  Authorization is enforced entirely in the service layer — a session cookie resolves to a
-  scoped id (`participantId`/`companyId`), and every read/write is filtered by that id in
-  application code. This is the same posture already used for other unauthenticated-caller
-  tables (waitlist joins, feedback submission, the public registration form) — RLS is defense
-  in depth here, not the enforcing mechanism, by deliberate design.
-- Initial PIN = last 4 digits of the participant's phone / the company's billing phone
-  (`lib/portal-auth/pin.ts`'s `lastFourDigits`), hashed with Node's `scryptSync` (deliberately
-  slow, given a 4-digit PIN's tiny keyspace) and verified with `timingSafeEqual`.
+  `repository.ts` (`modules/portal/repository.ts`, `modules/corporate/repository.ts`,
+  `modules/tutors/repository.ts`). Authorization is enforced entirely in the service layer — a
+  session cookie resolves to a scoped id (`participantId`/`companyId`/`tutorId`), and every
+  read/write is filtered by that id in application code. This is the same posture already used
+  for other unauthenticated-caller tables (waitlist joins, feedback submission, the public
+  registration form) — RLS is defense in depth here, not the enforcing mechanism, by deliberate
+  design.
+- Initial PIN = last 4 digits of the participant's phone / the company's billing phone / the
+  tutor's phone (`lib/portal-auth/pin.ts`'s `lastFourDigits`), hashed with Node's `scryptSync`
+  (deliberately slow, given a 4-digit PIN's tiny keyspace) and verified with `timingSafeEqual`.
 - Lockout: 5 failed attempts locks the session for 15 minutes. Every failure branch returns
   the same generic "invalid" status — never reveals whether the identifier/email existed —
   except lockout, which is deliberately distinguishable so the user knows to wait.
 - Session cookie: httpOnly, `secure` in production, `sameSite: 'lax'`, `path: '/'`, expiring
   with the session (7 days). Participant: `portal_session`. Company: `company_portal_session`.
-- `requirePortalSession`/`requireCompanyPortalSession` is the one guard every other function in
-  each module calls first, throwing `AppError('UNAUTHENTICATED', ..., 401)` on a missing/
-  expired/revoked session.
+  Tutor: `tutor_portal_session`.
+- `requirePortalSession`/`requireCompanyPortalSession`/`requireTutorPortalSession` is the one
+  guard every other function in each module calls first, throwing
+  `AppError('UNAUTHENTICATED', ..., 401)` on a missing/expired/revoked session.
+
+**Tutor scoping (BR-32/BR-33):** a tutor session can only ever resolve to its own `tutorId`,
+and every batch-scoped read (`getRosterForBatch`/`getAttendanceForBatch`/
+`getCertificateEligibilityForBatch`) verifies the batch belongs to that tutor before returning
+anything — never trusts a client-supplied batch id. The roster read is stricter than a
+role-based field-strip: its query never selects the `payments` table at all, so no payment
+data can leak even by omission-bug. There is no tutor write path for attendance or
+certificates in v1 — both stay exclusively staff/cron-owned; the tutor portal only re-reads
+the same functions the staff screens already call.
 
 **Company admin scoping (BR-29):** a company session can only ever resolve to its own
 `companyId` — there is no code path that accepts a client-supplied company id for a read or

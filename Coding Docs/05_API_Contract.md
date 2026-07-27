@@ -509,3 +509,15 @@ role): `login`/`logout`/`me`/`change-pin` (mirrors `app/api/portal/*` exactly, s
 `company_id`), `allocations/[id]/employees` (same add action, scoped to the session's own
 company and capped at its own remaining seats — BR-29), `allocations/[id]/invoice`. See
 Document 15 before implementation.
+
+## 16. Tutor Portal API Surface (2026-07-27)
+
+Staff-facing (`app/api/tutors/**`, admin/management): `tutors` (list with batch counts /
+create), `tutors/[id]` (PATCH), `tutors/picker` (lightweight name/email/phone list for the
+Courses/Live Sessions assignment dropdowns, same admin/management gate).
+
+Tutor-portal-facing (`app/api/tutor-portal/**`, its own session cookie, never a staff role):
+`login`/`logout`/`me`/`change-pin`/`update-contact` (mirrors `app/api/company-portal/*` exactly,
+scoped to `tutor_id`), `roster/[batchId]`, `attendance/[batchId]`, `certificates/[batchId]`
+(each verifies the batch belongs to the calling tutor's own session before returning anything —
+BR-32). See Document 16 before implementation.

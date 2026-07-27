@@ -17,6 +17,10 @@ export interface LiveSession {
   id: string;
   batchId: string;
   tutorStaffId: string | null;
+  // The tutor assigned to this session (external party — see
+  // modules/tutors). tutorStaffId is a legacy staff-role field, kept for
+  // now but no longer written to by new code (2026-07-27).
+  tutorId: string | null;
   title: string;
   agenda: string | null;
   learningOutcomes: string | null;
@@ -39,6 +43,7 @@ export const liveSessionInputSchema = z
   .object({
     batchId: z.uuid(),
     tutorStaffId: z.uuid().nullable().optional(),
+    tutorId: z.uuid().nullable().optional(),
     title: z.string().trim().min(2).max(200),
     agenda: optionalLongText,
     learningOutcomes: optionalLongText,
@@ -54,6 +59,7 @@ export const liveSessionInputSchema = z
 
 export const liveSessionUpdateSchema = z.object({
   tutorStaffId: z.uuid().nullable().optional(),
+  tutorId: z.uuid().nullable().optional(),
   title: z.string().trim().min(2).max(200).optional(),
   agenda: optionalLongText,
   learningOutcomes: optionalLongText,

@@ -47,6 +47,7 @@ interface Batch {
   endDate: string;
   whatsappGroupLink: string | null;
   facilitatorName: string;
+  facilitatorTutorId: string | null;
   welcomeEmailEnabled: boolean;
   paymentReminderEnabled: boolean;
   classReminderEnabled: boolean;
@@ -75,6 +76,7 @@ const EMPTY_BATCH_FORM = {
   endDate: '',
   whatsappGroupLink: '',
   facilitatorName: '',
+  facilitatorTutorId: '',
   discountCutoffDate: '',
   discountedFee: '',
 };
@@ -98,6 +100,7 @@ export default function CourseControlPanelPage() {
   const [expandedWaitlistBatchId, setExpandedWaitlistBatchId] = useState<string | null>(null);
   const [waitlistByBatch, setWaitlistByBatch] = useState<Record<string, WaitlistEntry[]>>({});
   const [loadingWaitlist, setLoadingWaitlist] = useState(false);
+  const [tutors, setTutors] = useState<Array<{ id: string; fullName: string }>>([]);
 
   const reload = useCallback(async () => {
     try {
@@ -115,6 +118,12 @@ export default function CourseControlPanelPage() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  useEffect(() => {
+    void apiFetch<{ tutors: Array<{ id: string; fullName: string }> }>('/api/tutors/picker')
+      .then(({ tutors: rows }) => setTutors(rows))
+      .catch(() => setTutors([]));
+  }, []);
 
   function flashStatus(message: string) {
     setStatusMessage(message);
@@ -201,6 +210,7 @@ export default function CourseControlPanelPage() {
           endDate: batchForm.endDate,
           whatsappGroupLink: batchForm.whatsappGroupLink || null,
           facilitatorName: batchForm.facilitatorName,
+          facilitatorTutorId: batchForm.facilitatorTutorId || null,
           discountCutoffDate: batchForm.discountCutoffDate || null,
           discountedFee: batchForm.discountedFee ? Number(batchForm.discountedFee) : null,
         }),
@@ -240,6 +250,7 @@ export default function CourseControlPanelPage() {
       endDate: batch.endDate,
       whatsappGroupLink: batch.whatsappGroupLink ?? '',
       facilitatorName: batch.facilitatorName,
+      facilitatorTutorId: batch.facilitatorTutorId ?? '',
       discountCutoffDate: batch.discountCutoffDate ?? '',
       discountedFee: batch.discountedFee !== null ? String(batch.discountedFee) : '',
     });
@@ -260,6 +271,7 @@ export default function CourseControlPanelPage() {
           endDate: editBatchForm.endDate,
           whatsappGroupLink: editBatchForm.whatsappGroupLink || null,
           facilitatorName: editBatchForm.facilitatorName,
+          facilitatorTutorId: editBatchForm.facilitatorTutorId || null,
           discountCutoffDate: editBatchForm.discountCutoffDate || null,
           discountedFee: editBatchForm.discountedFee ? Number(editBatchForm.discountedFee) : null,
         }),
@@ -646,6 +658,28 @@ export default function CourseControlPanelPage() {
                         />
                       </div>
                       <div className="space-y-2">
+                        <Label htmlFor={`edit-facilitatorTutorId-${batch.id}`}>Tutor</Label>
+                        <select
+                          id={`edit-facilitatorTutorId-${batch.id}`}
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                          value={editBatchForm.facilitatorTutorId}
+                          onChange={(event) => {
+                            const tutorId = event.target.value;
+                            const tutor = tutors.find((row) => row.id === tutorId);
+                            setEditBatchForm({
+                              ...editBatchForm,
+                              facilitatorTutorId: tutorId,
+                              ...(tutor && { facilitatorName: tutor.fullName }),
+                            });
+                          }}
+                        >
+                          <option value="">— unassigned —</option>
+                          {tutors.map((tutor) => (
+                            <option key={tutor.id} value={tutor.id}>{tutor.fullName}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-2">
                         <Label htmlFor={`edit-whatsappGroupLink-${batch.id}`}>
                           WhatsApp Group Link
                         </Label>
@@ -914,6 +948,28 @@ export default function CourseControlPanelPage() {
                           setBatchForm({ ...batchForm, facilitatorName: event.target.value })
                         }
                       />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="facilitatorTutorId">Tutor</Label>
+                      <select
+                        id="facilitatorTutorId"
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                        value={batchForm.facilitatorTutorId}
+                        onChange={(event) => {
+                          const tutorId = event.target.value;
+                          const tutor = tutors.find((row) => row.id === tutorId);
+                          setBatchForm({
+                            ...batchForm,
+                            facilitatorTutorId: tutorId,
+                            ...(tutor && { facilitatorName: tutor.fullName }),
+                          });
+                        }}
+                      >
+                        <option value="">— unassigned —</option>
+                        {tutors.map((tutor) => (
+                          <option key={tutor.id} value={tutor.id}>{tutor.fullName}</option>
+                        ))}
+                      </select>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="whatsappGroupLink">WhatsApp Group Link</Label>

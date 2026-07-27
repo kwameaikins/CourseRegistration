@@ -600,3 +600,15 @@ same posture as `participant_auth`/`participant_sessions`), and a nullable
 `registrations.company_allocation_id` FK. `seatsUsed`/`amountInvoiced`/`amountSettled` are
 never stored columns — always computed live from linked `registrations`/`payments` rows. Full
 definitions and the capacity-reservation mechanism are in Document 15.
+
+## 13. Tutor Portal Extension (2026-07-27)
+
+Migration `202607270034_tutor_portal.sql` adds `tutors` (`full_name`, `email` unique, `phone` —
+deliberately not a `staff_users` row), `tutor_auth`/`tutor_sessions` (RLS enabled, zero
+policies — service-role only, same posture as the other two non-staff identity tiers), and two
+additive nullable FKs: `batches.facilitator_tutor_id` and `live_sessions.tutor_id` (both
+`references tutors(id) on delete set null`). The legacy `batches.facilitator_staff_id` /
+`live_sessions.tutor_staff_id` columns (pointed at `staff_users`) are left in place but no
+longer written to. The migration also drops `'tutor'` from `staff_users.role`'s CHECK
+constraint and removes the four now-dead tutor-scoped RLS policies from the foundation and live
+sessions migrations. Full definitions are in Document 16.

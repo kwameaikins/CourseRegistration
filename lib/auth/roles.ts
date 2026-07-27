@@ -4,7 +4,6 @@ export const STAFF_ROLES: readonly StaffRole[] = [
   'admin',
   'finance',
   'marketing',
-  'tutor',
   'management',
 ] as const;
 
@@ -24,7 +23,10 @@ export const ROLE_ROUTES: Record<string, StaffRole[]> = {
   '/payments': ['admin', 'finance'],
   '/courses': ['admin'],
   '/users': ['admin'],
-  '/my-courses': ['tutor'],
+  // Tutors are external parties, not staff (founder-approved 2026-07-27) —
+  // they use /tutor-portal (PIN + session, no staff role) instead. This
+  // screen is where staff manage tutor records themselves.
+  '/tutors': ['admin', 'management'],
   '/attendance': ['admin', 'management'],
   '/live-sessions': ['admin', 'management'],
   '/course-feedback': ['admin', 'management'],
@@ -37,13 +39,12 @@ export const ROLE_ROUTES: Record<string, StaffRole[]> = {
 };
 
 // Default landing page per role (Document 8: Finance lands on Payments,
-// Tutor on My Courses, Admin/Management on Dashboard).
+// Admin/Management on Dashboard).
 export const DEFAULT_ROUTE_BY_ROLE: Record<StaffRole, string> = {
   admin: '/dashboard',
   management: '/dashboard',
   finance: '/payments',
   marketing: '/registrations',
-  tutor: '/my-courses',
 };
 
 // Sidebar navigation per role (Document 8, Section 9) — a role never sees a
@@ -59,6 +60,7 @@ export const NAV_ITEMS_BY_ROLE: Record<StaffRole, { href: string; label: string 
     { href: '/payments', label: 'Payments' },
     { href: '/courses', label: 'Courses' },
     { href: '/corporate', label: 'Corporate' },
+    { href: '/tutors', label: 'Tutors' },
     { href: '/attendance', label: 'Attendance' },
     { href: '/live-sessions', label: 'Live Sessions' },
     { href: '/course-feedback', label: 'Feedback' },
@@ -83,7 +85,6 @@ export const NAV_ITEMS_BY_ROLE: Record<StaffRole, { href: string; label: string 
     { href: '/registrations/import', label: 'Import Registrations' },
     { href: '/corporate', label: 'Corporate' },
   ],
-  tutor: [{ href: '/my-courses', label: 'My Courses' }],
   management: [
     { href: '/dashboard', label: 'Dashboard' },
     { href: '/leads', label: 'Leads' },
@@ -91,6 +92,7 @@ export const NAV_ITEMS_BY_ROLE: Record<StaffRole, { href: string; label: string 
     { href: '/campaigns', label: 'Campaigns' },
     { href: '/registrations/import', label: 'Import Registrations' },
     { href: '/corporate', label: 'Corporate' },
+    { href: '/tutors', label: 'Tutors' },
     { href: '/attendance', label: 'Attendance' },
     { href: '/live-sessions', label: 'Live Sessions' },
     { href: '/course-feedback', label: 'Feedback' },

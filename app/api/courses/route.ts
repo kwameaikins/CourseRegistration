@@ -6,7 +6,7 @@ import { courseInputSchema } from '@/modules/courses/types';
 // GET /api/courses — staff, all roles (RLS grants read to every role).
 export async function GET() {
   try {
-    await usersService.requireRole(['admin', 'finance', 'marketing', 'tutor', 'management']);
+    await usersService.requireRole(['admin', 'finance', 'marketing', 'management']);
     const courses = await coursesService.getCourses();
     return successResponse({ courses });
   } catch (err) {

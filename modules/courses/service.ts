@@ -53,6 +53,7 @@ function toBatch(row: BatchRow): Batch {
     whatsappGroupLink: row.whatsapp_group_link,
     facilitatorName: row.facilitator_name,
     facilitatorStaffId: row.facilitator_staff_id,
+    facilitatorTutorId: row.facilitator_tutor_id,
     welcomeEmailEnabled: row.welcome_email_enabled,
     paymentReminderEnabled: row.payment_reminder_enabled,
     classReminderEnabled: row.class_reminder_enabled,
@@ -190,6 +191,9 @@ export async function updateBatch(batchId: string, changes: BatchUpdate): Promis
     ...(changes.facilitatorStaffId !== undefined && {
       facilitator_staff_id: changes.facilitatorStaffId,
     }),
+    ...(changes.facilitatorTutorId !== undefined && {
+      facilitator_tutor_id: changes.facilitatorTutorId,
+    }),
     ...(changes.welcomeEmailEnabled !== undefined && {
       welcome_email_enabled: changes.welcomeEmailEnabled,
     }),
@@ -310,6 +314,7 @@ function toBatchInsert(input: BatchInput): Database['public']['Tables']['batches
     whatsapp_group_link: input.whatsappGroupLink ?? null,
     facilitator_name: input.facilitatorName,
     facilitator_staff_id: input.facilitatorStaffId ?? null,
+    facilitator_tutor_id: input.facilitatorTutorId ?? null,
     welcome_email_enabled: input.welcomeEmailEnabled,
     payment_reminder_enabled: input.paymentReminderEnabled,
     class_reminder_enabled: input.classReminderEnabled,

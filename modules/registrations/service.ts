@@ -505,7 +505,7 @@ function applyPostJoinFilters(
 
 // F1.03 list with role-based field shaping (Document 5, Section 3). RLS
 // filters rows; this function additionally strips payment audit fields for
-// Marketing and all payment fields for Tutor.
+// Marketing.
 export async function listRegistrations(filters: RegistrationListFilters): Promise<{
   registrations: RegistrationListRow[];
   pagination: { page: number; limit: number; total: number };
@@ -514,7 +514,6 @@ export async function listRegistrations(filters: RegistrationListFilters): Promi
     'admin',
     'finance',
     'marketing',
-    'tutor',
   ]);
 
   const { rows, total } = await registrationsRepository.selectRegistrationList(filters);
@@ -560,7 +559,7 @@ const EXPORT_COLUMNS: Array<{ key: keyof RegistrationListRow; header: string }> 
 export async function exportRegistrationsCsv(
   filters: Omit<RegistrationListFilters, 'page' | 'limit'>,
 ): Promise<string> {
-  const staffUser = await usersService.requireRole(['admin', 'finance', 'marketing', 'tutor']);
+  const staffUser = await usersService.requireRole(['admin', 'finance', 'marketing']);
 
   const { rows } = await registrationsRepository.selectAllRegistrationsForExport(filters);
   const registrations = applyPostJoinFilters(
@@ -593,14 +592,6 @@ function shapeRowForRole(row: RegistrationListRow, role: StaffRole): Registratio
   delete shaped.paymentNotes;
   delete shaped.transactionId;
   delete shaped.verifiedBy;
-  if (role === 'tutor') {
-    // Tutor: no payment fields at all (Document 5, Section 3).
-    delete shaped.paymentMethod;
-    shaped.courseFee = 0;
-    shaped.originalFee = null;
-    shaped.amountPaid = 0;
-    shaped.balance = 0;
-  }
   return shaped;
 }
 
@@ -608,7 +599,7 @@ function shapeRowForRole(row: RegistrationListRow, role: StaffRole): Registratio
 // read pulling together everything every module knows about a Registration.
 // Same allowed roles as the list (a role that can see the row can open it).
 export async function getRegistration360(registrationId: string): Promise<Registration360> {
-  const staffUser = await usersService.requireRole(['admin', 'finance', 'marketing', 'tutor']);
+  const staffUser = await usersService.requireRole(['admin', 'finance', 'marketing']);
 
   const data = await registrationsRepository.selectRegistration360(registrationId);
   if (!data) {
@@ -708,10 +699,6 @@ function shapeRegistration360ForRole(
     delete view.payment.discountGrantedAt;
     delete view.payment.installments;
   }
-  if (view.payment && role === 'tutor') {
-    view.payment = null;
-  }
-
   if (role === 'admin') {
     view.messages = {
       email: data.emailLog.map((row) => ({

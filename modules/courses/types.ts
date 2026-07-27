@@ -36,6 +36,10 @@ export interface Batch {
   whatsappGroupLink: string | null;
   facilitatorName: string;
   facilitatorStaffId: string | null;
+  // The tutor assigned to this batch (external party — see
+  // modules/tutors). facilitatorStaffId is a legacy staff-role field, kept
+  // for now but no longer written to by new code (2026-07-27).
+  facilitatorTutorId: string | null;
   welcomeEmailEnabled: boolean;
   paymentReminderEnabled: boolean;
   classReminderEnabled: boolean;
@@ -135,6 +139,7 @@ export const batchInputSchema = z
     whatsappGroupLink: httpsUrl,
     facilitatorName: z.string().trim().min(2),
     facilitatorStaffId: z.uuid().nullable().optional(),
+    facilitatorTutorId: z.uuid().nullable().optional(),
     welcomeEmailEnabled: z.boolean().default(true),
     paymentReminderEnabled: z.boolean().default(true),
     classReminderEnabled: z.boolean().default(true),
@@ -184,6 +189,7 @@ export const batchUpdateSchema = z
     whatsappGroupLink: httpsUrl,
     facilitatorName: z.string().trim().min(2).optional(),
     facilitatorStaffId: z.uuid().nullable().optional(),
+    facilitatorTutorId: z.uuid().nullable().optional(),
     welcomeEmailEnabled: z.boolean().optional(),
     paymentReminderEnabled: z.boolean().optional(),
     classReminderEnabled: z.boolean().optional(),

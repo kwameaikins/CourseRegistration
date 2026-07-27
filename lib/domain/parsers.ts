@@ -18,7 +18,7 @@ function parseMember<T extends string>(
 }
 
 export const parseStaffRole = (value: string): StaffRole =>
-  parseMember(value, ['admin', 'finance', 'marketing', 'tutor', 'management'], 'staff role');
+  parseMember(value, ['admin', 'finance', 'marketing', 'management'], 'staff role');
 
 export const parseRegistrationStatus = (value: string): RegistrationStatus =>
   parseMember(

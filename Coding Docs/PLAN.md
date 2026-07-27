@@ -376,6 +376,38 @@ Section 13 for the forgot-PIN token pattern.
 
 ---
 
+## Tutor Portal (founder-approved 2026-07-27, both phases shipped)
+
+Tutors are external parties, not Knowsia staff — retires the earlier staff-role Tutor
+experience (`/my-courses`) for a third non-staff portal tier, same architecture as the
+participant and company portals. See `Coding Docs/16_Tutor_Operations.md` for the full spec
+and BR-31 through BR-34.
+
+Migration `202607270034_tutor_portal.sql` (tutors, tutor_auth/tutor_sessions,
+batches.facilitator_tutor_id, live_sessions.tutor_id, drops the 4 dead tutor RLS policies and
+`'tutor'` from the staff_users.role CHECK constraint).
+
+- [x] Phase 1 — Schema + staff-role retirement: new `tutors` table (deliberately not
+      `staff_users`); `'tutor'` removed from `StaffRole`, every role allow-list, and the
+      `/my-courses` page (deleted); new `/tutors` staff screen (`modules/tutors` staff CRUD,
+      admin/management); Courses and Live Sessions facilitator/tutor pickers now draw from
+      `tutors` instead of staff accounts
+- [x] Phase 2 — Tutor portal: `tutor_auth`/`tutor_sessions` mirror the company admin portal's
+      PIN + session-cookie pattern exactly, scoped to `tutor_id`; `/tutor-portal` dashboard
+      (Overview, My Schedule with a working Zoom join link, Roster, Attendance read-only,
+      Certificate Eligibility read-only, Account) using the same shared app shell as
+      `/portal`/`/company-portal`
+- [x] Docs: new `Coding Docs/16_Tutor_Operations.md`; trailing Extension sections added to
+      Docs 1/3/5/8; Doc 6 Section 13 extended to a three-tier non-staff session model; Doc 14's
+      "Tutor workspace" vision section marked superseded; BR-31 through BR-34 added to Doc 4
+- [ ] *(external)* Apply migration `202607270034` to production (`npx supabase db push`) —
+      **pre-check first**: confirm no `staff_users` row has `role = 'tutor'`, since the
+      CHECK-constraint drop fails loudly (not silently) if one exists
+- [ ] *(external)* Founder creates the first real Tutor record and confirms the end-to-end
+      portal login flow before relying on it
+
+---
+
 ## Risk watch (carried from `/docs/01_PRD.md` risk register)
 
 | ID | Risk | Status |

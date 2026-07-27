@@ -26,7 +26,7 @@ import * as voiceService from '@/modules/voice/service';
 import * as waitlistService from '@/modules/waitlist/service';
 import type { StaffRole } from '@/lib/domain/types';
 
-const STAFF_ALL: StaffRole[] = ['admin', 'finance', 'marketing', 'tutor', 'management'];
+const STAFF_ALL: StaffRole[] = ['admin', 'finance', 'marketing', 'management'];
 
 export const AGENT_TOOLS: AgentTool[] = [
   // --- Existing Admin Assistant tools (read / write-direct), behavior unchanged ---
@@ -104,11 +104,11 @@ export const AGENT_TOOLS: AgentTool[] = [
   tool({
     name: 'create_staff_user',
     description:
-      'Create a staff account. Role is one of: admin, finance, marketing, tutor, management. The new user signs in with Google using this email.',
+      'Create a staff account. Role is one of: admin, finance, marketing, management. The new user signs in with Google using this email.',
     inputSchema: z.object({
       fullName: z.string().min(2),
       email: z.string().email(),
-      role: z.enum(['admin', 'finance', 'marketing', 'tutor', 'management']),
+      role: z.enum(['admin', 'finance', 'marketing', 'management']),
     }),
     trust: { kind: 'staff', roles: ['admin'] },
     mode: 'write-direct',
@@ -121,7 +121,7 @@ export const AGENT_TOOLS: AgentTool[] = [
     inputSchema: z.object({
       staffUserId: z.string(),
       fullName: z.string().optional(),
-      role: z.enum(['admin', 'finance', 'marketing', 'tutor', 'management']).optional(),
+      role: z.enum(['admin', 'finance', 'marketing', 'management']).optional(),
       isActive: z.boolean().optional(),
     }),
     trust: { kind: 'staff', roles: ['admin'] },
@@ -478,7 +478,7 @@ export const AGENT_TOOLS: AgentTool[] = [
     name: 'list_live_sessions',
     description: 'List all scheduled/live/completed class sessions with their status and times.',
     inputSchema: z.object({}),
-    trust: { kind: 'staff', roles: ['admin', 'tutor', 'management'] },
+    trust: { kind: 'staff', roles: ['admin', 'management'] },
     mode: 'read',
     surfaces: ['assistant'],
     run: async () => liveSessionsService.getLiveSessions(),

@@ -5,7 +5,7 @@ import * as usersService from '@/modules/users/service';
 
 export async function GET() {
   try {
-    await usersService.requireRole(['admin', 'tutor', 'management']);
+    await usersService.requireRole(['admin', 'management']);
     const liveSessions = await liveSessionsService.getLiveSessions();
     return successResponse({ liveSessions });
   } catch (err) {

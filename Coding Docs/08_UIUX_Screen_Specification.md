@@ -262,3 +262,16 @@ Company portal (public route, own auth — never the staff layout): `/company-po
 `/company-portal/change-pin`, `/company-portal` (dashboard — every allocation with seats/
 roster/payment-status, self-service add-employees capped at remaining seats, invoice
 download). Mirrors `/portal/*`'s structure exactly. See Document 15.
+
+## 13. Tutor Portal Screens (2026-07-27)
+
+Staff: `/tutors` (list with per-tutor batch counts, create, inline edit) — replaces the retired
+`/my-courses` staff page. The Courses and Live Sessions screens' facilitator/tutor picker now
+draws from `tutors` instead of staff accounts.
+
+Tutor portal (public route, own auth — never the staff layout): `/tutor-portal/login`,
+`/tutor-portal/change-pin`, `/tutor-portal` (dashboard — Overview, My Schedule with a working
+Zoom join link, Roster, Attendance, Certificate Eligibility, Account). Same section-based app
+shell as `/portal` and `/company-portal`
+(`components/portal/portal-design-system.tsx`) — navy rail, orange accent, real Knowsia logo
+icon. See Document 16.

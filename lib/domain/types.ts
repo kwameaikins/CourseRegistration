@@ -2,7 +2,6 @@ export type StaffRole =
   | 'admin'
   | 'finance'
   | 'marketing'
-  | 'tutor'
   | 'management';
 
 export type Gender = 'Male' | 'Female';

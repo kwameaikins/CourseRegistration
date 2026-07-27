@@ -11,11 +11,11 @@ import { formatDate } from '@/lib/utils';
 import type { LiveSession, LiveSessionStatus } from '@/modules/live-sessions/types';
 
 type BatchOption = { id: string; cohortLabel: string; startDate: string };
-type TutorOption = { id: string; fullName: string; role: string; isActive: boolean };
+type TutorOption = { id: string; fullName: string };
 
 const EMPTY_FORM = {
   batchId: '',
-  tutorStaffId: '',
+  tutorId: '',
   title: '',
   startsAt: '',
   endsAt: '',
@@ -67,8 +67,8 @@ export function LiveSessionsWorkspace({
 
   useEffect(() => {
     if (!canManage) return;
-    void apiFetch<{ users: TutorOption[] }>('/api/users')
-      .then(({ users }) => setTutors(users.filter((user) => user.isActive && user.role === 'tutor')))
+    void apiFetch<{ tutors: TutorOption[] }>('/api/tutors/picker')
+      .then(({ tutors }) => setTutors(tutors))
       .catch((err) => setErrorMessage(err instanceof Error ? err.message : 'Failed to load tutors.'));
   }, [canManage]);
 
@@ -85,7 +85,7 @@ export function LiveSessionsWorkspace({
         method: 'POST',
         body: JSON.stringify({
           batchId: form.batchId,
-          tutorStaffId: form.tutorStaffId || null,
+          tutorId: form.tutorId || null,
           title: form.title,
           startsAt: new Date(form.startsAt).toISOString(),
           endsAt: new Date(form.endsAt).toISOString(),
@@ -166,7 +166,7 @@ export function LiveSessionsWorkspace({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="tutor">Tutor</Label>
-                <select id="tutor" className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.tutorStaffId} onChange={(event) => setForm({ ...form, tutorStaffId: event.target.value })}>
+                <select id="tutor" className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.tutorId} onChange={(event) => setForm({ ...form, tutorId: event.target.value })}>
                   <option value="">Use batch facilitator</option>
                   {tutors.map((tutor) => <option key={tutor.id} value={tutor.id}>{tutor.fullName}</option>)}
                 </select>
