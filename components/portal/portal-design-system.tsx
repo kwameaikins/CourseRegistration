@@ -263,6 +263,13 @@ export const PORTAL_STYLES = `
 
 .portal-app :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 
+/* Skip-to-content link (UX review, 2026-07-28) — hidden off-screen until
+   focused, then jumps a keyboard/screen-reader user straight past the rail
+   nav to the main panel content instead of tabbing through every nav item
+   on every page load. */
+.portal-app .skip-link { position: absolute; left: -9999px; top: 0; z-index: 100; background: var(--accent); color: var(--accent-contrast); padding: 10px 18px; border-radius: 8px; font-size: 13.5px; font-weight: 600; text-decoration: none; }
+.portal-app .skip-link:focus { left: 16px; top: 16px; }
+
 @media (max-width: 860px) {
   .portal-app .app { flex-direction: column; }
   .portal-app .rail { display: none; }

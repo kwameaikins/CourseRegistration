@@ -306,6 +306,7 @@ export default function PortalDashboardPage() {
     <div className="portal-app">
       <style>{PORTAL_STYLES}</style>
       <PortalIcons />
+      <a href="#portal-main" className="skip-link">Skip to content</a>
 
       <div className="app">
         <aside className="rail" aria-label="Portal navigation">
@@ -381,7 +382,7 @@ export default function PortalDashboardPage() {
           </nav>
         </div>
 
-        <main className="main">
+        <main id="portal-main" className="main">
           <div className="content">
 
             {activePanel === 'overview' && (
