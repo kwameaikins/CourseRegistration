@@ -290,6 +290,8 @@ export async function getPortalDashboard(sessionId: string | undefined): Promise
         row.payment?.payment_status === 'Paid'
           ? (row.zoomRegistrant?.join_url ?? row.batch?.zoom_link ?? null)
           : null,
+      resourcesLink:
+        row.payment?.payment_status === 'Paid' ? (row.batch?.resources_link ?? null) : null,
       paymentStatus: row.payment?.payment_status ?? 'Unpaid',
       courseFee: Number(row.payment?.course_fee ?? 0),
       originalFee: Number(row.payment?.original_fee ?? row.payment?.course_fee ?? 0),

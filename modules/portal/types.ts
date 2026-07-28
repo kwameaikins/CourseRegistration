@@ -53,6 +53,9 @@ export interface PortalDashboardRegistration {
   // registered on Zoom, else the course's shared classroom link, else null
   // (Zoom not set up yet).
   zoomLink: string | null;
+  // Same Paid-only visibility gate as zoomLink (founder-approved 2026-07-28
+  // — course materials, same posture as the join link).
+  resourcesLink: string | null;
   paymentStatus: string;
   courseFee: number;
   // Equal to courseFee when no staff discount has ever been granted;

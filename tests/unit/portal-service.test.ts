@@ -353,6 +353,7 @@ describe('getPortalDashboard — Zoom link visibility gate', () => {
         end_date: '2026-08-05',
         facilitator_name: 'Mr. Asante',
         zoom_link: 'https://zoom.us/j/shared-classroom',
+        resources_link: 'https://drive.google.com/folder/xyz',
       },
       course: { course_name: 'ICAG Level 1 Prep', course_code: 'ICAG-L1' },
       payment: {
@@ -437,6 +438,30 @@ describe('getPortalDashboard — Zoom link visibility gate', () => {
     });
     const dashboard = await getPortalDashboard('session-1');
     expect(dashboard.registrations[0].zoomLink).toBe('https://zoom.us/j/shared-classroom');
+  });
+
+  it('hides the course resources link for an Unpaid registration (same gate as Zoom, 2026-07-28)', async () => {
+    const dashboard = await getPortalDashboard('session-1');
+    expect(dashboard.registrations[0].resourcesLink).toBeNull();
+  });
+
+  it('shows the course resources link once Paid', async () => {
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [
+        dashboardRow({
+          payment: {
+            payment_status: 'Paid',
+            course_fee: '1200.00',
+            original_fee: null,
+            amount_paid: '1200.00',
+            balance: '0.00',
+          },
+        }),
+      ],
+    });
+    const dashboard = await getPortalDashboard('session-1');
+    expect(dashboard.registrations[0].resourcesLink).toBe('https://drive.google.com/folder/xyz');
   });
 });
 

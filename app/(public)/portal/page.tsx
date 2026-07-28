@@ -65,6 +65,7 @@ interface DashboardRegistration {
     durationMinutes: number;
   }>;
   certificates: Array<{ id: string; certificateNumber: string; issuedDate: string; revoked: boolean }>;
+  resourcesLink: string | null;
   installments: Array<{
     installmentNumber: number;
     amountDue: number;
@@ -566,6 +567,11 @@ export default function PortalDashboardPage() {
                           <button type="button" className="btn btn-outline btn-sm" onClick={() => setActivePanel('certificates')}>
                             <svg className="icon" style={{ width: 15, height: 15 }}><use href="#i-award" /></svg>View certificate
                           </button>
+                        )}
+                        {reg.resourcesLink && (
+                          <a className="btn btn-outline btn-sm" href={reg.resourcesLink} target="_blank" rel="noreferrer">
+                            <svg className="icon" style={{ width: 15, height: 15 }}><use href="#i-book" /></svg>Course Resources
+                          </a>
                         )}
                         {reg.paymentStatus === 'Paid' && !reg.feedbackSubmitted && (
                           <button

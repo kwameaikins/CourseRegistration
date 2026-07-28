@@ -34,6 +34,9 @@ export interface Batch {
   // personal join links and attendance sync when set.
   zoomMeetingId: string | null;
   whatsappGroupLink: string | null;
+  // Link to course materials/slides (founder-approved 2026-07-28) — same
+  // shape as zoomLink/whatsappGroupLink rather than building file storage.
+  resourcesLink: string | null;
   facilitatorName: string;
   facilitatorStaffId: string | null;
   // The tutor assigned to this batch (external party — see
@@ -137,6 +140,7 @@ export const batchInputSchema = z
     startTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
     endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     whatsappGroupLink: httpsUrl,
+    resourcesLink: httpsUrl,
     facilitatorName: z.string().trim().min(2),
     facilitatorStaffId: z.uuid().nullable().optional(),
     facilitatorTutorId: z.uuid().nullable().optional(),
@@ -187,6 +191,7 @@ export const batchUpdateSchema = z
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .optional(),
     whatsappGroupLink: httpsUrl,
+    resourcesLink: httpsUrl,
     facilitatorName: z.string().trim().min(2).optional(),
     facilitatorStaffId: z.uuid().nullable().optional(),
     facilitatorTutorId: z.uuid().nullable().optional(),

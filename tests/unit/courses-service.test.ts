@@ -72,6 +72,7 @@ function batchRow(overrides: Record<string, unknown> = {}) {
     zoom_link: null,
     zoom_meeting_id: null,
     whatsapp_group_link: null,
+    resources_link: null,
     facilitator_name: 'Mr. Asante',
     facilitator_staff_id: null,
     welcome_email_enabled: true,
@@ -311,6 +312,58 @@ describe('createBatch — inherits the parent Course\'s Zoom meeting', () => {
 
     expect(coursesRepositoryMock.updateCourseById).not.toHaveBeenCalled();
     expect(batch.zoomLink).toBeNull();
+  });
+});
+
+describe('resourcesLink — course materials link (founder-approved 2026-07-28)', () => {
+  function validBatchInput(overrides: Record<string, unknown> = {}) {
+    return {
+      courseId: 'course-1',
+      cohortLabel: 'JUL-2026',
+      courseFee: 1200,
+      startDate: '2026-08-01',
+      startTime: '09:00',
+      endDate: '2026-08-05',
+      whatsappGroupLink: null,
+      resourcesLink: 'https://drive.google.com/folder/xyz',
+      facilitatorName: 'Mr. Asante',
+      facilitatorStaffId: null,
+      welcomeEmailEnabled: true,
+      paymentReminderEnabled: true,
+      classReminderEnabled: true,
+      whatsappEnabled: true,
+      smsEnabled: true,
+      isActive: true,
+      discountCutoffDate: null,
+      discountedFee: null,
+      ...overrides,
+    };
+  }
+
+  it('createBatch writes resourcesLink through to resources_link', async () => {
+    coursesRepositoryMock.selectCourseByIdSystem.mockResolvedValue(courseRow());
+    coursesRepositoryMock.insertBatch.mockResolvedValue(
+      batchRow({ resources_link: 'https://drive.google.com/folder/xyz' }),
+    );
+
+    const batch = await createBatch(validBatchInput());
+
+    expect(coursesRepositoryMock.insertBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ resources_link: 'https://drive.google.com/folder/xyz' }),
+    );
+    expect(batch.resourcesLink).toBe('https://drive.google.com/folder/xyz');
+  });
+
+  it('updateBatch only writes resourcesLink when the field is actually touched', async () => {
+    coursesRepositoryMock.updateBatchById.mockResolvedValue(batchRow());
+    coursesRepositoryMock.selectBatchByIdSystem.mockResolvedValue(batchRow());
+
+    await updateBatch('batch-1', { cohortLabel: 'AUG-2026' });
+
+    expect(coursesRepositoryMock.updateBatchById).toHaveBeenCalledWith(
+      'batch-1',
+      expect.not.objectContaining({ resources_link: expect.anything() }),
+    );
   });
 });
 

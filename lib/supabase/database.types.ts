@@ -94,6 +94,7 @@ export type Database = {
           id: string
           is_active: boolean
           payment_reminder_enabled: boolean
+          resources_link: string | null
           sms_enabled: boolean
           start_date: string
           start_time: string
@@ -120,6 +121,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           payment_reminder_enabled?: boolean
+          resources_link?: string | null
           sms_enabled?: boolean
           start_date: string
           start_time: string
@@ -146,6 +148,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           payment_reminder_enabled?: boolean
+          resources_link?: string | null
           sms_enabled?: boolean
           start_date?: string
           start_time?: string

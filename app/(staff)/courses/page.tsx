@@ -46,6 +46,7 @@ interface Batch {
   startTime: string;
   endDate: string;
   whatsappGroupLink: string | null;
+  resourcesLink: string | null;
   facilitatorName: string;
   facilitatorTutorId: string | null;
   welcomeEmailEnabled: boolean;
@@ -75,6 +76,7 @@ const EMPTY_BATCH_FORM = {
   startTime: '09:00',
   endDate: '',
   whatsappGroupLink: '',
+  resourcesLink: '',
   facilitatorName: '',
   facilitatorTutorId: '',
   discountCutoffDate: '',
@@ -209,6 +211,7 @@ export default function CourseControlPanelPage() {
           startTime: batchForm.startTime,
           endDate: batchForm.endDate,
           whatsappGroupLink: batchForm.whatsappGroupLink || null,
+          resourcesLink: batchForm.resourcesLink || null,
           facilitatorName: batchForm.facilitatorName,
           facilitatorTutorId: batchForm.facilitatorTutorId || null,
           discountCutoffDate: batchForm.discountCutoffDate || null,
@@ -249,6 +252,7 @@ export default function CourseControlPanelPage() {
       startTime: batch.startTime,
       endDate: batch.endDate,
       whatsappGroupLink: batch.whatsappGroupLink ?? '',
+      resourcesLink: batch.resourcesLink ?? '',
       facilitatorName: batch.facilitatorName,
       facilitatorTutorId: batch.facilitatorTutorId ?? '',
       discountCutoffDate: batch.discountCutoffDate ?? '',
@@ -270,6 +274,7 @@ export default function CourseControlPanelPage() {
           startTime: editBatchForm.startTime,
           endDate: editBatchForm.endDate,
           whatsappGroupLink: editBatchForm.whatsappGroupLink || null,
+          resourcesLink: editBatchForm.resourcesLink || null,
           facilitatorName: editBatchForm.facilitatorName,
           facilitatorTutorId: editBatchForm.facilitatorTutorId || null,
           discountCutoffDate: editBatchForm.discountCutoffDate || null,
@@ -697,6 +702,23 @@ export default function CourseControlPanelPage() {
                         />
                       </div>
                       <div className="space-y-2">
+                        <Label htmlFor={`edit-resourcesLink-${batch.id}`}>
+                          Resources Link <span className="text-muted-foreground">(optional)</span>
+                        </Label>
+                        <Input
+                          id={`edit-resourcesLink-${batch.id}`}
+                          type="url"
+                          placeholder="https://drive.google.com/…"
+                          value={editBatchForm.resourcesLink}
+                          onChange={(event) =>
+                            setEditBatchForm({
+                              ...editBatchForm,
+                              resourcesLink: event.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-2">
                         <Label htmlFor={`edit-discountCutoffDate-${batch.id}`}>
                           Discount Cutoff Date{' '}
                           <span className="text-muted-foreground">(optional)</span>
@@ -982,6 +1004,23 @@ export default function CourseControlPanelPage() {
                           setBatchForm({
                             ...batchForm,
                             whatsappGroupLink: event.target.value,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="resourcesLink">
+                        Resources Link <span className="text-muted-foreground">(optional)</span>
+                      </Label>
+                      <Input
+                        id="resourcesLink"
+                        type="url"
+                        placeholder="https://drive.google.com/…"
+                        value={batchForm.resourcesLink}
+                        onChange={(event) =>
+                          setBatchForm({
+                            ...batchForm,
+                            resourcesLink: event.target.value,
                           })
                         }
                       />
