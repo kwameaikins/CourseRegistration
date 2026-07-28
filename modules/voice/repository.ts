@@ -366,14 +366,24 @@ export async function selectFeedbackVoiceRegistrations(
 // 5. upsell — feedback course-interests that match a course with an open
 // future batch the participant is not registered on. Returns the original
 // registration (the dedup anchor) plus the pitch course.
+//
+// Field swap (2026-07-27 question redesign): the old `interested_courses`
+// checkbox list ("which of our other courses interest you") was replaced by
+// a free-text `other_course_suggestion` ("which other course would you like
+// Knowsia to offer") — a different question, asking for courses we don't
+// yet run. This match against currently-open batches will find far fewer
+// candidates than before (a participant naming a course we already offer is
+// now incidental, not the question's intent) — kept wired rather than
+// silently dropped, since this feeds a live automated upsell-call feature,
+// but worth revisiting if match volume drops to near zero.
 export async function selectUpsellCandidates(todayIso: string): Promise<
   Array<{ registrationId: string; pitchCourseName: string; pitchCohortLabel: string; pitchStartDate: string; pitchFee: number }>
 > {
   const supabase = createSupabaseServiceRoleClient();
   const { data: feedbackRows, error } = await supabase
     .from('feedback')
-    .select('registration_id, interested_courses')
-    .not('interested_courses', 'is', null);
+    .select('registration_id, other_course_suggestion')
+    .not('other_course_suggestion', 'is', null);
   if (error) throw error;
   if (!feedbackRows || feedbackRows.length === 0) return [];
 
@@ -423,7 +433,7 @@ export async function selectUpsellCandidates(todayIso: string): Promise<
     pitchFee: number;
   }> = [];
   for (const row of feedbackRows) {
-    const interests = (row.interested_courses ?? '').toLowerCase();
+    const interests = (row.other_course_suggestion ?? '').toLowerCase();
     const participantId = participantByRegistration.get(row.registration_id);
     if (!participantId) continue;
     const alreadyIn = registeredBatchesByParticipant.get(participantId) ?? new Set();

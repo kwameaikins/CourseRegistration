@@ -1,21 +1,42 @@
 'use client';
 
-// Public post-course feedback form (founder-approved 2026-07-19). Reached via
-// the personal link in the post-course email; no login. Kept under 2 minutes:
-// three ratings, one text box, two checkboxes, course interests.
+// Public post-course feedback form (redesigned 2026-07-27 — 5 question
+// groups; see lib/feedback-questions.ts for the shared copy). Reached via
+// the personal link in the post-course email; no login. Submitting
+// immediately issues the participant's certificate if they're Paid
+// (founder-approved auto-issue) — the thank-you screen offers a download
+// right away, no login needed (same unguessable-id-as-token posture as the
+// rest of this app's public surfaces).
 import { use, useEffect, useState } from 'react';
 
 import { apiFetch } from '@/components/api-client';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { KnowsiaHeader } from '@/components/KnowsiaHeader';
+import {
+  FEEDBACK_IMPROVEMENT_LABEL,
+  FEEDBACK_MATERIALS_LABEL,
+  FEEDBACK_MATERIALS_OPTIONS,
+  FEEDBACK_MOST_VALUABLE_LABEL,
+  FEEDBACK_OTHER_COURSE_LABEL,
+  FEEDBACK_RATING_QUESTIONS,
+  FEEDBACK_RECOMMEND_LABEL,
+  FEEDBACK_RECOMMEND_OPTIONS,
+  FEEDBACK_TESTIMONIAL_LABEL,
+  FEEDBACK_TESTIMONIAL_OPTIONS,
+} from '@/lib/feedback-questions';
 
 interface FormContext {
   courseName: string;
   cohortLabel: string;
   participantFirstName: string;
   alreadySubmitted: boolean;
-  courseOptions: string[];
+}
+
+interface SubmitResult {
+  submitted: true;
+  certificateIssued: boolean;
+  certificateDownloadUrl: string | null;
 }
 
 function RatingInput(props: {
@@ -49,6 +70,38 @@ function RatingInput(props: {
   );
 }
 
+function ChoiceInput<T extends string>(props: {
+  id: string;
+  label: string;
+  value: T | '';
+  options: readonly { value: T; label: string }[];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={props.id}>{props.label}</Label>
+      <div className="flex flex-wrap gap-2" role="radiogroup" aria-labelledby={props.id}>
+        {props.options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={props.value === option.value}
+            className={
+              props.value === option.value
+                ? 'h-11 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground'
+                : 'h-11 rounded-md border px-4 text-sm hover:bg-accent'
+            }
+            onClick={() => props.onChange(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function FeedbackPage({
   params,
 }: {
@@ -58,16 +111,28 @@ export default function FeedbackPage({
   const [context, setContext] = useState<FormContext | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
+  const [certificateIssued, setCertificateIssued] = useState(false);
+  const [certificateDownloadUrl, setCertificateDownloadUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [overallRating, setOverallRating] = useState(0);
+  const [relevanceRating, setRelevanceRating] = useState(0);
   const [facilitatorRating, setFacilitatorRating] = useState(0);
-  const [recommendRating, setRecommendRating] = useState(0);
+  const [confidenceRating, setConfidenceRating] = useState(0);
+  const [materialsClarity, setMaterialsClarity] = useState<(typeof FEEDBACK_MATERIALS_OPTIONS)[number] | ''>('');
+  const [mostValuableText, setMostValuableText] = useState('');
   const [improvementText, setImprovementText] = useState('');
-  const [testimonialConsent, setTestimonialConsent] = useState(false);
-  const [commentsAnonymous, setCommentsAnonymous] = useState(false);
-  const [interestedCourses, setInterestedCourses] = useState<string[]>([]);
+  const [recommendation, setRecommendation] = useState<(typeof FEEDBACK_RECOMMEND_OPTIONS)[number] | ''>('');
+  const [otherCourseSuggestion, setOtherCourseSuggestion] = useState('');
+  const [testimonialChoice, setTestimonialChoice] = useState<'Named' | 'Anonymous' | 'No'>('No');
+
+  const ratingValues: Record<string, [number, (v: number) => void]> = {
+    overallRating: [overallRating, setOverallRating],
+    relevanceRating: [relevanceRating, setRelevanceRating],
+    facilitatorRating: [facilitatorRating, setFacilitatorRating],
+    confidenceRating: [confidenceRating, setConfidenceRating],
+  };
 
   useEffect(() => {
     (async () => {
@@ -83,39 +148,44 @@ export default function FeedbackPage({
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (!overallRating || !facilitatorRating || !recommendRating) {
-      setErrorMessage('Please answer all three rating questions.');
+    if (!overallRating || !relevanceRating || !facilitatorRating || !confidenceRating) {
+      setErrorMessage('Please answer all four rating questions.');
+      return;
+    }
+    if (!materialsClarity) {
+      setErrorMessage('Please let us know about the course materials.');
+      return;
+    }
+    if (!recommendation) {
+      setErrorMessage('Please let us know if you would recommend this course.');
       return;
     }
     setSubmitting(true);
     setErrorMessage(null);
     try {
-      await apiFetch(`/api/feedback/${registrationId}`, {
+      const result = await apiFetch<SubmitResult>(`/api/feedback/${registrationId}`, {
         method: 'POST',
         body: JSON.stringify({
           overallRating,
+          relevanceRating,
           facilitatorRating,
-          recommendRating,
+          confidenceRating,
+          materialsClarity,
+          mostValuableText,
           improvementText,
-          testimonialConsent,
-          commentsAnonymous,
-          interestedCourses,
+          recommendation,
+          otherCourseSuggestion,
+          testimonialChoice,
         }),
       });
+      setCertificateIssued(result.certificateIssued);
+      setCertificateDownloadUrl(result.certificateDownloadUrl);
       setSubmitted(true);
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Submission failed — try again.');
     } finally {
       setSubmitting(false);
     }
-  }
-
-  function toggleCourse(courseName: string) {
-    setInterestedCourses((current) =>
-      current.includes(courseName)
-        ? current.filter((name) => name !== courseName)
-        : [...current, courseName],
-    );
   }
 
   if (loadError) {
@@ -143,6 +213,14 @@ export default function FeedbackPage({
           Your feedback on {context.courseName} has been received. We appreciate you helping
           us improve.
         </p>
+        {certificateIssued && certificateDownloadUrl && (
+          <div className="mt-6 rounded-lg border bg-accent/40 p-6">
+            <p className="text-sm font-medium">Your certificate is ready 🎉</p>
+            <a className="mt-3 inline-block" href={certificateDownloadUrl} target="_blank" rel="noreferrer">
+              <Button type="button">Download your certificate</Button>
+            </a>
+          </div>
+        )}
       </main>
     );
   }
@@ -154,77 +232,99 @@ export default function FeedbackPage({
       <p className="mt-1 text-sm text-muted-foreground">
         {context.participantFirstName ? `${context.participantFirstName}, thank` : 'Thank'}{' '}
         you for completing <strong>{context.courseName}</strong> ({context.cohortLabel}).
-        This takes under two minutes.
+        This takes under two minutes — and if you&apos;re paid up, your certificate is issued
+        the moment you submit.
       </p>
 
-      <form onSubmit={handleSubmit} className="mt-8 space-y-8">
-        <RatingInput
-          id="overall"
-          label="How satisfied were you with the course overall? (1 = poor, 5 = excellent)"
-          value={overallRating}
-          onChange={setOverallRating}
-        />
-        <RatingInput
-          id="facilitator"
-          label="How would you rate the facilitator?"
-          value={facilitatorRating}
-          onChange={setFacilitatorRating}
-        />
-        <RatingInput
-          id="recommend"
-          label="How likely are you to recommend this course to a colleague?"
-          value={recommendRating}
-          onChange={setRecommendRating}
-        />
+      <form onSubmit={handleSubmit} className="mt-8 space-y-10">
+        <div className="space-y-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Rate your experience
+          </h2>
+          {FEEDBACK_RATING_QUESTIONS.map((question) => (
+            <RatingInput
+              key={question.key}
+              id={question.key}
+              label={question.label}
+              value={ratingValues[question.key][0]}
+              onChange={ratingValues[question.key][1]}
+            />
+          ))}
+        </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="improvement">What should we improve? (optional)</Label>
-          <textarea
-            id="improvement"
-            className="min-h-28 w-full rounded-md border bg-background px-3 py-2 text-sm"
-            maxLength={2000}
-            value={improvementText}
-            onChange={(event) => setImprovementText(event.target.value)}
+        <div className="space-y-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Course materials
+          </h2>
+          <ChoiceInput
+            id="materialsClarity"
+            label={FEEDBACK_MATERIALS_LABEL}
+            value={materialsClarity}
+            options={FEEDBACK_MATERIALS_OPTIONS.map((o) => ({ value: o, label: o }))}
+            onChange={setMaterialsClarity}
           />
         </div>
 
-        {context.courseOptions.length > 0 && (
+        <div className="space-y-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            In your own words
+          </h2>
           <div className="space-y-2">
-            <Label>Which other courses interest you? (optional)</Label>
-            <div className="space-y-2">
-              {context.courseOptions.map((courseName) => (
-                <label key={courseName} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={interestedCourses.includes(courseName)}
-                    onChange={() => toggleCourse(courseName)}
-                  />
-                  {courseName}
-                </label>
-              ))}
-            </div>
+            <Label htmlFor="mostValuable">{FEEDBACK_MOST_VALUABLE_LABEL} (optional)</Label>
+            <textarea
+              id="mostValuable"
+              className="min-h-20 w-full rounded-md border bg-background px-3 py-2 text-sm"
+              maxLength={1000}
+              value={mostValuableText}
+              onChange={(event) => setMostValuableText(event.target.value)}
+            />
           </div>
-        )}
+          <div className="space-y-2">
+            <Label htmlFor="improvement">{FEEDBACK_IMPROVEMENT_LABEL} (optional)</Label>
+            <textarea
+              id="improvement"
+              className="min-h-28 w-full rounded-md border bg-background px-3 py-2 text-sm"
+              maxLength={2000}
+              value={improvementText}
+              onChange={(event) => setImprovementText(event.target.value)}
+            />
+          </div>
+        </div>
 
-        <div className="space-y-3">
-          <label className="flex items-start gap-2 text-sm">
+        <div className="space-y-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Looking ahead
+          </h2>
+          <ChoiceInput
+            id="recommendation"
+            label={FEEDBACK_RECOMMEND_LABEL}
+            value={recommendation}
+            options={FEEDBACK_RECOMMEND_OPTIONS.map((o) => ({ value: o, label: o }))}
+            onChange={setRecommendation}
+          />
+          <div className="space-y-2">
+            <Label htmlFor="otherCourse">{FEEDBACK_OTHER_COURSE_LABEL} (optional)</Label>
             <input
-              type="checkbox"
-              className="mt-0.5"
-              checked={testimonialConsent}
-              onChange={(event) => setTestimonialConsent(event.target.checked)}
+              id="otherCourse"
+              className="h-11 w-full rounded-md border bg-background px-3 text-sm"
+              maxLength={300}
+              value={otherCourseSuggestion}
+              onChange={(event) => setOtherCourseSuggestion(event.target.value)}
             />
-            You may use my comments as a public testimonial.
-          </label>
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="mt-0.5"
-              checked={commentsAnonymous}
-              onChange={(event) => setCommentsAnonymous(event.target.checked)}
-            />
-            Keep my written comments anonymous to the facilitator.
-          </label>
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            Testimonial permission
+          </h2>
+          <ChoiceInput
+            id="testimonialChoice"
+            label={FEEDBACK_TESTIMONIAL_LABEL}
+            value={testimonialChoice}
+            options={FEEDBACK_TESTIMONIAL_OPTIONS}
+            onChange={setTestimonialChoice}
+          />
         </div>
 
         {errorMessage && (

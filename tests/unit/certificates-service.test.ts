@@ -9,6 +9,7 @@ const repositoryMock = {
   selectCertificateByNumber: vi.fn(),
   updateCertificate: vi.fn(),
   selectBatchIssueContext: vi.fn(),
+  selectBatchIdForRegistration: vi.fn(),
 };
 const sendTransactionalEmailMock = vi.fn();
 
@@ -21,6 +22,7 @@ const {
   buildCertificateNumber,
   getBatchIssueContext,
   getCertificatePdf,
+  issueCertificateIfEligible,
   issueForBatch,
   issueManual,
   resendCertificateEmail,
@@ -228,6 +230,66 @@ describe('resendCertificateEmail', () => {
     repositoryMock.selectCertificateById.mockResolvedValue(certRow({ revoked: true }));
     await expect(resendCertificateEmail('cert-1')).rejects.toMatchObject({ code: 'CONFLICT' });
     expect(sendTransactionalEmailMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('issueCertificateIfEligible — feedback auto-issue (2026-07-27)', () => {
+  function batchIssueContext(overrides: Record<string, unknown> = {}) {
+    return {
+      courseCode: 'ESG1',
+      courseTitle: 'ESG and Sustainability Reporting',
+      defaultHours: 20,
+      defaultDescription: 'focused on ESG reporting.',
+      defaultCpdCredit: 'TBD',
+      candidates: [candidate()],
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    repositoryMock.selectBatchIdForRegistration.mockResolvedValue('batch-1');
+    repositoryMock.selectBatchIssueContext.mockResolvedValue(batchIssueContext());
+  });
+
+  it('issues a certificate with issued_by null when Paid + feedback submitted', async () => {
+    const result = await issueCertificateIfEligible('reg-1');
+
+    expect(result).not.toBeNull();
+    expect(repositoryMock.insertCertificate).toHaveBeenCalledWith(
+      expect.objectContaining({ registration_id: 'reg-1', issued_by: null }),
+    );
+    expect(sendTransactionalEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'ama@example.com' }),
+    );
+  });
+
+  it('returns null when the registration has no batch', async () => {
+    repositoryMock.selectBatchIdForRegistration.mockResolvedValue(null);
+    expect(await issueCertificateIfEligible('reg-missing')).toBeNull();
+    expect(repositoryMock.insertCertificate).not.toHaveBeenCalled();
+  });
+
+  it('returns null when not Paid', async () => {
+    repositoryMock.selectBatchIssueContext.mockResolvedValue(
+      batchIssueContext({ candidates: [candidate({ paid: false })] }),
+    );
+    expect(await issueCertificateIfEligible('reg-1')).toBeNull();
+    expect(repositoryMock.insertCertificate).not.toHaveBeenCalled();
+  });
+
+  it('returns null when already issued', async () => {
+    repositoryMock.selectBatchIssueContext.mockResolvedValue(
+      batchIssueContext({ candidates: [candidate({ alreadyIssued: true })] }),
+    );
+    expect(await issueCertificateIfEligible('reg-1')).toBeNull();
+    expect(repositoryMock.insertCertificate).not.toHaveBeenCalled();
+  });
+
+  it('returns null for a deleted participant', async () => {
+    repositoryMock.selectBatchIssueContext.mockResolvedValue(
+      batchIssueContext({ candidates: [candidate({ participantDeleted: true })] }),
+    );
+    expect(await issueCertificateIfEligible('reg-1')).toBeNull();
   });
 });
 

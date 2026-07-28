@@ -732,10 +732,15 @@ function shapeRegistration360ForRole(
     view.feedback = data.feedback
       ? {
           overallRating: data.feedback.overall_rating,
+          relevanceRating: data.feedback.relevance_rating,
           facilitatorRating: data.feedback.facilitator_rating,
-          recommendRating: data.feedback.recommend_rating,
+          confidenceRating: data.feedback.confidence_rating,
+          materialsClarity: data.feedback.materials_clarity as 'Yes' | 'Partly' | 'No',
+          mostValuableText: data.feedback.most_valuable_text,
           improvementText: data.feedback.improvement_text,
-          testimonialConsent: data.feedback.testimonial_consent,
+          recommendation: data.feedback.recommendation as 'Yes' | 'Maybe' | 'No',
+          otherCourseSuggestion: data.feedback.other_course_suggestion,
+          testimonialChoice: data.feedback.testimonial_choice as 'Named' | 'Anonymous' | 'No',
           submittedAt: data.feedback.submitted_at,
         }
       : null;

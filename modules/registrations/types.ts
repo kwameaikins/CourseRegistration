@@ -215,10 +215,15 @@ export interface Registration360 {
   }>;
   feedback?: {
     overallRating: number;
+    relevanceRating: number;
     facilitatorRating: number;
-    recommendRating: number;
+    confidenceRating: number;
+    materialsClarity: 'Yes' | 'Partly' | 'No';
+    mostValuableText: string | null;
     improvementText: string | null;
-    testimonialConsent: boolean;
+    recommendation: 'Yes' | 'Maybe' | 'No';
+    otherCourseSuggestion: string | null;
+    testimonialChoice: 'Named' | 'Anonymous' | 'No';
     submittedAt: string;
   } | null;
   certificates?: Array<{

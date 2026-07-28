@@ -559,40 +559,49 @@ export type Database = {
       }
       feedback: {
         Row: {
-          comments_anonymous: boolean
+          confidence_rating: number
           facilitator_rating: number
           id: string
           improvement_text: string | null
-          interested_courses: string | null
+          materials_clarity: string
+          most_valuable_text: string | null
+          other_course_suggestion: string | null
           overall_rating: number
-          recommend_rating: number
+          recommendation: string
           registration_id: string
+          relevance_rating: number
           submitted_at: string
-          testimonial_consent: boolean
+          testimonial_choice: string
         }
         Insert: {
-          comments_anonymous?: boolean
+          confidence_rating: number
           facilitator_rating: number
           id?: string
           improvement_text?: string | null
-          interested_courses?: string | null
+          materials_clarity: string
+          most_valuable_text?: string | null
+          other_course_suggestion?: string | null
           overall_rating: number
-          recommend_rating: number
+          recommendation: string
           registration_id: string
+          relevance_rating: number
           submitted_at?: string
-          testimonial_consent?: boolean
+          testimonial_choice?: string
         }
         Update: {
-          comments_anonymous?: boolean
+          confidence_rating?: number
           facilitator_rating?: number
           id?: string
           improvement_text?: string | null
-          interested_courses?: string | null
+          materials_clarity?: string
+          most_valuable_text?: string | null
+          other_course_suggestion?: string | null
           overall_rating?: number
-          recommend_rating?: number
+          recommendation?: string
           registration_id?: string
+          relevance_rating?: number
           submitted_at?: string
-          testimonial_consent?: boolean
+          testimonial_choice?: string
         }
         Relationships: [
           {

@@ -236,6 +236,76 @@ describe('handleEndOfCallReport', () => {
     );
   });
 
+  it('defaults the four new-required fields from the old Vapi payload shape (compatibility shim, 2026-07-27)', async () => {
+    repositoryMock.selectCallLogByVapiId.mockResolvedValue({
+      id: 'log-2',
+      call_type: 'feedback_voice',
+      registration_id: 'reg-2',
+      needs_human_followup: false,
+    });
+
+    await handleEndOfCallReport({
+      vapiCallId: 'vapi-2',
+      summary: 'Feedback collected.',
+      transcript: null,
+      structuredData: {
+        overall_rating: 3,
+        facilitator_rating: 4,
+        recommend_rating: 3,
+        testimonial_consent: true,
+        comments_anonymous: true,
+      },
+      endedReason: null,
+    });
+
+    expect(submitFeedbackMock).toHaveBeenCalledWith(
+      'reg-2',
+      expect.objectContaining({
+        relevanceRating: 3, // falls back to overall_rating
+        confidenceRating: 3, // falls back to overall_rating
+        materialsClarity: 'Yes',
+        recommendation: 'Maybe', // recommend_rating === 3
+        testimonialChoice: 'Anonymous', // consent + anonymous
+      }),
+    );
+  });
+
+  it('passes the new field names straight through once Vapi sends them directly', async () => {
+    repositoryMock.selectCallLogByVapiId.mockResolvedValue({
+      id: 'log-2',
+      call_type: 'feedback_voice',
+      registration_id: 'reg-2',
+      needs_human_followup: false,
+    });
+
+    await handleEndOfCallReport({
+      vapiCallId: 'vapi-2',
+      summary: 'Feedback collected.',
+      transcript: null,
+      structuredData: {
+        overall_rating: 5,
+        relevance_rating: 4,
+        facilitator_rating: 4,
+        confidence_rating: 5,
+        materials_clarity: 'Partly',
+        recommendation: 'No',
+        testimonial_choice: 'No',
+      },
+      endedReason: null,
+    });
+
+    expect(submitFeedbackMock).toHaveBeenCalledWith(
+      'reg-2',
+      expect.objectContaining({
+        relevanceRating: 4,
+        confidenceRating: 5,
+        materialsClarity: 'Partly',
+        recommendation: 'No',
+        testimonialChoice: 'No',
+      }),
+    );
+  });
+
   it('returns unknown_call for an unrecognized Vapi call id', async () => {
     repositoryMock.selectCallLogByVapiId.mockResolvedValue(null);
     const outcome = await handleEndOfCallReport({

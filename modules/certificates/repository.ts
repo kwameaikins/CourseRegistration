@@ -70,6 +70,21 @@ export async function selectCourseSerialFloor(courseCode: string): Promise<numbe
   return data?.certificate_serial_floor ?? 0;
 }
 
+// Auto-issue support (2026-07-27) — resolves the batch behind a
+// registration, same shape as portalRepository.selectParticipantIdForRegistration.
+export async function selectBatchIdForRegistration(
+  registrationId: string,
+): Promise<string | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('registrations')
+    .select('batch_id')
+    .eq('id', registrationId)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.batch_id ?? null;
+}
+
 export async function selectCertificateById(id: string): Promise<CertificateRow | null> {
   const supabase = createSupabaseServiceRoleClient();
   const { data, error } = await supabase

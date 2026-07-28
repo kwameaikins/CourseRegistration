@@ -7,10 +7,12 @@
 import { AppError } from '@/lib/errors';
 import * as feedbackRepository from '@/modules/feedback/repository';
 import * as communicationsService from '@/modules/communications/service';
+import * as certificatesService from '@/modules/certificates/service';
 import type {
   BatchFeedbackSummary,
   FeedbackDispatchSummary,
   FeedbackSubmissionInput,
+  FeedbackSubmissionResult,
   PublicFeedbackContext,
 } from '@/modules/feedback/types';
 
@@ -27,14 +29,17 @@ export async function getPublicFeedbackContext(
     cohortLabel: context.cohortLabel,
     participantFirstName: context.participantFirstName,
     alreadySubmitted: context.alreadySubmitted,
-    courseOptions: await feedbackRepository.selectCourseNames(),
   };
 }
 
+// Certificate auto-issue (founder-approved 2026-07-27): the moment a Paid
+// participant submits feedback, they get their certificate immediately — no
+// staff step. Never allowed to fail the feedback submission itself (same
+// non-blocking posture as every other side-effect in this codebase).
 export async function submitFeedback(
   registrationId: string,
   input: FeedbackSubmissionInput,
-): Promise<void> {
+): Promise<FeedbackSubmissionResult> {
   const context = await feedbackRepository.selectPublicFeedbackContext(registrationId);
   if (!context || context.participantDeleted) {
     throw new AppError('NOT_FOUND', 'This feedback link is not valid.', 404);
@@ -43,13 +48,15 @@ export async function submitFeedback(
   const outcome = await feedbackRepository.insertFeedback({
     registration_id: registrationId,
     overall_rating: input.overallRating,
+    relevance_rating: input.relevanceRating,
     facilitator_rating: input.facilitatorRating,
-    recommend_rating: input.recommendRating,
+    confidence_rating: input.confidenceRating,
+    materials_clarity: input.materialsClarity,
+    most_valuable_text: input.mostValuableText || null,
     improvement_text: input.improvementText || null,
-    testimonial_consent: input.testimonialConsent,
-    comments_anonymous: input.commentsAnonymous,
-    interested_courses:
-      input.interestedCourses.length > 0 ? input.interestedCourses.join(', ') : null,
+    recommendation: input.recommendation,
+    other_course_suggestion: input.otherCourseSuggestion || null,
+    testimonial_choice: input.testimonialChoice,
   });
   if (outcome === 'duplicate') {
     throw new AppError(
@@ -57,6 +64,17 @@ export async function submitFeedback(
       'Feedback for this registration has already been submitted — thank you!',
       409,
     );
+  }
+
+  try {
+    const certificate = await certificatesService.issueCertificateIfEligible(registrationId);
+    return {
+      certificateIssued: certificate !== null,
+      certificateDownloadUrl: certificate ? certificatesService.downloadUrlFor(certificate.id) : null,
+    };
+  } catch (err) {
+    console.error('[feedback auto-issue certificate]', err);
+    return { certificateIssued: false, certificateDownloadUrl: null };
   }
 }
 
@@ -120,22 +138,34 @@ export async function getBatchFeedbackSummary(
       ? null
       : Math.round((values.reduce((sum, v) => sum + v, 0) / values.length) * 10) / 10;
 
+  const recommendationBreakdown = { yes: 0, maybe: 0, no: 0 };
+  for (const row of rows) {
+    if (row.recommendation === 'Yes') recommendationBreakdown.yes += 1;
+    else if (row.recommendation === 'Maybe') recommendationBreakdown.maybe += 1;
+    else recommendationBreakdown.no += 1;
+  }
+
   return {
     responses: rows.length,
     paidRegistrations,
     averageOverall: average(rows.map((r) => r.overall_rating)),
+    averageRelevance: average(rows.map((r) => r.relevance_rating)),
     averageFacilitator: average(rows.map((r) => r.facilitator_rating)),
-    averageRecommend: average(rows.map((r) => r.recommend_rating)),
+    averageConfidence: average(rows.map((r) => r.confidence_rating)),
+    recommendationBreakdown,
     rows: rows.map((row) => ({
       registrationId: row.registration_id,
       participantName: row.participant_name,
       overallRating: row.overall_rating,
+      relevanceRating: row.relevance_rating,
       facilitatorRating: row.facilitator_rating,
-      recommendRating: row.recommend_rating,
+      confidenceRating: row.confidence_rating,
+      materialsClarity: row.materials_clarity as 'Yes' | 'Partly' | 'No',
+      mostValuableText: row.most_valuable_text,
       improvementText: row.improvement_text,
-      testimonialConsent: row.testimonial_consent,
-      commentsAnonymous: row.comments_anonymous,
-      interestedCourses: row.interested_courses,
+      recommendation: row.recommendation as 'Yes' | 'Maybe' | 'No',
+      otherCourseSuggestion: row.other_course_suggestion,
+      testimonialChoice: row.testimonial_choice as 'Named' | 'Anonymous' | 'No',
       submittedAt: row.submitted_at,
     })),
   };

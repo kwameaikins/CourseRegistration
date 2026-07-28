@@ -88,10 +88,15 @@ interface Registration360 {
   }>;
   feedback?: {
     overallRating: number;
+    relevanceRating: number;
     facilitatorRating: number;
-    recommendRating: number;
+    confidenceRating: number;
+    materialsClarity: 'Yes' | 'Partly' | 'No';
+    mostValuableText: string | null;
     improvementText: string | null;
-    testimonialConsent: boolean;
+    recommendation: 'Yes' | 'Maybe' | 'No';
+    otherCourseSuggestion: string | null;
+    testimonialChoice: 'Named' | 'Anonymous' | 'No';
     submittedAt: string;
   } | null;
   certificates?: Array<{
@@ -517,13 +522,20 @@ export function RegistrationDetailDialog(props: {
                 {data.feedback ? (
                   <div className="text-sm">
                     <p>
-                      Overall {data.feedback.overallRating}/5 · Facilitator{' '}
-                      {data.feedback.facilitatorRating}/5 · Recommend{' '}
-                      {data.feedback.recommendRating}/5
+                      Overall {data.feedback.overallRating}/5 · Relevance{' '}
+                      {data.feedback.relevanceRating}/5 · Facilitator{' '}
+                      {data.feedback.facilitatorRating}/5 · Confidence{' '}
+                      {data.feedback.confidenceRating}/5 · Materials {data.feedback.materialsClarity}{' '}
+                      · Recommend {data.feedback.recommendation}
                     </p>
+                    {data.feedback.mostValuableText && (
+                      <p className="mt-1 text-muted-foreground">
+                        Most valuable: &ldquo;{data.feedback.mostValuableText}&rdquo;
+                      </p>
+                    )}
                     {data.feedback.improvementText && (
                       <p className="mt-1 text-muted-foreground">
-                        &ldquo;{data.feedback.improvementText}&rdquo;
+                        To improve: &ldquo;{data.feedback.improvementText}&rdquo;
                       </p>
                     )}
                   </div>

@@ -81,6 +81,10 @@ export interface PortalDashboardRegistration {
     dueDate: string;
     paymentStatus: 'Pending' | 'Paid';
   }>;
+  // In-portal feedback (2026-07-27) — lets the dashboard show a "give
+  // feedback" prompt without a separate round trip; submitting is what
+  // triggers certificate auto-issue when Paid.
+  feedbackSubmitted: boolean;
 }
 
 export interface PortalDashboard {

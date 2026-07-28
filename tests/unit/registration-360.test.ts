@@ -71,10 +71,15 @@ function fullFixture() {
     ],
     feedback: {
       overall_rating: 5,
+      relevance_rating: 4,
       facilitator_rating: 4,
-      recommend_rating: 5,
+      confidence_rating: 5,
+      materials_clarity: 'Yes',
+      most_valuable_text: 'The live case study walkthrough.',
       improvement_text: 'More exercises.',
-      testimonial_consent: true,
+      recommendation: 'Yes',
+      other_course_suggestion: null,
+      testimonial_choice: 'Named',
       submitted_at: '2026-08-06T08:00:00Z',
     },
     certificates: [
@@ -120,6 +125,8 @@ describe('getRegistration360 — role shaping', () => {
     expect(view.zoom).toEqual({ joinUrl: 'https://zoom.us/j/personal-link', registeredAt: '2026-07-02T10:05:00Z' });
     expect(view.attendance).toHaveLength(1);
     expect(view.feedback?.overallRating).toBe(5);
+    expect(view.feedback?.recommendation).toBe('Yes');
+    expect(view.feedback?.testimonialChoice).toBe('Named');
     expect(view.certificates).toHaveLength(1);
     expect(view.calls).toHaveLength(1);
   });

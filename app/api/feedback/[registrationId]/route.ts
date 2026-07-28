@@ -45,8 +45,8 @@ export async function POST(
         400,
       );
     }
-    await feedbackService.submitFeedback(registrationId, parsed.data);
-    return successResponse({ submitted: true }, 201);
+    const result = await feedbackService.submitFeedback(registrationId, parsed.data);
+    return successResponse({ submitted: true, ...result }, 201);
   } catch (err) {
     return handleRouteError(err);
   }

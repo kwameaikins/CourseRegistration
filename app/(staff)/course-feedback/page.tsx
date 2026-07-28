@@ -24,11 +24,15 @@ interface FeedbackRow {
   registrationId: string;
   participantName: string | null;
   overallRating: number;
+  relevanceRating: number;
   facilitatorRating: number;
-  recommendRating: number;
+  confidenceRating: number;
+  materialsClarity: 'Yes' | 'Partly' | 'No';
+  mostValuableText: string | null;
   improvementText: string | null;
-  testimonialConsent: boolean;
-  interestedCourses: string | null;
+  recommendation: 'Yes' | 'Maybe' | 'No';
+  otherCourseSuggestion: string | null;
+  testimonialChoice: 'Named' | 'Anonymous' | 'No';
   submittedAt: string;
 }
 
@@ -36,8 +40,10 @@ interface Summary {
   responses: number;
   paidRegistrations: number;
   averageOverall: number | null;
+  averageRelevance: number | null;
   averageFacilitator: number | null;
-  averageRecommend: number | null;
+  averageConfidence: number | null;
+  recommendationBreakdown: { yes: number; maybe: number; no: number };
   rows: FeedbackRow[];
 }
 
@@ -121,7 +127,7 @@ export default function CourseFeedbackPage() {
 
       {summary && (
         <>
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
             {[
               [
                 'Response rate',
@@ -130,8 +136,9 @@ export default function CourseFeedbackPage() {
                   : `${summary.responses}`,
               ],
               ['Avg overall', summary.averageOverall?.toFixed(1) ?? '—'],
+              ['Avg relevance', summary.averageRelevance?.toFixed(1) ?? '—'],
               ['Avg facilitator', summary.averageFacilitator?.toFixed(1) ?? '—'],
-              ['Avg recommend', summary.averageRecommend?.toFixed(1) ?? '—'],
+              ['Avg confidence', summary.averageConfidence?.toFixed(1) ?? '—'],
             ].map(([label, value]) => (
               <div key={label} className="rounded-lg border p-4">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -142,6 +149,16 @@ export default function CourseFeedbackPage() {
             ))}
           </div>
 
+          <div className="rounded-lg border p-4">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              Would recommend
+            </p>
+            <p className="mt-1 text-sm">
+              Yes: {summary.recommendationBreakdown.yes} · Maybe: {summary.recommendationBreakdown.maybe} · No:{' '}
+              {summary.recommendationBreakdown.no}
+            </p>
+          </div>
+
           {summary.rows.length > 0 ? (
             <div className="space-y-3">
               {summary.rows.map((row) => (
@@ -149,23 +166,31 @@ export default function CourseFeedbackPage() {
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-sm font-medium">
                       {row.participantName ?? 'Anonymous'}
-                      {row.testimonialConsent && (
+                      {row.testimonialChoice !== 'No' && (
                         <span className="ml-2 rounded bg-emerald-100 px-2 py-0.5 text-xs text-emerald-800">
-                          Testimonial OK
+                          Testimonial OK ({row.testimonialChoice})
                         </span>
                       )}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Overall {row.overallRating}/5 · Facilitator {row.facilitatorRating}/5 ·
-                      Recommend {row.recommendRating}/5
+                      Overall {row.overallRating}/5 · Relevance {row.relevanceRating}/5 · Facilitator{' '}
+                      {row.facilitatorRating}/5 · Confidence {row.confidenceRating}/5 · Materials{' '}
+                      {row.materialsClarity} · Recommend {row.recommendation}
                     </p>
                   </div>
-                  {row.improvementText && (
-                    <p className="mt-2 text-sm">{row.improvementText}</p>
+                  {row.mostValuableText && (
+                    <p className="mt-2 text-sm">
+                      <strong>Most valuable:</strong> {row.mostValuableText}
+                    </p>
                   )}
-                  {row.interestedCourses && (
+                  {row.improvementText && (
+                    <p className="mt-2 text-sm">
+                      <strong>To improve:</strong> {row.improvementText}
+                    </p>
+                  )}
+                  {row.otherCourseSuggestion && (
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Interested in: {row.interestedCourses}
+                      Would like us to offer: {row.otherCourseSuggestion}
                     </p>
                   )}
                 </div>

@@ -36,12 +36,16 @@ const coursesServiceMock = {
 const resendClientMock = {
   sendTransactionalEmail: vi.fn(),
 };
+const feedbackServiceMock = {
+  submitFeedback: vi.fn(),
+};
 
 vi.mock('@/modules/portal/repository', () => repositoryMock);
 vi.mock('@/modules/payments/repository', () => paymentsRepositoryMock);
 vi.mock('@/modules/certificates/service', () => certificatesServiceMock);
 vi.mock('@/modules/communications/service', () => communicationsServiceMock);
 vi.mock('@/modules/courses/service', () => coursesServiceMock);
+vi.mock('@/modules/feedback/service', () => feedbackServiceMock);
 vi.mock('@/lib/resend/client', () => resendClientMock);
 
 const {
@@ -61,6 +65,7 @@ const {
   getOtherCourses,
   requestPinReset,
   resetPin,
+  submitPortalFeedback,
 } = await import('@/modules/portal/service');
 const { hashPin } = await import('@/lib/portal-auth/pin');
 
@@ -676,6 +681,49 @@ describe('getOtherCourses', () => {
 
     const result = await getOtherCourses('session-1');
     expect(result).toEqual([{ batchId: 'batch-2', courseName: 'New Course' }]);
+  });
+});
+
+describe('getPortalDashboard — feedbackSubmitted mapping (2026-07-27)', () => {
+  it('passes the feedbackSubmitted flag straight through per registration', async () => {
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [receiptDashboardRow({ feedbackSubmitted: true })],
+    });
+    const dashboard = await getPortalDashboard('session-1');
+    expect(dashboard.registrations[0].feedbackSubmitted).toBe(true);
+  });
+});
+
+describe('submitPortalFeedback', () => {
+  beforeEach(() => {
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [receiptDashboardRow()],
+    });
+  });
+
+  it('rejects a registration id that does not belong to this session', async () => {
+    await expect(
+      submitPortalFeedback('session-1', 'reg-not-mine', {} as never),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(feedbackServiceMock.submitFeedback).not.toHaveBeenCalled();
+  });
+
+  it('delegates to feedbackService.submitFeedback for an owned registration', async () => {
+    feedbackServiceMock.submitFeedback.mockResolvedValue({
+      certificateIssued: true,
+      certificateDownloadUrl: 'https://reg.knowsia.com/api/certificates/download/cert-1',
+    });
+    const input = { overallRating: 5 } as never;
+
+    const result = await submitPortalFeedback('session-1', 'reg-1', input);
+
+    expect(feedbackServiceMock.submitFeedback).toHaveBeenCalledWith('reg-1', input);
+    expect(result).toEqual({
+      certificateIssued: true,
+      certificateDownloadUrl: 'https://reg.knowsia.com/api/certificates/download/cert-1',
+    });
   });
 });
 

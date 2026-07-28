@@ -208,17 +208,43 @@ export async function handleEndOfCallReport(payload: {
 
   // Voice-collected feedback flows into the same feedback table as the web
   // form (one per Registration — a duplicate means the form beat the call).
+  //
+  // Compatibility shim (2026-07-27 question redesign): the Vapi assistant's
+  // own conversation script (configured in the Vapi dashboard, not in this
+  // repo) still asks the old questions until someone updates it there. Four
+  // fields are now required that Vapi doesn't send yet, so this derives
+  // sensible defaults from the old fields it still has — remove the
+  // fallbacks once the Vapi script is updated to ask the new questions
+  // directly (it will then send the new field names and safeParse picks
+  // them straight up, no code change needed here).
   if (callLog.call_type === 'feedback_voice' && callLog.registration_id) {
+    const legacyRecommendRating =
+      typeof data.recommend_rating === 'number' ? data.recommend_rating : null;
+    const legacyTestimonialConsent = data.testimonial_consent === true;
+    const legacyCommentsAnonymous = data.comments_anonymous === true;
+
     const parsed = feedbackSubmissionSchema.safeParse({
       overallRating: data.overall_rating,
+      relevanceRating: data.relevance_rating ?? data.overall_rating,
       facilitatorRating: data.facilitator_rating,
-      recommendRating: data.recommend_rating,
+      confidenceRating: data.confidence_rating ?? data.overall_rating,
+      materialsClarity: data.materials_clarity ?? 'Yes',
+      mostValuableText: typeof data.most_valuable_text === 'string' ? data.most_valuable_text : '',
       improvementText: typeof data.improvement_text === 'string' ? data.improvement_text : '',
-      testimonialConsent: data.testimonial_consent === true,
-      commentsAnonymous: data.comments_anonymous === true,
-      interestedCourses: Array.isArray(data.interested_courses)
-        ? data.interested_courses.filter((c): c is string => typeof c === 'string')
-        : [],
+      recommendation:
+        data.recommendation ??
+        (legacyRecommendRating === null
+          ? 'Yes'
+          : legacyRecommendRating >= 4
+            ? 'Yes'
+            : legacyRecommendRating === 3
+              ? 'Maybe'
+              : 'No'),
+      otherCourseSuggestion:
+        typeof data.other_course_suggestion === 'string' ? data.other_course_suggestion : '',
+      testimonialChoice:
+        data.testimonial_choice ??
+        (legacyTestimonialConsent ? (legacyCommentsAnonymous ? 'Anonymous' : 'Named') : 'No'),
     });
     if (parsed.success) {
       try {

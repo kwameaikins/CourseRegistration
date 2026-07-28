@@ -246,6 +246,21 @@ export const PORTAL_STYLES = `
 .portal-app .session-note { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-muted); margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
 .portal-app .session-note .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); }
 
+.portal-app .feedback-banner { background: var(--accent-tint); border: 1px solid var(--accent); border-radius: 12px; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 24px; }
+.portal-app .feedback-banner strong { display: block; font-size: 14.5px; color: var(--accent-deep); }
+.portal-app .feedback-banner span { display: block; font-size: 12.5px; color: var(--ink-muted); margin-top: 2px; }
+
+.portal-app .fb-group { margin-bottom: 22px; }
+.portal-app .fb-group:last-child { margin-bottom: 0; }
+.portal-app .fb-group-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-muted); margin: 0 0 12px; }
+.portal-app .fb-question { margin-bottom: 16px; }
+.portal-app .fb-question:last-child { margin-bottom: 0; }
+.portal-app .fb-question label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.portal-app .fb-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.portal-app .fb-row button { min-width: 42px; height: 40px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 600; cursor: pointer; }
+.portal-app .fb-row button.active { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); }
+.portal-app .fb-submitted { display: flex; align-items: center; gap: 10px; padding: 14px; background: var(--success-bg); color: var(--success); border-radius: 10px; font-size: 13.5px; font-weight: 600; }
+
 .portal-app :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 
 @media (max-width: 860px) {

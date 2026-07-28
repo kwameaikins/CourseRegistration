@@ -26,6 +26,18 @@ import { AddToLinkedInButton } from '@/components/AddToLinkedInButton';
 import { PaystackCheckout } from '@/components/PaystackCheckout';
 import { PORTAL_STYLES, PortalIcons } from '@/components/portal/portal-design-system';
 import { formatDate, formatGhs } from '@/lib/utils';
+import {
+  FEEDBACK_IMPROVEMENT_LABEL,
+  FEEDBACK_MATERIALS_LABEL,
+  FEEDBACK_MATERIALS_OPTIONS,
+  FEEDBACK_MOST_VALUABLE_LABEL,
+  FEEDBACK_OTHER_COURSE_LABEL,
+  FEEDBACK_RATING_QUESTIONS,
+  FEEDBACK_RECOMMEND_LABEL,
+  FEEDBACK_RECOMMEND_OPTIONS,
+  FEEDBACK_TESTIMONIAL_LABEL,
+  FEEDBACK_TESTIMONIAL_OPTIONS,
+} from '@/lib/feedback-questions';
 
 const PAYMENT_POLL_INTERVAL_MS = 3000;
 const PAYMENT_POLL_TIMEOUT_MS = 60000;
@@ -60,6 +72,7 @@ interface DashboardRegistration {
     dueDate: string;
     paymentStatus: 'Pending' | 'Paid';
   }>;
+  feedbackSubmitted: boolean;
 }
 
 interface NextClass {
@@ -147,7 +160,7 @@ export default function PortalDashboardPage() {
   const [messagesByRegistration, setMessagesByRegistration] = useState<
     Record<string, MessageHistoryEntry[] | 'loading'>
   >({});
-  const [openAttendance, setOpenAttendance] = useState<Record<string, boolean>>({});
+  const [courseTab, setCourseTab] = useState<Record<string, 'attendance' | 'messages' | 'feedback'>>({});
 
   const [otherCourses, setOtherCourses] = useState<OtherCourse[]>([]);
 
@@ -284,6 +297,9 @@ export default function PortalDashboardPage() {
   const registrationsWithoutCertificate = dashboard.registrations.filter(
     (r) => !r.certificates.some((c) => !c.revoked),
   );
+  const pendingFeedback = dashboard.registrations.filter(
+    (r) => r.paymentStatus === 'Paid' && !r.feedbackSubmitted,
+  );
 
   return (
     <div className="portal-app">
@@ -419,6 +435,20 @@ export default function PortalDashboardPage() {
                   </div>
                 )}
 
+                {pendingFeedback.length > 0 && (
+                  <div className="feedback-banner">
+                    <div>
+                      <strong>
+                        {pendingFeedback.length} course{pendingFeedback.length === 1 ? '' : 's'} awaiting your feedback
+                      </strong>
+                      <span>Submit it to get your certificate — it takes under two minutes.</span>
+                    </div>
+                    <button type="button" className="btn btn-primary" onClick={() => setActivePanel('courses')}>
+                      <svg className="icon" style={{ width: 15, height: 15 }}><use href="#i-chat" /></svg>Give Feedback
+                    </button>
+                  </div>
+                )}
+
                 <div className="stat-grid">
                   <div className="stat-tile">
                     <div className="icon-wrap"><svg className="icon"><use href="#i-book" /></svg></div>
@@ -537,6 +567,15 @@ export default function PortalDashboardPage() {
                             <svg className="icon" style={{ width: 15, height: 15 }}><use href="#i-award" /></svg>View certificate
                           </button>
                         )}
+                        {reg.paymentStatus === 'Paid' && !reg.feedbackSubmitted && (
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            onClick={() => setCourseTab((cur) => ({ ...cur, [reg.registrationId]: 'feedback' }))}
+                          >
+                            <svg className="icon" style={{ width: 15, height: 15 }}><use href="#i-chat" /></svg>Give Feedback
+                          </button>
+                        )}
                       </div>
 
                       {reg.balance > 0 && (
@@ -610,25 +649,32 @@ export default function PortalDashboardPage() {
                       <div className="tabbed">
                         <div className="tabbed-nav">
                           <button
-                            className={!openAttendance[reg.registrationId] ? 'active' : ''}
+                            className={(courseTab[reg.registrationId] ?? 'attendance') === 'attendance' ? 'active' : ''}
                             type="button"
-                            onClick={() => setOpenAttendance((cur) => ({ ...cur, [reg.registrationId]: false }))}
+                            onClick={() => setCourseTab((cur) => ({ ...cur, [reg.registrationId]: 'attendance' }))}
                           >
                             Attendance ({reg.attendance.length})
                           </button>
                           <button
-                            className={openAttendance[reg.registrationId] ? 'active' : ''}
+                            className={courseTab[reg.registrationId] === 'messages' ? 'active' : ''}
                             type="button"
                             onClick={() => {
-                              setOpenAttendance((cur) => ({ ...cur, [reg.registrationId]: true }));
+                              setCourseTab((cur) => ({ ...cur, [reg.registrationId]: 'messages' }));
                               if (!messages) fetchMessages(reg.registrationId);
                             }}
                           >
                             Messages
                           </button>
+                          <button
+                            className={courseTab[reg.registrationId] === 'feedback' ? 'active' : ''}
+                            type="button"
+                            onClick={() => setCourseTab((cur) => ({ ...cur, [reg.registrationId]: 'feedback' }))}
+                          >
+                            Feedback{reg.feedbackSubmitted ? ' ✓' : ''}
+                          </button>
                         </div>
                         <div className="tabbed-body">
-                          {!openAttendance[reg.registrationId] ? (
+                          {(courseTab[reg.registrationId] ?? 'attendance') === 'attendance' && (
                             reg.attendance.length === 0 ? (
                               <p className="empty-note">No attendance recorded yet.</p>
                             ) : (
@@ -643,8 +689,20 @@ export default function PortalDashboardPage() {
                                 ))}
                               </ul>
                             )
-                          ) : (
-                            <MessageList entry={messages} />
+                          )}
+                          {courseTab[reg.registrationId] === 'messages' && <MessageList entry={messages} />}
+                          {courseTab[reg.registrationId] === 'feedback' && (
+                            reg.feedbackSubmitted ? (
+                              <p className="fb-submitted">
+                                <svg className="icon" style={{ width: 16, height: 16 }}><use href="#i-check" /></svg>
+                                Feedback submitted — thank you!
+                              </p>
+                            ) : (
+                              <PortalFeedbackForm
+                                registrationId={reg.registrationId}
+                                onSubmitted={() => void loadDashboard()}
+                              />
+                            )
                           )}
                         </div>
                       </div>
@@ -951,6 +1009,250 @@ function MessageList({ entry }: { entry: MessageHistoryEntry[] | 'loading' | und
         </div>
       ))}
     </div>
+  );
+}
+
+interface FeedbackSubmitResult {
+  submitted: true;
+  certificateIssued: boolean;
+  certificateDownloadUrl: string | null;
+}
+
+function RatingRow({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="fb-row" role="radiogroup">
+      {[1, 2, 3, 4, 5].map((score) => (
+        <button
+          key={score}
+          type="button"
+          role="radio"
+          aria-checked={value === score}
+          className={value === score ? 'active' : ''}
+          onClick={() => onChange(score)}
+        >
+          {score}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ChoiceRow<T extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T | '';
+  options: readonly { value: T; label: string }[];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="fb-row" role="radiogroup">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          aria-checked={value === option.value}
+          className={value === option.value ? 'active' : ''}
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// In-portal feedback (2026-07-27) — same 5-group question set and shared
+// copy (lib/feedback-questions.ts) as the public /feedback/[registrationId]
+// page, styled with the portal's own bespoke CSS instead of shadcn. On
+// success calls onSubmitted so the parent reloads the dashboard (picks up
+// feedbackSubmitted + any auto-issued certificate).
+function PortalFeedbackForm({
+  registrationId,
+  onSubmitted,
+}: {
+  registrationId: string;
+  onSubmitted: () => void;
+}) {
+  const [overallRating, setOverallRating] = useState(0);
+  const [relevanceRating, setRelevanceRating] = useState(0);
+  const [facilitatorRating, setFacilitatorRating] = useState(0);
+  const [confidenceRating, setConfidenceRating] = useState(0);
+  const [materialsClarity, setMaterialsClarity] = useState<(typeof FEEDBACK_MATERIALS_OPTIONS)[number] | ''>('');
+  const [mostValuableText, setMostValuableText] = useState('');
+  const [improvementText, setImprovementText] = useState('');
+  const [recommendation, setRecommendation] = useState<(typeof FEEDBACK_RECOMMEND_OPTIONS)[number] | ''>('');
+  const [otherCourseSuggestion, setOtherCourseSuggestion] = useState('');
+  const [testimonialChoice, setTestimonialChoice] = useState<'Named' | 'Anonymous' | 'No'>('No');
+
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [result, setResult] = useState<FeedbackSubmitResult | null>(null);
+
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!overallRating || !relevanceRating || !facilitatorRating || !confidenceRating) {
+      setErrorMessage('Please answer all four rating questions.');
+      return;
+    }
+    if (!materialsClarity) {
+      setErrorMessage('Please let us know about the course materials.');
+      return;
+    }
+    if (!recommendation) {
+      setErrorMessage('Please let us know if you would recommend this course.');
+      return;
+    }
+    setSubmitting(true);
+    setErrorMessage(null);
+    try {
+      const data = await apiFetch<FeedbackSubmitResult>(`/api/portal/feedback/${registrationId}`, {
+        method: 'POST',
+        body: JSON.stringify({
+          overallRating,
+          relevanceRating,
+          facilitatorRating,
+          confidenceRating,
+          materialsClarity,
+          mostValuableText,
+          improvementText,
+          recommendation,
+          otherCourseSuggestion,
+          testimonialChoice,
+        }),
+      });
+      setResult(data);
+      onSubmitted();
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Submission failed — try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (result) {
+    return (
+      <div>
+        <p className="fb-submitted">
+          <svg className="icon" style={{ width: 16, height: 16 }}><use href="#i-check" /></svg>
+          Thank you — your feedback has been recorded.
+        </p>
+        {result.certificateIssued && result.certificateDownloadUrl && (
+          <a
+            className="btn btn-primary btn-sm"
+            style={{ marginTop: 12 }}
+            href={result.certificateDownloadUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <svg className="icon" style={{ width: 15, height: 15 }}><use href="#i-award" /></svg>Your certificate is ready — download it
+          </a>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <div className="fb-group">
+        <p className="fb-group-title">Rate your experience</p>
+        {FEEDBACK_RATING_QUESTIONS.map((question) => (
+          <div className="fb-question" key={question.key}>
+            <label>{question.label}</label>
+            <RatingRow
+              value={
+                { overallRating, relevanceRating, facilitatorRating, confidenceRating }[question.key]
+              }
+              onChange={
+                {
+                  overallRating: setOverallRating,
+                  relevanceRating: setRelevanceRating,
+                  facilitatorRating: setFacilitatorRating,
+                  confidenceRating: setConfidenceRating,
+                }[question.key]
+              }
+            />
+          </div>
+        ))}
+      </div>
+
+      <div className="fb-group">
+        <p className="fb-group-title">Course materials</p>
+        <div className="fb-question">
+          <label>{FEEDBACK_MATERIALS_LABEL}</label>
+          <ChoiceRow
+            value={materialsClarity}
+            options={FEEDBACK_MATERIALS_OPTIONS.map((o) => ({ value: o, label: o }))}
+            onChange={setMaterialsClarity}
+          />
+        </div>
+      </div>
+
+      <div className="fb-group">
+        <p className="fb-group-title">In your own words</p>
+        <div className="field">
+          <label htmlFor={`mostValuable-${registrationId}`}>{FEEDBACK_MOST_VALUABLE_LABEL} (optional)</label>
+          <textarea
+            id={`mostValuable-${registrationId}`}
+            maxLength={1000}
+            value={mostValuableText}
+            onChange={(event) => setMostValuableText(event.target.value)}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor={`improvement-${registrationId}`}>{FEEDBACK_IMPROVEMENT_LABEL} (optional)</label>
+          <textarea
+            id={`improvement-${registrationId}`}
+            maxLength={2000}
+            value={improvementText}
+            onChange={(event) => setImprovementText(event.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="fb-group">
+        <p className="fb-group-title">Looking ahead</p>
+        <div className="fb-question">
+          <label>{FEEDBACK_RECOMMEND_LABEL}</label>
+          <ChoiceRow
+            value={recommendation}
+            options={FEEDBACK_RECOMMEND_OPTIONS.map((o) => ({ value: o, label: o }))}
+            onChange={setRecommendation}
+          />
+        </div>
+        <div className="field">
+          <label htmlFor={`otherCourse-${registrationId}`}>{FEEDBACK_OTHER_COURSE_LABEL} (optional)</label>
+          <input
+            id={`otherCourse-${registrationId}`}
+            maxLength={300}
+            value={otherCourseSuggestion}
+            onChange={(event) => setOtherCourseSuggestion(event.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="fb-group">
+        <p className="fb-group-title">Testimonial permission</p>
+        <div className="fb-question">
+          <label>{FEEDBACK_TESTIMONIAL_LABEL}</label>
+          <ChoiceRow value={testimonialChoice} options={FEEDBACK_TESTIMONIAL_OPTIONS} onChange={setTestimonialChoice} />
+        </div>
+      </div>
+
+      {errorMessage && <p className="plan-confirm-error">{errorMessage}</p>}
+
+      <button type="submit" className="btn btn-primary" disabled={submitting} style={{ width: '100%', justifyContent: 'center' }}>
+        {submitting ? 'Submitting…' : 'Submit feedback'}
+      </button>
+    </form>
   );
 }
 

@@ -332,6 +332,7 @@ export async function selectPortalDashboardData(participantId: string): Promise<
       issued_date: string;
       revoked: boolean;
     }>;
+    feedbackSubmitted: boolean;
   }>;
 }> {
   const supabase = createSupabaseServiceRoleClient();
@@ -354,7 +355,7 @@ export async function selectPortalDashboardData(participantId: string): Promise<
   const registrationIds = registrations.map((r) => r.id);
   const batchIds = [...new Set(registrations.map((r) => r.batch_id))];
 
-  const [batchesResult, paymentsResult, zoomResult, attendanceResult, certificatesResult] =
+  const [batchesResult, paymentsResult, zoomResult, attendanceResult, certificatesResult, feedbackResult] =
     await Promise.all([
       supabase.from('batches').select('*').in('id', batchIds),
       supabase.from('payments').select('*').in('registration_id', registrationIds),
@@ -371,12 +372,16 @@ export async function selectPortalDashboardData(participantId: string): Promise<
         .from('certificates')
         .select('id, registration_id, certificate_number, issued_date, revoked')
         .in('registration_id', registrationIds),
+      supabase.from('feedback').select('registration_id').in('registration_id', registrationIds),
     ]);
   if (batchesResult.error) throw batchesResult.error;
   if (paymentsResult.error) throw paymentsResult.error;
   if (zoomResult.error) throw zoomResult.error;
   if (attendanceResult.error) throw attendanceResult.error;
   if (certificatesResult.error) throw certificatesResult.error;
+  if (feedbackResult.error) throw feedbackResult.error;
+
+  const feedbackSubmittedSet = new Set(feedbackResult.data.map((row) => row.registration_id));
 
   const courseIds = [...new Set(batchesResult.data.map((b) => b.course_id))];
   const { data: courses, error: coursesError } = await supabase
@@ -419,6 +424,7 @@ export async function selectPortalDashboardData(participantId: string): Promise<
             issued_date: c.issued_date,
             revoked: c.revoked,
           })),
+        feedbackSubmitted: feedbackSubmittedSet.has(registration.id),
       };
     }),
   };

@@ -59,25 +59,18 @@ export async function selectPublicFeedbackContext(registrationId: string): Promi
   };
 }
 
-export async function selectCourseNames(): Promise<string[]> {
-  const supabase = createSupabaseServiceRoleClient();
-  const { data, error } = await supabase
-    .from('courses')
-    .select('course_name')
-    .order('course_name');
-  if (error) throw error;
-  return (data ?? []).map((row) => row.course_name);
-}
-
 export async function insertFeedback(row: {
   registration_id: string;
   overall_rating: number;
+  relevance_rating: number;
   facilitator_rating: number;
-  recommend_rating: number;
+  confidence_rating: number;
+  materials_clarity: string;
+  most_valuable_text: string | null;
   improvement_text: string | null;
-  testimonial_consent: boolean;
-  comments_anonymous: boolean;
-  interested_courses: string | null;
+  recommendation: string;
+  other_course_suggestion: string | null;
+  testimonial_choice: string;
 }): Promise<'inserted' | 'duplicate'> {
   const supabase = createSupabaseServiceRoleClient();
   const { error } = await supabase.from('feedback').insert(row);
@@ -124,7 +117,9 @@ export async function selectPaidRegistrationIdsForBatch(
 }
 
 // Staff review read (RLS enforces admin/management on feedback). Participant
-// names come along for non-anonymous rows only.
+// names come along for non-anonymous rows only (testimonial_choice ===
+// 'Anonymous' — the redesigned single testimonial question folds the old
+// separate "anonymous to the facilitator" toggle into this one choice).
 export async function selectFeedbackForBatch(batchId: string): Promise<
   Array<FeedbackTableRow & { participant_name: string | null }>
 > {
@@ -152,9 +147,10 @@ export async function selectFeedbackForBatch(batchId: string): Promise<
 
   return (rows ?? []).map((row) => ({
     ...row,
-    participant_name: row.comments_anonymous
-      ? null
-      : (nameByRegistration.get(row.registration_id) ?? null),
+    participant_name:
+      row.testimonial_choice === 'Anonymous'
+        ? null
+        : (nameByRegistration.get(row.registration_id) ?? null),
   }));
 }
 

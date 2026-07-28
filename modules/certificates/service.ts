@@ -133,6 +133,61 @@ export async function resendCertificateEmail(certificateId: string): Promise<boo
   return sendCertificateEmail(row);
 }
 
+// Auto-issue on feedback submission (founder-approved 2026-07-27): the
+// moment a Paid registration submits feedback, issue their certificate
+// immediately — no staff step. Same eligibility rule as issueForBatch (Paid
+// + feedback submitted + not already issued + participant not deleted),
+// just scoped to one registration instead of an admin-picked batch.
+// issued_by is null (no staff actor) — the column is nullable by design and
+// the Certificates screen already tolerates a null issuer for display.
+// Returns null (no-op) rather than throwing for every "not eligible yet"
+// case, since the caller (feedback submission) must never fail because of
+// this.
+export async function issueCertificateIfEligible(
+  registrationId: string,
+): Promise<CertificateView | null> {
+  const batchId = await certificatesRepository.selectBatchIdForRegistration(registrationId);
+  if (!batchId) return null;
+
+  const context = await certificatesRepository.selectBatchIssueContext(batchId);
+  if (!context) return null;
+
+  const candidate = context.candidates.find((c) => c.registrationId === registrationId);
+  if (!candidate || candidate.participantDeleted || candidate.alreadyIssued) return null;
+  if (!(candidate.paid && candidate.feedbackSubmitted)) return null;
+
+  let row: CertificateRow;
+  try {
+    row = await insertWithNumberRetry(
+      {
+        registration_id: registrationId,
+        recipient_name: candidate.participantName,
+        course_title: context.courseTitle,
+        description: context.defaultDescription,
+        hours: context.defaultHours,
+        cpd_credit: context.defaultCpdCredit,
+        issued_date: new Date().toISOString().slice(0, 10),
+        issued_by: null,
+        recipient_email: candidate.participantEmail || null,
+      },
+      context.courseCode,
+    );
+  } catch (err) {
+    // A concurrent issuance (rare double-submit race) lands here as
+    // DUPLICATE_CERTIFICATE after insertWithNumberRetry's own retries —
+    // treat it as "already issued", not a failure.
+    if (err instanceof AppError && err.code === 'DUPLICATE_CERTIFICATE') return null;
+    throw err;
+  }
+
+  try {
+    await sendCertificateEmail(row);
+  } catch (err) {
+    console.error('[certificate auto-issue email]', err);
+  }
+  return toView(row);
+}
+
 export async function listCertificates(limit = 200): Promise<CertificateView[]> {
   const rows = await certificatesRepository.selectCertificates(limit);
   return rows.map(toView);

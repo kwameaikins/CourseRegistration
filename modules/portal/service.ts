@@ -22,6 +22,11 @@ import * as communicationsService from '@/modules/communications/service';
 // section reuses the exact same public-batch read the registration form
 // uses; courses stays unaware the portal exists.
 import * as coursesService from '@/modules/courses/service';
+// Permitted cross-module call (2026-07-27) — feedback owns submission +
+// the auto-issue-on-submit rule; portal only verifies the registration
+// belongs to this session before delegating, same posture as
+// paymentsService/communicationsService above.
+import * as feedbackService from '@/modules/feedback/service';
 import { sendTransactionalEmail } from '@/lib/resend/client';
 import { parsePaymentStatus } from '@/lib/domain/parsers';
 import type {
@@ -38,6 +43,7 @@ import type {
   PortalUpdateNameInput,
   StudentStatusSummary,
 } from '@/modules/portal/types';
+import type { FeedbackSubmissionInput, FeedbackSubmissionResult } from '@/modules/feedback/types';
 
 const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const LOCKOUT_THRESHOLD = 5;
@@ -308,6 +314,7 @@ export async function getPortalDashboard(sessionId: string | undefined): Promise
         dueDate: i.dueDate,
         paymentStatus: i.paymentStatus,
       })),
+      feedbackSubmitted: row.feedbackSubmitted,
     })),
   };
 }
@@ -444,6 +451,26 @@ export async function getMessageHistory(
     sentAt: row.sentAt,
     success: row.success,
   }));
+}
+
+// In-portal feedback (2026-07-27) — same ownership check as
+// getMessageHistory/getReceiptData, then delegates straight to
+// feedbackService.submitFeedback (which also owns the certificate
+// auto-issue rule) so submission logic has exactly one implementation
+// regardless of which surface (public link, portal, voice) it's reached
+// from.
+export async function submitPortalFeedback(
+  sessionId: string | undefined,
+  registrationId: string,
+  input: FeedbackSubmissionInput,
+): Promise<FeedbackSubmissionResult> {
+  const { participantId } = await requirePortalSession(sessionId);
+  const data = await portalRepository.selectPortalDashboardData(participantId);
+  const owns = data.registrations.some((row) => row.registration.id === registrationId);
+  if (!owns) {
+    throw new AppError('NOT_FOUND', 'Registration not found.', 404);
+  }
+  return feedbackService.submitFeedback(registrationId, input);
 }
 
 // Browse other courses (2026-07-26) — reuses the exact same public-batch
