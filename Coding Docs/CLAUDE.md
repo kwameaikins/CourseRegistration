@@ -343,6 +343,26 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     Migrations `202607290037/038/039` pending production application (run
     `npx supabase db push` when ready).
 
+  Registrant messaging for the Admin Assistant (2026-08-01) — closed a gap
+    where the assistant could message leads one-off and in bulk but had no
+    equivalent for registrations. Added `search_registrations` (read),
+    `propose_send_sms_to_registration`/`propose_send_email_to_registration`
+    (mirrors the existing lead versions exactly, including not being logged
+    to email_log/sms_log), and `propose_call_registration` — a new
+    capability with no lead equivalent, triggering a real Vapi outbound
+    call (`call_log.call_type = 'ad_hoc'`) that reads a staff-composed
+    message. `propose_create_campaign` gained `audienceType: 'leads' |
+    'registrations'` so a campaign can target a filtered slice of
+    registrations (batch/course/payment status) instead of leads;
+    `campaign_members.lead_id` is now nullable alongside a new nullable
+    `registration_id` (CHECK: exactly one set). The `ad_hoc` call type
+    requires a manual prompt addition to the Vapi outbound assistant's
+    dashboard config (not deployable via code) — see `Coding Docs/
+    07_Integration_Specifications.md` §11.3 for the exact text; until then
+    ad-hoc calls dial but the assistant won't know what to say. Migrations
+    `202607290040/041` pending production application (run
+    `npx supabase db push` when ready).
+
 Open decisions (founder):
   - AI05 ("...Reporting and Modeling") vs AI02 ("...Reporting and
     Analysis") are near-duplicate courses — pick a canonical one.

@@ -18,12 +18,16 @@ const campaignsRepositoryMock = {
 const leadsServiceMock = {
   listLeads: vi.fn(),
 };
+const registrationsServiceMock = {
+  listRegistrations: vi.fn(),
+};
 
 const sendTransactionalEmailMock = vi.fn();
 const sendSmsMessageMock = vi.fn();
 
 vi.mock('@/modules/campaigns/repository', () => campaignsRepositoryMock);
 vi.mock('@/modules/leads/service', () => leadsServiceMock);
+vi.mock('@/modules/registrations/service', () => registrationsServiceMock);
 vi.mock('@/lib/resend/client', () => ({
   sendTransactionalEmail: (...args: unknown[]) => sendTransactionalEmailMock(...args),
 }));
@@ -47,6 +51,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   sendTransactionalEmailMock.mockResolvedValue(undefined);
   sendSmsMessageMock.mockResolvedValue(undefined);
+  registrationsServiceMock.listRegistrations.mockResolvedValue({
+    registrations: [],
+    pagination: { page: 1, limit: 500, total: 0 },
+  });
 });
 
 function campaignRow(overrides: Record<string, unknown> = {}) {
@@ -113,6 +121,29 @@ function lead(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function registration(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'reg-1',
+    fullName: 'Kojo Mensah',
+    email: 'kojo@example.com',
+    phone: '+233207654321',
+    courseName: 'AI-Powered Financial Reporting',
+    courseCode: 'AI02',
+    cohortLabel: 'AUG-2026',
+    batchId: 'batch-1',
+    leadSource: 'WhatsApp',
+    registrationStatus: 'Registered',
+    paymentStatus: 'Unpaid',
+    courseFee: 730.99,
+    originalFee: null,
+    amountPaid: 0,
+    balance: 730.99,
+    registeredAt: '2026-07-01T00:00:00Z',
+    notes: null,
+    ...overrides,
+  };
+}
+
 describe('createCampaign', () => {
   it('inserts the campaign and maps the result', async () => {
     campaignsRepositoryMock.insertCampaign.mockResolvedValue(campaignRow());
@@ -157,6 +188,7 @@ describe('listCampaigns / getCampaignById / getCampaignMembers', () => {
         id: 'mem-1',
         campaignId: 'camp-1',
         leadId: 'lead-1',
+        registrationId: null,
         previewMessage: 'Hi Ama, checking in from Acme.',
         sentAt: null,
         sendError: null,
@@ -432,5 +464,131 @@ describe('sendCampaign', () => {
       'Lead has no email address.',
     );
     expect(result).toMatchObject({ attempted: 2, sent: 0, failed: 2 });
+  });
+});
+
+describe('registration-audience campaigns (Admin Assistant tools, 2026-08-01)', () => {
+  it('preview matches against registrations, not leads, when audienceType is registrations', async () => {
+    campaignsRepositoryMock.selectCampaignById.mockResolvedValue(
+      campaignRow({ audience_type: 'registrations', filter_payment_status: 'Unpaid' }),
+    );
+    registrationsServiceMock.listRegistrations.mockResolvedValue({
+      registrations: [registration()],
+      pagination: { page: 1, limit: 500, total: 1 },
+    });
+
+    const result = await previewCampaign('camp-1');
+
+    expect(leadsServiceMock.listLeads).not.toHaveBeenCalled();
+    expect(result.matchedLeadCount).toBe(1);
+    expect(result.sample).toEqual([
+      {
+        leadId: 'reg-1',
+        leadName: 'Kojo Mensah',
+        previewMessage: 'Hi Kojo, checking in from .',
+      },
+    ]);
+  });
+
+  it('queues registration rows with registration_id (not lead_id) as members', async () => {
+    campaignsRepositoryMock.selectCampaignById.mockResolvedValue(
+      campaignRow({ audience_type: 'registrations', filter_batch_id: 'batch-1' }),
+    );
+    registrationsServiceMock.listRegistrations.mockResolvedValue({
+      registrations: [registration()],
+      pagination: { page: 1, limit: 500, total: 1 },
+    });
+    campaignsRepositoryMock.insertCampaignMembers.mockResolvedValue([]);
+    campaignsRepositoryMock.markCampaignQueued.mockResolvedValue(
+      campaignRow({ audience_type: 'registrations', status: 'queued' }),
+    );
+
+    await queueCampaign('camp-1');
+
+    expect(campaignsRepositoryMock.insertCampaignMembers).toHaveBeenCalledWith([
+      {
+        campaign_id: 'camp-1',
+        registration_id: 'reg-1',
+        preview_message: 'Hi Kojo, checking in from .',
+      },
+    ]);
+  });
+
+  it('rejects queueing when no registrations match the filters', async () => {
+    campaignsRepositoryMock.selectCampaignById.mockResolvedValue(
+      campaignRow({ audience_type: 'registrations' }),
+    );
+    registrationsServiceMock.listRegistrations.mockResolvedValue({
+      registrations: [],
+      pagination: { page: 1, limit: 500, total: 0 },
+    });
+
+    await expect(queueCampaign('camp-1')).rejects.toMatchObject({
+      code: 'NO_MATCHING_REGISTRATIONS',
+    });
+    expect(campaignsRepositoryMock.insertCampaignMembers).not.toHaveBeenCalled();
+  });
+
+  it('sends SMS to a registration-audience member using the registrant phone', async () => {
+    campaignsRepositoryMock.selectCampaignById.mockResolvedValue(
+      campaignRow({
+        audience_type: 'registrations',
+        status: 'queued',
+        channel: 'sms',
+        message_subject: null,
+      }),
+    );
+    campaignsRepositoryMock.selectSendSettingByChannel.mockResolvedValue(
+      sendSettingRow({ channel: 'sms', live_enabled: true }),
+    );
+    campaignsRepositoryMock.selectCampaignMembers.mockResolvedValue([
+      campaignMemberRow({ lead_id: null, registration_id: 'reg-1' }),
+    ]);
+    registrationsServiceMock.listRegistrations.mockResolvedValue({
+      registrations: [registration({ phone: '+233207654321' })],
+      pagination: { page: 1, limit: 500, total: 1 },
+    });
+    campaignsRepositoryMock.markCampaignSent.mockResolvedValue(
+      campaignRow({ audience_type: 'registrations', status: 'sent', channel: 'sms' }),
+    );
+
+    const result = await sendCampaign('camp-1', {
+      confirmedRecipientCount: 1,
+      confirmationText: 'SEND 1',
+    });
+
+    expect(sendSmsMessageMock).toHaveBeenCalledWith({
+      toPhone: '+233207654321',
+      message: 'Hi Ama, checking in from Acme.',
+    });
+    expect(leadsServiceMock.listLeads).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ attempted: 1, sent: 1, failed: 0 });
+  });
+
+  it('records a per-member failure when the matched registrant has no destination', async () => {
+    campaignsRepositoryMock.selectCampaignById.mockResolvedValue(
+      campaignRow({ audience_type: 'registrations', status: 'queued' }),
+    );
+    campaignsRepositoryMock.selectSendSettingByChannel.mockResolvedValue(
+      sendSettingRow({ live_enabled: true }),
+    );
+    campaignsRepositoryMock.selectCampaignMembers.mockResolvedValue([
+      campaignMemberRow({ lead_id: null, registration_id: 'reg-1' }),
+    ]);
+    registrationsServiceMock.listRegistrations.mockResolvedValue({
+      registrations: [registration({ email: null })],
+      pagination: { page: 1, limit: 500, total: 1 },
+    });
+
+    const result = await sendCampaign('camp-1', {
+      confirmedRecipientCount: 1,
+      confirmationText: 'SEND 1',
+    });
+
+    expect(campaignsRepositoryMock.markCampaignMemberFailed).toHaveBeenCalledWith(
+      'mem-1',
+      'Registrant has no email address.',
+    );
+    expect(result).toMatchObject({ attempted: 1, sent: 0, failed: 1 });
   });
 });

@@ -34,8 +34,13 @@ vi.mock('@/modules/feedback/service', () => ({
   submitFeedback: (...args: unknown[]) => submitFeedbackMock(...args),
 }));
 
-const { callingWindowStart, handleEndOfCallReport, runVoiceCallDispatch, lookupCustomerForAgent } =
-  await import('@/modules/voice/service');
+const {
+  callingWindowStart,
+  handleEndOfCallReport,
+  runVoiceCallDispatch,
+  lookupCustomerForAgent,
+  callRegistrationAdHoc,
+} = await import('@/modules/voice/service');
 
 function context(overrides: Record<string, unknown> = {}) {
   return {
@@ -317,6 +322,72 @@ describe('handleEndOfCallReport', () => {
     });
     expect(outcome).toBe('unknown_call');
     expect(repositoryMock.updateCallLog).not.toHaveBeenCalled();
+  });
+});
+
+describe('callRegistrationAdHoc — staff-triggered call (Admin Assistant tools, 2026-08-01)', () => {
+  it('rejects when voice is not configured', async () => {
+    clientMock.isVoiceConfigured.mockReturnValue(false);
+    await expect(callRegistrationAdHoc('reg-1', 'Hello')).rejects.toMatchObject({
+      code: 'VOICE_NOT_CONFIGURED',
+    });
+    expect(repositoryMock.reserveCallSlot).not.toHaveBeenCalled();
+  });
+
+  it('rejects when the registration has no valid phone on file', async () => {
+    repositoryMock.selectCallContexts.mockResolvedValue(
+      new Map([['reg-1', context({ phone: '12345' })]]),
+    );
+    await expect(callRegistrationAdHoc('reg-1', 'Hello')).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+    });
+    expect(repositoryMock.reserveCallSlot).not.toHaveBeenCalled();
+  });
+
+  it('reserves an ad_hoc slot, dials with the custom message, and marks the log scheduled', async () => {
+    repositoryMock.selectCallContexts.mockResolvedValue(new Map([['reg-1', context()]]));
+
+    const result = await callRegistrationAdHoc('reg-1', 'We have a 30% promo this week.');
+
+    expect(repositoryMock.reserveCallSlot).toHaveBeenCalledWith(
+      'reg-1',
+      'ad_hoc',
+      '+233241234567',
+    );
+    expect(clientMock.startOutboundCall).toHaveBeenCalledWith({
+      toPhone: '+233241234567',
+      variableValues: {
+        call_type: 'ad_hoc',
+        participant_name: 'Ama',
+        custom_message: 'We have a 30% promo this week.',
+      },
+    });
+    expect(repositoryMock.updateCallLog).toHaveBeenCalledWith('log-1', {
+      vapi_call_id: 'vapi-1',
+      status: 'scheduled',
+    });
+    expect(result).toEqual({ vapiCallId: 'vapi-1' });
+  });
+
+  it('does not scope multiple ad-hoc calls to the same registrant behind the one-per-type dedup', async () => {
+    repositoryMock.selectCallContexts.mockResolvedValue(new Map([['reg-1', context()]]));
+
+    await callRegistrationAdHoc('reg-1', 'First message');
+    await callRegistrationAdHoc('reg-1', 'Second message');
+
+    expect(repositoryMock.reserveCallSlot).toHaveBeenCalledTimes(2);
+    expect(clientMock.startOutboundCall).toHaveBeenCalledTimes(2);
+  });
+
+  it('marks the reservation failed when dialing throws', async () => {
+    repositoryMock.selectCallContexts.mockResolvedValue(new Map([['reg-1', context()]]));
+    clientMock.startOutboundCall.mockRejectedValue(new Error('vapi down'));
+
+    await expect(callRegistrationAdHoc('reg-1', 'Hello')).rejects.toThrow('vapi down');
+    expect(repositoryMock.updateCallLog).toHaveBeenCalledWith(
+      'log-1',
+      expect.objectContaining({ status: 'failed' }),
+    );
   });
 });
 

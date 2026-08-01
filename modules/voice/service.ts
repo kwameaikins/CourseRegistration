@@ -13,6 +13,7 @@ import {
   startOutboundCall,
 } from '@/lib/vapi/client';
 import { formatGhs } from '@/lib/utils';
+import { AppError } from '@/lib/errors';
 import * as voiceRepository from '@/modules/voice/repository';
 import * as feedbackService from '@/modules/feedback/service';
 import { feedbackSubmissionSchema } from '@/modules/feedback/types';
@@ -271,6 +272,54 @@ export async function recordInboundCall(input: {
     summary: input.summary,
     needs_human_followup: input.needsHumanFollowup,
   });
+}
+
+// Ad-hoc staff-triggered call (Admin Assistant tools, 2026-08-01) — same
+// reserve-before-dial flow as dispatchCallsOfType, but for one registration,
+// dialed immediately (no earliestAt scheduling window, since a human just
+// asked for this call to happen now). Requires the Vapi outbound assistant's
+// dashboard prompt to have an 'ad_hoc' branch that reads customMessage aloud
+// — the call itself still places fine without it, it just won't say anything
+// meaningful yet.
+export async function callRegistrationAdHoc(
+  registrationId: string,
+  customMessage: string,
+): Promise<{ vapiCallId: string }> {
+  if (!isVoiceConfigured()) {
+    throw new AppError('VOICE_NOT_CONFIGURED', 'Voice calling is not configured.', 400);
+  }
+
+  const contexts = await voiceRepository.selectCallContexts([registrationId]);
+  const context = contexts.get(registrationId);
+  if (!context || context.deleted) {
+    throw new AppError('NOT_FOUND', 'Registration not found.', 404);
+  }
+  if (!normalizeCallPhone(context.phone)) {
+    throw new AppError('VALIDATION_ERROR', 'This registrant has no valid phone number on file.', 400);
+  }
+
+  const reservation = await voiceRepository.reserveCallSlot(registrationId, 'ad_hoc', context.phone);
+  if (reservation.outcome === 'duplicate') {
+    throw new AppError('CONFLICT', 'A call is already in progress for this registrant.', 409);
+  }
+
+  try {
+    const { vapiCallId } = await startOutboundCall({
+      toPhone: context.phone,
+      variableValues: {
+        call_type: 'ad_hoc',
+        participant_name: context.participantFirstName,
+        custom_message: customMessage,
+      },
+    });
+    await voiceRepository.updateCallLog(reservation.id, { vapi_call_id: vapiCallId, status: 'scheduled' });
+    return { vapiCallId };
+  } catch (err) {
+    await voiceRepository
+      .updateCallLog(reservation.id, { status: 'failed', summary: String(err) })
+      .catch(() => undefined);
+    throw err;
+  }
 }
 
 // lookup_customer tool for the Vapi sales-follow-up agent (system review,

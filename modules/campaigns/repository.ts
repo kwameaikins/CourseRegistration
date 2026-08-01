@@ -18,9 +18,14 @@ export async function insertCampaign(
       channel: input.channel,
       message_subject: input.messageSubject ?? null,
       message_body: input.messageBody,
+      audience_type: input.audienceType ?? 'leads',
       filter_lead_source: input.filterLeadSource ?? null,
       filter_status: input.filterStatus ?? null,
       filter_min_score: input.filterMinScore ?? null,
+      filter_batch_id: input.filterBatchId ?? null,
+      filter_course_id: input.filterCourseId ?? null,
+      filter_payment_status: input.filterPaymentStatus ?? null,
+      filter_registration_status: input.filterRegistrationStatus ?? null,
       created_by: createdBy,
     })
     .select()
@@ -68,7 +73,12 @@ export async function markCampaignQueued(id: string): Promise<CampaignRow> {
 }
 
 export async function insertCampaignMembers(
-  rows: { campaign_id: string; lead_id: string; preview_message: string }[],
+  rows: {
+    campaign_id: string;
+    lead_id?: string | null;
+    registration_id?: string | null;
+    preview_message: string;
+  }[],
 ): Promise<CampaignMemberRow[]> {
   if (rows.length === 0) return [];
   const supabase = createSupabaseServiceRoleClient();

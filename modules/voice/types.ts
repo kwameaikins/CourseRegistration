@@ -4,7 +4,8 @@ export type VoiceCallType =
   | 'no_show_recovery'
   | 'feedback_voice'
   | 'upsell'
-  | 'inbound';
+  | 'inbound'
+  | 'ad_hoc';
 
 export interface VoiceDispatchSummary {
   date: string;

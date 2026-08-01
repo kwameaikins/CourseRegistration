@@ -492,22 +492,146 @@ export const AGENT_TOOLS: AgentTool[] = [
     },
   }),
   tool({
+    name: 'propose_send_sms_to_registration',
+    description:
+      'Propose sending a one-off free-text SMS to a registrant (a person who registered for a course) — use search_registrations or get_student_status first to find their registrationId. Only prepares a confirmation card — never sends it itself. Not a campaign; use propose_create_campaign with audienceType "registrations" for bulk sends to a filtered audience.',
+    inputSchema: z.object({ registrationId: z.string(), message: z.string().min(1).max(480) }),
+    trust: { kind: 'staff', roles: ['admin', 'marketing', 'management'] },
+    mode: 'write-confirm',
+    surfaces: ['assistant'],
+    buildPreview: async (input) => {
+      const contact = await registrationsService.getRegistrationContact(input.registrationId);
+      return { fullName: contact.fullName, phone: contact.phone, message: input.message };
+    },
+    run: async (input) => {
+      await registrationsService.sendSmsToRegistration(input.registrationId, input.message);
+      return { registrationId: input.registrationId, channel: 'sms', sent: true };
+    },
+  }),
+  tool({
+    name: 'propose_send_email_to_registration',
+    description:
+      'Propose sending a one-off free-text email to a registrant — use search_registrations or get_student_status first to find their registrationId. Only prepares a confirmation card — never sends it itself. Not a campaign; use propose_create_campaign with audienceType "registrations" for bulk sends to a filtered audience.',
+    inputSchema: z.object({
+      registrationId: z.string(),
+      subject: z.string().min(1).max(200),
+      body: z.string().min(1).max(5000),
+    }),
+    trust: { kind: 'staff', roles: ['admin', 'marketing', 'management'] },
+    mode: 'write-confirm',
+    surfaces: ['assistant'],
+    buildPreview: async (input) => {
+      const contact = await registrationsService.getRegistrationContact(input.registrationId);
+      return {
+        fullName: contact.fullName,
+        email: contact.email,
+        subject: input.subject,
+        body: input.body,
+      };
+    },
+    run: async (input) => {
+      await registrationsService.sendEmailToRegistration(input.registrationId, input.subject, input.body);
+      return { registrationId: input.registrationId, channel: 'email', sent: true };
+    },
+  }),
+  tool({
+    name: 'propose_call_registration',
+    description:
+      'Propose placing a real outbound phone call to a registrant, in which the AI voice agent reads a staff-composed message aloud. This dials an actual phone call and costs money — only prepares a confirmation card, never dials itself.',
+    inputSchema: z.object({ registrationId: z.string(), message: z.string().min(1).max(600) }),
+    trust: { kind: 'staff', roles: ['admin', 'marketing'] },
+    mode: 'write-confirm',
+    surfaces: ['assistant'],
+    buildPreview: async (input) => {
+      const contact = await registrationsService.getRegistrationContact(input.registrationId);
+      return { fullName: contact.fullName, phone: contact.phone, message: input.message };
+    },
+    run: async (input) => {
+      const result = await voiceService.callRegistrationAdHoc(input.registrationId, input.message);
+      return { registrationId: input.registrationId, channel: 'call', vapiCallId: result.vapiCallId };
+    },
+  }),
+  tool({
+    name: 'search_registrations',
+    description:
+      'Search/filter registrations by course, batch, payment status, registration status, or free text (name/email/phone), to find a specific registrant before messaging them.',
+    inputSchema: z.object({
+      courseId: z.string().optional(),
+      batchId: z.string().optional(),
+      paymentStatus: z.enum(['Unpaid', 'Part Payment', 'Paid']).optional(),
+      registrationStatus: z.enum(['Registered', 'Confirmed', 'Attended', 'Cancelled']).optional(),
+      search: z.string().max(200).optional(),
+      limit: z.number().int().min(1).max(50).optional(),
+    }),
+    trust: { kind: 'staff', roles: STAFF_ALL },
+    mode: 'read',
+    surfaces: ['assistant'],
+    run: async (input) => {
+      const { registrations } = await registrationsService.listRegistrations({
+        courseId: input.courseId,
+        batchId: input.batchId,
+        paymentStatus: input.paymentStatus,
+        registrationStatus: input.registrationStatus,
+        search: input.search,
+        page: 1,
+        limit: input.limit ?? 20,
+      });
+      return registrations.map((r) => ({
+        registrationId: r.id,
+        participantName: r.fullName,
+        email: r.email,
+        phone: r.phone,
+        courseName: r.courseName,
+        cohortLabel: r.cohortLabel,
+        paymentStatus: r.paymentStatus,
+        registrationStatus: r.registrationStatus,
+      }));
+    },
+  }),
+  tool({
     name: 'propose_create_campaign',
     description:
-      'Propose creating a new campaign (name, channel, message, audience filters by lead source/status/minimum score) as a draft. Only prepares a confirmation card — never creates it itself. Does not queue or send — use propose_queue_and_send_campaign afterward for that, as a separate confirmation.',
+      'Propose creating a new campaign as a draft, targeting either leads (filtered by lead source/status/minimum score) or registrations (filtered by batch/course/payment status/registration status) — set audienceType to pick which. Only prepares a confirmation card — never creates it itself. Does not queue or send — use propose_queue_and_send_campaign afterward for that, as a separate confirmation.',
     inputSchema: z.object({
       name: z.string().min(2).max(200),
       channel: z.enum(['email', 'whatsapp', 'sms']),
       messageSubject: z.string().max(200).optional(),
       messageBody: z.string().min(1),
+      audienceType: z.enum(['leads', 'registrations']).default('leads'),
+      // Meaningful only when audienceType is 'leads'.
       filterLeadSource: z.enum(['WhatsApp', 'Facebook', 'LinkedIn', 'Referral', 'Website', 'Other']).optional(),
       filterStatus: z.string().optional(),
       filterMinScore: z.number().optional(),
+      // Meaningful only when audienceType is 'registrations'.
+      filterBatchId: z.string().optional(),
+      filterCourseId: z.string().optional(),
+      filterPaymentStatus: z.enum(['Unpaid', 'Part Payment', 'Paid']).optional(),
+      filterRegistrationStatus: z.enum(['Registered', 'Confirmed', 'Attended', 'Cancelled']).optional(),
     }),
     trust: { kind: 'staff', roles: ['admin', 'marketing'] },
     mode: 'write-confirm',
     surfaces: ['assistant'],
     buildPreview: async (input) => {
+      if (input.audienceType === 'registrations') {
+        const { registrations } = await registrationsService.listRegistrations({
+          batchId: input.filterBatchId,
+          courseId: input.filterCourseId,
+          paymentStatus: input.filterPaymentStatus,
+          registrationStatus: input.filterRegistrationStatus,
+          page: 1,
+          limit: 500,
+        });
+        return {
+          name: input.name,
+          channel: input.channel,
+          audienceType: input.audienceType,
+          filterBatchId: input.filterBatchId ?? null,
+          filterCourseId: input.filterCourseId ?? null,
+          filterPaymentStatus: input.filterPaymentStatus ?? null,
+          filterRegistrationStatus: input.filterRegistrationStatus ?? null,
+          matchedLeadCount: registrations.length,
+        };
+      }
       const leads = await leadsService.listLeads();
       const matchedLeadCount = leads.filter(
         (lead) =>
@@ -518,6 +642,7 @@ export const AGENT_TOOLS: AgentTool[] = [
       return {
         name: input.name,
         channel: input.channel,
+        audienceType: input.audienceType,
         filterLeadSource: input.filterLeadSource ?? null,
         filterStatus: input.filterStatus ?? null,
         filterMinScore: input.filterMinScore ?? null,

@@ -942,11 +942,16 @@ export type Database = {
       }
       campaigns: {
         Row: {
+          audience_type: string
           channel: string
           created_at: string
           created_by: string | null
+          filter_batch_id: string | null
+          filter_course_id: string | null
           filter_lead_source: string | null
           filter_min_score: number | null
+          filter_payment_status: string | null
+          filter_registration_status: string | null
           filter_status: string | null
           id: string
           message_body: string
@@ -957,11 +962,16 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          audience_type?: string
           channel: string
           created_at?: string
           created_by?: string | null
+          filter_batch_id?: string | null
+          filter_course_id?: string | null
           filter_lead_source?: string | null
           filter_min_score?: number | null
+          filter_payment_status?: string | null
+          filter_registration_status?: string | null
           filter_status?: string | null
           id?: string
           message_body: string
@@ -972,11 +982,16 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          audience_type?: string
           channel?: string
           created_at?: string
           created_by?: string | null
+          filter_batch_id?: string | null
+          filter_course_id?: string | null
           filter_lead_source?: string | null
           filter_min_score?: number | null
+          filter_payment_status?: string | null
+          filter_registration_status?: string | null
           filter_status?: string | null
           id?: string
           message_body?: string
@@ -994,6 +1009,20 @@ export type Database = {
             referencedRelation: "staff_users"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "campaigns_filter_batch_id_fkey"
+            columns: ["filter_batch_id"]
+            isOneToOne: false
+            referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaigns_filter_course_id_fkey"
+            columns: ["filter_course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
         ]
       }
       campaign_members: {
@@ -1001,8 +1030,9 @@ export type Database = {
           campaign_id: string
           created_at: string
           id: string
-          lead_id: string
+          lead_id: string | null
           preview_message: string
+          registration_id: string | null
           send_error: string | null
           sent_at: string | null
         }
@@ -1010,8 +1040,9 @@ export type Database = {
           campaign_id: string
           created_at?: string
           id?: string
-          lead_id: string
+          lead_id?: string | null
           preview_message: string
+          registration_id?: string | null
           send_error?: string | null
           sent_at?: string | null
         }
@@ -1019,8 +1050,9 @@ export type Database = {
           campaign_id?: string
           created_at?: string
           id?: string
-          lead_id?: string
+          lead_id?: string | null
           preview_message?: string
+          registration_id?: string | null
           send_error?: string | null
           sent_at?: string | null
         }
@@ -1037,6 +1069,13 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_members_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
             referencedColumns: ["id"]
           },
         ]

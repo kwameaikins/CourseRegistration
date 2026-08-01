@@ -3,7 +3,9 @@ import { sendSmsMessage } from '@/lib/arkesel/client';
 import { AppError } from '@/lib/errors';
 import * as campaignsRepository from '@/modules/campaigns/repository';
 import * as leadsService from '@/modules/leads/service';
+import * as registrationsService from '@/modules/registrations/service';
 import type { Lead } from '@/modules/leads/types';
+import type { PaymentStatus, RegistrationStatus } from '@/lib/domain/types';
 import type {
   Campaign,
   CampaignMember,
@@ -33,9 +35,14 @@ function toCampaign(row: CampaignRow): Campaign {
     channel: row.channel as Campaign['channel'],
     messageSubject: row.message_subject,
     messageBody: row.message_body,
+    audienceType: (row.audience_type as Campaign['audienceType']) ?? 'leads',
     filterLeadSource: row.filter_lead_source,
     filterStatus: row.filter_status,
     filterMinScore: row.filter_min_score,
+    filterBatchId: row.filter_batch_id ?? null,
+    filterCourseId: row.filter_course_id ?? null,
+    filterPaymentStatus: row.filter_payment_status ?? null,
+    filterRegistrationStatus: row.filter_registration_status ?? null,
     status: row.status as Campaign['status'],
     createdBy: row.created_by,
     queuedAt: row.queued_at,
@@ -49,6 +56,7 @@ function toCampaignMember(row: CampaignMemberRow): CampaignMember {
     id: row.id,
     campaignId: row.campaign_id,
     leadId: row.lead_id,
+    registrationId: row.registration_id ?? null,
     previewMessage: row.preview_message,
     sentAt: row.sent_at,
     sendError: row.send_error,
@@ -65,14 +73,25 @@ function toSendSetting(row: CampaignSendSettingRow): CampaignSendSettings {
   };
 }
 
+// A campaign recipient, whichever audience it came from — a Lead has
+// `company`, a registration doesn't (renders {{company}} empty for that
+// audience, same "unknown tokens left visible" philosophy as before).
+interface CampaignRecipient {
+  id: string;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  company?: string | null;
+}
+
 // Fills {{firstName}}, {{fullName}}, {{company}} tokens in campaign copy.
 // Unknown tokens are left as-is so typos remain visible in previews.
-function renderMessage(template: string, lead: Lead): string {
-  const firstName = lead.fullName.trim().split(/\s+/)[0] ?? lead.fullName;
+function renderMessage(template: string, recipient: CampaignRecipient): string {
+  const firstName = recipient.fullName.trim().split(/\s+/)[0] ?? recipient.fullName;
   return template
     .replaceAll('{{firstName}}', firstName)
-    .replaceAll('{{fullName}}', lead.fullName)
-    .replaceAll('{{company}}', lead.company ?? '');
+    .replaceAll('{{fullName}}', recipient.fullName)
+    .replaceAll('{{company}}', recipient.company ?? '');
 }
 
 function renderHtml(message: string): string {
@@ -99,6 +118,32 @@ async function matchLeads(campaign: Campaign): Promise<Lead[]> {
     }
     return true;
   });
+}
+
+async function matchRegistrations(campaign: Campaign): Promise<CampaignRecipient[]> {
+  const { registrations } = await registrationsService.listRegistrations({
+    batchId: campaign.filterBatchId ?? undefined,
+    courseId: campaign.filterCourseId ?? undefined,
+    paymentStatus: (campaign.filterPaymentStatus as PaymentStatus | null) ?? undefined,
+    registrationStatus:
+      (campaign.filterRegistrationStatus as RegistrationStatus | null) ?? undefined,
+    page: 1,
+    limit: 500,
+  });
+  return registrations.map((r) => ({
+    id: r.id,
+    fullName: r.fullName,
+    email: r.email,
+    phone: r.phone,
+  }));
+}
+
+// Resolves a campaign's matched audience regardless of which type it targets
+// — leads keep their richer Lead shape for renderMessage's {{company}}
+// token, registrations map down to the shared CampaignRecipient shape.
+async function matchAudience(campaign: Campaign): Promise<CampaignRecipient[]> {
+  if (campaign.audienceType === 'registrations') return matchRegistrations(campaign);
+  return matchLeads(campaign);
 }
 
 export async function createCampaign(
@@ -143,13 +188,13 @@ export async function updateSendSetting(
 // without persisting anything or contacting any provider.
 export async function previewCampaign(id: string): Promise<CampaignPreview> {
   const campaign = await getCampaignById(id);
-  const matched = await matchLeads(campaign);
+  const matched = await matchAudience(campaign);
   return {
     matchedLeadCount: matched.length,
-    sample: matched.slice(0, 5).map((lead) => ({
-      leadId: lead.id,
-      leadName: lead.fullName,
-      previewMessage: renderMessage(campaign.messageBody, lead),
+    sample: matched.slice(0, 5).map((recipient) => ({
+      leadId: recipient.id,
+      leadName: recipient.fullName,
+      previewMessage: renderMessage(campaign.messageBody, recipient),
     })),
   };
 }
@@ -161,15 +206,20 @@ export async function queueCampaign(id: string): Promise<Campaign> {
     throw new AppError('CONFLICT', 'Campaign has already been queued.', 409);
   }
 
-  const matched = await matchLeads(campaign);
+  const isRegistrationAudience = campaign.audienceType === 'registrations';
+  const matched = await matchAudience(campaign);
   if (matched.length === 0) {
-    throw new AppError('NO_MATCHING_LEADS', "No leads match this campaign's filters.", 400);
+    throw new AppError(
+      isRegistrationAudience ? 'NO_MATCHING_REGISTRATIONS' : 'NO_MATCHING_LEADS',
+      `No ${isRegistrationAudience ? 'registrations' : 'leads'} match this campaign's filters.`,
+      400,
+    );
   }
 
-  const memberRows = matched.map((lead) => ({
+  const memberRows = matched.map((recipient) => ({
     campaign_id: campaign.id,
-    lead_id: lead.id,
-    preview_message: renderMessage(campaign.messageBody, lead),
+    ...(isRegistrationAudience ? { registration_id: recipient.id } : { lead_id: recipient.id }),
+    preview_message: renderMessage(campaign.messageBody, recipient),
   }));
   await campaignsRepository.insertCampaignMembers(memberRows);
 
@@ -228,8 +278,9 @@ export async function sendCampaign(
     );
   }
 
-  const leads = await leadsService.listLeads();
-  const leadById = new Map(leads.map((lead) => [lead.id, lead]));
+  const isRegistrationAudience = campaign.audienceType === 'registrations';
+  const recipients = await matchAudience(campaign);
+  const recipientById = new Map(recipients.map((recipient) => [recipient.id, recipient]));
   let sent = 0;
   let failed = 0;
 
@@ -238,13 +289,15 @@ export async function sendCampaign(
       sent += 1;
       continue;
     }
-    const lead = leadById.get(member.lead_id);
-    const destination = campaign.channel === 'email' ? lead?.email : lead?.phone;
+    const recipient = recipientById.get(
+      (isRegistrationAudience ? member.registration_id : member.lead_id) ?? '',
+    );
+    const destination = campaign.channel === 'email' ? recipient?.email : recipient?.phone;
     if (!destination) {
       failed += 1;
       await campaignsRepository.markCampaignMemberFailed(
         member.id,
-        `Lead has no ${campaign.channel === 'email' ? 'email address' : 'phone number'}.`,
+        `${isRegistrationAudience ? 'Registrant' : 'Lead'} has no ${campaign.channel === 'email' ? 'email address' : 'phone number'}.`,
       );
       continue;
     }

@@ -414,7 +414,7 @@ describe('student-support tools (2026-07-27)', () => {
     );
 
     expect(campaignsServiceMock.createCampaign).toHaveBeenCalledWith(
-      { name: 'Test', channel: 'sms', messageBody: 'Hi' },
+      { name: 'Test', channel: 'sms', messageBody: 'Hi', audienceType: 'leads' },
       'staff-admin-1',
     );
     expect(result).toEqual({ id: 'camp-1', status: 'draft' });

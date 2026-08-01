@@ -8,6 +8,7 @@ import {
 import { AppError } from '@/lib/errors';
 import { stringifyCsv } from '@/lib/csv';
 import { sendTransactionalEmail } from '@/lib/resend/client';
+import { sendSmsMessage } from '@/lib/arkesel/client';
 import { effectiveCourseFee } from '@/lib/utils';
 import * as registrationsRepository from '@/modules/registrations/repository';
 import * as coursesService from '@/modules/courses/service';
@@ -765,6 +766,51 @@ function shapeRegistration360ForRole(
   }
 
   return view;
+}
+
+// Ad-hoc registrant messaging (2026-08-01, Admin Assistant tools) — a
+// free-text send to one registrant's participant contact info, mirroring
+// leadsService.sendSmsToLead/sendEmailToLead exactly, including not being
+// logged to email_log/sms_log (those are registration-scoped template-pipeline
+// tables with a closed send-once dedup key, not a fit for free-text ad-hoc
+// sends). The audit trail is staff_action_audit_log, keyed automatically off
+// this registrationId field.
+export async function getRegistrationContact(registrationId: string): Promise<{
+  registrationId: string;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+}> {
+  const data = await registrationsRepository.selectRegistration360(registrationId);
+  if (!data || !data.participant) {
+    throw new AppError('NOT_FOUND', 'Registration not found.', 404);
+  }
+  return {
+    registrationId,
+    fullName: data.participant.full_name,
+    email: data.participant.email,
+    phone: data.participant.phone,
+  };
+}
+
+export async function sendSmsToRegistration(registrationId: string, message: string): Promise<void> {
+  const contact = await getRegistrationContact(registrationId);
+  if (!contact.phone) {
+    throw new AppError('VALIDATION_ERROR', 'This registrant has no phone number on file.', 400);
+  }
+  await sendSmsMessage({ toPhone: contact.phone, message });
+}
+
+export async function sendEmailToRegistration(
+  registrationId: string,
+  subject: string,
+  body: string,
+): Promise<void> {
+  const contact = await getRegistrationContact(registrationId);
+  if (!contact.email) {
+    throw new AppError('VALIDATION_ERROR', 'This registrant has no email address on file.', 400);
+  }
+  await sendTransactionalEmail({ to: contact.email, subject, html: body });
 }
 
 export async function updateNotes(registrationId: string, notes: string | null): Promise<void> {

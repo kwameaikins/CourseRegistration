@@ -445,6 +445,40 @@ Migrations `202607290037_tutor_action_audit_log.sql`, `202607290038_attendance_e
 
 ---
 
+## Registrant Messaging for the Admin Assistant (2026-08-01)
+
+Closed a gap: the Admin Assistant could message **leads** one-off and in bulk (campaigns), but
+had no equivalent for **registrations** — people who'd actually registered, as opposed to sales
+leads. Full parity added — see `Coding Docs/07_Integration_Specifications.md` §11.1/§11.2 for the
+new `ad_hoc` call type.
+
+Migrations `202607290040_ad_hoc_calls.sql`, `202607290041_registration_campaigns.sql`.
+
+- [x] `search_registrations` — new read tool: filter by course/batch/payment status/registration
+      status/free text, so the assistant can find a specific registrant to message
+- [x] `propose_send_sms_to_registration` / `propose_send_email_to_registration` — one-off
+      free-text sends to a registrant's participant contact info, same write-confirm pattern and
+      audit trail (`staff_action_audit_log`) as the existing lead versions; not logged to
+      `email_log`/`sms_log` (same precedent as leads — those tables are a closed-enum template
+      pipeline, not a fit for free text)
+- [x] `propose_call_registration` — new capability, no lead equivalent existed: triggers a real
+      Vapi outbound call reading a staff-composed message (`call_log.call_type = 'ad_hoc'`,
+      exempted from the one-call-per-type unique pair so a registrant can get more than one)
+- [x] `propose_create_campaign` extended with `audienceType: 'leads' | 'registrations'` — a
+      campaign can now target a filtered slice of registrations (batch/course/payment
+      status/registration status) instead of leads; `campaign_members.lead_id` is now nullable
+      alongside a new nullable `registration_id` (exactly one set, enforced by a CHECK constraint)
+- [ ] *(external, required before ad-hoc calls say anything)* Paste the `ad_hoc` branch into the
+      Vapi outbound assistant's dashboard prompt — see `07_Integration_Specifications.md` §11.3
+      for the exact text. Not deployable via migration or code; the call will dial fine without
+      it, the assistant just won't know what `ad_hoc` means yet.
+- [ ] *(external)* Apply migrations `202607290040`–`202607290041` to production
+      (`npx supabase db push`)
+- [ ] Not built (explicitly out of scope for this pass): a staff-UI messaging entry point outside
+      the Admin Assistant — matches how lead messaging already works, no dedicated page today
+
+---
+
 ## Risk watch (carried from `/docs/01_PRD.md` risk register)
 
 | ID | Risk | Status |

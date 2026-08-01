@@ -10,6 +10,13 @@ import { z } from 'zod';
 export const CAMPAIGN_CHANNELS = ['email', 'whatsapp', 'sms'] as const;
 export type CampaignChannel = (typeof CAMPAIGN_CHANNELS)[number];
 
+// A campaign targets exactly one audience: leads (Sales Pipeline) or
+// registrations (people who've actually registered for a course). The
+// filter* fields relevant to each audience are disjoint — see
+// createCampaignInputSchema.
+export const CAMPAIGN_AUDIENCE_TYPES = ['leads', 'registrations'] as const;
+export type CampaignAudienceType = (typeof CAMPAIGN_AUDIENCE_TYPES)[number];
+
 export const CAMPAIGN_STATUSES = ['draft', 'queued', 'sent'] as const;
 export type CampaignStatus = (typeof CAMPAIGN_STATUSES)[number];
 
@@ -27,9 +34,14 @@ export interface Campaign {
   channel: CampaignChannel;
   messageSubject: string | null;
   messageBody: string;
+  audienceType: CampaignAudienceType;
   filterLeadSource: string | null;
   filterStatus: string | null;
   filterMinScore: number | null;
+  filterBatchId: string | null;
+  filterCourseId: string | null;
+  filterPaymentStatus: string | null;
+  filterRegistrationStatus: string | null;
   status: CampaignStatus;
   createdBy: string | null;
   queuedAt: string | null;
@@ -40,7 +52,8 @@ export interface Campaign {
 export interface CampaignMember {
   id: string;
   campaignId: string;
-  leadId: string;
+  leadId: string | null;
+  registrationId: string | null;
   previewMessage: string;
   sentAt: string | null;
   sendError: string | null;
@@ -92,9 +105,16 @@ export const createCampaignInputSchema = z.object({
   channel: z.enum(CAMPAIGN_CHANNELS),
   messageSubject: z.string().trim().max(200).nullable().optional(),
   messageBody: z.string().trim().min(1).max(2000),
+  audienceType: z.enum(CAMPAIGN_AUDIENCE_TYPES).optional(),
+  // Meaningful only when audienceType is 'leads'.
   filterLeadSource: z.string().trim().max(50).nullable().optional(),
   filterStatus: z.string().trim().max(50).nullable().optional(),
   filterMinScore: z.coerce.number().int().min(0).max(100).nullable().optional(),
+  // Meaningful only when audienceType is 'registrations'.
+  filterBatchId: z.string().uuid().nullable().optional(),
+  filterCourseId: z.string().uuid().nullable().optional(),
+  filterPaymentStatus: z.string().trim().max(50).nullable().optional(),
+  filterRegistrationStatus: z.string().trim().max(50).nullable().optional(),
 });
 
 export type CreateCampaignInput = z.infer<typeof createCampaignInputSchema>;

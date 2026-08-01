@@ -43,6 +43,7 @@ const sendEmailOnceMock = vi.fn();
 const sendWhatsappOnceMock = vi.fn();
 const sendSmsOnceMock = vi.fn();
 const sendTransactionalEmailMock = vi.fn();
+const sendSmsMessageMock = vi.fn();
 
 vi.mock('@/modules/registrations/repository', () => registrationsRepositoryMock);
 vi.mock('@/modules/courses/service', () => coursesServiceMock);
@@ -60,6 +61,9 @@ vi.mock('@/modules/communications/service', () => ({
 vi.mock('@/lib/resend/client', () => ({
   sendTransactionalEmail: (...args: unknown[]) => sendTransactionalEmailMock(...args),
 }));
+vi.mock('@/lib/arkesel/client', () => ({
+  sendSmsMessage: (...args: unknown[]) => sendSmsMessageMock(...args),
+}));
 
 const {
   createRegistration,
@@ -70,6 +74,9 @@ const {
   transferRegistration,
   exportRegistrationsCsv,
   listRegistrations,
+  getRegistrationContact,
+  sendSmsToRegistration,
+  sendEmailToRegistration,
 } = await import('@/modules/registrations/service');
 const { registrationInputSchema } = await import('@/modules/registrations/types');
 
@@ -917,6 +924,83 @@ describe('listRegistrations — role-based field shaping (T-RLS-03)', () => {
     expect(registrations[0].verifiedBy).toBeUndefined();
   });
 
+});
+
+describe('registrant ad-hoc messaging (Admin Assistant tools, 2026-08-01)', () => {
+  function contactRow(overrides: Record<string, unknown> = {}) {
+    return {
+      registration: { id: 'reg-1' },
+      participant: {
+        full_name: 'Ama Owusu',
+        email: 'ama.owusu@example.com',
+        phone: '+233241234567',
+      },
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    registrationsRepositoryMock.selectRegistration360.mockResolvedValue(contactRow());
+  });
+
+  describe('getRegistrationContact', () => {
+    it('returns the participant contact info for a registration', async () => {
+      await expect(getRegistrationContact('reg-1')).resolves.toEqual({
+        registrationId: 'reg-1',
+        fullName: 'Ama Owusu',
+        email: 'ama.owusu@example.com',
+        phone: '+233241234567',
+      });
+    });
+
+    it('throws NOT_FOUND when the registration does not exist', async () => {
+      registrationsRepositoryMock.selectRegistration360.mockResolvedValue(null);
+      await expect(getRegistrationContact('missing')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    });
+  });
+
+  describe('sendSmsToRegistration', () => {
+    it('sends via Arkesel using the participant phone', async () => {
+      await sendSmsToRegistration('reg-1', 'Hello from Knowsia');
+      expect(sendSmsMessageMock).toHaveBeenCalledWith({
+        toPhone: '+233241234567',
+        message: 'Hello from Knowsia',
+      });
+    });
+
+    it('rejects when the registrant has no phone on file', async () => {
+      registrationsRepositoryMock.selectRegistration360.mockResolvedValue(
+        contactRow({ participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: null } }),
+      );
+      await expect(sendSmsToRegistration('reg-1', 'Hi')).rejects.toMatchObject({
+        code: 'VALIDATION_ERROR',
+      });
+      expect(sendSmsMessageMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('sendEmailToRegistration', () => {
+    it('sends via Resend using the participant email', async () => {
+      await sendEmailToRegistration('reg-1', 'Subject line', '<p>Body</p>');
+      expect(sendTransactionalEmailMock).toHaveBeenCalledWith({
+        to: 'ama.owusu@example.com',
+        subject: 'Subject line',
+        html: '<p>Body</p>',
+      });
+    });
+
+    it('rejects when the registrant has no email on file', async () => {
+      registrationsRepositoryMock.selectRegistration360.mockResolvedValue(
+        contactRow({
+          participant: { full_name: 'Ama Owusu', email: null, phone: '+233241234567' },
+        }),
+      );
+      await expect(sendEmailToRegistration('reg-1', 'Subject', 'Body')).rejects.toMatchObject({
+        code: 'VALIDATION_ERROR',
+      });
+      expect(sendTransactionalEmailMock).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe('AppError shape', () => {

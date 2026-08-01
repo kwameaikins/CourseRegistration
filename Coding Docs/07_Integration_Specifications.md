@@ -437,6 +437,7 @@ Registration per type — the `call_log` unique pair is reserved BEFORE dialing
 | `feedback_voice` | No feedback response 3 days after end_date; answers write into the same `feedback` table as the web form |
 | `upsell` | Feedback course-interest matches an open future batch the participant isn't on |
 | `inbound` | Calls to the business line (catalog Q&A, SMS the registration link, human-callback requests) |
+| `ad_hoc` | Staff-triggered from the Admin Assistant (`propose_call_registration`), immediately — not cron/window-scheduled. Carries a `custom_message` variable the assistant should read aloud verbatim. Exempted from the one-call-per-type unique pair (a registrant can receive more than one ad-hoc call over time). |
 
 ### 11.2 Architecture Split
 
@@ -495,6 +496,19 @@ flags, promised payment dates, and captured bank references.
 > {{pitch_fee}}; offer to send the registration link by SMS.
 > If anything needs a human, say the team will call back and flag it.
 > If the person is busy or uninterested, thank them warmly and end the call.
+> ad_hoc: A staff member has asked you to deliver a specific message to this
+> person on their behalf. After your normal greeting, say the following to
+> the caller — you may lightly rephrase for natural spoken flow, but do not
+> change its meaning, add claims, or omit any part of it: "{{custom_message}}".
+> Then ask if they have any questions. Answer briefly using only information
+> already given to you on this call; if you don't know something, offer to
+> have a staff member follow up rather than guessing at course details,
+> prices, or dates.
+
+**This `ad_hoc` branch must be added to the existing outbound assistant's
+dashboard prompt manually** (2026-08-01) — it is not deployed automatically
+by any migration or code change. Until it's added, `propose_call_registration`
+calls will dial successfully but the assistant won't know what to say.
 
 ### 11.4 Cost
 
