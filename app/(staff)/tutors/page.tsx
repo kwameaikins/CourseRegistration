@@ -16,7 +16,22 @@ interface TutorRow {
   batchCount: number;
 }
 
+interface TutorActivityRow {
+  id: string;
+  tutorName: string;
+  actionType: string;
+  createdAt: string;
+}
+
 const emptyForm = { fullName: '', email: '', phone: '' };
+
+const ACTION_LABELS: Record<string, string> = {
+  pin_changed: 'Changed their PIN',
+  contact_updated: 'Updated their contact details',
+  attendance_exception_raised: 'Flagged an attendance issue',
+  material_added: 'Added a material link',
+  material_removed: 'Removed a material link',
+};
 
 export default function TutorsPage() {
   const [tutors, setTutors] = useState<TutorRow[]>([]);
@@ -26,6 +41,7 @@ export default function TutorsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [activity, setActivity] = useState<TutorActivityRow[]>([]);
 
   async function loadTutors() {
     try {
@@ -38,6 +54,9 @@ export default function TutorsPage() {
 
   useEffect(() => {
     void loadTutors();
+    apiFetch<{ activity: TutorActivityRow[] }>('/api/tutors/activity')
+      .then((result) => setActivity(result.activity))
+      .catch(() => setActivity([]));
   }, []);
 
   async function createTutor() {
@@ -207,6 +226,30 @@ export default function TutorsPage() {
           </Table>
           {tutors.length === 0 && (
             <p className="py-4 text-sm text-muted-foreground">No tutors added yet.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Recent tutor activity</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {activity.length === 0 ? (
+            <p className="py-2 text-sm text-muted-foreground">No tutor-portal activity yet.</p>
+          ) : (
+            <ul className="space-y-2 text-sm">
+              {activity.map((entry) => (
+                <li key={entry.id} className="flex items-center justify-between border-b pb-2 last:border-b-0">
+                  <span>
+                    <strong>{entry.tutorName}</strong> — {ACTION_LABELS[entry.actionType] ?? entry.actionType}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(entry.createdAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
+                  </span>
+                </li>
+              ))}
+            </ul>
           )}
         </CardContent>
       </Card>

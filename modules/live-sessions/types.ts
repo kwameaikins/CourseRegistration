@@ -71,3 +71,23 @@ export const liveSessionUpdateSchema = z.object({
 
 export type LiveSessionInput = z.infer<typeof liveSessionInputSchema>;
 export type LiveSessionUpdate = z.infer<typeof liveSessionUpdateSchema>;
+
+// Session Materials (Tutor Portal Phase 4, founder-approved 2026-07-31) —
+// link-based, not a file upload (see modules/live-sessions/repository.ts).
+export interface SessionMaterial {
+  id: string;
+  batchId: string;
+  liveSessionId: string | null;
+  uploadedByTutorId: string | null;
+  title: string;
+  link: string;
+  createdAt: string;
+}
+
+export const addSessionMaterialSchema = z.object({
+  batchId: z.uuid(),
+  liveSessionId: z.uuid().nullable().optional(),
+  title: z.string().trim().min(2).max(200),
+  link: z.url().max(2000),
+});
+export type AddSessionMaterialInput = z.infer<typeof addSessionMaterialSchema>;

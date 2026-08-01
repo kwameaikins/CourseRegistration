@@ -23,21 +23,35 @@ const tutorsRepositoryMock = {
   selectCoursesByIdsSystem: vi.fn(),
   selectLiveSessionsForTutorSystem: vi.fn(),
   selectRosterForBatchSystem: vi.fn(),
+  selectRegisteredCountsForBatchesSystem: vi.fn(),
+  selectRegistrationBelongsToBatchSystem: vi.fn(),
+  insertTutorActionAuditLogSystem: vi.fn(),
+  selectRecentTutorActionAuditLogSystem: vi.fn(),
+  selectTutorNamesByIdsSystem: vi.fn(),
 };
 const usersServiceMock = {
   requireRole: vi.fn(),
 };
 const attendanceServiceMock = {
   getAttendanceForBatch: vi.fn(),
+  getAttendanceForBatchSystem: vi.fn(),
+  raiseAttendanceException: vi.fn(),
 };
 const certificatesServiceMock = {
   getBatchIssueContext: vi.fn(),
+};
+const liveSessionsServiceMock = {
+  addSessionMaterial: vi.fn(),
+  removeSessionMaterial: vi.fn(),
+  getSessionMaterialsForBatchSystem: vi.fn(),
+  getSessionMaterialsForBatch: vi.fn(),
 };
 
 vi.mock('@/modules/tutors/repository', () => tutorsRepositoryMock);
 vi.mock('@/modules/users/service', () => usersServiceMock);
 vi.mock('@/modules/attendance/service', () => attendanceServiceMock);
 vi.mock('@/modules/certificates/service', () => certificatesServiceMock);
+vi.mock('@/modules/live-sessions/service', () => liveSessionsServiceMock);
 
 const {
   listTutorsWithBatchCounts,
@@ -52,6 +66,10 @@ const {
   getRosterForBatch,
   getAttendanceForBatch,
   getCertificateEligibilityForBatch,
+  flagAttendanceException,
+  addMaterialForBatch,
+  removeMaterial,
+  listTutorActivity,
 } = await import('@/modules/tutors/service');
 
 const ADMIN_STAFF = { id: 'staff-1', fullName: 'Jane Doe', role: 'admin' };
@@ -83,6 +101,7 @@ function tutorAuthRow(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   usersServiceMock.requireRole.mockResolvedValue(ADMIN_STAFF);
+  tutorsRepositoryMock.selectRegisteredCountsForBatchesSystem.mockResolvedValue(new Map());
 });
 
 describe('listTutorsWithBatchCounts', () => {
@@ -323,6 +342,10 @@ describe('getTutorPortalDashboard', () => {
       },
     ]);
 
+    tutorsRepositoryMock.selectRegisteredCountsForBatchesSystem.mockResolvedValue(
+      new Map([['batch-1', 12]]),
+    );
+
     const dashboard = await getTutorPortalDashboard('session-1');
 
     expect(dashboard.batches).toEqual([
@@ -333,6 +356,7 @@ describe('getTutorPortalDashboard', () => {
         startDate: '2026-07-01',
         endDate: '2026-08-01',
         zoomLink: 'https://zoom.us/j/123',
+        registeredCount: 12,
       },
     ]);
     expect(dashboard.liveSessions).toHaveLength(1);
@@ -359,7 +383,7 @@ describe('batch-scoped reads reject a batch that does not belong to the calling 
   it('getAttendanceForBatch', async () => {
     tutorsRepositoryMock.selectBatchForTutorSystem.mockResolvedValue(null);
     await expect(getAttendanceForBatch('session-1', 'batch-not-mine')).rejects.toMatchObject({ code: 'NOT_FOUND' });
-    expect(attendanceServiceMock.getAttendanceForBatch).not.toHaveBeenCalled();
+    expect(attendanceServiceMock.getAttendanceForBatchSystem).not.toHaveBeenCalled();
   });
 
   it('getCertificateEligibilityForBatch', async () => {
@@ -395,5 +419,191 @@ describe('batch-scoped reads reject a batch that does not belong to the calling 
         registeredAt: '2026-07-01T00:00:00Z',
       },
     ]);
+  });
+
+  it('getAttendanceForBatch uses the service-role read, not the RLS-gated staff read', async () => {
+    tutorsRepositoryMock.selectBatchForTutorSystem.mockResolvedValue({ id: 'batch-1', facilitator_tutor_id: 'tutor-1' });
+    attendanceServiceMock.getAttendanceForBatchSystem.mockResolvedValue([]);
+
+    await getAttendanceForBatch('session-1', 'batch-1');
+
+    expect(attendanceServiceMock.getAttendanceForBatchSystem).toHaveBeenCalledWith('batch-1');
+    expect(attendanceServiceMock.getAttendanceForBatch).not.toHaveBeenCalled();
+  });
+});
+
+describe('flagAttendanceException (Tutor Portal Phase 4)', () => {
+  beforeEach(() => {
+    tutorsRepositoryMock.selectTutorSession.mockResolvedValue({
+      id: 'session-1',
+      tutor_id: 'tutor-1',
+      expires_at: '2099-01-01T00:00:00Z',
+      revoked_at: null,
+    });
+    tutorsRepositoryMock.selectBatchForTutorSystem.mockResolvedValue({ id: 'batch-1', facilitator_tutor_id: 'tutor-1' });
+  });
+
+  it('rejects a batch that does not belong to the calling tutor', async () => {
+    tutorsRepositoryMock.selectBatchForTutorSystem.mockResolvedValue(null);
+    await expect(
+      flagAttendanceException('session-1', {
+        registrationId: 'reg-1',
+        batchId: 'batch-not-mine',
+        sessionDate: '2026-07-01',
+        exceptionType: 'no_show_flag',
+        reason: 'No response on Zoom.',
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(attendanceServiceMock.raiseAttendanceException).not.toHaveBeenCalled();
+  });
+
+  it('rejects a registration that is not on this batch roster', async () => {
+    tutorsRepositoryMock.selectRegistrationBelongsToBatchSystem.mockResolvedValue(false);
+    await expect(
+      flagAttendanceException('session-1', {
+        registrationId: 'reg-not-on-batch',
+        batchId: 'batch-1',
+        sessionDate: '2026-07-01',
+        exceptionType: 'no_show_flag',
+        reason: 'No response on Zoom.',
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(attendanceServiceMock.raiseAttendanceException).not.toHaveBeenCalled();
+  });
+
+  it('raises the exception and logs the tutor action on the happy path', async () => {
+    tutorsRepositoryMock.selectRegistrationBelongsToBatchSystem.mockResolvedValue(true);
+    await flagAttendanceException('session-1', {
+      registrationId: 'reg-1',
+      batchId: 'batch-1',
+      sessionDate: '2026-07-01',
+      exceptionType: 'correction_request',
+      reason: 'Zoom dropped mid-class.',
+      requestedPresent: true,
+    });
+
+    expect(attendanceServiceMock.raiseAttendanceException).toHaveBeenCalledWith({
+      registrationId: 'reg-1',
+      batchId: 'batch-1',
+      sessionDate: '2026-07-01',
+      exceptionType: 'correction_request',
+      reason: 'Zoom dropped mid-class.',
+      requestedPresent: true,
+      raisedByTutorId: 'tutor-1',
+    });
+    expect(tutorsRepositoryMock.insertTutorActionAuditLogSystem).toHaveBeenCalledWith(
+      expect.objectContaining({ tutor_id: 'tutor-1', action_type: 'attendance_exception_raised' }),
+    );
+  });
+});
+
+describe('Session Materials (Tutor Portal Phase 4)', () => {
+  beforeEach(() => {
+    tutorsRepositoryMock.selectTutorSession.mockResolvedValue({
+      id: 'session-1',
+      tutor_id: 'tutor-1',
+      expires_at: '2099-01-01T00:00:00Z',
+      revoked_at: null,
+    });
+    tutorsRepositoryMock.selectBatchForTutorSystem.mockResolvedValue({ id: 'batch-1', facilitator_tutor_id: 'tutor-1' });
+  });
+
+  it('addMaterialForBatch rejects a batch that does not belong to the calling tutor', async () => {
+    tutorsRepositoryMock.selectBatchForTutorSystem.mockResolvedValue(null);
+    await expect(
+      addMaterialForBatch('session-1', { batchId: 'batch-not-mine', title: 'Slides', link: 'https://example.com/x' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(liveSessionsServiceMock.addSessionMaterial).not.toHaveBeenCalled();
+  });
+
+  it('addMaterialForBatch adds the material scoped to the tutor and logs the action', async () => {
+    liveSessionsServiceMock.addSessionMaterial.mockResolvedValue({ id: 'mat-1' });
+    await addMaterialForBatch('session-1', {
+      batchId: 'batch-1',
+      title: 'Session 3 slides',
+      link: 'https://example.com/slides',
+    });
+
+    expect(liveSessionsServiceMock.addSessionMaterial).toHaveBeenCalledWith({
+      batchId: 'batch-1',
+      liveSessionId: null,
+      uploadedByTutorId: 'tutor-1',
+      title: 'Session 3 slides',
+      link: 'https://example.com/slides',
+    });
+    expect(tutorsRepositoryMock.insertTutorActionAuditLogSystem).toHaveBeenCalledWith(
+      expect.objectContaining({ tutor_id: 'tutor-1', action_type: 'material_added' }),
+    );
+  });
+
+  it('removeMaterial delegates ownership enforcement to liveSessionsService', async () => {
+    await removeMaterial('session-1', 'mat-1', 'batch-1');
+    expect(liveSessionsServiceMock.removeSessionMaterial).toHaveBeenCalledWith('mat-1', 'tutor-1');
+  });
+});
+
+describe('listTutorActivity (staff-facing)', () => {
+  it('requires admin or management and resolves tutor names', async () => {
+    tutorsRepositoryMock.selectRecentTutorActionAuditLogSystem.mockResolvedValue([
+      {
+        id: 'log-1',
+        tutor_id: 'tutor-1',
+        action_type: 'pin_changed',
+        target_batch_id: null,
+        details: {},
+        created_at: '2026-07-31T00:00:00Z',
+      },
+    ]);
+    tutorsRepositoryMock.selectTutorNamesByIdsSystem.mockResolvedValue([
+      { id: 'tutor-1', full_name: 'Kwame Asante' },
+    ]);
+
+    const activity = await listTutorActivity();
+
+    expect(usersServiceMock.requireRole).toHaveBeenCalledWith(['admin', 'management']);
+    expect(activity).toEqual([
+      {
+        id: 'log-1',
+        tutorId: 'tutor-1',
+        tutorName: 'Kwame Asante',
+        actionType: 'pin_changed',
+        targetBatchId: null,
+        details: {},
+        createdAt: '2026-07-31T00:00:00Z',
+      },
+    ]);
+  });
+});
+
+describe('tutor action audit logging on existing self-service actions', () => {
+  it('changeTutorPin logs pin_changed', async () => {
+    tutorsRepositoryMock.selectTutorSession.mockResolvedValue({
+      id: 'session-1',
+      tutor_id: 'tutor-1',
+      expires_at: '2099-01-01T00:00:00Z',
+      revoked_at: null,
+    });
+    tutorsRepositoryMock.selectTutorAuth.mockResolvedValue(tutorAuthRow());
+
+    await changeTutorPin('session-1', { currentPin: '1941', newPin: '5678' });
+
+    expect(tutorsRepositoryMock.insertTutorActionAuditLogSystem).toHaveBeenCalledWith(
+      expect.objectContaining({ tutor_id: 'tutor-1', action_type: 'pin_changed' }),
+    );
+  });
+
+  it('updateTutorContact logs contact_updated', async () => {
+    tutorsRepositoryMock.selectTutorSession.mockResolvedValue({
+      id: 'session-1',
+      tutor_id: 'tutor-1',
+      expires_at: '2099-01-01T00:00:00Z',
+      revoked_at: null,
+    });
+
+    await updateTutorContact('session-1', { fullName: 'New Name', phone: '0207654321' });
+
+    expect(tutorsRepositoryMock.insertTutorActionAuditLogSystem).toHaveBeenCalledWith(
+      expect.objectContaining({ tutor_id: 'tutor-1', action_type: 'contact_updated' }),
+    );
   });
 });

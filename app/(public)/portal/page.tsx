@@ -90,6 +90,13 @@ interface MessageHistoryEntry {
   success: boolean;
 }
 
+interface SessionMaterialEntry {
+  id: string;
+  title: string;
+  link: string;
+  createdAt: string;
+}
+
 interface OtherCourse {
   batchId: string;
   courseName: string;
@@ -161,7 +168,12 @@ export default function PortalDashboardPage() {
   const [messagesByRegistration, setMessagesByRegistration] = useState<
     Record<string, MessageHistoryEntry[] | 'loading'>
   >({});
-  const [courseTab, setCourseTab] = useState<Record<string, 'attendance' | 'messages' | 'feedback'>>({});
+  const [materialsByRegistration, setMaterialsByRegistration] = useState<
+    Record<string, SessionMaterialEntry[] | 'loading'>
+  >({});
+  const [courseTab, setCourseTab] = useState<
+    Record<string, 'attendance' | 'messages' | 'materials' | 'feedback'>
+  >({});
 
   const [otherCourses, setOtherCourses] = useState<OtherCourse[]>([]);
 
@@ -184,6 +196,13 @@ export default function PortalDashboardPage() {
     apiFetch<MessageHistoryEntry[]>(`/api/portal/messages/${registrationId}`)
       .then((messages) => setMessagesByRegistration((current) => ({ ...current, [registrationId]: messages })))
       .catch(() => setMessagesByRegistration((current) => ({ ...current, [registrationId]: [] })));
+  }, []);
+
+  const fetchMaterials = useCallback((registrationId: string) => {
+    setMaterialsByRegistration((current) => ({ ...current, [registrationId]: 'loading' }));
+    apiFetch<SessionMaterialEntry[]>(`/api/portal/materials/${registrationId}`)
+      .then((materials) => setMaterialsByRegistration((current) => ({ ...current, [registrationId]: materials })))
+      .catch(() => setMaterialsByRegistration((current) => ({ ...current, [registrationId]: [] })));
   }, []);
 
   useEffect(() => {
@@ -515,6 +534,7 @@ export default function PortalDashboardPage() {
                 {dashboard.registrations.map((reg) => {
                   const activeCert = reg.certificates.find((c) => !c.revoked);
                   const messages = messagesByRegistration[reg.registrationId];
+                  const materials = materialsByRegistration[reg.registrationId];
                   return (
                     <article key={reg.registrationId} className="course-card">
                       <div className="head">
@@ -673,6 +693,16 @@ export default function PortalDashboardPage() {
                             Messages
                           </button>
                           <button
+                            className={courseTab[reg.registrationId] === 'materials' ? 'active' : ''}
+                            type="button"
+                            onClick={() => {
+                              setCourseTab((cur) => ({ ...cur, [reg.registrationId]: 'materials' }));
+                              if (!materials) fetchMaterials(reg.registrationId);
+                            }}
+                          >
+                            Materials
+                          </button>
+                          <button
                             className={courseTab[reg.registrationId] === 'feedback' ? 'active' : ''}
                             type="button"
                             onClick={() => setCourseTab((cur) => ({ ...cur, [reg.registrationId]: 'feedback' }))}
@@ -698,6 +728,7 @@ export default function PortalDashboardPage() {
                             )
                           )}
                           {courseTab[reg.registrationId] === 'messages' && <MessageList entry={messages} />}
+                          {courseTab[reg.registrationId] === 'materials' && <MaterialsList entry={materials} />}
                           {courseTab[reg.registrationId] === 'feedback' && (
                             reg.feedbackSubmitted ? (
                               <p className="fb-submitted">
@@ -1016,6 +1047,22 @@ function MessageList({ entry }: { entry: MessageHistoryEntry[] | 'loading' | und
         </div>
       ))}
     </div>
+  );
+}
+
+function MaterialsList({ entry }: { entry: SessionMaterialEntry[] | 'loading' | undefined }) {
+  if (entry === undefined) return <p className="empty-note">Loading…</p>;
+  if (entry === 'loading') return <p className="empty-note">Loading…</p>;
+  if (entry.length === 0) return <p className="empty-note">No materials shared yet.</p>;
+  return (
+    <ul className="att-list">
+      {entry.map((material) => (
+        <li key={material.id}>
+          <a href={material.link} target="_blank" rel="noreferrer">{material.title}</a>
+          <span className="duration">{formatDate(material.createdAt)}</span>
+        </li>
+      ))}
+    </ul>
   );
 }
 

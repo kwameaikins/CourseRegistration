@@ -413,6 +413,38 @@ batches.facilitator_tutor_id, live_sessions.tutor_id, drops the 4 dead tutor RLS
 
 ---
 
+## Tutor Portal — Phase 4 (founder-approved 2026-07-31, foundation shipped)
+
+A follow-up review of "what access should a tutor have" against best practice and the original
+Live Learning Operations vision. See `Coding Docs/16_Tutor_Operations.md` §11 for the full
+breakdown of what shipped vs. what's deferred, and why.
+
+Migrations `202607290037_tutor_action_audit_log.sql`, `202607290038_attendance_exceptions.sql`,
+`202607290039_session_materials.sql`.
+
+- [x] Tutor action audit log — every tutor-portal self-service write is now logged
+      (`tutor_action_audit_log`); staff view on `/tutors`
+- [x] Attendance Exceptions — tutor-raised no-show flags and correction requests, admin-reviewed
+      on `/attendance`; BR-34 unchanged (a tutor never writes to `attendance` directly)
+- [x] Session Materials — tutor-shared material links per batch (link-based, no file storage,
+      same precedent as `batches.resources_link`), visible on `/live-sessions` (staff) and the
+      student portal's new Materials tab
+- [x] Registered-student count surfaced on the tutor's batch selector (not a payment field)
+- [x] Bug fix: tutor-portal Attendance panel was silently empty (RLS-gated client used for a
+      caller with no Supabase Auth session) — added a service-role read path
+- [ ] *(founder decision needed)* Tutor payment/financial visibility — requested mid-build,
+      reverses BR-33; scope undecided (aggregate batch total vs. per-student amounts) — do not
+      build without explicit sign-off on scope
+- [ ] *(external)* Apply migrations `202607290037`–`202607290039` to production
+      (`npx supabase db push`)
+- [ ] Deferred, no shape committed except where noted: recording release (link-based, like
+      Materials), learner follow-up notes, substitute handover, availability/blackout dates,
+      tutor→roster messaging (**suspended** — moderation mode undecided), tutor compensation
+      tracking (**shape decided** — full rate-based, but deferred; no payable-session rule exists
+      yet)
+
+---
+
 ## Risk watch (carried from `/docs/01_PRD.md` risk register)
 
 | ID | Risk | Status |

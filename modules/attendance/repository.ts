@@ -159,12 +159,12 @@ export async function upsertAttendance(row: {
   if (error) throw error;
 }
 
-// Staff-facing read (RLS enforces admin/management) with participant names
-// resolved for display.
-export async function selectAttendanceForBatch(batchId: string): Promise<
-  Array<AttendanceRow & { participant_name: string; participant_email: string }>
-> {
-  const supabase = await createSupabaseServerClient();
+// Shared shaping logic for both the staff (RLS) and system (service-role,
+// tutor-portal) reads below — same query, different client/auth context.
+async function selectAttendanceForBatchWithClient(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>> | ReturnType<typeof createSupabaseServiceRoleClient>,
+  batchId: string,
+): Promise<Array<AttendanceRow & { participant_name: string; participant_email: string }>> {
   const { data: registrations, error: regError } = await supabase
     .from('registrations')
     .select('id, participants(full_name, email)')
@@ -197,4 +197,156 @@ export async function selectAttendanceForBatch(batchId: string): Promise<
     participant_name: infoByRegistration.get(row.registration_id)?.name ?? '',
     participant_email: infoByRegistration.get(row.registration_id)?.email ?? '',
   }));
+}
+
+// Staff-facing read (RLS enforces admin/management) with participant names
+// resolved for display.
+export async function selectAttendanceForBatch(batchId: string): Promise<
+  Array<AttendanceRow & { participant_name: string; participant_email: string }>
+> {
+  const supabase = await createSupabaseServerClient();
+  return selectAttendanceForBatchWithClient(supabase, batchId);
+}
+
+// Tutor-portal read: the tutor-portal session is not a Supabase Auth
+// session, so the RLS-gated client above would silently return zero rows
+// for these callers (staff_read_attendance is `to authenticated` only).
+// Same posture as modules/tutors' `...System` reads and
+// modules/certificates' selectBatchIssueContext.
+export async function selectAttendanceForBatchSystem(batchId: string): Promise<
+  Array<AttendanceRow & { participant_name: string; participant_email: string }>
+> {
+  const supabase = createSupabaseServiceRoleClient();
+  return selectAttendanceForBatchWithClient(supabase, batchId);
+}
+
+export async function insertAttendanceExceptionSystem(row: {
+  registration_id: string;
+  batch_id: string;
+  session_date: string;
+  exception_type: 'no_show_flag' | 'correction_request';
+  raised_by_tutor_id: string;
+  requested_present: boolean | null;
+  reason: string;
+}): Promise<Database['public']['Tables']['attendance_exceptions']['Row']> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('attendance_exceptions')
+    .insert(row)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// Staff review (RLS enforces admin/management, same as the /attendance screen).
+export async function selectAttendanceExceptions(filters?: { status?: string }): Promise<
+  Array<Database['public']['Tables']['attendance_exceptions']['Row']>
+> {
+  const supabase = await createSupabaseServerClient();
+  let query = supabase.from('attendance_exceptions').select('*').order('created_at', { ascending: false });
+  if (filters?.status) query = query.eq('status', filters.status);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function selectAttendanceExceptionById(
+  id: string,
+): Promise<Database['public']['Tables']['attendance_exceptions']['Row'] | null> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('attendance_exceptions')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateAttendanceExceptionById(
+  id: string,
+  changes: {
+    status: 'approved' | 'rejected';
+    reviewed_by: string;
+    reviewed_at: string;
+    review_note: string | null;
+  },
+): Promise<Database['public']['Tables']['attendance_exceptions']['Row']> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('attendance_exceptions')
+    .update(changes)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// Resolves participant name/email for a batch of exception rows — same
+// pattern as selectAttendanceForBatch's registration -> participant join,
+// used by the staff review screen.
+export async function selectParticipantInfoForRegistrations(
+  registrationIds: string[],
+): Promise<Map<string, { name: string; email: string }>> {
+  if (registrationIds.length === 0) return new Map();
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('registrations')
+    .select('id, participants(full_name, email)')
+    .in('id', registrationIds);
+  if (error) throw error;
+  return new Map(
+    (data ?? []).map((r) => {
+      const participant = Array.isArray(r.participants) ? r.participants[0] : r.participants;
+      return [
+        r.id,
+        {
+          name: (participant as { full_name?: string } | null)?.full_name ?? '',
+          email: (participant as { email?: string } | null)?.email ?? '',
+        },
+      ];
+    }),
+  );
+}
+
+// Applies an approved correction_request to `attendance` — the only
+// tutor-adjacent write path that ever touches this table outside the
+// nightly Zoom-sync cron (BR-34: the write itself is admin-authorized,
+// never a direct tutor write). Marks source = 'manual_correction' so it's
+// distinguishable from cron-written rows.
+//
+// Certificate eligibility and the attendance-percent calculation
+// (modules/certificates/repository.ts) count *row existence* per
+// registration/session_date, not duration_minutes — so marking someone
+// absent must delete the row, not zero its duration (a zeroed row would
+// still count as attended).
+export async function applyManualAttendanceCorrection(row: {
+  registration_id: string;
+  session_date: string;
+  present: boolean;
+}): Promise<void> {
+  const supabase = createSupabaseServiceRoleClient();
+  if (!row.present) {
+    const { error } = await supabase
+      .from('attendance')
+      .delete()
+      .eq('registration_id', row.registration_id)
+      .eq('session_date', row.session_date);
+    if (error) throw error;
+    return;
+  }
+  const { error } = await supabase.from('attendance').upsert(
+    {
+      registration_id: row.registration_id,
+      session_date: row.session_date,
+      duration_minutes: 1,
+      join_time: null,
+      leave_time: null,
+      source: 'manual_correction',
+    },
+    { onConflict: 'registration_id,session_date' },
+  );
+  if (error) throw error;
 }

@@ -48,6 +48,7 @@ export type Database = {
           leave_time: string | null
           registration_id: string
           session_date: string
+          source: string
         }
         Insert: {
           created_at?: string
@@ -57,6 +58,7 @@ export type Database = {
           leave_time?: string | null
           registration_id: string
           session_date: string
+          source?: string
         }
         Update: {
           created_at?: string
@@ -66,6 +68,7 @@ export type Database = {
           leave_time?: string | null
           registration_id?: string
           session_date?: string
+          source?: string
         }
         Relationships: [
           {
@@ -73,6 +76,83 @@ export type Database = {
             columns: ["registration_id"]
             isOneToOne: false
             referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_exceptions: {
+        Row: {
+          id: string
+          registration_id: string
+          batch_id: string
+          session_date: string
+          exception_type: string
+          raised_by_tutor_id: string | null
+          requested_present: boolean | null
+          reason: string
+          status: string
+          reviewed_by: string | null
+          reviewed_at: string | null
+          review_note: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          registration_id: string
+          batch_id: string
+          session_date: string
+          exception_type: string
+          raised_by_tutor_id?: string | null
+          requested_present?: boolean | null
+          reason: string
+          status?: string
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          review_note?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          registration_id?: string
+          batch_id?: string
+          session_date?: string
+          exception_type?: string
+          raised_by_tutor_id?: string | null
+          requested_present?: boolean | null
+          reason?: string
+          status?: string
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          review_note?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_exceptions_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_exceptions_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_exceptions_raised_by_tutor_id_fkey"
+            columns: ["raised_by_tutor_id"]
+            isOneToOne: false
+            referencedRelation: "tutors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_exceptions_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
             referencedColumns: ["id"]
           },
         ]
@@ -1822,6 +1902,58 @@ export type Database = {
           },
         ]
       }
+      session_materials: {
+        Row: {
+          id: string
+          batch_id: string
+          live_session_id: string | null
+          uploaded_by_tutor_id: string | null
+          title: string
+          link: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          batch_id: string
+          live_session_id?: string | null
+          uploaded_by_tutor_id?: string | null
+          title: string
+          link: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          batch_id?: string
+          live_session_id?: string | null
+          uploaded_by_tutor_id?: string | null
+          title?: string
+          link?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_materials_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_materials_live_session_id_fkey"
+            columns: ["live_session_id"]
+            isOneToOne: false
+            referencedRelation: "live_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_materials_uploaded_by_tutor_id_fkey"
+            columns: ["uploaded_by_tutor_id"]
+            isOneToOne: false
+            referencedRelation: "tutors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tutors: {
         Row: {
           id: string
@@ -1915,6 +2047,48 @@ export type Database = {
             columns: ["tutor_id"]
             isOneToOne: false
             referencedRelation: "tutors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tutor_action_audit_log: {
+        Row: {
+          id: string
+          tutor_id: string
+          action_type: string
+          target_batch_id: string | null
+          details: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tutor_id: string
+          action_type: string
+          target_batch_id?: string | null
+          details?: Json
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tutor_id?: string
+          action_type?: string
+          target_batch_id?: string | null
+          details?: Json
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tutor_action_audit_log_tutor_id_fkey"
+            columns: ["tutor_id"]
+            isOneToOne: false
+            referencedRelation: "tutors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tutor_action_audit_log_target_batch_id_fkey"
+            columns: ["target_batch_id"]
+            isOneToOne: false
+            referencedRelation: "batches"
             referencedColumns: ["id"]
           },
         ]

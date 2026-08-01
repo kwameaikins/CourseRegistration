@@ -27,6 +27,12 @@ import * as coursesService from '@/modules/courses/service';
 // belongs to this session before delegating, same posture as
 // paymentsService/communicationsService above.
 import * as feedbackService from '@/modules/feedback/service';
+// Permitted cross-module call (Tutor Portal Phase 4, 2026-07-31) —
+// live-sessions owns session_materials (tutor-shared links); portal only
+// verifies the registration belongs to this session before delegating,
+// same posture as every other cross-module call in this file.
+import * as liveSessionsService from '@/modules/live-sessions/service';
+import type { SessionMaterial } from '@/modules/live-sessions/types';
 import { sendTransactionalEmail } from '@/lib/resend/client';
 import { parsePaymentStatus } from '@/lib/domain/parsers';
 import type {
@@ -473,6 +479,22 @@ export async function submitPortalFeedback(
     throw new AppError('NOT_FOUND', 'Registration not found.', 404);
   }
   return feedbackService.submitFeedback(registrationId, input);
+}
+
+// Course materials (Tutor Portal Phase 4, founder-approved 2026-07-31) —
+// same ownership check as getMessageHistory/getReceiptData, then delegates
+// to live-sessions for the batch this registration belongs to.
+export async function getSessionMaterials(
+  sessionId: string | undefined,
+  registrationId: string,
+): Promise<SessionMaterial[]> {
+  const { participantId } = await requirePortalSession(sessionId);
+  const data = await portalRepository.selectPortalDashboardData(participantId);
+  const match = data.registrations.find((row) => row.registration.id === registrationId);
+  if (!match || !match.batch) {
+    throw new AppError('NOT_FOUND', 'Registration not found.', 404);
+  }
+  return liveSessionsService.getSessionMaterialsForBatchSystem(match.batch.id);
 }
 
 // Browse other courses (2026-07-26) — reuses the exact same public-batch

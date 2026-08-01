@@ -6,7 +6,7 @@
 // this is a third PIN + session-cookie portal, same architecture as the
 // student and corporate portals — same shared app shell
 // (components/portal/portal-design-system.tsx).
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -22,6 +22,7 @@ interface DashboardBatch {
   startDate: string;
   endDate: string;
   zoomLink: string | null;
+  registeredCount: number;
 }
 
 interface DashboardLiveSession {
@@ -72,13 +73,28 @@ interface CertificateCandidate {
   eligible: boolean;
 }
 
-type PanelId = 'overview' | 'schedule' | 'roster' | 'attendance' | 'certificates' | 'account';
+interface MaterialEntry {
+  id: string;
+  title: string;
+  link: string;
+  createdAt: string;
+}
+
+type PanelId =
+  | 'overview'
+  | 'schedule'
+  | 'roster'
+  | 'attendance'
+  | 'materials'
+  | 'certificates'
+  | 'account';
 
 const NAV_ITEMS: Array<{ id: PanelId; label: string; icon: string }> = [
   { id: 'overview', label: 'Overview', icon: 'i-grid' },
   { id: 'schedule', label: 'My Schedule', icon: 'i-book' },
   { id: 'roster', label: 'Roster', icon: 'i-users' },
   { id: 'attendance', label: 'Attendance', icon: 'i-check' },
+  { id: 'materials', label: 'Materials', icon: 'i-book' },
   { id: 'certificates', label: 'Certificate Eligibility', icon: 'i-award' },
   { id: 'account', label: 'Account', icon: 'i-user' },
 ];
@@ -98,11 +114,26 @@ export default function TutorPortalDashboardPage() {
   const [roster, setRoster] = useState<RosterEntry[] | 'loading' | null>(null);
   const [attendance, setAttendance] = useState<AttendanceEntry[] | 'loading' | null>(null);
   const [certificates, setCertificates] = useState<CertificateCandidate[] | 'loading' | null>(null);
+  const [materials, setMaterials] = useState<MaterialEntry[] | 'loading' | null>(null);
 
   const [editingContact, setEditingContact] = useState(false);
   const [contactForm, setContactForm] = useState({ fullName: '', phone: '' });
   const [contactSaving, setContactSaving] = useState(false);
   const [contactError, setContactError] = useState<string | null>(null);
+
+  const [flaggingKey, setFlaggingKey] = useState<string | null>(null);
+  const [flagForm, setFlagForm] = useState<{
+    exceptionType: 'no_show_flag' | 'correction_request';
+    reason: string;
+    requestedPresent: boolean;
+  }>({ exceptionType: 'no_show_flag', reason: '', requestedPresent: true });
+  const [flagSubmitting, setFlagSubmitting] = useState(false);
+  const [flagError, setFlagError] = useState<string | null>(null);
+  const [flaggedKeys, setFlaggedKeys] = useState<Set<string>>(new Set());
+
+  const [materialForm, setMaterialForm] = useState({ title: '', link: '' });
+  const [materialSaving, setMaterialSaving] = useState(false);
+  const [materialError, setMaterialError] = useState<string | null>(null);
 
   const loadDashboard = useCallback(() => {
     return apiFetch<Dashboard>('/api/tutor-portal/me')
@@ -135,7 +166,81 @@ export default function TutorPortalDashboardPage() {
       setCertificates('loading');
       apiFetch<CertificateCandidate[]>(`/api/tutor-portal/certificates/${selectedBatchId}`).then(setCertificates).catch(() => setCertificates([]));
     }
+    if (activePanel === 'materials') {
+      setMaterials('loading');
+      apiFetch<MaterialEntry[]>(`/api/tutor-portal/materials/${selectedBatchId}`).then(setMaterials).catch(() => setMaterials([]));
+    }
   }, [activePanel, selectedBatchId]);
+
+  function openFlagForm(registrationId: string, sessionDate: string) {
+    setFlaggingKey(`${registrationId}:${sessionDate}`);
+    setFlagForm({ exceptionType: 'no_show_flag', reason: '', requestedPresent: true });
+    setFlagError(null);
+  }
+
+  async function submitFlag(registrationId: string, sessionDate: string) {
+    if (!flagForm.reason.trim()) {
+      setFlagError('Please explain what happened.');
+      return;
+    }
+    setFlagSubmitting(true);
+    setFlagError(null);
+    try {
+      await apiFetch('/api/tutor-portal/attendance-exceptions', {
+        method: 'POST',
+        body: JSON.stringify({
+          registrationId,
+          batchId: selectedBatchId,
+          sessionDate,
+          exceptionType: flagForm.exceptionType,
+          reason: flagForm.reason.trim(),
+          ...(flagForm.exceptionType === 'correction_request'
+            ? { requestedPresent: flagForm.requestedPresent }
+            : {}),
+        }),
+      });
+      setFlaggedKeys((current) => new Set(current).add(`${registrationId}:${sessionDate}`));
+      setFlaggingKey(null);
+    } catch (err) {
+      setFlagError(err instanceof Error ? err.message : 'Could not submit — try again.');
+    } finally {
+      setFlagSubmitting(false);
+    }
+  }
+
+  async function submitMaterial() {
+    if (!materialForm.title.trim() || !materialForm.link.trim()) return;
+    setMaterialSaving(true);
+    setMaterialError(null);
+    try {
+      await apiFetch('/api/tutor-portal/materials', {
+        method: 'POST',
+        body: JSON.stringify({
+          batchId: selectedBatchId,
+          title: materialForm.title.trim(),
+          link: materialForm.link.trim(),
+        }),
+      });
+      setMaterialForm({ title: '', link: '' });
+      setMaterials('loading');
+      apiFetch<MaterialEntry[]>(`/api/tutor-portal/materials/${selectedBatchId}`).then(setMaterials).catch(() => setMaterials([]));
+    } catch (err) {
+      setMaterialError(err instanceof Error ? err.message : 'Could not add material — try again.');
+    } finally {
+      setMaterialSaving(false);
+    }
+  }
+
+  async function deleteMaterial(id: string) {
+    try {
+      await apiFetch(`/api/tutor-portal/materials/${id}?batchId=${encodeURIComponent(selectedBatchId)}`, {
+        method: 'DELETE',
+      });
+      setMaterials((current) => (Array.isArray(current) ? current.filter((m) => m.id !== id) : current));
+    } catch {
+      // Non-fatal — the list will self-correct on the next panel visit.
+    }
+  }
 
   async function handleLogout() {
     await apiFetch('/api/tutor-portal/logout', { method: 'POST' }).catch(() => undefined);
@@ -350,7 +455,7 @@ export default function TutorPortalDashboardPage() {
                         <div>
                           <h4>{batch.courseName}</h4>
                           <div className="meta">
-                            {batch.cohortLabel} · {formatDate(batch.startDate)} – {formatDate(batch.endDate)}
+                            {batch.cohortLabel} · {formatDate(batch.startDate)} – {formatDate(batch.endDate)} · {batch.registeredCount} registered
                           </div>
                         </div>
                       </div>
@@ -382,14 +487,24 @@ export default function TutorPortalDashboardPage() {
               </section>
             )}
 
-            {(activePanel === 'roster' || activePanel === 'attendance' || activePanel === 'certificates') && (
+            {(activePanel === 'roster' ||
+              activePanel === 'attendance' ||
+              activePanel === 'materials' ||
+              activePanel === 'certificates') && (
               <section className="panel active" role="tabpanel">
                 <p className="eyebrow">
-                  {activePanel === 'roster' ? 'Roster' : activePanel === 'attendance' ? 'Attendance' : 'Certificate Eligibility'}
+                  {activePanel === 'roster'
+                    ? 'Roster'
+                    : activePanel === 'attendance'
+                      ? 'Attendance'
+                      : activePanel === 'materials'
+                        ? 'Materials'
+                        : 'Certificate Eligibility'}
                 </p>
                 <h2 className="panel-title">
                   {activePanel === 'roster' && 'Who’s registered'}
                   {activePanel === 'attendance' && 'Session attendance'}
+                  {activePanel === 'materials' && 'Shared with your class'}
                   {activePanel === 'certificates' && 'Ready for a certificate'}
                 </h2>
 
@@ -406,7 +521,7 @@ export default function TutorPortalDashboardPage() {
                       >
                         {dashboard.batches.map((batch) => (
                           <option key={batch.batchId} value={batch.batchId}>
-                            {batch.courseName} — {batch.cohortLabel}
+                            {batch.courseName} — {batch.cohortLabel} ({batch.registeredCount} registered)
                           </option>
                         ))}
                       </select>
@@ -418,23 +533,26 @@ export default function TutorPortalDashboardPage() {
                       ) : roster.length === 0 ? (
                         <p className="empty-note">No confirmed participants yet for {selectedBatch?.cohortLabel}.</p>
                       ) : (
-                        <div className="table-wrap">
-                          <table>
-                            <thead>
-                              <tr><th>Name</th><th>Email</th><th>Phone</th><th>Registered</th></tr>
-                            </thead>
-                            <tbody>
-                              {roster.map((entry) => (
-                                <tr key={entry.registrationId}>
-                                  <td className="course-cell"><strong>{entry.fullName}</strong></td>
-                                  <td>{entry.email}</td>
-                                  <td>{entry.phone}</td>
-                                  <td>{formatDate(entry.registeredAt)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
+                        <>
+                          <p className="panel-sub">{roster.length} registered</p>
+                          <div className="table-wrap">
+                            <table>
+                              <thead>
+                                <tr><th>Name</th><th>Email</th><th>Phone</th><th>Registered</th></tr>
+                              </thead>
+                              <tbody>
+                                {roster.map((entry) => (
+                                  <tr key={entry.registrationId}>
+                                    <td className="course-cell"><strong>{entry.fullName}</strong></td>
+                                    <td>{entry.email}</td>
+                                    <td>{entry.phone}</td>
+                                    <td>{formatDate(entry.registeredAt)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </>
                       )
                     )}
 
@@ -447,20 +565,167 @@ export default function TutorPortalDashboardPage() {
                         <div className="table-wrap">
                           <table>
                             <thead>
-                              <tr><th>Participant</th><th>Session Date</th><th className="num">Duration</th></tr>
+                              <tr><th>Participant</th><th>Session Date</th><th className="num">Duration</th><th></th></tr>
                             </thead>
                             <tbody>
-                              {attendance.map((entry, index) => (
-                                <tr key={index}>
-                                  <td className="course-cell"><strong>{entry.participantName}</strong></td>
-                                  <td>{formatDate(entry.sessionDate)}</td>
-                                  <td className="num tnum">{entry.durationMinutes > 0 ? `${entry.durationMinutes} min` : 'no attendance'}</td>
-                                </tr>
-                              ))}
+                              {attendance.map((entry, index) => {
+                                const key = `${entry.registrationId}:${entry.sessionDate}`;
+                                const alreadyFlagged = flaggedKeys.has(key);
+                                return (
+                                  <Fragment key={index}>
+                                    <tr>
+                                      <td className="course-cell"><strong>{entry.participantName}</strong></td>
+                                      <td>{formatDate(entry.sessionDate)}</td>
+                                      <td className="num tnum">{entry.durationMinutes > 0 ? `${entry.durationMinutes} min` : 'no attendance'}</td>
+                                      <td>
+                                        {alreadyFlagged ? (
+                                          <span className="pill pill-neutral">Flagged</span>
+                                        ) : flaggingKey === key ? null : (
+                                          <button
+                                            type="button"
+                                            className="link-btn"
+                                            onClick={() => openFlagForm(entry.registrationId, entry.sessionDate)}
+                                          >
+                                            Flag an issue
+                                          </button>
+                                        )}
+                                      </td>
+                                    </tr>
+                                    {flaggingKey === key && (
+                                      <tr>
+                                        <td colSpan={4}>
+                                          <div className="account-card" style={{ margin: '8px 0' }}>
+                                            {flagError && <p className="plan-confirm-error">{flagError}</p>}
+                                            <div className="field">
+                                              <label htmlFor={`exType-${index}`}>What happened?</label>
+                                              <select
+                                                id={`exType-${index}`}
+                                                value={flagForm.exceptionType}
+                                                onChange={(event) =>
+                                                  setFlagForm({
+                                                    ...flagForm,
+                                                    exceptionType: event.target.value as 'no_show_flag' | 'correction_request',
+                                                  })
+                                                }
+                                              >
+                                                <option value="no_show_flag">No-show (advisory flag)</option>
+                                                <option value="correction_request">Request an attendance correction</option>
+                                              </select>
+                                            </div>
+                                            {flagForm.exceptionType === 'correction_request' && (
+                                              <div className="field">
+                                                <label htmlFor={`exPresent-${index}`}>Should be marked</label>
+                                                <select
+                                                  id={`exPresent-${index}`}
+                                                  value={flagForm.requestedPresent ? 'present' : 'absent'}
+                                                  onChange={(event) =>
+                                                    setFlagForm({
+                                                      ...flagForm,
+                                                      requestedPresent: event.target.value === 'present',
+                                                    })
+                                                  }
+                                                >
+                                                  <option value="present">Present</option>
+                                                  <option value="absent">Absent</option>
+                                                </select>
+                                              </div>
+                                            )}
+                                            <div className="field">
+                                              <label htmlFor={`exReason-${index}`}>Reason</label>
+                                              <textarea
+                                                id={`exReason-${index}`}
+                                                rows={2}
+                                                value={flagForm.reason}
+                                                onChange={(event) => setFlagForm({ ...flagForm, reason: event.target.value })}
+                                              />
+                                            </div>
+                                            <p className="panel-sub" style={{ marginTop: 0 }}>
+                                              An admin reviews every flag before anything changes.
+                                            </p>
+                                            <div style={{ display: 'flex', gap: 8 }}>
+                                              <button
+                                                type="button"
+                                                className="btn btn-primary btn-sm"
+                                                disabled={flagSubmitting}
+                                                onClick={() => void submitFlag(entry.registrationId, entry.sessionDate)}
+                                              >
+                                                {flagSubmitting ? 'Submitting…' : 'Submit'}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                className="btn btn-ghost btn-sm"
+                                                disabled={flagSubmitting}
+                                                onClick={() => setFlaggingKey(null)}
+                                              >
+                                                Cancel
+                                              </button>
+                                            </div>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    )}
+                                  </Fragment>
+                                );
+                              })}
                             </tbody>
                           </table>
                         </div>
                       )
+                    )}
+
+                    {activePanel === 'materials' && (
+                      <>
+                        <div className="account-card" style={{ marginBottom: 16 }}>
+                          {materialError && <p className="plan-confirm-error">{materialError}</p>}
+                          <div className="field">
+                            <label htmlFor="materialTitle">Title</label>
+                            <input
+                              id="materialTitle"
+                              placeholder="Slides — Session 3"
+                              value={materialForm.title}
+                              onChange={(event) => setMaterialForm({ ...materialForm, title: event.target.value })}
+                            />
+                          </div>
+                          <div className="field">
+                            <label htmlFor="materialLink">Link</label>
+                            <input
+                              id="materialLink"
+                              placeholder="https://drive.google.com/…"
+                              value={materialForm.link}
+                              onChange={(event) => setMaterialForm({ ...materialForm, link: event.target.value })}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            disabled={materialSaving || !materialForm.title.trim() || !materialForm.link.trim()}
+                            onClick={() => void submitMaterial()}
+                          >
+                            {materialSaving ? 'Adding…' : 'Add material'}
+                          </button>
+                        </div>
+
+                        {materials === 'loading' || materials === null ? (
+                          <p className="empty-note">Loading…</p>
+                        ) : materials.length === 0 ? (
+                          <p className="empty-note">Nothing shared yet for {selectedBatch?.cohortLabel}.</p>
+                        ) : (
+                          <ul className="att-list">
+                            {materials.map((material) => (
+                              <li key={material.id}>
+                                <a href={material.link} target="_blank" rel="noreferrer">{material.title}</a>
+                                <span className="duration">
+                                  {formatDate(material.createdAt)}
+                                  {' · '}
+                                  <button type="button" className="link-btn" onClick={() => void deleteMaterial(material.id)}>
+                                    Remove
+                                  </button>
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </>
                     )}
 
                     {activePanel === 'certificates' && (

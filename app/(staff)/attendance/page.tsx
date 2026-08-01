@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { apiFetch } from '@/components/api-client';
+import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 
 interface BatchOption {
@@ -30,6 +31,19 @@ interface AttendanceRow {
   durationMinutes: number;
 }
 
+interface AttendanceException {
+  id: string;
+  batchId: string;
+  sessionDate: string;
+  exceptionType: 'no_show_flag' | 'correction_request';
+  requestedPresent: boolean | null;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+  participantName: string;
+  participantEmail: string;
+}
+
 export default function AttendancePage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [batches, setBatches] = useState<BatchOption[]>([]);
@@ -37,6 +51,34 @@ export default function AttendancePage() {
   const [rows, setRows] = useState<AttendanceRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [exceptions, setExceptions] = useState<AttendanceException[]>([]);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+
+  async function loadExceptions() {
+    try {
+      const result = await apiFetch<{ exceptions: AttendanceException[] }>(
+        '/api/attendance/exceptions?status=pending',
+      );
+      setExceptions(result.exceptions);
+    } catch {
+      setExceptions([]);
+    }
+  }
+
+  async function reviewException(id: string, decision: 'approved' | 'rejected') {
+    setReviewingId(id);
+    try {
+      await apiFetch(`/api/attendance/exceptions/${id}/review`, {
+        method: 'POST',
+        body: JSON.stringify({ decision }),
+      });
+      await loadExceptions();
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to review exception.');
+    } finally {
+      setReviewingId(null);
+    }
+  }
 
   useEffect(() => {
     (async () => {
@@ -51,6 +93,7 @@ export default function AttendancePage() {
         setErrorMessage(err instanceof Error ? err.message : 'Failed to load batches.');
       }
     })();
+    void loadExceptions();
   }, []);
 
   const loadAttendance = useCallback(async (batchId: string) => {
@@ -83,6 +126,49 @@ export default function AttendancePage() {
           Meeting ID configured.
         </p>
       </div>
+
+      {exceptions.length > 0 && (
+        <div className="space-y-3 rounded-lg border p-4">
+          <h2 className="text-lg font-semibold">Pending attendance exceptions</h2>
+          <p className="text-sm text-muted-foreground">
+            No-show flags and correction requests raised by tutors. Approving a correction
+            updates the attendance record; approving a no-show flag is advisory only.
+          </p>
+          <div className="space-y-2">
+            {exceptions.map((exception) => (
+              <div key={exception.id} className="rounded-md border p-3 text-sm">
+                <div className="flex items-center justify-between">
+                  <strong>{exception.participantName}</strong>
+                  <span className="text-xs text-muted-foreground">{exception.sessionDate}</span>
+                </div>
+                <p className="mt-1">
+                  {exception.exceptionType === 'no_show_flag'
+                    ? 'No-show flag'
+                    : `Correction request — mark ${exception.requestedPresent ? 'present' : 'absent'}`}
+                  : {exception.reason}
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <Button
+                    size="sm"
+                    disabled={reviewingId === exception.id}
+                    onClick={() => void reviewException(exception.id, 'approved')}
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={reviewingId === exception.id}
+                    onClick={() => void reviewException(exception.id, 'rejected')}
+                  >
+                    Reject
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="max-w-md space-y-2">
         <Label htmlFor="batch">Batch</Label>

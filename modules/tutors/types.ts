@@ -65,6 +65,9 @@ export interface TutorPortalBatch {
   startDate: string;
   endDate: string;
   zoomLink: string | null;
+  // Confirmed-registration count — not a payment field, safe to surface
+  // (unlike anything from the payments table — see BR-33).
+  registeredCount: number;
 }
 
 export interface TutorPortalLiveSession {
@@ -113,4 +116,43 @@ export interface TutorPortalCertificateCandidate {
   attendancePercent: number | null;
   alreadyIssued: boolean;
   eligible: boolean;
+}
+
+// Attendance Exceptions (Tutor Portal Phase 4, founder-approved 2026-07-31).
+export const flagAttendanceExceptionSchema = z
+  .object({
+    registrationId: z.uuid(),
+    batchId: z.uuid(),
+    sessionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD'),
+    exceptionType: z.enum(['no_show_flag', 'correction_request']),
+    reason: z.string().trim().min(3).max(500),
+    requestedPresent: z.boolean().optional(),
+  })
+  .refine(
+    (input) => input.exceptionType !== 'correction_request' || input.requestedPresent !== undefined,
+    {
+      message: 'Say whether the participant should be marked present or absent.',
+      path: ['requestedPresent'],
+    },
+  );
+export type FlagAttendanceExceptionInput = z.infer<typeof flagAttendanceExceptionSchema>;
+
+// Session Materials (Tutor Portal Phase 4, founder-approved 2026-07-31).
+export const addTutorSessionMaterialSchema = z.object({
+  batchId: z.uuid(),
+  liveSessionId: z.uuid().nullable().optional(),
+  title: z.string().trim().min(2).max(200),
+  link: z.url().max(2000),
+});
+export type AddTutorSessionMaterialInput = z.infer<typeof addTutorSessionMaterialSchema>;
+
+// Staff-facing tutor activity view.
+export interface TutorActivityEntry {
+  id: string;
+  tutorId: string;
+  tutorName: string;
+  actionType: string;
+  targetBatchId: string | null;
+  details: unknown;
+  createdAt: string;
 }

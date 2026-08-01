@@ -113,3 +113,66 @@ section for self-service name/phone correction and PIN change.
 ## 10. New Business Rules
 
 See `04_Business_Logic_Rules.md`'s "Tutor Portal Rules" section — BR-31 through BR-34.
+
+## 11. Phase 4 — Extended Access (founder-approved 2026-07-31)
+
+A follow-up review of "what access should a tutor have, per best practice" compared the
+shipped v1 against the original Live Learning Operations vision (`14_Live_Learning_Operations.md`
+§4/§6/§8 — materials, no-show flagging, learner follow-ups, substitute handover, recording
+release, attendance-correction review) plus a few new suggestions. The founder chose to build
+the highest-value, lowest-risk items now and defer the rest.
+
+### Shipped this phase
+
+- **Tutor action audit log** (`tutor_action_audit_log`, migration `202607290037`) — every
+  tutor-portal self-service write (PIN change, contact edit, attendance exception raised,
+  material added/removed) is now logged. Previously none of this was logged at all. Staff view:
+  a "Recent tutor activity" list on `/tutors`.
+- **Attendance Exceptions** (`attendance_exceptions`, migration `202607290038`) — a tutor can
+  flag a no-show or request an attendance correction on their own batch's roster. Always starts
+  `pending`; a tutor never writes to `attendance` directly (BR-34 unchanged) — only an admin's
+  approval (`/attendance` screen) can apply a correction, and approving a `no_show_flag` is
+  advisory only. `attendance.source` (`zoom_sync` | `manual_correction`) distinguishes
+  cron-written rows from admin-approved corrections.
+- **Session Materials** (`session_materials`, migration `202607290039`) — a tutor can share a
+  material link (slides/agenda/readings) per batch, visible to staff (`/live-sessions`) and the
+  batch's enrolled participants (student portal, new Materials tab). Deliberately link-based, not
+  a file upload — same precedent as `batches.resources_link` (migration `202607280036`, which
+  chose a link over building file storage).
+- **Registered-student count** — `TutorPortalBatch.registeredCount` (a plain roster count, not a
+  payment field) is now visible on the tutor's schedule/roster/attendance batch selector.
+- **Bug fix**: the tutor-portal Attendance panel (`getAttendanceForBatch`) was silently returning
+  empty results — `modules/attendance/repository.ts`'s `selectAttendanceForBatch` used the
+  staff-session RLS client, which returns zero rows for a tutor-portal caller (no Supabase Auth
+  session). Added `selectAttendanceForBatchSystem`/`getAttendanceForBatchSystem` (service-role
+  client, same posture as every other tutor-portal read) and repointed the tutor-portal caller at
+  it. The staff-facing function is unchanged.
+
+### Explicitly considered and declined for now
+
+- **Tutor payment/financial visibility** — raised by the founder mid-build ("tutors should also
+  see how much payment received"). This reverses BR-33 ("no payment/financial field for any
+  participant, ever"), which is enforced architecturally (`selectRosterForBatchSystem` has no
+  `payments` join at all, not a field-strip). Deferred pending a scope decision: an aggregate
+  batch total vs. per-student amounts. **Do not build this without founder sign-off on which
+  scope** — it is a deliberate reversal of a documented security boundary, not a bug.
+
+### Deferred to a future phase (not built, no shape committed except where noted)
+
+- **Recording release** — same link-based shape as Session Materials envisioned (a
+  `session_recordings` table: link + tutor-approval-before-visible flag), not a storage/provider
+  integration.
+- **Learner follow-up notes** — a tutor flags a specific participant with a note visible to
+  staff; likely surfaces on the Registration 360° view (`GET /api/registrations/[id]`).
+- **Substitute handover** — a tutor *requests* a substitute for a session; an admin still
+  performs the actual `live_sessions.tutor_id` reassignment via the existing Live Sessions
+  screen, keeping that write staff-only.
+- **Availability/blackout dates** — a `tutor_availability` table, self-service add/remove; v1
+  would be visibility-only on the staff tutor-picker, not an enforced constraint.
+- **Tutor→roster messaging** — **suspended**: the founder deferred deciding between
+  auto-send-and-log vs. staff-pre-approval, so no shape is committed.
+- **Tutor compensation tracking** — founder specified *full* rate-based tracking (rate per
+  session/batch, admin-set rate card, tutor sees computed earnings) as the target shape when
+  this is eventually built, but it remains entirely deferred: there is no confirmed business
+  rule yet for what counts as a payable session, and no rate-card concept exists anywhere in the
+  schema.

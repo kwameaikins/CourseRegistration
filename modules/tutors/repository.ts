@@ -5,7 +5,7 @@
 // for RLS to key off, same posture as modules/portal and modules/corporate.
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
-import type { Database } from '@/lib/supabase/database.types';
+import type { Database, Json } from '@/lib/supabase/database.types';
 import type { CreateTutorInput } from '@/modules/tutors/types';
 
 type TutorRow = Database['public']['Tables']['tutors']['Row'];
@@ -244,6 +244,88 @@ export async function selectLiveSessionsForTutorSystem(
     .order('starts_at', { ascending: true });
   if (error) throw error;
   return data ?? [];
+}
+
+// --- Tutor action audit log (Tutor Portal Phase 4, founder-approved
+// 2026-07-31). Service-role only — tutors have no Supabase Auth session
+// for RLS to key off. Staff reads go through this same client, gated by
+// usersService.requireRole in the service layer instead of RLS. ---
+
+export async function insertTutorActionAuditLogSystem(input: {
+  tutor_id: string;
+  action_type: string;
+  target_batch_id?: string | null;
+  details?: Json;
+}): Promise<void> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase.from('tutor_action_audit_log').insert({
+    tutor_id: input.tutor_id,
+    action_type: input.action_type,
+    target_batch_id: input.target_batch_id ?? null,
+    details: input.details ?? {},
+  });
+  if (error) throw error;
+}
+
+export async function selectRecentTutorActionAuditLogSystem(
+  limit = 50,
+): Promise<Database['public']['Tables']['tutor_action_audit_log']['Row'][]> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('tutor_action_audit_log')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function selectTutorNamesByIdsSystem(
+  ids: string[],
+): Promise<Array<{ id: string; full_name: string }>> {
+  if (ids.length === 0) return [];
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase.from('tutors').select('id, full_name').in('id', ids);
+  if (error) throw error;
+  return data ?? [];
+}
+
+// Confirmed-registration counts per batch — the number of registered
+// students is not a payment field, so this is safe to surface to tutors
+// (unlike anything in the payments table, see selectRosterForBatchSystem).
+export async function selectRegisteredCountsForBatchesSystem(
+  batchIds: string[],
+): Promise<Map<string, number>> {
+  if (batchIds.length === 0) return new Map();
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('registrations')
+    .select('batch_id')
+    .in('batch_id', batchIds)
+    .eq('registration_status', 'Confirmed');
+  if (error) throw error;
+  const counts = new Map<string, number>();
+  for (const row of data ?? []) {
+    counts.set(row.batch_id, (counts.get(row.batch_id) ?? 0) + 1);
+  }
+  return counts;
+}
+
+// Confirms a client-supplied registrationId actually belongs to the given
+// batch, before modules/tutors delegates to attendanceService.raiseAttendanceException.
+export async function selectRegistrationBelongsToBatchSystem(
+  registrationId: string,
+  batchId: string,
+): Promise<boolean> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('registrations')
+    .select('id')
+    .eq('id', registrationId)
+    .eq('batch_id', batchId)
+    .maybeSingle();
+  if (error) throw error;
+  return data !== null;
 }
 
 // Roster for one batch — deliberately never selects the payments table at

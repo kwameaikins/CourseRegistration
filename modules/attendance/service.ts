@@ -13,8 +13,10 @@ import {
   getPastMeetingParticipants,
   isZoomConfigured,
 } from '@/lib/zoom/client';
+import { AppError } from '@/lib/errors';
 import * as attendanceRepository from '@/modules/attendance/repository';
 import * as communicationsService from '@/modules/communications/service';
+import * as usersService from '@/modules/users/service';
 
 export type ZoomRegistrationOutcome =
   | 'registered'
@@ -160,10 +162,16 @@ export async function runAttendanceSync(now = new Date()): Promise<AttendanceSyn
   return summary;
 }
 
-// Staff-facing view (RLS enforces admin/management read access).
-export async function getAttendanceForBatch(batchId: string) {
-  const rows = await attendanceRepository.selectAttendanceForBatch(batchId);
-  return rows.map((row) => ({
+function toAttendanceEntry(row: {
+  registration_id: string;
+  participant_name: string;
+  participant_email: string;
+  session_date: string;
+  join_time: string | null;
+  leave_time: string | null;
+  duration_minutes: number;
+}) {
+  return {
     registrationId: row.registration_id,
     participantName: row.participant_name,
     participantEmail: row.participant_email,
@@ -171,5 +179,133 @@ export async function getAttendanceForBatch(batchId: string) {
     joinTime: row.join_time,
     leaveTime: row.leave_time,
     durationMinutes: row.duration_minutes,
+  };
+}
+
+// Staff-facing view (RLS enforces admin/management read access).
+export async function getAttendanceForBatch(batchId: string) {
+  const rows = await attendanceRepository.selectAttendanceForBatch(batchId);
+  return rows.map(toAttendanceEntry);
+}
+
+// Tutor-portal view — see selectAttendanceForBatchSystem's comment: a
+// tutor-portal session carries no Supabase Auth session, so the RLS-gated
+// read above returns nothing for these callers. Called only by
+// modules/tutors, which has already verified batch ownership.
+export async function getAttendanceForBatchSystem(batchId: string) {
+  const rows = await attendanceRepository.selectAttendanceForBatchSystem(batchId);
+  return rows.map(toAttendanceEntry);
+}
+
+// --- Attendance Exceptions (Tutor Portal Phase 4, founder-approved 2026-07-31) ---
+//
+// A tutor never writes to `attendance` directly (BR-34). A raised exception
+// always starts 'pending'; only an admin's review can change attendance
+// data, and only for 'correction_request' — 'no_show_flag' is advisory
+// only (visible to staff, never mutates attendance).
+
+const EXCEPTION_STAFF_ROLES = ['admin', 'management'] as const;
+
+export interface RaiseAttendanceExceptionInput {
+  registrationId: string;
+  batchId: string;
+  sessionDate: string;
+  exceptionType: 'no_show_flag' | 'correction_request';
+  reason: string;
+  requestedPresent?: boolean;
+  raisedByTutorId: string;
+}
+
+// Called only by modules/tutors, after it has verified the batch (and the
+// registration's membership in that batch's roster) belongs to the calling
+// tutor's own session.
+export async function raiseAttendanceException(input: RaiseAttendanceExceptionInput) {
+  if (input.exceptionType === 'correction_request' && input.requestedPresent === undefined) {
+    throw new AppError(
+      'VALIDATION_ERROR',
+      'A correction request must say whether the participant should be marked present or absent.',
+      400,
+    );
+  }
+  const row = await attendanceRepository.insertAttendanceExceptionSystem({
+    registration_id: input.registrationId,
+    batch_id: input.batchId,
+    session_date: input.sessionDate,
+    exception_type: input.exceptionType,
+    raised_by_tutor_id: input.raisedByTutorId,
+    requested_present: input.requestedPresent ?? null,
+    reason: input.reason,
+  });
+  return row;
+}
+
+export interface AttendanceExceptionView {
+  id: string;
+  registrationId: string;
+  batchId: string;
+  sessionDate: string;
+  exceptionType: 'no_show_flag' | 'correction_request';
+  requestedPresent: boolean | null;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  createdAt: string;
+  participantName: string;
+  participantEmail: string;
+}
+
+export async function listAttendanceExceptions(filters?: {
+  status?: 'pending' | 'approved' | 'rejected';
+}): Promise<AttendanceExceptionView[]> {
+  await usersService.requireRole([...EXCEPTION_STAFF_ROLES]);
+  const rows = await attendanceRepository.selectAttendanceExceptions(filters);
+  const infoByRegistration = await attendanceRepository.selectParticipantInfoForRegistrations(
+    rows.map((row) => row.registration_id),
+  );
+  return rows.map((row) => ({
+    id: row.id,
+    registrationId: row.registration_id,
+    batchId: row.batch_id,
+    sessionDate: row.session_date,
+    exceptionType: row.exception_type as 'no_show_flag' | 'correction_request',
+    requestedPresent: row.requested_present,
+    reason: row.reason,
+    status: row.status as 'pending' | 'approved' | 'rejected',
+    reviewedAt: row.reviewed_at,
+    reviewNote: row.review_note,
+    createdAt: row.created_at,
+    participantName: infoByRegistration.get(row.registration_id)?.name ?? '',
+    participantEmail: infoByRegistration.get(row.registration_id)?.email ?? '',
   }));
+}
+
+export async function reviewAttendanceException(
+  exceptionId: string,
+  decision: 'approved' | 'rejected',
+  reviewNote?: string,
+): Promise<void> {
+  const staffUser = await usersService.requireRole([...EXCEPTION_STAFF_ROLES]);
+  const existing = await attendanceRepository.selectAttendanceExceptionById(exceptionId);
+  if (!existing) {
+    throw new AppError('NOT_FOUND', 'Attendance exception not found.', 404);
+  }
+  if (existing.status !== 'pending') {
+    throw new AppError('VALIDATION_ERROR', 'This exception has already been reviewed.', 409);
+  }
+
+  if (decision === 'approved' && existing.exception_type === 'correction_request') {
+    await attendanceRepository.applyManualAttendanceCorrection({
+      registration_id: existing.registration_id,
+      session_date: existing.session_date,
+      present: existing.requested_present ?? false,
+    });
+  }
+
+  await attendanceRepository.updateAttendanceExceptionById(exceptionId, {
+    status: decision,
+    reviewed_by: staffUser.id,
+    reviewed_at: new Date().toISOString(),
+    review_note: reviewNote ?? null,
+  });
 }

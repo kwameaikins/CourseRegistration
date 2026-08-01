@@ -12,9 +12,13 @@ import * as usersService from '@/modules/users/service';
 // already expose to their staff-facing consumers.
 import * as attendanceService from '@/modules/attendance/service';
 import * as certificatesService from '@/modules/certificates/service';
+import * as liveSessionsService from '@/modules/live-sessions/service';
 import type {
+  AddTutorSessionMaterialInput,
   CreateTutorInput,
+  FlagAttendanceExceptionInput,
   Tutor,
+  TutorActivityEntry,
   TutorPortalAttendanceEntry,
   TutorPortalBatch,
   TutorPortalCertificateCandidate,
@@ -27,7 +31,8 @@ import type {
   UpdateTutorContactInput,
   UpdateTutorInput,
 } from '@/modules/tutors/types';
-import type { Database } from '@/lib/supabase/database.types';
+import type { SessionMaterial } from '@/modules/live-sessions/types';
+import type { Database, Json } from '@/lib/supabase/database.types';
 
 type TutorRow = Database['public']['Tables']['tutors']['Row'];
 
@@ -43,6 +48,29 @@ function toTutor(row: TutorRow): Tutor {
 }
 
 const STAFF_ROLES_MANAGE = ['admin', 'management'] as const;
+
+// --- Tutor action audit log (Tutor Portal Phase 4, founder-approved
+// 2026-07-31) — closes the gap where PIN changes and contact edits were
+// completely unlogged. A write failure here must never fail the caller's
+// actual action, same "best-effort, never block" posture as the tutor_auth
+// provisioning in createTutor.
+async function logTutorAction(
+  tutorId: string,
+  actionType: string,
+  targetBatchId: string | null,
+  details?: Json,
+): Promise<void> {
+  try {
+    await tutorsRepository.insertTutorActionAuditLogSystem({
+      tutor_id: tutorId,
+      action_type: actionType,
+      target_batch_id: targetBatchId,
+      details,
+    });
+  } catch (err) {
+    console.error('[tutors logTutorAction]', err);
+  }
+}
 
 // --- Staff-facing CRUD (/tutors screen) ---
 
@@ -171,6 +199,7 @@ export async function changeTutorPin(
     throw new AppError('INVALID_PIN', 'Your current PIN is incorrect.', 400);
   }
   await tutorsRepository.updateTutorPin(tutorId, hashPin(input.newPin));
+  await logTutorAction(tutorId, 'pin_changed', null);
 }
 
 export async function logoutOfTutorPortal(sessionId: string | undefined): Promise<void> {
@@ -187,6 +216,30 @@ export async function updateTutorContact(
     full_name: input.fullName,
     phone: input.phone,
   });
+  await logTutorAction(tutorId, 'contact_updated', null, {
+    fullName: input.fullName,
+    phone: input.phone,
+  });
+}
+
+// --- Staff-facing tutor activity (Tutor Portal Phase 4) ---
+
+export async function listTutorActivity(): Promise<TutorActivityEntry[]> {
+  await usersService.requireRole([...STAFF_ROLES_MANAGE]);
+  const rows = await tutorsRepository.selectRecentTutorActionAuditLogSystem();
+  const names = await tutorsRepository.selectTutorNamesByIdsSystem([
+    ...new Set(rows.map((row) => row.tutor_id)),
+  ]);
+  const nameById = new Map(names.map((row) => [row.id, row.full_name]));
+  return rows.map((row) => ({
+    id: row.id,
+    tutorId: row.tutor_id,
+    tutorName: nameById.get(row.tutor_id) ?? '[unknown]',
+    actionType: row.action_type,
+    targetBatchId: row.target_batch_id,
+    details: row.details,
+    createdAt: row.created_at,
+  }));
 }
 
 // --- Tutor portal dashboard data ---
@@ -203,7 +256,10 @@ export async function getTutorPortalDashboard(
   if (!tutor) throw new AppError('NOT_FOUND', 'Tutor not found.', 404);
 
   const courseIds = [...new Set(batchRows.map((row) => row.course_id))];
-  const courses = await tutorsRepository.selectCoursesByIdsSystem(courseIds);
+  const [courses, registeredCounts] = await Promise.all([
+    tutorsRepository.selectCoursesByIdsSystem(courseIds),
+    tutorsRepository.selectRegisteredCountsForBatchesSystem(batchRows.map((row) => row.id)),
+  ]);
   const courseNameById = new Map(courses.map((row) => [row.id, row.course_name]));
 
   const batches: TutorPortalBatch[] = batchRows.map((row) => ({
@@ -213,6 +269,7 @@ export async function getTutorPortalDashboard(
     startDate: row.start_date,
     endDate: row.end_date,
     zoomLink: row.zoom_link,
+    registeredCount: registeredCounts.get(row.id) ?? 0,
   }));
 
   const liveSessionRows = await tutorsRepository.selectLiveSessionsForTutorSystem(
@@ -268,12 +325,15 @@ export async function getRosterForBatch(
 // (Coding Docs/16_Tutor_Operations.md); this is the same shape
 // modules/attendance/service.ts's getAttendanceForBatch already returns to
 // staff, just re-scoped through the tutor's own session instead of RLS.
+// Uses the ...System variant (not getAttendanceForBatch): a tutor-portal
+// session carries no Supabase Auth session, so the RLS-gated staff read
+// would silently return zero rows for these callers.
 export async function getAttendanceForBatch(
   sessionId: string | undefined,
   batchId: string,
 ): Promise<TutorPortalAttendanceEntry[]> {
   await requireOwnBatch(sessionId, batchId);
-  return attendanceService.getAttendanceForBatch(batchId);
+  return attendanceService.getAttendanceForBatchSystem(batchId);
 }
 
 // Visibility only — issuance stays admin-only. Same shape
@@ -286,4 +346,72 @@ export async function getCertificateEligibilityForBatch(
   await requireOwnBatch(sessionId, batchId);
   const context = await certificatesService.getBatchIssueContext(batchId);
   return context?.candidates ?? [];
+}
+
+// --- Attendance Exceptions (Tutor Portal Phase 4, founder-approved
+// 2026-07-31) — a tutor never writes to `attendance` directly (BR-34); this
+// raises a pending request that only an admin's review can act on. ---
+
+export async function flagAttendanceException(
+  sessionId: string | undefined,
+  input: FlagAttendanceExceptionInput,
+): Promise<void> {
+  const tutorId = await requireOwnBatch(sessionId, input.batchId);
+  const belongs = await tutorsRepository.selectRegistrationBelongsToBatchSystem(
+    input.registrationId,
+    input.batchId,
+  );
+  if (!belongs) {
+    throw new AppError('NOT_FOUND', 'That participant is not on this batch’s roster.', 404);
+  }
+  await attendanceService.raiseAttendanceException({
+    registrationId: input.registrationId,
+    batchId: input.batchId,
+    sessionDate: input.sessionDate,
+    exceptionType: input.exceptionType,
+    reason: input.reason,
+    requestedPresent: input.requestedPresent,
+    raisedByTutorId: tutorId,
+  });
+  await logTutorAction(tutorId, 'attendance_exception_raised', input.batchId, {
+    exceptionType: input.exceptionType,
+    sessionDate: input.sessionDate,
+  });
+}
+
+// --- Session Materials (Tutor Portal Phase 4, founder-approved
+// 2026-07-31) — link-based, not a file upload. ---
+
+export async function getMaterialsForBatch(
+  sessionId: string | undefined,
+  batchId: string,
+): Promise<SessionMaterial[]> {
+  await requireOwnBatch(sessionId, batchId);
+  return liveSessionsService.getSessionMaterialsForBatchSystem(batchId);
+}
+
+export async function addMaterialForBatch(
+  sessionId: string | undefined,
+  input: AddTutorSessionMaterialInput,
+): Promise<SessionMaterial> {
+  const tutorId = await requireOwnBatch(sessionId, input.batchId);
+  const material = await liveSessionsService.addSessionMaterial({
+    batchId: input.batchId,
+    liveSessionId: input.liveSessionId ?? null,
+    uploadedByTutorId: tutorId,
+    title: input.title,
+    link: input.link,
+  });
+  await logTutorAction(tutorId, 'material_added', input.batchId, { title: input.title });
+  return material;
+}
+
+export async function removeMaterial(
+  sessionId: string | undefined,
+  materialId: string,
+  batchId: string,
+): Promise<void> {
+  const tutorId = await requireOwnBatch(sessionId, batchId);
+  await liveSessionsService.removeSessionMaterial(materialId, tutorId);
+  await logTutorAction(tutorId, 'material_removed', batchId, { materialId });
 }

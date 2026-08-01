@@ -1,11 +1,13 @@
 import { AppError } from '@/lib/errors';
 import type { Database } from '@/lib/supabase/database.types';
 import * as liveSessionsRepository from '@/modules/live-sessions/repository';
+import * as usersService from '@/modules/users/service';
 import type {
   LiveSession,
   LiveSessionInput,
   LiveSessionStatus,
   LiveSessionUpdate,
+  SessionMaterial,
 } from '@/modules/live-sessions/types';
 
 const STATUS_TRANSITIONS: Record<LiveSessionStatus, LiveSessionStatus[]> = {
@@ -133,4 +135,66 @@ export async function updateLiveSession(
       : { updatedFields: Object.keys(input).filter((key) => key !== 'statusReason') },
   });
   return toLiveSession(row);
+}
+
+// --- Session Materials (Tutor Portal Phase 4, founder-approved 2026-07-31) ---
+// Link-based (no file storage — see repository.ts header comment).
+
+function toSessionMaterial(
+  row: Database['public']['Tables']['session_materials']['Row'],
+): SessionMaterial {
+  return {
+    id: row.id,
+    batchId: row.batch_id,
+    liveSessionId: row.live_session_id,
+    uploadedByTutorId: row.uploaded_by_tutor_id,
+    title: row.title,
+    link: row.link,
+    createdAt: row.created_at,
+  };
+}
+
+// Called only by modules/tutors, after it has verified the batch belongs
+// to the calling tutor's own session.
+export async function addSessionMaterial(input: {
+  batchId: string;
+  liveSessionId: string | null;
+  uploadedByTutorId: string;
+  title: string;
+  link: string;
+}): Promise<SessionMaterial> {
+  const row = await liveSessionsRepository.insertSessionMaterialSystem({
+    batch_id: input.batchId,
+    live_session_id: input.liveSessionId,
+    uploaded_by_tutor_id: input.uploadedByTutorId,
+    title: input.title,
+    link: input.link,
+  });
+  return toSessionMaterial(row);
+}
+
+// Only the uploading tutor may remove their own material.
+export async function removeSessionMaterial(id: string, requestingTutorId: string): Promise<void> {
+  const existing = await liveSessionsRepository.selectSessionMaterialByIdSystem(id);
+  if (!existing) {
+    throw new AppError('NOT_FOUND', 'Material not found.', 404);
+  }
+  if (existing.uploaded_by_tutor_id !== requestingTutorId) {
+    throw new AppError('FORBIDDEN', 'You can only remove materials you added.', 403);
+  }
+  await liveSessionsRepository.deleteSessionMaterialSystem(id);
+}
+
+// Used by the tutor portal and the student portal — both non-staff
+// contexts, hence the service-role-backed system read.
+export async function getSessionMaterialsForBatchSystem(batchId: string): Promise<SessionMaterial[]> {
+  const rows = await liveSessionsRepository.selectSessionMaterialsForBatchSystem(batchId);
+  return rows.map(toSessionMaterial);
+}
+
+// Staff-facing read (RLS enforces admin/management, matching /live-sessions).
+export async function getSessionMaterialsForBatch(batchId: string): Promise<SessionMaterial[]> {
+  await usersService.requireRole(['admin', 'management']);
+  const rows = await liveSessionsRepository.selectSessionMaterialsForBatch(batchId);
+  return rows.map(toSessionMaterial);
 }

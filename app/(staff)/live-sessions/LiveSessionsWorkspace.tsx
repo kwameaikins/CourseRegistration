@@ -12,6 +12,7 @@ import type { LiveSession, LiveSessionStatus } from '@/modules/live-sessions/typ
 
 type BatchOption = { id: string; cohortLabel: string; startDate: string };
 type TutorOption = { id: string; fullName: string };
+type MaterialOption = { id: string; title: string; link: string; createdAt: string };
 
 const EMPTY_FORM = {
   batchId: '',
@@ -64,6 +65,9 @@ export function LiveSessionsWorkspace({
     status: 'cancelled' | 'rescheduled';
   } | null>(null);
   const [reasonDraft, setReasonDraft] = useState('');
+  const [materialsBatchId, setMaterialsBatchId] = useState('');
+  const [materials, setMaterials] = useState<MaterialOption[]>([]);
+  const [materialsLoading, setMaterialsLoading] = useState(false);
 
   useEffect(() => {
     if (!canManage) return;
@@ -71,6 +75,20 @@ export function LiveSessionsWorkspace({
       .then(({ tutors }) => setTutors(tutors))
       .catch((err) => setErrorMessage(err instanceof Error ? err.message : 'Failed to load tutors.'));
   }, [canManage]);
+
+  useEffect(() => {
+    if (!materialsBatchId) {
+      setMaterials([]);
+      return;
+    }
+    setMaterialsLoading(true);
+    apiFetch<{ materials: MaterialOption[] }>(
+      `/api/live-sessions/materials?batchId=${encodeURIComponent(materialsBatchId)}`,
+    )
+      .then(({ materials }) => setMaterials(materials))
+      .catch(() => setMaterials([]))
+      .finally(() => setMaterialsLoading(false));
+  }, [materialsBatchId]);
 
   function showStatus(message: string) {
     setStatusMessage(message);
@@ -196,6 +214,46 @@ export function LiveSessionsWorkspace({
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader><CardTitle>Tutor-shared materials</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-2">
+            <Label htmlFor="materialsBatch">Batch</Label>
+            <select
+              id="materialsBatch"
+              className="flex h-10 w-full max-w-md rounded-md border border-input bg-background px-3 text-sm"
+              value={materialsBatchId}
+              onChange={(event) => setMaterialsBatchId(event.target.value)}
+            >
+              <option value="">Select a batch…</option>
+              {batches.map((batch) => (
+                <option key={batch.id} value={batch.id}>
+                  {batch.cohortLabel} ({formatDate(batch.startDate)})
+                </option>
+              ))}
+            </select>
+          </div>
+          {materialsLoading ? (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          ) : materials.length === 0 ? (
+            materialsBatchId && (
+              <p className="text-sm text-muted-foreground">Nothing shared yet for this batch.</p>
+            )
+          ) : (
+            <ul className="space-y-1 text-sm">
+              {materials.map((material) => (
+                <li key={material.id} className="flex items-center justify-between border-b pb-1 last:border-b-0">
+                  <a href={material.link} target="_blank" rel="noreferrer" className="text-primary underline">
+                    {material.title}
+                  </a>
+                  <span className="text-xs text-muted-foreground">{formatDate(material.createdAt)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader><CardTitle>Session control centre</CardTitle></CardHeader>

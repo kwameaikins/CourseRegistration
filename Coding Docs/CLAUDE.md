@@ -316,6 +316,33 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     CHECK-constraint drop fails loudly rather than silently corrupting
     data; confirmed no such row exists in any committed seed/migration.
 
+  Tutor Portal Phase 4 (2026-07-31, foundation shipped) — a follow-up
+    review of tutor access against best practice. Built: a tutor action
+    audit log (`tutor_action_audit_log`, closes a real gap — PIN changes
+    and contact edits were previously unlogged), Attendance Exceptions
+    (`attendance_exceptions` — tutor-raised no-show flags/correction
+    requests, always admin-reviewed on /attendance before anything
+    changes; BR-34 unchanged, a tutor never writes to `attendance`
+    directly), Session Materials (`session_materials` — tutor-shared
+    material links per batch, link-based like `batches.resources_link`
+    rather than file storage; visible on /live-sessions and the student
+    portal's new Materials tab), and a registered-student count on the
+    tutor's batch selector (not a payment field). Also fixed a latent bug:
+    the tutor-portal Attendance panel was silently returning empty
+    results because the underlying read used the staff-RLS client, which
+    returns zero rows for a caller with no Supabase Auth session — added
+    a service-role read path matching every other tutor-portal read.
+    Explicitly declined for now: tutor visibility into participant
+    payment amounts (requested mid-build; reverses BR-33, scope
+    undecided — see Coding Docs/16_Tutor_Operations.md §11, do not build
+    without founder sign-off on aggregate-vs-per-student scope). Deferred
+    to a later phase: recording release, learner follow-up notes,
+    substitute handover, availability/blackout dates, tutor→roster
+    messaging (suspended), tutor compensation tracking (shape decided —
+    full rate-based — but deferred, no payable-session rule exists yet).
+    Migrations `202607290037/038/039` pending production application (run
+    `npx supabase db push` when ready).
+
 Open decisions (founder):
   - AI05 ("...Reporting and Modeling") vs AI02 ("...Reporting and
     Analysis") are near-duplicate courses — pick a canonical one.
