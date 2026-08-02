@@ -634,6 +634,33 @@ Migration `202608020045_partner_credit_redemption.sql`.
 
 ---
 
+## Course-specific referral links & QR codes (2026-08-02, same-day follow-up)
+
+Tutors/students could refer via a code or a generic tracked link, but the link always dropped a
+visitor on a plain `/register` with no course pre-selected — friction the founder asked to remove.
+Turned out `RegistrationForm.tsx` already pre-selects a batch from `?batchId=` (built for the
+waitlist email), so this was mostly about wiring existing plumbing through, plus closing a real gap:
+the tutor and student portals had no shareable link/QR at all (only the standalone partner portal
+did).
+
+- [x] `app/r/[code]/route.ts` forwards an optional `?batchId=` straight into the `/register`
+      redirect — no server-side validation, an unknown/expired batch id just falls back to
+      "Select a course" via the register form's own existing check
+- [x] `buildReferralUrl`/`generateReferralQrDataUrl` take an optional `batchId`
+- [x] New public `GET /api/register/active-batches` — unauthenticated, same batch list `/register`
+      already shows, feeds the new course-picker dropdowns
+- [x] New `GET /api/tutor-portal/qr-code` and `GET /api/portal/qr-code`, mirroring the existing
+      `/api/partner-portal/qr-code` ownership-check pattern exactly
+- [x] All three referrer portals (student "Refer & Earn", tutor "Referrals", partner portal's
+      Codes panel) get, per code: a course picker, a reactive link, "Copy link" (new — first
+      `navigator.clipboard` usage in this codebase), and "Show QR code"
+- [x] Unit tests for `buildReferralUrl` with/without a `batchId`
+
+No schema change — the batch id is a transient query-string hint, never persisted, and has no role
+in attribution or commission math (both untouched by this change).
+
+---
+
 ## Risk watch (carried from `/docs/01_PRD.md` risk register)
 
 | ID | Risk | Status |

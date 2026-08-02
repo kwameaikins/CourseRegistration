@@ -50,6 +50,7 @@ const {
   markCommissionsPayable,
   recordPayout,
   previewCode,
+  buildReferralUrl,
 } = await import('@/modules/partners/service');
 
 const STAFF = { id: 'staff-1', fullName: 'Jane Doe', role: 'admin' };
@@ -136,6 +137,18 @@ describe('institutionalFlatFee (doc SS2 tiers)', () => {
   it('Platinum tier at the 200-enrolment boundary', () => {
     expect(institutionalFlatFee(200)).toBe(50);
     expect(institutionalFlatFee(5000)).toBe(50);
+  });
+});
+
+describe('buildReferralUrl — course-specific links (2026-08-02 follow-up)', () => {
+  it('builds a general link with no batchId param when none is given', () => {
+    const url = buildReferralUrl('STEPHEN954');
+    expect(url).toBe('https://reg.knowsia.com/r/STEPHEN954');
+  });
+
+  it('appends batchId as a query param when given', () => {
+    const url = buildReferralUrl('STEPHEN954', 'batch-uuid-1');
+    expect(url).toBe('https://reg.knowsia.com/r/STEPHEN954?batchId=batch-uuid-1');
   });
 });
 

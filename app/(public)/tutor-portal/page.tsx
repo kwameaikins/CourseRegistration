@@ -105,6 +105,15 @@ interface ReferralSummary {
   payableCommissionIds: string[];
 }
 
+// Course-specific referral links/QR (2026-08-02 follow-up) — the same
+// active/future batch list already shown on the public /register form.
+interface ActiveBatch {
+  batchId: string;
+  courseName: string;
+  cohortLabel: string;
+  startDate: string;
+}
+
 type PanelId =
   | 'overview'
   | 'schedule'
@@ -147,6 +156,10 @@ export default function TutorPortalDashboardPage() {
   const [redeeming, setRedeeming] = useState(false);
   const [redeemError, setRedeemError] = useState<string | null>(null);
   const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null);
+  const [batchOptions, setBatchOptions] = useState<ActiveBatch[] | 'loading' | null>(null);
+  const [selectedBatchByCode, setSelectedBatchByCode] = useState<Record<string, string>>({});
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [qrCode, setQrCode] = useState<{ code: string; dataUrl: string } | null>(null);
 
   const [editingContact, setEditingContact] = useState(false);
   const [contactForm, setContactForm] = useState({ fullName: '', phone: '' });
@@ -210,6 +223,14 @@ export default function TutorPortalDashboardPage() {
     apiFetch<ReferralSummary | null>('/api/tutor-portal/referrals')
       .then(setReferrals)
       .catch(() => setReferrals(null));
+  }, [activePanel]);
+
+  useEffect(() => {
+    if (activePanel !== 'referrals') return;
+    setBatchOptions('loading');
+    apiFetch<{ batches: ActiveBatch[] }>('/api/register/active-batches')
+      .then((r) => setBatchOptions(r.batches))
+      .catch(() => setBatchOptions(null));
   }, [activePanel]);
 
   function openFlagForm(registrationId: string, sessionDate: string) {
@@ -307,6 +328,30 @@ export default function TutorPortalDashboardPage() {
       setRedeemError(err instanceof Error ? err.message : 'Could not redeem your commission — try again.');
     } finally {
       setRedeeming(false);
+    }
+  }
+
+  function referralLinkFor(code: string): string {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const batchId = selectedBatchByCode[code];
+    return `${origin}/r/${code}${batchId ? `?batchId=${batchId}` : ''}`;
+  }
+
+  function copyLink(code: string) {
+    void navigator.clipboard.writeText(referralLinkFor(code));
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(null), 2000);
+  }
+
+  async function showQrCode(code: string) {
+    const batchId = selectedBatchByCode[code];
+    const qs = new URLSearchParams({ code });
+    if (batchId) qs.set('batchId', batchId);
+    try {
+      const result = await apiFetch<{ dataUrl: string }>(`/api/tutor-portal/qr-code?${qs}`);
+      setQrCode({ code, dataUrl: result.dataUrl });
+    } catch {
+      // Non-fatal — the button simply doesn't render a QR image.
     }
   }
 
@@ -867,20 +912,69 @@ export default function TutorPortalDashboardPage() {
                       <p className="empty-note">No codes assigned yet.</p>
                     ) : (
                       referrals.codes.map((code) => (
-                        <div key={code.id} className="mini-course-row">
-                          <div>
-                            <div className="name">{code.code}</div>
-                            <div className="meta">
-                              {code.discountType && code.discountValue !== null
-                                ? code.discountType === 'percentage'
-                                  ? `${code.discountValue}% off`
-                                  : `${formatGhs(code.discountValue)} off`
-                                : 'Attribution only'}
-                              {' · '}
-                              {code.usesCount} use(s)
+                        <article key={code.id} className="course-card">
+                          <div className="head">
+                            <div>
+                              <h4>{code.code}</h4>
+                              <div className="meta">
+                                {code.discountType && code.discountValue !== null
+                                  ? code.discountType === 'percentage'
+                                    ? `${code.discountValue}% off`
+                                    : `${formatGhs(code.discountValue)} off`
+                                  : 'Attribution only'}
+                                {' · '}
+                                {code.usesCount} use(s)
+                              </div>
                             </div>
                           </div>
-                        </div>
+
+                          <div className="field" style={{ marginTop: 12 }}>
+                            <label htmlFor={`batch-${code.id}`}>Link this code to a course (optional)</label>
+                            <select
+                              id={`batch-${code.id}`}
+                              value={selectedBatchByCode[code.code] ?? ''}
+                              onChange={(event) => {
+                                setSelectedBatchByCode((current) => ({
+                                  ...current,
+                                  [code.code]: event.target.value,
+                                }));
+                                setQrCode(null);
+                              }}
+                            >
+                              <option value="">General link (no specific course)</option>
+                              {Array.isArray(batchOptions) &&
+                                batchOptions.map((batch) => (
+                                  <option key={batch.batchId} value={batch.batchId}>
+                                    {batch.courseName} — {batch.cohortLabel} — {formatDate(batch.startDate)}
+                                  </option>
+                                ))}
+                            </select>
+                          </div>
+
+                          <p className="meta" style={{ marginTop: 8, wordBreak: 'break-all' }}>
+                            {referralLinkFor(code.code)}
+                          </p>
+
+                          <div className="join-row">
+                            <button type="button" className="btn btn-outline btn-sm" onClick={() => copyLink(code.code)}>
+                              {copiedCode === code.code ? 'Copied!' : 'Copy link'}
+                            </button>
+                            <button type="button" className="btn btn-outline btn-sm" onClick={() => void showQrCode(code.code)}>
+                              Show QR code
+                            </button>
+                          </div>
+
+                          {qrCode?.code === code.code && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={qrCode.dataUrl}
+                              alt={`QR code for ${code.code}`}
+                              width={180}
+                              height={180}
+                              style={{ marginTop: 12 }}
+                            />
+                          )}
+                        </article>
                       ))
                     )}
 

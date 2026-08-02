@@ -12,7 +12,16 @@ import Image from 'next/image';
 
 import { apiFetch } from '@/components/api-client';
 import { PORTAL_STYLES, PortalIcons } from '@/components/portal/portal-design-system';
-import { formatGhs } from '@/lib/utils';
+import { formatDate, formatGhs } from '@/lib/utils';
+
+// Course-specific referral links/QR (2026-08-02 follow-up) — the same
+// active/future batch list already shown on the public /register form.
+interface ActiveBatch {
+  batchId: string;
+  courseName: string;
+  cohortLabel: string;
+  startDate: string;
+}
 
 interface Code {
   id: string;
@@ -81,6 +90,9 @@ export default function PartnerPortalDashboardPage() {
   const [redeeming, setRedeeming] = useState(false);
   const [redeemError, setRedeemError] = useState<string | null>(null);
   const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null);
+  const [batchOptions, setBatchOptions] = useState<ActiveBatch[] | 'loading' | null>(null);
+  const [selectedBatchByCode, setSelectedBatchByCode] = useState<Record<string, string>>({});
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -101,20 +113,38 @@ export default function PartnerPortalDashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (activePanel !== 'codes') return;
+    setBatchOptions('loading');
+    apiFetch<{ batches: ActiveBatch[] }>('/api/register/active-batches')
+      .then((r) => setBatchOptions(r.batches))
+      .catch(() => setBatchOptions(null));
+  }, [activePanel]);
+
   async function logout() {
     await apiFetch('/api/partner-portal/logout', { method: 'POST' }).catch(() => undefined);
     router.push('/partner-portal/login');
   }
 
   async function showQrCode(code: string) {
+    const batchId = selectedBatchByCode[code];
+    const qs = new URLSearchParams({ code });
+    if (batchId) qs.set('batchId', batchId);
     try {
-      const result = await apiFetch<{ dataUrl: string }>(
-        `/api/partner-portal/qr-code?code=${encodeURIComponent(code)}`,
-      );
+      const result = await apiFetch<{ dataUrl: string }>(`/api/partner-portal/qr-code?${qs}`);
       setQrCode({ code, dataUrl: result.dataUrl });
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to generate QR code.');
     }
+  }
+
+  function copyLink(code: string) {
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const batchId = selectedBatchByCode[code];
+    const link = `${origin}/r/${code}${batchId ? `?batchId=${batchId}` : ''}`;
+    void navigator.clipboard.writeText(link);
+    setCopiedCode(code);
+    setTimeout(() => setCopiedCode(null), 2000);
   }
 
   async function redeemCommissionCredit() {
@@ -342,13 +372,37 @@ export default function PartnerPortalDashboardPage() {
                       <div><span className="lbl">Total uses</span><span className="val tnum">{code.usesCount}</span></div>
                     </div>
 
+                    <div className="field" style={{ marginTop: 12 }}>
+                      <label htmlFor={`batch-${code.id}`}>Link this code to a course (optional)</label>
+                      <select
+                        id={`batch-${code.id}`}
+                        value={selectedBatchByCode[code.code] ?? ''}
+                        onChange={(event) => {
+                          setSelectedBatchByCode((current) => ({ ...current, [code.code]: event.target.value }));
+                          setQrCode(null);
+                        }}
+                      >
+                        <option value="">General link (no specific course)</option>
+                        {Array.isArray(batchOptions) &&
+                          batchOptions.map((batch) => (
+                            <option key={batch.batchId} value={batch.batchId}>
+                              {batch.courseName} — {batch.cohortLabel} — {formatDate(batch.startDate)}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+
                     {referralOrigin && (
                       <p className="meta" style={{ marginTop: 10, wordBreak: 'break-all' }}>
                         Tracked link: {referralOrigin}/r/{code.code}
+                        {selectedBatchByCode[code.code] ? `?batchId=${selectedBatchByCode[code.code]}` : ''}
                       </p>
                     )}
 
                     <div className="join-row">
+                      <button type="button" className="btn btn-outline btn-sm" onClick={() => copyLink(code.code)}>
+                        {copiedCode === code.code ? 'Copied!' : 'Copy link'}
+                      </button>
                       <button type="button" className="btn btn-outline btn-sm" onClick={() => void showQrCode(code.code)}>
                         Show QR code
                       </button>

@@ -18,7 +18,8 @@ export async function GET(
     if (!codes.some((c) => c.code === code.toUpperCase())) {
       throw new AppError('NOT_FOUND', 'That code does not belong to this partner.', 404);
     }
-    const dataUrl = await partnersService.generateReferralQrDataUrl(code);
+    const batchId = url.searchParams.get('batchId') ?? undefined;
+    const dataUrl = await partnersService.generateReferralQrDataUrl(code, batchId);
     return successResponse({ dataUrl });
   } catch (err) {
     return handleRouteError(err);

@@ -812,13 +812,18 @@ export async function markCommissionsRedeemedSystem(
 
 // --- QR code (same QRCode.toDataURL pattern as lib/certificates/pdf.ts) ---
 
-export function buildReferralUrl(code: string): string {
+// batchId (2026-08-02 follow-up) — optional, makes the link/QR land the
+// visitor on /register with that course already selected (RegistrationForm
+// already reads ?batchId= on mount). Never persisted; a pure URL hint.
+export function buildReferralUrl(code: string, batchId?: string): string {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com';
-  return `${base}/r/${encodeURIComponent(code)}`;
+  const url = new URL(`/r/${encodeURIComponent(code)}`, base);
+  if (batchId) url.searchParams.set('batchId', batchId);
+  return url.toString();
 }
 
-export async function generateReferralQrDataUrl(code: string): Promise<string> {
-  return QRCode.toDataURL(buildReferralUrl(code), {
+export async function generateReferralQrDataUrl(code: string, batchId?: string): Promise<string> {
+  return QRCode.toDataURL(buildReferralUrl(code, batchId), {
     margin: 0,
     width: 220,
     color: { dark: '#1a1a2e', light: '#ffffff' },

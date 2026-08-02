@@ -474,6 +474,24 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     payout flow). Migration `202608020045_partner_credit_redemption.sql`
     applied to production 2026-08-02.
 
+  Course-specific referral links & QR codes (2026-08-02, same-day follow-up) — closed the gap where
+    the tutor and student portals had no shareable link/QR at all (only the standalone partner
+    portal did), and no link could target a specific course. `app/r/[code]/route.ts` now forwards an
+    optional `?batchId=` straight through to `/register?ref=...&batchId=...`, which already
+    pre-selects that batch on mount (built earlier for the waitlist "a seat opened up" email —
+    `RegistrationForm.tsx`). `buildReferralUrl`/`generateReferralQrDataUrl`
+    (`modules/partners/service.ts`) take an optional `batchId`; a bad/expired/unknown one just fails
+    the existing `batchOptions.some(...)` check and falls back to "Select a course" — no new error
+    handling needed. New public `GET /api/register/active-batches` (unauthenticated, same data
+    `/register` already renders) feeds a course-picker dropdown now added to all three referrer
+    portals (student "Refer & Earn", tutor "Referrals", and the existing partner portal's Codes
+    panel), each per-code with a reactive link, a "Copy link" button (new — first
+    `navigator.clipboard` usage in the codebase), and "Show QR code". New ownership-checked QR
+    endpoints `GET /api/tutor-portal/qr-code` and `GET /api/portal/qr-code` mirror the existing
+    `/api/partner-portal/qr-code` exactly, reusing each portal's existing `getReferralSummaryForSession`
+    for the ownership check — no new service-layer functions needed. No schema change — the batch id
+    is a transient query-string hint, never persisted, and plays no role in attribution or commission.
+
 Open decisions (founder):
   - AI05 ("...Reporting and Modeling") vs AI02 ("...Reporting and
     Analysis") are near-duplicate courses — pick a canonical one.
