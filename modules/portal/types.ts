@@ -143,15 +143,6 @@ export interface PortalReceiptData {
   registrationId: string;
 }
 
-// Message history (student portal, 2026-07-26) — a participant's own
-// communications, scoped to one registration they own.
-export interface PortalMessageHistoryEntry {
-  channel: 'email' | 'whatsapp' | 'sms';
-  messageType: string;
-  sentAt: string;
-  success: boolean;
-}
-
 // Forgot-PIN (student portal, 2026-07-26) — identical email-or-phone
 // identifier shape as portalLoginSchema.
 export const portalForgotPinSchema = z.object({

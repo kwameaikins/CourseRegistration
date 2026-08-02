@@ -2,12 +2,14 @@
 
 // Student portal dashboard (system review, 2026-07-22; redesigned
 // 2026-07-26 into a section-based app shell — Overview, My Courses,
-// Payments & Receipts, Certificates, Messages, Explore Courses, Account —
+// Payments & Receipts, Certificates, Explore Courses, Account —
 // so the growing feature set doesn't collapse into one long scroll).
 // Everything a registrant might ask staff about: registration status,
-// payment/balance, class schedule + Zoom join link, attendance, messages,
+// payment/balance, class schedule + Zoom join link, attendance,
 // certificates, and self-service payment, across every course they've
-// registered for.
+// registered for. (The internal automated-message log was removed from
+// student view, 2026-08-02 — it exposed raw system template names like
+// "post_training_thankyou" that meant nothing to a student.)
 //
 // Pay Now (fix, 2026-07-24): previously the only way to pay was the
 // one-time "Pay now" button shown right after registering — if the
@@ -83,13 +85,6 @@ interface NextClass {
   joinUrl: string | null;
 }
 
-interface MessageHistoryEntry {
-  channel: 'email' | 'whatsapp' | 'sms';
-  messageType: string;
-  sentAt: string;
-  success: boolean;
-}
-
 interface SessionMaterialEntry {
   id: string;
   title: string;
@@ -132,7 +127,6 @@ type PanelId =
   | 'courses'
   | 'payments'
   | 'certificates'
-  | 'messages'
   | 'referrals'
   | 'explore'
   | 'account';
@@ -142,7 +136,6 @@ const NAV_ITEMS: Array<{ id: PanelId; label: string; icon: string }> = [
   { id: 'courses', label: 'My Courses', icon: 'i-book' },
   { id: 'payments', label: 'Payments & Receipts', icon: 'i-card' },
   { id: 'certificates', label: 'Certificates', icon: 'i-award' },
-  { id: 'messages', label: 'Messages', icon: 'i-chat' },
   { id: 'referrals', label: 'Refer & Earn', icon: 'i-compass' },
   { id: 'explore', label: 'Explore Courses', icon: 'i-compass' },
   { id: 'account', label: 'Account', icon: 'i-user' },
@@ -222,14 +215,11 @@ export default function PortalDashboardPage() {
     Record<string, PaymentSubmissionEntry[] | 'loading'>
   >({});
 
-  const [messagesByRegistration, setMessagesByRegistration] = useState<
-    Record<string, MessageHistoryEntry[] | 'loading'>
-  >({});
   const [materialsByRegistration, setMaterialsByRegistration] = useState<
     Record<string, SessionMaterialEntry[] | 'loading'>
   >({});
   const [courseTab, setCourseTab] = useState<
-    Record<string, 'attendance' | 'messages' | 'materials' | 'feedback'>
+    Record<string, 'attendance' | 'materials' | 'feedback'>
   >({});
 
   const [otherCourses, setOtherCourses] = useState<OtherCourse[]>([]);
@@ -257,13 +247,6 @@ export default function PortalDashboardPage() {
       })
       .catch(() => router.push('/portal/login'));
   }, [router]);
-
-  const fetchMessages = useCallback((registrationId: string) => {
-    setMessagesByRegistration((current) => ({ ...current, [registrationId]: 'loading' }));
-    apiFetch<MessageHistoryEntry[]>(`/api/portal/messages/${registrationId}`)
-      .then((messages) => setMessagesByRegistration((current) => ({ ...current, [registrationId]: messages })))
-      .catch(() => setMessagesByRegistration((current) => ({ ...current, [registrationId]: [] })));
-  }, []);
 
   const fetchMaterials = useCallback((registrationId: string) => {
     setMaterialsByRegistration((current) => ({ ...current, [registrationId]: 'loading' }));
@@ -298,16 +281,6 @@ export default function PortalDashboardPage() {
   useEffect(() => {
     if (activePanel === 'referrals') fetchReferrals();
   }, [activePanel, fetchReferrals]);
-
-  // Messages are fetched lazily per registration, all at once the first
-  // time the Messages section is opened rather than up front.
-  useEffect(() => {
-    if (activePanel !== 'messages' || !dashboard) return;
-    dashboard.registrations.forEach((reg) => {
-      if (!messagesByRegistration[reg.registrationId]) fetchMessages(reg.registrationId);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activePanel, dashboard]);
 
   // Same lazy-on-open pattern, only for registrations still owing a
   // balance (the only ones whose pay-block can show a submission status).
@@ -695,7 +668,7 @@ export default function PortalDashboardPage() {
                   {dashboard.registrations.length} registration{dashboard.registrations.length === 1 ? '' : 's'}
                 </h2>
                 <p className="panel-sub">
-                  Schedule, payment, attendance, and messages for each course all live here.
+                  Schedule, payment, and attendance for each course all live here.
                 </p>
 
                 {dashboard.registrations.length === 0 && (
@@ -704,7 +677,6 @@ export default function PortalDashboardPage() {
 
                 {dashboard.registrations.map((reg) => {
                   const activeCert = reg.certificates.find((c) => !c.revoked);
-                  const messages = messagesByRegistration[reg.registrationId];
                   const materials = materialsByRegistration[reg.registrationId];
                   const submissions = submissionsByRegistration[reg.registrationId];
                   const pendingSubmission = Array.isArray(submissions)
@@ -969,16 +941,6 @@ export default function PortalDashboardPage() {
                             Attendance ({reg.attendance.length})
                           </button>
                           <button
-                            className={courseTab[reg.registrationId] === 'messages' ? 'active' : ''}
-                            type="button"
-                            onClick={() => {
-                              setCourseTab((cur) => ({ ...cur, [reg.registrationId]: 'messages' }));
-                              if (!messages) fetchMessages(reg.registrationId);
-                            }}
-                          >
-                            Messages
-                          </button>
-                          <button
                             className={courseTab[reg.registrationId] === 'materials' ? 'active' : ''}
                             type="button"
                             onClick={() => {
@@ -1013,7 +975,6 @@ export default function PortalDashboardPage() {
                               </ul>
                             )
                           )}
-                          {courseTab[reg.registrationId] === 'messages' && <MessageList entry={messages} />}
                           {courseTab[reg.registrationId] === 'materials' && <MaterialsList entry={materials} />}
                           {courseTab[reg.registrationId] === 'feedback' && (
                             reg.feedbackSubmitted ? (
@@ -1137,26 +1098,6 @@ export default function PortalDashboardPage() {
                     ))}
                   </div>
                 )}
-              </section>
-            )}
-
-            {activePanel === 'messages' && (
-              <section className="panel active" role="tabpanel">
-                <p className="eyebrow">Messages</p>
-                <h2 className="panel-title">Communication history</h2>
-                <p className="panel-sub">Every email, SMS, and WhatsApp message we&apos;ve sent you, grouped by course.</p>
-
-                {dashboard.registrations.length === 0 && (
-                  <p className="empty-note">No registrations found on this account.</p>
-                )}
-                {dashboard.registrations.map((reg) => (
-                  <div key={reg.registrationId}>
-                    <div className="section-heading"><h3>{reg.courseName}</h3></div>
-                    <div className="course-card" style={{ padding: '16px 20px' }}>
-                      <MessageList entry={messagesByRegistration[reg.registrationId]} />
-                    </div>
-                  </div>
-                ))}
               </section>
             )}
 
@@ -1459,30 +1400,6 @@ function NameEditForm({
         </button>
       </div>
     </form>
-  );
-}
-
-function MessageList({ entry }: { entry: MessageHistoryEntry[] | 'loading' | undefined }) {
-  if (entry === undefined) return <p className="empty-note">Loading…</p>;
-  if (entry === 'loading') return <p className="empty-note">Loading…</p>;
-  if (entry.length === 0) return <p className="empty-note">No messages sent yet.</p>;
-  return (
-    <div>
-      {entry.map((message, index) => (
-        <div key={index} className={`msg-item${message.success ? '' : ' failed'}`}>
-          <div className="chan">
-            <svg className="icon" style={{ width: 14, height: 14 }}><use href={message.success ? '#i-check' : '#i-alert'} /></svg>
-          </div>
-          <div className="body">
-            <div className="type">{message.messageType} · {message.channel.toUpperCase()}</div>
-            <div className="when">
-              {new Date(message.sentAt).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
-              {!message.success && ' · Failed to deliver'}
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
   );
 }
 

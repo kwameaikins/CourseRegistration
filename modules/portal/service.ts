@@ -14,10 +14,6 @@ import * as certificatesService from '@/modules/certificates/service';
 // module); portal only verifies the registration belongs to this session
 // before delegating (founder-approved 2026-07-24).
 import * as paymentsService from '@/modules/payments/service';
-// Permitted cross-module call (2026-07-26) — communications owns the
-// email/whatsapp/sms log tables; portal only ever asks for the subset
-// scoped to registrations it has already verified belong to this session.
-import * as communicationsService from '@/modules/communications/service';
 // Permitted cross-module call (2026-07-26) — the "browse other courses"
 // section reuses the exact same public-batch read the registration form
 // uses; courses stays unaware the portal exists.
@@ -48,7 +44,6 @@ import type {
   PortalForgotPinInput,
   PortalLoginInput,
   PortalLoginResult,
-  PortalMessageHistoryEntry,
   PortalReceiptData,
   PortalResetPinInput,
   PortalSetUpInstallmentPlanInput,
@@ -521,31 +516,8 @@ export async function getStudentStatusForStaff(identifier: string): Promise<Stud
   };
 }
 
-// Message history (2026-07-26) — same ownership check as getReceiptData,
-// then delegates the actual read to communications (which owns the log
-// tables) via its ungated getMessageLogForRegistrations helper.
-export async function getMessageHistory(
-  sessionId: string | undefined,
-  registrationId: string,
-): Promise<PortalMessageHistoryEntry[]> {
-  const { participantId } = await requirePortalSession(sessionId);
-  const data = await portalRepository.selectPortalDashboardData(participantId);
-  const owns = data.registrations.some((row) => row.registration.id === registrationId);
-  if (!owns) {
-    throw new AppError('NOT_FOUND', 'Registration not found.', 404);
-  }
-
-  const rows = await communicationsService.getMessageLogForRegistrations([registrationId]);
-  return rows.map((row) => ({
-    channel: row.channel,
-    messageType: row.messageType,
-    sentAt: row.sentAt,
-    success: row.success,
-  }));
-}
-
 // In-portal feedback (2026-07-27) — same ownership check as
-// getMessageHistory/getReceiptData, then delegates straight to
+// getReceiptData, then delegates straight to
 // feedbackService.submitFeedback (which also owns the certificate
 // auto-issue rule) so submission logic has exactly one implementation
 // regardless of which surface (public link, portal, voice) it's reached

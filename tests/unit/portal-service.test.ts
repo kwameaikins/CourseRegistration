@@ -27,9 +27,6 @@ const paymentsRepositoryMock = {
 const certificatesServiceMock = {
   renameExistingCertificates: vi.fn(),
 };
-const communicationsServiceMock = {
-  getMessageLogForRegistrations: vi.fn(),
-};
 const coursesServiceMock = {
   getActiveBatchesForPublicForm: vi.fn(),
 };
@@ -43,7 +40,6 @@ const feedbackServiceMock = {
 vi.mock('@/modules/portal/repository', () => repositoryMock);
 vi.mock('@/modules/payments/repository', () => paymentsRepositoryMock);
 vi.mock('@/modules/certificates/service', () => certificatesServiceMock);
-vi.mock('@/modules/communications/service', () => communicationsServiceMock);
 vi.mock('@/modules/courses/service', () => coursesServiceMock);
 vi.mock('@/modules/feedback/service', () => feedbackServiceMock);
 vi.mock('@/lib/resend/client', () => resendClientMock);
@@ -61,7 +57,6 @@ const {
   getReceiptData,
   getReceiptDataForStaff,
   getStudentStatusForStaff,
-  getMessageHistory,
   getOtherCourses,
   requestPinReset,
   resetPin,
@@ -663,33 +658,6 @@ describe('getStudentStatusForStaff', () => {
     await expect(getStudentStatusForStaff('ama@example.com')).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
-  });
-});
-
-describe('getMessageHistory', () => {
-  beforeEach(() => {
-    repositoryMock.selectPortalDashboardData.mockResolvedValue({
-      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
-      registrations: [receiptDashboardRow()],
-    });
-  });
-
-  it('delegates to communications, scoped to the owned registration id', async () => {
-    communicationsServiceMock.getMessageLogForRegistrations.mockResolvedValue([
-      { channel: 'email', messageType: 'RegistrationConfirmation', sentAt: '2026-07-01T09:00:00Z', success: true },
-    ]);
-    const messages = await getMessageHistory('session-1', 'reg-1');
-    expect(communicationsServiceMock.getMessageLogForRegistrations).toHaveBeenCalledWith(['reg-1']);
-    expect(messages).toEqual([
-      { channel: 'email', messageType: 'RegistrationConfirmation', sentAt: '2026-07-01T09:00:00Z', success: true },
-    ]);
-  });
-
-  it('rejects a registration id that does not belong to this session', async () => {
-    await expect(getMessageHistory('session-1', 'reg-not-mine')).rejects.toMatchObject({
-      code: 'NOT_FOUND',
-    });
-    expect(communicationsServiceMock.getMessageLogForRegistrations).not.toHaveBeenCalled();
   });
 });
 
