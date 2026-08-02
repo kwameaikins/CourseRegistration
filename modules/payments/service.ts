@@ -450,6 +450,99 @@ export async function applyDiscount(
   };
 }
 
+// Commission-as-course-credit redemption (founder-approved 2026-08-02) — a
+// partner spends their own 'payable' commission balance to reduce a course
+// fee (their own, or a referred student's) instead of a cash payout. This
+// function owns the fee mutation (same course_fee/original_fee/
+// discount_amount math as applyDiscount above, just system-originated
+// rather than staff-originated — discount_granted_by is null); the
+// partners-side validation (ownership, status=payable) and bookkeeping
+// (marking the spent commissions 'redeemed') live in modules/partners,
+// which this function calls into — the same accrual/payout split already
+// established between these two modules. No cap on how much of the fee
+// credit can cover, but never more than what's actually still owed.
+export async function redeemCommissionCreditSystem(
+  partnerId: string,
+  commissionIds: string[],
+  target: { registrationId?: string | null; participantEmail?: string | null },
+): Promise<PaymentUpdateResult> {
+  const totalCredit = await partnersService.validateAndTotalRedeemableCommissionsSystem(
+    partnerId,
+    commissionIds,
+  );
+
+  let targetRegistrationId = target.registrationId ?? null;
+  if (!targetRegistrationId && target.participantEmail) {
+    targetRegistrationId = await paymentsRepository.selectMostRecentOpenRegistrationIdByEmailSystem(
+      target.participantEmail,
+    );
+    if (!targetRegistrationId) {
+      throw new AppError(
+        'NOT_FOUND',
+        'No registration with an outstanding balance was found for that email.',
+        404,
+      );
+    }
+  }
+  if (!targetRegistrationId) {
+    throw new AppError('VALIDATION_ERROR', 'A target registration or email is required.', 400);
+  }
+
+  const existing = await paymentsRepository.selectPaymentByRegistrationIdSystem(targetRegistrationId);
+  if (!existing) {
+    throw new AppError('NOT_FOUND', 'No payment record exists for this registration.', 404);
+  }
+  const originalFee =
+    existing.original_fee !== null ? Number(existing.original_fee) : Number(existing.course_fee);
+  const balance = Number(existing.course_fee) - Number(existing.amount_paid);
+  if (totalCredit > balance) {
+    throw new AppError(
+      'VALIDATION_ERROR',
+      `This registration's outstanding balance is only ${balance} — select less commission to redeem.`,
+      400,
+    );
+  }
+
+  const newDiscountAmount = Number(existing.discount_amount) + totalCredit;
+  const newCourseFee = originalFee - newDiscountAmount;
+  const statusBefore = existing.payment_status;
+
+  const updated = await paymentsRepository.updatePaymentDiscountSystem(targetRegistrationId, {
+    course_fee: newCourseFee,
+    original_fee: originalFee,
+    discount_amount: newDiscountAmount,
+    discount_reason: 'Partner commission credit redemption',
+    discount_granted_by: null,
+    discount_granted_at: new Date().toISOString(),
+  });
+
+  if (updated.payment_status === 'Paid' && statusBefore !== 'Paid') {
+    await runPaidTransitionSideEffects(targetRegistrationId, Number(updated.amount_paid));
+  }
+
+  try {
+    await rebalanceInstallmentsForDiscount(targetRegistrationId, newCourseFee);
+  } catch (err) {
+    console.error('[credit redemption installment rebalance]', err);
+  }
+
+  // Only mark the commissions spent once the credit has actually landed —
+  // if this throws, the redemption itself already succeeded and the
+  // failure needs to surface loudly (money's involved) rather than being
+  // silently swallowed.
+  await partnersService.markCommissionsRedeemedSystem(commissionIds, targetRegistrationId);
+
+  const payment = toPayment(updated);
+  return {
+    registrationId: targetRegistrationId,
+    amountPaid: payment.amountPaid,
+    balance: payment.balance,
+    paymentStatus: payment.paymentStatus,
+    registrationStatus: payment.paymentStatus === 'Paid' ? 'Confirmed' : 'Registered',
+    verifiedBy: 'Partner commission credit redemption',
+  };
+}
+
 // --- Payment submissions (founder-requested 2026-08-01) ---
 // A registrant's claimed MoMo/bank-transfer payment, always starting
 // 'pending'. Only a finance/admin review (reviewPaymentSubmission below) can

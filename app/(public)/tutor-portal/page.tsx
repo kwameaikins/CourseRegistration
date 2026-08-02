@@ -102,6 +102,7 @@ interface ReferralSummary {
   codes: ReferralCode[];
   commissionTotals: Record<string, number>;
   recentPayouts: ReferralPayout[];
+  payableCommissionIds: string[];
 }
 
 type PanelId =
@@ -142,6 +143,10 @@ export default function TutorPortalDashboardPage() {
   const [certificates, setCertificates] = useState<CertificateCandidate[] | 'loading' | null>(null);
   const [materials, setMaterials] = useState<MaterialEntry[] | 'loading' | null>(null);
   const [referrals, setReferrals] = useState<ReferralSummary | null | 'loading'>(null);
+  const [redeemEmail, setRedeemEmail] = useState('');
+  const [redeeming, setRedeeming] = useState(false);
+  const [redeemError, setRedeemError] = useState<string | null>(null);
+  const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null);
 
   const [editingContact, setEditingContact] = useState(false);
   const [contactForm, setContactForm] = useState({ fullName: '', phone: '' });
@@ -274,6 +279,34 @@ export default function TutorPortalDashboardPage() {
       setMaterials((current) => (Array.isArray(current) ? current.filter((m) => m.id !== id) : current));
     } catch {
       // Non-fatal — the list will self-correct on the next panel visit.
+    }
+  }
+
+  async function redeemCommissionCredit() {
+    if (referrals === 'loading' || referrals === null || referrals.payableCommissionIds.length === 0) return;
+    if (!redeemEmail.trim()) {
+      setRedeemError("Enter the referred student's email.");
+      return;
+    }
+    setRedeeming(true);
+    setRedeemError(null);
+    setRedeemSuccess(null);
+    try {
+      const result = await apiFetch<{ balance: number }>('/api/tutor-portal/redeem-credit', {
+        method: 'POST',
+        body: JSON.stringify({
+          commissionIds: referrals.payableCommissionIds,
+          targetParticipantEmail: redeemEmail.trim(),
+        }),
+      });
+      setRedeemSuccess(`Applied — that registration's remaining balance is now ${formatGhs(result.balance)}.`);
+      setRedeemEmail('');
+      setReferrals('loading');
+      apiFetch<ReferralSummary>('/api/tutor-portal/referrals').then(setReferrals).catch(() => setReferrals(null));
+    } catch (err) {
+      setRedeemError(err instanceof Error ? err.message : 'Could not redeem your commission — try again.');
+    } finally {
+      setRedeeming(false);
     }
   }
 
@@ -849,6 +882,35 @@ export default function TutorPortalDashboardPage() {
                           </div>
                         </div>
                       ))
+                    )}
+
+                    {referrals.payableCommissionIds.length > 0 && (
+                      <div className="account-card" style={{ marginTop: 16 }}>
+                        <p className="plan-box-label" style={{ marginBottom: 8 }}>
+                          Redeem {formatGhs(referrals.commissionTotals.payable ?? 0)} of payable commission as
+                          course-fee credit for a referred student
+                        </p>
+                        {redeemError && <p className="plan-confirm-error">{redeemError}</p>}
+                        {redeemSuccess && <p className="panel-sub" style={{ color: '#1a7f4b' }}>{redeemSuccess}</p>}
+                        <div className="field">
+                          <label htmlFor="redeemEmail">Student&apos;s email</label>
+                          <input
+                            id="redeemEmail"
+                            type="email"
+                            placeholder="student@example.com"
+                            value={redeemEmail}
+                            onChange={(event) => setRedeemEmail(event.target.value)}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          disabled={redeeming || !redeemEmail.trim()}
+                          onClick={() => void redeemCommissionCredit()}
+                        >
+                          {redeeming ? 'Redeeming…' : 'Apply as course credit'}
+                        </button>
+                      </div>
                     )}
 
                     <div className="section-heading">

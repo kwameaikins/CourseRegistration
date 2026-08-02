@@ -127,7 +127,15 @@ interface Dashboard {
   registrations: DashboardRegistration[];
 }
 
-type PanelId = 'overview' | 'courses' | 'payments' | 'certificates' | 'messages' | 'explore' | 'account';
+type PanelId =
+  | 'overview'
+  | 'courses'
+  | 'payments'
+  | 'certificates'
+  | 'messages'
+  | 'referrals'
+  | 'explore'
+  | 'account';
 
 const NAV_ITEMS: Array<{ id: PanelId; label: string; icon: string }> = [
   { id: 'overview', label: 'Overview', icon: 'i-grid' },
@@ -135,9 +143,34 @@ const NAV_ITEMS: Array<{ id: PanelId; label: string; icon: string }> = [
   { id: 'payments', label: 'Payments & Receipts', icon: 'i-card' },
   { id: 'certificates', label: 'Certificates', icon: 'i-award' },
   { id: 'messages', label: 'Messages', icon: 'i-chat' },
+  { id: 'referrals', label: 'Refer & Earn', icon: 'i-compass' },
   { id: 'explore', label: 'Explore Courses', icon: 'i-compass' },
   { id: 'account', label: 'Account', icon: 'i-user' },
 ];
+
+// Refer & Earn (founder-approved 2026-08-02) — an existing student can
+// self-serve become an Ambassador partner, no staff review, and later spend
+// their earned commission as course-fee credit. Mirrors the tutor portal's
+// Referrals panel exactly.
+interface ReferralCode {
+  id: string;
+  code: string;
+  discountType: 'percentage' | 'fixed_amount' | null;
+  discountValue: number | null;
+  usesCount: number;
+}
+interface ReferralPayout {
+  id: string;
+  totalAmount: number;
+  method: string;
+  paidAt: string;
+}
+interface ReferralSummary {
+  codes: ReferralCode[];
+  commissionTotals: Record<string, number>;
+  recentPayouts: ReferralPayout[];
+  payableCommissionIds: string[];
+}
 
 function paymentPill(status: string) {
   if (status === 'Paid') return <span className="pill pill-success">Paid</span>;
@@ -201,6 +234,16 @@ export default function PortalDashboardPage() {
 
   const [otherCourses, setOtherCourses] = useState<OtherCourse[]>([]);
 
+  const [referrals, setReferrals] = useState<ReferralSummary | null | 'loading'>(null);
+  const [becomingAmbassador, setBecomingAmbassador] = useState(false);
+  const [ambassadorError, setAmbassadorError] = useState<string | null>(null);
+  const [redeemTarget, setRedeemTarget] = useState<'self' | 'referred'>('self');
+  const [redeemRegistrationId, setRedeemRegistrationId] = useState('');
+  const [redeemEmail, setRedeemEmail] = useState('');
+  const [redeeming, setRedeeming] = useState(false);
+  const [redeemError, setRedeemError] = useState<string | null>(null);
+  const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null);
+
   const loadDashboard = useCallback(() => {
     return apiFetch<Dashboard>('/api/portal/me')
       .then((data) => {
@@ -240,12 +283,21 @@ export default function PortalDashboardPage() {
       .catch(() => setSubmissionsByRegistration((current) => ({ ...current, [registrationId]: [] })));
   }, []);
 
+  const fetchReferrals = useCallback(() => {
+    setReferrals('loading');
+    apiFetch<ReferralSummary | null>('/api/portal/referrals').then(setReferrals).catch(() => setReferrals(null));
+  }, []);
+
   useEffect(() => {
     loadDashboard().finally(() => setLoading(false));
     return () => {
       if (pollTimerRef.current) clearInterval(pollTimerRef.current);
     };
   }, [loadDashboard]);
+
+  useEffect(() => {
+    if (activePanel === 'referrals') fetchReferrals();
+  }, [activePanel, fetchReferrals]);
 
   // Messages are fetched lazily per registration, all at once the first
   // time the Messages section is opened rather than up front.
@@ -272,6 +324,53 @@ export default function PortalDashboardPage() {
   async function handleLogout() {
     await apiFetch('/api/portal/logout', { method: 'POST' }).catch(() => undefined);
     router.push('/portal/login');
+  }
+
+  async function becomeAmbassador() {
+    setBecomingAmbassador(true);
+    setAmbassadorError(null);
+    try {
+      await apiFetch('/api/portal/become-ambassador', { method: 'POST' });
+      fetchReferrals();
+    } catch (err) {
+      setAmbassadorError(err instanceof Error ? err.message : 'Could not set you up as a partner — try again.');
+    } finally {
+      setBecomingAmbassador(false);
+    }
+  }
+
+  async function redeemCommissionCredit() {
+    if (referrals === 'loading' || referrals === null || referrals.payableCommissionIds.length === 0) return;
+    if (redeemTarget === 'self' && !redeemRegistrationId) {
+      setRedeemError('Select which of your courses to apply the credit to.');
+      return;
+    }
+    if (redeemTarget === 'referred' && !redeemEmail.trim()) {
+      setRedeemError("Enter the referred student's email.");
+      return;
+    }
+    setRedeeming(true);
+    setRedeemError(null);
+    setRedeemSuccess(null);
+    try {
+      const result = await apiFetch<{ balance: number }>('/api/portal/redeem-credit', {
+        method: 'POST',
+        body: JSON.stringify({
+          commissionIds: referrals.payableCommissionIds,
+          targetRegistrationId: redeemTarget === 'self' ? redeemRegistrationId : null,
+          targetParticipantEmail: redeemTarget === 'referred' ? redeemEmail.trim() : null,
+        }),
+      });
+      setRedeemSuccess(`Applied — that registration's remaining balance is now ${formatGhs(result.balance)}.`);
+      setRedeemEmail('');
+      setRedeemRegistrationId('');
+      fetchReferrals();
+      loadDashboard();
+    } catch (err) {
+      setRedeemError(err instanceof Error ? err.message : 'Could not redeem your commission — try again.');
+    } finally {
+      setRedeeming(false);
+    }
   }
 
   function handleStartEditingName() {
@@ -1058,6 +1157,156 @@ export default function PortalDashboardPage() {
                     </div>
                   </div>
                 ))}
+              </section>
+            )}
+
+            {activePanel === 'referrals' && (
+              <section className="panel active" role="tabpanel">
+                <p className="eyebrow">Refer &amp; Earn</p>
+                <h2 className="panel-title">Turn referrals into savings</h2>
+                <p className="panel-sub">
+                  Share your code with friends — when they register, you earn a commission you can
+                  spend as course-fee credit or receive as a payout.
+                </p>
+
+                {referrals === 'loading' ? (
+                  <p className="empty-note">Loading…</p>
+                ) : referrals === null ? (
+                  <div className="account-card">
+                    {ambassadorError && <p className="plan-confirm-error">{ambassadorError}</p>}
+                    <p className="panel-sub" style={{ marginTop: 0 }}>
+                      You&apos;re not a referral partner yet — become one instantly, no application
+                      needed.
+                    </p>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={becomingAmbassador}
+                      onClick={() => void becomeAmbassador()}
+                    >
+                      {becomingAmbassador ? 'Setting you up…' : 'Become an Ambassador'}
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="stat-grid">
+                      <div className="stat-tile"><span className="num tnum">{formatGhs(referrals.commissionTotals.pending ?? 0)}</span><span className="lbl">Pending</span></div>
+                      <div className="stat-tile"><span className="num tnum">{formatGhs(referrals.commissionTotals.approved ?? 0)}</span><span className="lbl">Approved</span></div>
+                      <div className="stat-tile"><span className="num tnum">{formatGhs(referrals.commissionTotals.payable ?? 0)}</span><span className="lbl">Payable</span></div>
+                      <div className="stat-tile"><span className="num tnum">{formatGhs(referrals.commissionTotals.paid ?? 0)}</span><span className="lbl">Paid</span></div>
+                    </div>
+
+                    <div className="section-heading">
+                      <h3>Your codes</h3>
+                    </div>
+                    {referrals.codes.length === 0 ? (
+                      <p className="empty-note">No codes assigned yet.</p>
+                    ) : (
+                      referrals.codes.map((code) => (
+                        <div key={code.id} className="mini-course-row">
+                          <div>
+                            <div className="name">{code.code}</div>
+                            <div className="meta">
+                              {code.discountType && code.discountValue !== null
+                                ? code.discountType === 'percentage'
+                                  ? `${code.discountValue}% off`
+                                  : `${formatGhs(code.discountValue)} off`
+                                : 'Attribution only'}
+                              {' · '}
+                              {code.usesCount} use(s)
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+
+                    {referrals.payableCommissionIds.length > 0 && (
+                      <div className="account-card" style={{ marginTop: 16 }}>
+                        <p className="plan-box-label" style={{ marginBottom: 8 }}>
+                          Redeem {formatGhs(referrals.commissionTotals.payable ?? 0)} of payable
+                          commission as course-fee credit
+                        </p>
+                        {redeemError && <p className="plan-confirm-error">{redeemError}</p>}
+                        {redeemSuccess && (
+                          <p className="panel-sub" style={{ color: '#1a7f4b' }}>{redeemSuccess}</p>
+                        )}
+                        <div className="field">
+                          <label htmlFor="redeemTarget">Apply toward</label>
+                          <select
+                            id="redeemTarget"
+                            value={redeemTarget}
+                            onChange={(event) => setRedeemTarget(event.target.value as 'self' | 'referred')}
+                          >
+                            <option value="self">One of my own courses</option>
+                            <option value="referred">A referred student&apos;s course</option>
+                          </select>
+                        </div>
+                        {redeemTarget === 'self' ? (
+                          <div className="field">
+                            <label htmlFor="redeemRegistrationId">Which course</label>
+                            <select
+                              id="redeemRegistrationId"
+                              value={redeemRegistrationId}
+                              onChange={(event) => setRedeemRegistrationId(event.target.value)}
+                            >
+                              <option value="">Select a course with an outstanding balance</option>
+                              {dashboard.registrations
+                                .filter((reg) => reg.balance > 0)
+                                .map((reg) => (
+                                  <option key={reg.registrationId} value={reg.registrationId}>
+                                    {reg.courseName} — {reg.cohortLabel} ({formatGhs(reg.balance)} owed)
+                                  </option>
+                                ))}
+                            </select>
+                          </div>
+                        ) : (
+                          <div className="field">
+                            <label htmlFor="redeemEmail">Referred student&apos;s email</label>
+                            <input
+                              id="redeemEmail"
+                              type="email"
+                              placeholder="student@example.com"
+                              value={redeemEmail}
+                              onChange={(event) => setRedeemEmail(event.target.value)}
+                            />
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          disabled={redeeming}
+                          onClick={() => void redeemCommissionCredit()}
+                        >
+                          {redeeming ? 'Redeeming…' : 'Apply as course credit'}
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="section-heading">
+                      <h3>Payout history</h3>
+                    </div>
+                    {referrals.recentPayouts.length === 0 ? (
+                      <p className="empty-note">No payouts yet.</p>
+                    ) : (
+                      <div className="table-wrap">
+                        <table>
+                          <thead>
+                            <tr><th>Date</th><th className="num">Amount</th><th>Method</th></tr>
+                          </thead>
+                          <tbody>
+                            {referrals.recentPayouts.map((payout) => (
+                              <tr key={payout.id}>
+                                <td>{formatDate(payout.paidAt)}</td>
+                                <td className="num tnum">{formatGhs(payout.totalAmount)}</td>
+                                <td>{payout.method}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
+                )}
               </section>
             )}
 

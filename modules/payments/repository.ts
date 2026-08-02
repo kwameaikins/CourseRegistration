@@ -69,6 +69,63 @@ export async function updatePaymentDiscount(
   return data;
 }
 
+// Commission-credit-redemption write (service-role — the caller is a
+// partner/tutor/student portal session, never a staff Supabase Auth
+// session, so the RLS-gated session client above isn't reachable here).
+export async function updatePaymentDiscountSystem(
+  registrationId: string,
+  changes: {
+    course_fee: number;
+    original_fee: number;
+    discount_amount: number;
+    discount_reason: string;
+    discount_granted_by: string | null;
+    discount_granted_at: string;
+  },
+): Promise<PaymentRow> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('payments')
+    .update(changes)
+    .eq('registration_id', registrationId)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// Commission-credit redemption "toward a referred student" (2026-08-02) —
+// resolves an email to their most recently registered course that still
+// has an outstanding balance, since a partner redeeming credit on someone
+// else's behalf won't know a raw registration id.
+export async function selectMostRecentOpenRegistrationIdByEmailSystem(
+  email: string,
+): Promise<string | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data: participant, error: participantError } = await supabase
+    .from('participants')
+    .select('id')
+    .eq('email', email.toLowerCase())
+    .maybeSingle();
+  if (participantError) throw participantError;
+  if (!participant) return null;
+
+  const { data: registrations, error: registrationsError } = await supabase
+    .from('registrations')
+    .select('id, payments(balance)')
+    .eq('participant_id', participant.id)
+    .order('registered_at', { ascending: false });
+  if (registrationsError) throw registrationsError;
+
+  for (const registration of registrations ?? []) {
+    const payment = Array.isArray(registration.payments) ? registration.payments[0] : registration.payments;
+    if (payment && Number(payment.balance) > 0) {
+      return registration.id;
+    }
+  }
+  return null;
+}
+
 // --- Webhook path (service-role: authenticated by Paystack signature) ---
 
 export async function selectPaymentByTransactionIdSystem(

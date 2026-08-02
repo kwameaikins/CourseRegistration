@@ -18,6 +18,10 @@ import * as liveSessionsService from '@/modules/live-sessions/service';
 // separate partner_auth row — see modules/partners/service.ts's
 // loginToPartnerPortal, which rejects tutor-category partners outright.
 import * as partnersService from '@/modules/partners/service';
+// Commission-credit redemption (2026-08-02) — payments owns the fee
+// mutation; see modules/payments/service.ts's redeemCommissionCreditSystem.
+import * as paymentsService from '@/modules/payments/service';
+import type { RedeemCommissionCreditInput } from '@/modules/partners/types';
 import type {
   AddTutorSessionMaterialInput,
   CreateTutorInput,
@@ -195,11 +199,56 @@ export async function requireTutorPortalSession(
 }
 
 // Read-only summary for the tutor portal's Referrals panel — null if this
-// tutor has no linked partners row yet (not every tutor is a referral
-// partner).
+// tutor has no linked partners row yet — auto-provisions one (+ a referral
+// code) on first view instead, since every tutor automatically has
+// affiliate capability through their existing account (the doc's own
+// stated intent, 2026-08-02 follow-up).
 export async function getReferralSummaryForSession(sessionId: string | undefined) {
   const { tutorId } = await requireTutorPortalSession(sessionId);
+  const tutor = await tutorsRepository.selectTutorByIdSystem(tutorId);
+  if (!tutor) return null;
+  await partnersService.ensurePartnerForTutorSystem(tutorId, tutor.full_name, tutor.phone, tutor.email);
   return partnersService.getReferralSummaryForTutor(tutorId);
+}
+
+// Redeem the tutor's own 'payable' commission balance as course-fee credit
+// (their own registration, or a referred student's) — see
+// modules/payments/service.ts's redeemCommissionCreditSystem, which owns
+// the actual fee mutation.
+export async function redeemCommissionCreditForSession(
+  sessionId: string | undefined,
+  input: RedeemCommissionCreditInput,
+) {
+  const { tutorId } = await requireTutorPortalSession(sessionId);
+  const partner = await partnersService.getPartnerForTutorSystem(tutorId);
+  if (!partner) {
+    throw new AppError('NOT_FOUND', 'You are not set up as a referral partner yet.', 404);
+  }
+  return paymentsService.redeemCommissionCreditSystem(partner.id, input.commissionIds, {
+    registrationId: input.targetRegistrationId,
+    participantEmail: input.targetParticipantEmail,
+  });
+}
+
+// Admin-only, one-off (idempotent, safe to re-run) — provisions a partner
+// record + referral code for every existing tutor who hasn't got one yet,
+// same as the lazy per-visit auto-provision in getReferralSummaryForSession
+// above, just run once for the whole existing roster instead of waiting for
+// each tutor to open their Referrals panel (2026-08-02).
+export async function backfillTutorPartners(): Promise<{
+  totalTutors: number;
+  provisioned: number;
+}> {
+  await usersService.requireRole(['admin']);
+  const tutors = await tutorsRepository.selectTutors();
+  let provisioned = 0;
+  for (const tutor of tutors) {
+    const existing = await partnersService.getPartnerForTutorSystem(tutor.id);
+    if (existing) continue;
+    await partnersService.ensurePartnerForTutorSystem(tutor.id, tutor.full_name, tutor.phone, tutor.email);
+    provisioned++;
+  }
+  return { totalTutors: tutors.length, provisioned };
 }
 
 export async function changeTutorPin(

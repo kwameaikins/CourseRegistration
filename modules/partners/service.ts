@@ -25,8 +25,8 @@ import type {
   PartnerPortalLoginInput,
   PartnerPortalLoginResult,
   PartnerPortalChangePinInput,
+  PartnerReferralSummary,
   RecordPayoutInput,
-  TutorReferralSummary,
   UpdatePartnerInput,
 } from '@/modules/partners/types';
 import type { Database } from '@/lib/supabase/database.types';
@@ -61,6 +61,7 @@ function toPartner(row: PartnerRow): Partner {
     phone: row.phone,
     companyName: row.company_name,
     tutorId: row.tutor_id,
+    participantId: row.participant_id,
     commissionRate: row.commission_rate !== null ? Number(row.commission_rate) : null,
     payoutMethod: row.payout_method as Partner['payoutMethod'],
     payoutDetails: row.payout_details,
@@ -105,6 +106,7 @@ function toCommission(row: CommissionRow): PartnerCommission {
     payoutId: row.payout_id,
     paidAt: row.paid_at,
     clawbackReason: row.clawback_reason,
+    redeemedAgainstRegistrationId: row.redeemed_against_registration_id,
     createdAt: row.created_at,
   };
 }
@@ -527,7 +529,12 @@ export async function loginToPartnerPortal(
   input: PartnerPortalLoginInput,
 ): Promise<PartnerPortalLoginResult> {
   const partner = await partnersRepository.selectPartnerByPhoneSystem(input.phone.trim());
-  if (!partner || partner.category === 'tutor') return { status: 'invalid' };
+  // Tutor Partners use their existing tutor login; a self-served student
+  // ambassador (participant_id set) uses their existing student portal
+  // login — neither ever gets a partner_auth row.
+  if (!partner || partner.category === 'tutor' || partner.participant_id !== null) {
+    return { status: 'invalid' };
+  }
 
   let auth = await partnersRepository.selectPartnerAuth(partner.id);
   if (!auth) {
@@ -595,9 +602,11 @@ export async function logoutOfPartnerPortal(sessionId: string | undefined): Prom
   await partnersRepository.revokePartnerSession(sessionId);
 }
 
-async function summarizeCommissions(
-  partnerId: string,
-): Promise<{ totals: Record<CommissionStatus, number>; payouts: PartnerPayout[] }> {
+async function summarizeCommissions(partnerId: string): Promise<{
+  totals: Record<CommissionStatus, number>;
+  payouts: PartnerPayout[];
+  payableIds: string[];
+}> {
   const commissionRows = await partnersRepository.selectCommissions({ partnerId });
   const totals: Record<CommissionStatus, number> = {
     pending: 0,
@@ -605,13 +614,16 @@ async function summarizeCommissions(
     payable: 0,
     paid: 0,
     clawed_back: 0,
+    redeemed: 0,
   };
+  const payableIds: string[] = [];
   for (const row of commissionRows) {
     const status = row.status as CommissionStatus;
     totals[status] = round2(totals[status] + Number(row.commission_amount));
+    if (status === 'payable') payableIds.push(row.id);
   }
   const payoutRows = await partnersRepository.selectPayoutsForPartnerSystem(partnerId);
-  return { totals, payouts: payoutRows.map(toPayout) };
+  return { totals, payouts: payoutRows.map(toPayout), payableIds };
 }
 
 export async function getPartnerPortalDashboard(
@@ -631,7 +643,7 @@ export async function getPartnerPortalDashboard(
     redemptionCounts.set(row.code_id, (redemptionCounts.get(row.code_id) ?? 0) + 1);
   }
 
-  const { totals, payouts } = await summarizeCommissions(partnerId);
+  const { totals, payouts, payableIds } = await summarizeCommissions(partnerId);
 
   return {
     fullName: partner.full_name,
@@ -643,6 +655,7 @@ export async function getPartnerPortalDashboard(
     redemptionCounts: Object.fromEntries(redemptionCounts),
     commissionTotals: totals,
     recentPayouts: payouts.slice(0, 12),
+    payableCommissionIds: payableIds,
   };
 }
 
@@ -650,16 +663,151 @@ export async function getPartnerPortalDashboard(
 // modules/tutors' dashboard assembly, same posture as every other module
 // modules/tutors already reaches into) ---
 
-export async function getReferralSummaryForTutor(tutorId: string): Promise<TutorReferralSummary | null> {
+export async function getReferralSummaryForTutor(tutorId: string): Promise<PartnerReferralSummary | null> {
   const partner = await partnersRepository.selectPartnerByTutorIdSystem(tutorId);
   if (!partner || partner.status !== 'active') return null;
   const codeRows = await partnersRepository.selectCodesForPartnerSystem(partner.id);
-  const { totals, payouts } = await summarizeCommissions(partner.id);
+  const { totals, payouts, payableIds } = await summarizeCommissions(partner.id);
   return {
     codes: codeRows.map(toCode),
     commissionTotals: totals,
     recentPayouts: payouts.slice(0, 12),
+    payableCommissionIds: payableIds,
   };
+}
+
+export async function getPartnerForTutorSystem(tutorId: string): Promise<Partner | null> {
+  const row = await partnersRepository.selectPartnerByTutorIdSystem(tutorId);
+  return row ? toPartner(row) : null;
+}
+
+// Every tutor automatically gets affiliate capability through their
+// existing tutor account (the doc's own stated intent) — auto-provisions a
+// partner record + one referral code the first time it's needed, instead
+// of requiring a staff member to manually link one first. Idempotent.
+export async function ensurePartnerForTutorSystem(
+  tutorId: string,
+  fullName: string,
+  phone: string,
+  email: string | null,
+): Promise<Partner> {
+  const existing = await partnersRepository.selectPartnerByTutorIdSystem(tutorId);
+  if (existing) return toPartner(existing);
+  const row = await partnersRepository.insertTutorPartnerSystem({ tutorId, fullName, phone, email });
+  await generateUniqueCodeForPartnerSystem(row.id, fullName);
+  return toPartner(row);
+}
+
+// --- Participant-portal integration (existing students self-serving as
+// Ambassadors, 2026-08-02) — same posture as the tutor integration above:
+// permitted cross-module call from modules/portal, no separate login. ---
+
+export async function getReferralSummaryForParticipant(
+  participantId: string,
+): Promise<PartnerReferralSummary | null> {
+  const partner = await partnersRepository.selectPartnerByParticipantIdSystem(participantId);
+  if (!partner || partner.status !== 'active') return null;
+  const codeRows = await partnersRepository.selectCodesForPartnerSystem(partner.id);
+  const { totals, payouts, payableIds } = await summarizeCommissions(partner.id);
+  return {
+    codes: codeRows.map(toCode),
+    commissionTotals: totals,
+    recentPayouts: payouts.slice(0, 12),
+    payableCommissionIds: payableIds,
+  };
+}
+
+// Self-serve "Refer & Earn" — an existing student becomes an Ambassador
+// partner immediately, no staff review (founder-approved 2026-08-02,
+// distinct from the public application form's manual-approval path).
+// Idempotent — a student who's already a partner just gets their existing
+// record back.
+export async function ensurePartnerForParticipantSystem(
+  participantId: string,
+  fullName: string,
+  phone: string,
+  email: string | null,
+): Promise<Partner> {
+  const existing = await partnersRepository.selectPartnerByParticipantIdSystem(participantId);
+  if (existing) return toPartner(existing);
+  const row = await partnersRepository.insertAmbassadorPartnerForParticipantSystem({
+    participantId,
+    fullName,
+    phone,
+    email,
+  });
+  await generateUniqueCodeForPartnerSystem(row.id, fullName);
+  return toPartner(row);
+}
+
+export async function getPartnerForParticipantSystem(participantId: string): Promise<Partner | null> {
+  const row = await partnersRepository.selectPartnerByParticipantIdSystem(participantId);
+  return row ? toPartner(row) : null;
+}
+
+// Human-readable auto-generated code (e.g. "KWAME482") — retries on a
+// collision since uniqueness is only enforced at the DB level.
+function slugifyNameForCode(fullName: string): string {
+  const firstName = fullName.trim().split(/\s+/)[0] ?? 'PARTNER';
+  const cleaned = firstName.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return cleaned.length > 0 ? cleaned.slice(0, 8) : 'PARTNER';
+}
+
+async function generateUniqueCodeForPartnerSystem(partnerId: string, fullName: string): Promise<void> {
+  const base = slugifyNameForCode(fullName);
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const suffix = Math.floor(100 + Math.random() * 900);
+    try {
+      await partnersRepository.insertCodeSystem({ code: `${base}${suffix}`, partner_id: partnerId });
+      return;
+    } catch (err) {
+      if (!isUniqueViolation(err)) throw err;
+      // collision — loop and try another suffix
+    }
+  }
+  throw new AppError('INTERNAL_ERROR', 'Could not generate a unique referral code. Please try again.', 500);
+}
+
+// --- Commission credit redemption (founder-approved 2026-08-02) — a
+// partner spends their own 'payable' commission balance to reduce a course
+// fee (their own, or a referred student's) instead of a cash payout.
+// modules/payments/service.ts owns the actual fee mutation (that's its
+// job); these two functions are the partners-side validation and
+// bookkeeping it calls into, mirroring the existing accrual/payout split. ---
+
+export async function validateAndTotalRedeemableCommissionsSystem(
+  partnerId: string,
+  commissionIds: string[],
+): Promise<number> {
+  let total = 0;
+  for (const id of commissionIds) {
+    const commission = await partnersRepository.selectCommissionByIdSystem(id);
+    if (!commission) throw new AppError('NOT_FOUND', 'Commission not found.', 404);
+    if (commission.partner_id !== partnerId) {
+      throw new AppError('FORBIDDEN', 'That commission does not belong to you.', 403);
+    }
+    if (commission.status !== 'payable') {
+      throw new AppError('CONFLICT', 'Only payable commissions can be redeemed as course credit.', 409);
+    }
+    total += Number(commission.commission_amount);
+  }
+  if (total <= 0) {
+    throw new AppError('VALIDATION_ERROR', 'Select at least one payable commission to redeem.', 400);
+  }
+  return round2(total);
+}
+
+export async function markCommissionsRedeemedSystem(
+  commissionIds: string[],
+  registrationId: string,
+): Promise<void> {
+  for (const id of commissionIds) {
+    await partnersRepository.updateCommissionStatusSystem(id, {
+      status: 'redeemed',
+      redeemed_against_registration_id: registrationId,
+      paid_at: new Date().toISOString(),
+    });
+  }
 }
 
 // --- QR code (same QRCode.toDataURL pattern as lib/certificates/pdf.ts) ---

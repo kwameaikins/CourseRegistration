@@ -1460,6 +1460,7 @@ export type Database = {
           phone: string
           company_name: string | null
           tutor_id: string | null
+          participant_id: string | null
           commission_rate: number | null
           payout_method: string | null
           payout_details: string | null
@@ -1483,6 +1484,7 @@ export type Database = {
           phone: string
           company_name?: string | null
           tutor_id?: string | null
+          participant_id?: string | null
           commission_rate?: number | null
           payout_method?: string | null
           payout_details?: string | null
@@ -1506,6 +1508,7 @@ export type Database = {
           phone?: string
           company_name?: string | null
           tutor_id?: string | null
+          participant_id?: string | null
           commission_rate?: number | null
           payout_method?: string | null
           payout_details?: string | null
@@ -1527,6 +1530,13 @@ export type Database = {
             columns: ["tutor_id"]
             isOneToOne: false
             referencedRelation: "tutors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partners_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "participants"
             referencedColumns: ["id"]
           },
           {
@@ -1777,6 +1787,7 @@ export type Database = {
           payout_id: string | null
           paid_at: string | null
           clawback_reason: string | null
+          redeemed_against_registration_id: string | null
           created_at: string
         }
         Insert: {
@@ -1793,6 +1804,7 @@ export type Database = {
           payout_id?: string | null
           paid_at?: string | null
           clawback_reason?: string | null
+          redeemed_against_registration_id?: string | null
           created_at?: string
         }
         Update: {
@@ -1809,6 +1821,7 @@ export type Database = {
           payout_id?: string | null
           paid_at?: string | null
           clawback_reason?: string | null
+          redeemed_against_registration_id?: string | null
           created_at?: string
         }
         Relationships: [
@@ -1831,6 +1844,13 @@ export type Database = {
             columns: ["code_redemption_id"]
             isOneToOne: false
             referencedRelation: "code_redemptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "partner_commissions_redeemed_against_registration_id_fkey"
+            columns: ["redeemed_against_registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
             referencedColumns: ["id"]
           },
           {

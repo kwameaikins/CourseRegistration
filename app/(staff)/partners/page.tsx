@@ -31,7 +31,7 @@ import { formatGhs } from '@/lib/utils';
 
 type Category = 'ambassador' | 'tutor' | 'institutional' | 'strategic';
 type PartnerStatus = 'pending' | 'active' | 'suspended' | 'rejected';
-type CommissionStatus = 'pending' | 'approved' | 'payable' | 'paid' | 'clawed_back';
+type CommissionStatus = 'pending' | 'approved' | 'payable' | 'paid' | 'clawed_back' | 'redeemed';
 
 interface Partner {
   id: string;
@@ -101,6 +101,7 @@ function partnerStatusBadge(status: PartnerStatus) {
 
 function commissionStatusBadge(status: CommissionStatus) {
   if (status === 'paid') return <Badge className="bg-emerald-600">Paid</Badge>;
+  if (status === 'redeemed') return <Badge className="bg-emerald-600">Redeemed as credit</Badge>;
   if (status === 'payable') return <Badge className="bg-sky-600">Payable</Badge>;
   if (status === 'approved') return <Badge className="bg-amber-500">Approved</Badge>;
   if (status === 'clawed_back') return <Badge variant="destructive">Clawed back</Badge>;
@@ -143,6 +144,8 @@ export default function PartnersPage() {
   const [commissions, setCommissions] = useState<CommissionRow[]>([]);
   const [commissionStatusFilter, setCommissionStatusFilter] = useState<'' | CommissionStatus>('');
 
+  const [backfillingTutors, setBackfillingTutors] = useState(false);
+  const [backfillMessage, setBackfillMessage] = useState<string | null>(null);
   const [createPartnerOpen, setCreatePartnerOpen] = useState(false);
   const [partnerForm, setPartnerForm] = useState(EMPTY_PARTNER_FORM);
   const [savingPartner, setSavingPartner] = useState(false);
@@ -248,6 +251,26 @@ export default function PartnersPage() {
       await loadPartners();
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to update partner status.');
+    }
+  }
+
+  async function backfillTutorPartners() {
+    setBackfillingTutors(true);
+    setBackfillMessage(null);
+    setErrorMessage(null);
+    try {
+      const result = await apiFetch<{ totalTutors: number; provisioned: number }>(
+        '/api/tutors/backfill-partners',
+        { method: 'POST' },
+      );
+      setBackfillMessage(
+        `Checked ${result.totalTutors} tutor(s) — provisioned ${result.provisioned} new partner record(s).`,
+      );
+      await loadPartners();
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to backfill tutor partners.');
+    } finally {
+      setBackfillingTutors(false);
     }
   }
 
@@ -470,11 +493,15 @@ export default function PartnersPage() {
 
       {view === 'partners' && (
         <div className="space-y-4">
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="outline" disabled={backfillingTutors} onClick={() => void backfillTutorPartners()}>
+              {backfillingTutors ? 'Backfilling…' : 'Backfill Tutor Partners'}
+            </Button>
             <Button size="sm" onClick={() => setCreatePartnerOpen(true)}>
               Add Partner
             </Button>
           </div>
+          {backfillMessage && <p className="text-sm text-muted-foreground">{backfillMessage}</p>}
           <Table>
             <TableHeader>
               <TableRow>
@@ -590,6 +617,7 @@ export default function PartnersPage() {
               <option value="approved">Approved</option>
               <option value="payable">Payable</option>
               <option value="paid">Paid</option>
+              <option value="redeemed">Redeemed as credit</option>
               <option value="clawed_back">Clawed back</option>
             </select>
             <div className="flex gap-2">

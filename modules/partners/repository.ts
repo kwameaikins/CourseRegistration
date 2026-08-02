@@ -568,6 +568,101 @@ export async function selectBatchStartDateForRegistrationSystem(
   return batch?.start_date ?? null;
 }
 
+// --- Existing-tutor/existing-student self-serve auto-provisioning
+// (founder-requested 2026-08-02, same-day follow-up) ---
+
+export async function selectPartnerByParticipantIdSystem(participantId: string): Promise<PartnerRow | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('partners')
+    .select('*')
+    .eq('participant_id', participantId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+// Every tutor automatically has affiliate capability through their existing
+// tutor account (doc's own stated intent) — never gets a partner_auth row,
+// same as staff-created tutor partners.
+export async function insertTutorPartnerSystem(params: {
+  tutorId: string;
+  fullName: string;
+  phone: string;
+  email: string | null;
+}): Promise<PartnerRow> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('partners')
+    .insert({
+      category: 'tutor',
+      full_name: params.fullName,
+      email: params.email,
+      phone: params.phone,
+      tutor_id: params.tutorId,
+      status: 'active',
+      agreed_to_code_of_conduct: true,
+      created_by: null,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// An existing student self-serving "Refer & Earn" from their own portal —
+// auto-approved, no partner_auth row (they manage it from the student
+// portal they already have, same posture as tutor_id above).
+export async function insertAmbassadorPartnerForParticipantSystem(params: {
+  participantId: string;
+  fullName: string;
+  phone: string;
+  email: string | null;
+}): Promise<PartnerRow> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('partners')
+    .insert({
+      category: 'ambassador',
+      full_name: params.fullName,
+      email: params.email,
+      phone: params.phone,
+      participant_id: params.participantId,
+      status: 'active',
+      agreed_to_code_of_conduct: true,
+      created_by: null,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function insertCodeSystem(row: { code: string; partner_id: string }): Promise<CodeRow> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('codes')
+    .insert({ code: row.code, partner_id: row.partner_id, one_per_participant: true, is_active: true })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// --- Commission credit redemption (service-role — the caller is a partner/
+// tutor/student portal session, never a staff session) ---
+
+export async function selectCommissionByIdSystem(id: string): Promise<PartnerCommissionRow | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('partner_commissions')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 // --- Context join for the staff commissions queue (participant/course/batch) ---
 
 export async function selectCommissionContextSystem(

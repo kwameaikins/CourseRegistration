@@ -19,6 +19,7 @@ export interface Partner {
   phone: string;
   companyName: string | null;
   tutorId: string | null;
+  participantId: string | null;
   commissionRate: number | null;
   payoutMethod: 'MTN MoMo' | 'Bank Transfer' | null;
   payoutDetails: string | null;
@@ -167,7 +168,14 @@ export interface CodeRedemption {
   createdAt: string;
 }
 
-export const COMMISSION_STATUSES = ['pending', 'approved', 'payable', 'paid', 'clawed_back'] as const;
+export const COMMISSION_STATUSES = [
+  'pending',
+  'approved',
+  'payable',
+  'paid',
+  'clawed_back',
+  'redeemed',
+] as const;
 export type CommissionStatus = (typeof COMMISSION_STATUSES)[number];
 
 export interface PartnerCommission {
@@ -181,8 +189,32 @@ export interface PartnerCommission {
   payoutId: string | null;
   paidAt: string | null;
   clawbackReason: string | null;
+  redeemedAgainstRegistrationId: string | null;
   createdAt: string;
 }
+
+// Commission-as-course-credit redemption (founder-requested 2026-08-02,
+// same-day follow-up) — a partner spends their own 'payable' balance to
+// reduce a course fee instead of waiting for a cash payout. No cap on how
+// much of the fee it can cover, but never more than the fee's outstanding
+// balance (enforced in modules/payments/service.ts's
+// applyCreditRedemptionSystem, not here).
+// Either a direct registration id (used for "my own course," where the
+// caller's own portal already knows the id) or the referred student's
+// email (resolved server-side to their most recent registration that still
+// has an outstanding balance — see
+// modules/payments/service.ts's redeemCommissionCreditSystem).
+export const redeemCommissionCreditInputSchema = z
+  .object({
+    commissionIds: z.array(z.uuid()).min(1),
+    targetRegistrationId: z.uuid().nullish(),
+    targetParticipantEmail: z.email().transform((value) => value.toLowerCase()).nullish(),
+  })
+  .refine((input) => input.targetRegistrationId != null || input.targetParticipantEmail != null, {
+    message: "Provide either a registration or the referred student's email.",
+    path: ['targetRegistrationId'],
+  });
+export type RedeemCommissionCreditInput = z.infer<typeof redeemCommissionCreditInputSchema>;
 
 // Staff queue view — adds partner/participant/course context the bare row lacks.
 export interface PartnerCommissionView extends PartnerCommission {
@@ -224,12 +256,18 @@ export interface PartnerPortalDashboard {
   redemptionCounts: Record<string, number>; // codeId -> redemption count
   commissionTotals: Record<CommissionStatus, number>;
   recentPayouts: PartnerPayout[];
+  payableCommissionIds: string[];
 }
 
-// Read-only summary surfaced inside the tutor portal for a category='tutor'
-// partner — null if the tutor has no linked partner record yet.
-export interface TutorReferralSummary {
+// Read-only summary surfaced inside a tutor's or student's existing portal
+// login (2026-08-02) — no separate partner-portal account for either.
+// commissionTotals.payable IS the redeemable-as-course-credit balance; no
+// separate field needed for it.
+export interface PartnerReferralSummary {
   codes: Code[];
   commissionTotals: Record<CommissionStatus, number>;
   recentPayouts: PartnerPayout[];
+  // Ids of every 'payable' commission — what a "redeem as course credit"
+  // action would spend (see redeemCommissionCreditInputSchema above).
+  payableCommissionIds: string[];
 }

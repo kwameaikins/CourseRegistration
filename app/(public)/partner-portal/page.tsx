@@ -41,6 +41,7 @@ interface Dashboard {
   redemptionCounts: Record<string, number>;
   commissionTotals: Record<string, number>;
   recentPayouts: Payout[];
+  payableCommissionIds: string[];
 }
 
 type PanelId = 'overview' | 'codes' | 'commissions' | 'account';
@@ -76,6 +77,10 @@ export default function PartnerPortalDashboardPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activePanel, setActivePanel] = useState<PanelId>('overview');
   const [qrCode, setQrCode] = useState<{ code: string; dataUrl: string } | null>(null);
+  const [redeemEmail, setRedeemEmail] = useState('');
+  const [redeeming, setRedeeming] = useState(false);
+  const [redeemError, setRedeemError] = useState<string | null>(null);
+  const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -109,6 +114,33 @@ export default function PartnerPortalDashboardPage() {
       setQrCode({ code, dataUrl: result.dataUrl });
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to generate QR code.');
+    }
+  }
+
+  async function redeemCommissionCredit() {
+    if (!dashboard || dashboard.payableCommissionIds.length === 0) return;
+    if (!redeemEmail.trim()) {
+      setRedeemError("Enter the referred student's email.");
+      return;
+    }
+    setRedeeming(true);
+    setRedeemError(null);
+    setRedeemSuccess(null);
+    try {
+      const result = await apiFetch<{ balance: number }>('/api/partner-portal/redeem-credit', {
+        method: 'POST',
+        body: JSON.stringify({
+          commissionIds: dashboard.payableCommissionIds,
+          targetParticipantEmail: redeemEmail.trim(),
+        }),
+      });
+      setRedeemSuccess(`Applied — that registration's remaining balance is now ${formatGhs(result.balance)}.`);
+      setRedeemEmail('');
+      await load();
+    } catch (err) {
+      setRedeemError(err instanceof Error ? err.message : 'Could not redeem your commission — try again.');
+    } finally {
+      setRedeeming(false);
     }
   }
 
@@ -346,6 +378,35 @@ export default function PartnerPortalDashboardPage() {
                   <div className="stat-tile"><span className="num tnum">{formatGhs(dashboard.commissionTotals.payable ?? 0)}</span><span className="lbl">Payable</span></div>
                   <div className="stat-tile"><span className="num tnum">{formatGhs(dashboard.commissionTotals.paid ?? 0)}</span><span className="lbl">Paid</span></div>
                 </div>
+
+                {dashboard.payableCommissionIds.length > 0 && (
+                  <div className="account-card" style={{ marginBottom: 20 }}>
+                    <p className="plan-box-label" style={{ marginBottom: 8 }}>
+                      Redeem {formatGhs(dashboard.commissionTotals.payable ?? 0)} of payable commission as
+                      course-fee credit for a referred student
+                    </p>
+                    {redeemError && <p className="plan-confirm-error">{redeemError}</p>}
+                    {redeemSuccess && <p className="panel-sub" style={{ color: '#1a7f4b' }}>{redeemSuccess}</p>}
+                    <div className="field">
+                      <label htmlFor="redeemEmail">Student&apos;s email</label>
+                      <input
+                        id="redeemEmail"
+                        type="email"
+                        placeholder="student@example.com"
+                        value={redeemEmail}
+                        onChange={(event) => setRedeemEmail(event.target.value)}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      disabled={redeeming || !redeemEmail.trim()}
+                      onClick={() => void redeemCommissionCredit()}
+                    >
+                      {redeeming ? 'Redeeming…' : 'Apply as course credit'}
+                    </button>
+                  </div>
+                )}
 
                 <div className="section-heading">
                   <h3>Payout history</h3>

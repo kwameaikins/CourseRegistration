@@ -33,6 +33,12 @@ import * as feedbackService from '@/modules/feedback/service';
 // same posture as every other cross-module call in this file.
 import * as liveSessionsService from '@/modules/live-sessions/service';
 import type { SessionMaterial } from '@/modules/live-sessions/types';
+// Permitted cross-module call (2026-08-02) — an existing student can
+// self-serve "Refer & Earn" from their own portal login instead of the
+// public application form; portal only resolves the participant before
+// delegating, same posture as every other cross-module call in this file.
+import * as partnersService from '@/modules/partners/service';
+import type { RedeemCommissionCreditInput } from '@/modules/partners/types';
 import { sendTransactionalEmail } from '@/lib/resend/client';
 import { parsePaymentStatus } from '@/lib/domain/parsers';
 import type {
@@ -381,6 +387,49 @@ export async function listMyPaymentSubmissions(
   }
 
   return paymentsService.listMyPaymentSubmissionsSystem(registrationId);
+}
+
+// --- Self-serve referral partner (founder-approved 2026-08-02) — an
+// existing student becomes an Ambassador immediately from their own portal
+// login, no separate application/approval step, unlike the public form. ---
+
+export async function becomeAmbassadorPartner(sessionId: string | undefined) {
+  const { participantId } = await requirePortalSession(sessionId);
+  const data = await portalRepository.selectPortalDashboardData(participantId);
+  if (!data.participant) {
+    throw new AppError('NOT_FOUND', 'Participant not found.', 404);
+  }
+  return partnersService.ensurePartnerForParticipantSystem(
+    participantId,
+    data.participant.full_name,
+    data.participant.phone,
+    data.participant.email,
+  );
+}
+
+export async function getReferralSummaryForSession(sessionId: string | undefined) {
+  const { participantId } = await requirePortalSession(sessionId);
+  return partnersService.getReferralSummaryForParticipant(participantId);
+}
+
+// Redeem the student's own 'payable' commission balance as course-fee
+// credit — their own registration, OR a referred student's (the target
+// registration doesn't have to belong to this session; only the commissions
+// being spent have to belong to this partner, enforced in
+// modules/payments/service.ts's redeemCommissionCreditSystem).
+export async function redeemCommissionCreditForSession(
+  sessionId: string | undefined,
+  input: RedeemCommissionCreditInput,
+) {
+  const { participantId } = await requirePortalSession(sessionId);
+  const partner = await partnersService.getPartnerForParticipantSystem(participantId);
+  if (!partner) {
+    throw new AppError('NOT_FOUND', 'You are not set up as a referral partner yet.', 404);
+  }
+  return paymentsService.redeemCommissionCreditSystem(partner.id, input.commissionIds, {
+    registrationId: input.targetRegistrationId,
+    participantEmail: input.targetParticipantEmail,
+  });
 }
 
 // Receipt (2026-07-26) — same "never trust a client-supplied registrationId
