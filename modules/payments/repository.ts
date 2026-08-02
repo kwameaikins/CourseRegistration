@@ -5,6 +5,7 @@ import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import type { Database } from '@/lib/supabase/database.types';
 
 type PaymentRow = Database['public']['Tables']['payments']['Row'];
+type PaymentSubmissionRow = Database['public']['Tables']['payment_submissions']['Row'];
 
 export async function selectPaymentByRegistrationId(
   registrationId: string,
@@ -224,4 +225,126 @@ export async function selectDueSecondInstallments(
     .lte('due_date', thresholdIso);
   if (error) throw error;
   return data ?? [];
+}
+
+// --- Payment submissions (founder-requested 2026-08-01) ---
+// Submit path is service-role (portal, no staff session, gated by
+// modules/portal's own ownership check before the insert). Review/list path
+// is the session client — RLS restricts payment_submissions to finance/admin
+// (migration 202608010043), same posture as updatePaymentByRegistrationId.
+
+export async function selectPendingPaymentSubmissionForRegistration(
+  registrationId: string,
+): Promise<PaymentSubmissionRow | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('payment_submissions')
+    .select('*')
+    .eq('registration_id', registrationId)
+    .eq('status', 'pending')
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function insertPaymentSubmissionSystem(row: {
+  registration_id: string;
+  method: string;
+  amount: number;
+  transaction_reference: string | null;
+  payment_date: string;
+  slip_file_path: string | null;
+  participant_notes: string | null;
+}): Promise<PaymentSubmissionRow> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('payment_submissions')
+    .insert(row)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// Portal's own submission history for one registration (own-history view,
+// not the staff queue) — service-role, same reasoning as the insert above.
+export async function selectPaymentSubmissionsForRegistrationSystem(
+  registrationId: string,
+): Promise<PaymentSubmissionRow[]> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('payment_submissions')
+    .select('*')
+    .eq('registration_id', registrationId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function selectPaymentSubmissions(filters?: {
+  status?: 'pending' | 'approved' | 'rejected';
+}): Promise<PaymentSubmissionRow[]> {
+  const supabase = await createSupabaseServerClient();
+  let query = supabase.from('payment_submissions').select('*');
+  if (filters?.status) query = query.eq('status', filters.status);
+  const { data, error } = await query.order('created_at', { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function selectPaymentSubmissionById(
+  id: string,
+): Promise<PaymentSubmissionRow | null> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('payment_submissions')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+export async function updatePaymentSubmission(
+  id: string,
+  changes: {
+    status: 'approved' | 'rejected';
+    reviewed_by: string;
+    reviewed_at: string;
+    review_note: string | null;
+  },
+): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from('payment_submissions').update(changes).eq('id', id);
+  if (error) throw error;
+}
+
+// Participant/course context for the staff queue view — same
+// registrations(participants(...)) embedded-select pattern as
+// modules/attendance/repository.ts's selectParticipantInfoForRegistrations.
+export async function selectPaymentSubmissionContext(
+  registrationIds: string[],
+): Promise<Map<string, { participantName: string; courseName: string; cohortLabel: string }>> {
+  if (registrationIds.length === 0) return new Map();
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('registrations')
+    .select('id, participants(full_name), batches(cohort_label, courses(course_name))')
+    .in('id', registrationIds);
+  if (error) throw error;
+  return new Map(
+    (data ?? []).map((r) => {
+      const participant = Array.isArray(r.participants) ? r.participants[0] : r.participants;
+      const batch = Array.isArray(r.batches) ? r.batches[0] : r.batches;
+      const course = batch ? (Array.isArray(batch.courses) ? batch.courses[0] : batch.courses) : null;
+      return [
+        r.id,
+        {
+          participantName: (participant as { full_name?: string } | null)?.full_name ?? '',
+          courseName: (course as { course_name?: string } | null)?.course_name ?? '',
+          cohortLabel: (batch as { cohort_label?: string } | null)?.cohort_label ?? '',
+        },
+      ];
+    }),
+  );
 }

@@ -18,9 +18,13 @@ export async function apiFetch<T>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
+  // A FormData body (e.g. a file upload) must let the browser set its own
+  // multipart/form-data boundary header — forcing application/json here
+  // would break the server's request.formData() parsing.
+  const isFormData = init?.body instanceof FormData;
   const response = await fetch(path, {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
+    headers: isFormData ? init?.headers : { 'Content-Type': 'application/json', ...init?.headers },
   });
   const body = (await response.json()) as {
     data: T | null;

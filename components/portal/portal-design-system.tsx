@@ -240,8 +240,8 @@ export const PORTAL_STYLES = `
 .portal-app .field-static .val { font-size: 14.5px; font-weight: 600; }
 .portal-app .field { margin-bottom: 14px; }
 .portal-app .field label { display: block; font-size: 12px; font-weight: 600; color: var(--ink-muted); margin-bottom: 6px; }
-.portal-app .field input, .portal-app .field textarea { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); font-size: 14px; font-family: inherit; }
-.portal-app .field input:focus, .portal-app .field textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+.portal-app .field input, .portal-app .field textarea, .portal-app .field select { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); font-size: 14px; font-family: inherit; }
+.portal-app .field input:focus, .portal-app .field textarea:focus, .portal-app .field select:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
 .portal-app .field textarea { resize: vertical; min-height: 90px; }
 .portal-app .session-note { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-muted); margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
 .portal-app .session-note .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--success); }

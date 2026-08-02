@@ -97,6 +97,13 @@ interface SessionMaterialEntry {
   createdAt: string;
 }
 
+interface PaymentSubmissionEntry {
+  id: string;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewNote: string | null;
+  createdAt: string;
+}
+
 interface OtherCourse {
   batchId: string;
   courseName: string;
@@ -165,6 +172,23 @@ export default function PortalDashboardPage() {
   const [planSaving, setPlanSaving] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
 
+  const [submittingProofRegistrationId, setSubmittingProofRegistrationId] = useState<string | null>(
+    null,
+  );
+  const [proofForm, setProofForm] = useState({
+    method: 'MTN MoMo',
+    amount: '',
+    transactionReference: '',
+    paymentDate: '',
+    participantNotes: '',
+  });
+  const [proofSlip, setProofSlip] = useState<File | null>(null);
+  const [proofSaving, setProofSaving] = useState(false);
+  const [proofError, setProofError] = useState<string | null>(null);
+  const [submissionsByRegistration, setSubmissionsByRegistration] = useState<
+    Record<string, PaymentSubmissionEntry[] | 'loading'>
+  >({});
+
   const [messagesByRegistration, setMessagesByRegistration] = useState<
     Record<string, MessageHistoryEntry[] | 'loading'>
   >({});
@@ -205,6 +229,17 @@ export default function PortalDashboardPage() {
       .catch(() => setMaterialsByRegistration((current) => ({ ...current, [registrationId]: [] })));
   }, []);
 
+  const fetchSubmissions = useCallback((registrationId: string) => {
+    setSubmissionsByRegistration((current) => ({ ...current, [registrationId]: 'loading' }));
+    apiFetch<{ submissions: PaymentSubmissionEntry[] }>(
+      `/api/portal/payment-submissions?registrationId=${registrationId}`,
+    )
+      .then(({ submissions }) =>
+        setSubmissionsByRegistration((current) => ({ ...current, [registrationId]: submissions })),
+      )
+      .catch(() => setSubmissionsByRegistration((current) => ({ ...current, [registrationId]: [] })));
+  }, []);
+
   useEffect(() => {
     loadDashboard().finally(() => setLoading(false));
     return () => {
@@ -218,6 +253,18 @@ export default function PortalDashboardPage() {
     if (activePanel !== 'messages' || !dashboard) return;
     dashboard.registrations.forEach((reg) => {
       if (!messagesByRegistration[reg.registrationId]) fetchMessages(reg.registrationId);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePanel, dashboard]);
+
+  // Same lazy-on-open pattern, only for registrations still owing a
+  // balance (the only ones whose pay-block can show a submission status).
+  useEffect(() => {
+    if (activePanel !== 'courses' || !dashboard) return;
+    dashboard.registrations.forEach((reg) => {
+      if (reg.balance > 0 && !submissionsByRegistration[reg.registrationId]) {
+        fetchSubmissions(reg.registrationId);
+      }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePanel, dashboard]);
@@ -270,6 +317,31 @@ export default function PortalDashboardPage() {
       setPlanError(err instanceof Error ? err.message : 'Could not set up a payment plan.');
     } finally {
       setPlanSaving(false);
+    }
+  }
+
+  async function handleSubmitProof(registrationId: string) {
+    setProofSaving(true);
+    setProofError(null);
+    try {
+      const body = new FormData();
+      body.set('registrationId', registrationId);
+      body.set('method', proofForm.method);
+      body.set('amount', proofForm.amount);
+      body.set('paymentDate', proofForm.paymentDate);
+      if (proofForm.transactionReference) body.set('transactionReference', proofForm.transactionReference);
+      if (proofForm.participantNotes) body.set('participantNotes', proofForm.participantNotes);
+      if (proofSlip) body.set('slip', proofSlip);
+
+      await apiFetch('/api/portal/payment-submissions', { method: 'POST', body });
+      setSubmittingProofRegistrationId(null);
+      setProofForm({ method: 'MTN MoMo', amount: '', transactionReference: '', paymentDate: '', participantNotes: '' });
+      setProofSlip(null);
+      fetchSubmissions(registrationId);
+    } catch (err) {
+      setProofError(err instanceof Error ? err.message : 'Could not submit your payment for review.');
+    } finally {
+      setProofSaving(false);
     }
   }
 
@@ -535,6 +607,13 @@ export default function PortalDashboardPage() {
                   const activeCert = reg.certificates.find((c) => !c.revoked);
                   const messages = messagesByRegistration[reg.registrationId];
                   const materials = materialsByRegistration[reg.registrationId];
+                  const submissions = submissionsByRegistration[reg.registrationId];
+                  const pendingSubmission = Array.isArray(submissions)
+                    ? submissions.find((s) => s.status === 'pending')
+                    : null;
+                  const rejectedSubmission = Array.isArray(submissions)
+                    ? submissions.find((s) => s.status === 'rejected')
+                    : null;
                   return (
                     <article key={reg.registrationId} className="course-card">
                       <div className="head">
@@ -669,6 +748,114 @@ export default function PortalDashboardPage() {
                                 Prefer to split this into two payments? Set up a payment plan
                               </button>
                             ))
+                          )}
+
+                          {pendingSubmission ? (
+                            <p className="confirming-note">
+                              Payment submitted {formatDate(pendingSubmission.createdAt)} — awaiting confirmation.
+                            </p>
+                          ) : submittingProofRegistrationId === reg.registrationId ? (
+                            <div className="plan-confirm">
+                              <p className="plan-box-label" style={{ marginBottom: 12 }}>
+                                Submit your MoMo or bank transfer payment for confirmation
+                              </p>
+                              {rejectedSubmission?.reviewNote && (
+                                <p className="plan-confirm-error">
+                                  Your last submission wasn&apos;t approved: {rejectedSubmission.reviewNote}
+                                </p>
+                              )}
+                              {proofError && <p className="plan-confirm-error">{proofError}</p>}
+                              <div className="field">
+                                <label htmlFor={`proofMethod-${reg.registrationId}`}>Payment method</label>
+                                <select
+                                  id={`proofMethod-${reg.registrationId}`}
+                                  value={proofForm.method}
+                                  onChange={(e) => setProofForm((f) => ({ ...f, method: e.target.value }))}
+                                >
+                                  <option value="MTN MoMo">MTN Mobile Money</option>
+                                  <option value="Bank Transfer">Bank Transfer</option>
+                                </select>
+                              </div>
+                              <div className="field">
+                                <label htmlFor={`proofAmount-${reg.registrationId}`}>Amount paid (GHS)</label>
+                                <input
+                                  id={`proofAmount-${reg.registrationId}`}
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  value={proofForm.amount}
+                                  onChange={(e) => setProofForm((f) => ({ ...f, amount: e.target.value }))}
+                                />
+                              </div>
+                              <div className="field">
+                                <label htmlFor={`proofRef-${reg.registrationId}`}>Transaction reference</label>
+                                <input
+                                  id={`proofRef-${reg.registrationId}`}
+                                  type="text"
+                                  value={proofForm.transactionReference}
+                                  onChange={(e) => setProofForm((f) => ({ ...f, transactionReference: e.target.value }))}
+                                />
+                              </div>
+                              <div className="field">
+                                <label htmlFor={`proofDate-${reg.registrationId}`}>Payment date</label>
+                                <input
+                                  id={`proofDate-${reg.registrationId}`}
+                                  type="date"
+                                  value={proofForm.paymentDate}
+                                  onChange={(e) => setProofForm((f) => ({ ...f, paymentDate: e.target.value }))}
+                                />
+                              </div>
+                              <div className="field">
+                                <label htmlFor={`proofNotes-${reg.registrationId}`}>Notes (optional)</label>
+                                <textarea
+                                  id={`proofNotes-${reg.registrationId}`}
+                                  value={proofForm.participantNotes}
+                                  onChange={(e) => setProofForm((f) => ({ ...f, participantNotes: e.target.value }))}
+                                />
+                              </div>
+                              <div className="field">
+                                <label htmlFor={`proofSlip-${reg.registrationId}`}>
+                                  Payment slip (optional — JPEG, PNG, or PDF, max 5MB)
+                                </label>
+                                <input
+                                  id={`proofSlip-${reg.registrationId}`}
+                                  type="file"
+                                  accept="image/jpeg,image/png,application/pdf"
+                                  onChange={(e) => setProofSlip(e.target.files?.[0] ?? null)}
+                                />
+                              </div>
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <button
+                                  type="button"
+                                  className="btn btn-primary btn-sm"
+                                  disabled={proofSaving || !proofForm.amount || !proofForm.paymentDate}
+                                  onClick={() => void handleSubmitProof(reg.registrationId)}
+                                >
+                                  {proofSaving ? 'Submitting…' : 'Submit for confirmation'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-sm"
+                                  disabled={proofSaving}
+                                  onClick={() => setSubmittingProofRegistrationId(null)}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="link-btn"
+                              onClick={() => {
+                                setSubmittingProofRegistrationId(reg.registrationId);
+                                setProofError(null);
+                              }}
+                            >
+                              {rejectedSubmission
+                                ? 'Resubmit your MoMo / bank transfer payment'
+                                : "I've already paid via MoMo or bank transfer"}
+                            </button>
                           )}
                         </div>
                       )}

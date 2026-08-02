@@ -84,3 +84,62 @@ export interface Installment {
   paymentStatus: 'Pending' | 'Paid';
   paidAt: string | null;
 }
+
+// Self-service payment submission (founder-requested 2026-08-01) — a
+// registrant's claimed MoMo/bank-transfer payment, awaiting finance/admin
+// review before it's applied to `payments` via the existing
+// applyPaymentUpdate (BR-04/05/06/12 all stay intact; this table never
+// writes payment_status/verified_by itself).
+export const PAYMENT_SUBMISSION_METHODS = ['MTN MoMo', 'Bank Transfer'] as const;
+export type PaymentSubmissionMethod = (typeof PAYMENT_SUBMISSION_METHODS)[number];
+
+export const PAYMENT_SUBMISSION_SLIP_MAX_BYTES = 5 * 1024 * 1024;
+export const PAYMENT_SUBMISSION_SLIP_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'application/pdf',
+] as const;
+
+export const paymentSubmissionInputSchema = z.object({
+  registrationId: z.uuid(),
+  method: z.enum(PAYMENT_SUBMISSION_METHODS),
+  amount: z.coerce.number().positive(),
+  transactionReference: z.string().trim().max(100).nullable().optional(),
+  paymentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  participantNotes: z.string().trim().max(1000).nullable().optional(),
+});
+export type PaymentSubmissionInput = z.infer<typeof paymentSubmissionInputSchema>;
+
+export const paymentSubmissionReviewSchema = z.object({
+  decision: z.enum(['approved', 'rejected']),
+  overrideAmountPaid: z.number().positive().optional(),
+  overrideTransactionId: z.string().trim().max(100).optional(),
+  overridePaymentDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  reviewNote: z.string().trim().max(1000).optional(),
+});
+export type PaymentSubmissionReviewInput = z.infer<typeof paymentSubmissionReviewSchema>;
+
+export interface PaymentSubmission {
+  id: string;
+  registrationId: string;
+  method: PaymentSubmissionMethod;
+  amount: number;
+  transactionReference: string | null;
+  paymentDate: string;
+  hasSlip: boolean; // the raw storage path is never sent to any client
+  participantNotes: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  createdAt: string;
+}
+
+// Staff queue view — adds participant/course context the bare row lacks.
+export interface PaymentSubmissionView extends PaymentSubmission {
+  participantName: string;
+  courseName: string;
+  cohortLabel: string;
+}

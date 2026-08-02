@@ -60,6 +60,24 @@ interface DraftPayment {
   paymentNotes: string;
 }
 
+interface SubmissionRow {
+  id: string;
+  registrationId: string;
+  method: 'MTN MoMo' | 'Bank Transfer';
+  amount: number;
+  transactionReference: string | null;
+  paymentDate: string;
+  hasSlip: boolean;
+  participantNotes: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewedAt: string | null;
+  reviewNote: string | null;
+  createdAt: string;
+  participantName: string;
+  courseName: string;
+  cohortLabel: string;
+}
+
 export default function PaymentTrackingPage() {
   const [rows, setRows] = useState<RegistrationRow[]>([]);
   const [showSettled, setShowSettled] = useState(false);
@@ -73,6 +91,19 @@ export default function PaymentTrackingPage() {
   const [discountReason, setDiscountReason] = useState('');
   const [discountError, setDiscountError] = useState<string | null>(null);
   const [savingDiscount, setSavingDiscount] = useState(false);
+
+  const [view, setView] = useState<'tracking' | 'submissions'>('tracking');
+  const [submissions, setSubmissions] = useState<SubmissionRow[]>([]);
+  const [submissionsError, setSubmissionsError] = useState<string | null>(null);
+  const [reviewTarget, setReviewTarget] = useState<SubmissionRow | null>(null);
+  const [reviewOverrides, setReviewOverrides] = useState({
+    amountPaid: '',
+    transactionId: '',
+    paymentDate: '',
+  });
+  const [reviewNote, setReviewNote] = useState('');
+  const [reviewSaving, setReviewSaving] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -88,6 +119,69 @@ export default function PaymentTrackingPage() {
   useEffect(() => {
     void reload();
   }, [reload]);
+
+  const reloadSubmissions = useCallback(async () => {
+    setSubmissionsError(null);
+    try {
+      const result = await apiFetch<{ submissions: SubmissionRow[] }>(
+        '/api/payment-submissions?status=pending',
+      );
+      setSubmissions(result.submissions);
+    } catch (err) {
+      setSubmissionsError(
+        err instanceof Error ? err.message : 'Failed to load payment submissions.',
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    if (view === 'submissions') void reloadSubmissions();
+  }, [view, reloadSubmissions]);
+
+  function openReview(row: SubmissionRow) {
+    setReviewTarget(row);
+    setReviewOverrides({
+      amountPaid: String(row.amount),
+      transactionId: row.transactionReference ?? '',
+      paymentDate: row.paymentDate,
+    });
+    setReviewNote('');
+    setReviewError(null);
+  }
+
+  async function viewSlip(row: SubmissionRow) {
+    try {
+      const result = await apiFetch<{ url: string }>(`/api/payment-submissions/${row.id}/slip-url`);
+      window.open(result.url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      setSubmissionsError(err instanceof Error ? err.message : 'Failed to load the slip.');
+    }
+  }
+
+  async function submitReview(decision: 'approved' | 'rejected') {
+    if (!reviewTarget) return;
+    setReviewSaving(true);
+    setReviewError(null);
+    try {
+      await apiFetch(`/api/payment-submissions/${reviewTarget.id}/review`, {
+        method: 'POST',
+        body: JSON.stringify({
+          decision,
+          overrideAmountPaid: decision === 'approved' ? Number(reviewOverrides.amountPaid) : undefined,
+          overrideTransactionId: reviewOverrides.transactionId.trim() || undefined,
+          overridePaymentDate: reviewOverrides.paymentDate || undefined,
+          reviewNote: reviewNote.trim() || undefined,
+        }),
+      });
+      setReviewTarget(null);
+      await reloadSubmissions();
+      await reload();
+    } catch (err) {
+      setReviewError(err instanceof Error ? err.message : 'Failed to review this submission.');
+    } finally {
+      setReviewSaving(false);
+    }
+  }
 
   const visibleRows = useMemo(
     () =>
@@ -235,13 +329,25 @@ export default function PaymentTrackingPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Payment Tracking</h1>
         <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={() => setShowSettled((value) => !value)}>
-            {showSettled ? 'Show outstanding only' : 'Show all (incl. Paid)'}
-          </Button>
-          <Button variant="outline" asChild>
-            <a href="/api/registrations/export" download>
-              Export CSV
-            </a>
+          {view === 'tracking' ? (
+            <>
+              <Button variant="outline" onClick={() => setShowSettled((value) => !value)}>
+                {showSettled ? 'Show outstanding only' : 'Show all (incl. Paid)'}
+              </Button>
+              <Button variant="outline" asChild>
+                <a href="/api/registrations/export" download>
+                  Export CSV
+                </a>
+              </Button>
+            </>
+          ) : null}
+          <Button
+            variant={view === 'submissions' ? 'default' : 'outline'}
+            onClick={() => setView((current) => (current === 'tracking' ? 'submissions' : 'tracking'))}
+          >
+            {view === 'tracking'
+              ? `Payment Submissions${submissions.length > 0 ? ` (${submissions.length})` : ''}`
+              : 'Back to Payment Tracking'}
           </Button>
         </div>
       </div>
@@ -252,6 +358,64 @@ export default function PaymentTrackingPage() {
         </p>
       )}
 
+      {view === 'submissions' ? (
+        <div className="space-y-4">
+          {submissionsError && (
+            <p role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
+              {submissionsError}
+            </p>
+          )}
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Participant</TableHead>
+                <TableHead>Course / Batch</TableHead>
+                <TableHead>Method</TableHead>
+                <TableHead>Amount claimed</TableHead>
+                <TableHead>Payment date</TableHead>
+                <TableHead>Reference</TableHead>
+                <TableHead>Slip</TableHead>
+                <TableHead>Review</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {submissions.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell>
+                    <p className="font-medium">{row.participantName}</p>
+                  </TableCell>
+                  <TableCell>
+                    <p>{row.courseName}</p>
+                    <p className="text-xs text-muted-foreground">{row.cohortLabel}</p>
+                  </TableCell>
+                  <TableCell>{row.method}</TableCell>
+                  <TableCell>{formatGhs(row.amount)}</TableCell>
+                  <TableCell>{row.paymentDate}</TableCell>
+                  <TableCell>{row.transactionReference ?? '—'}</TableCell>
+                  <TableCell>
+                    {row.hasSlip ? (
+                      <Button variant="outline" size="sm" onClick={() => viewSlip(row)}>
+                        View slip
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">None</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Button size="sm" onClick={() => openReview(row)}>
+                      Review
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          {submissions.length === 0 && (
+            <p className="text-muted-foreground">No payment submissions awaiting review.</p>
+          )}
+        </div>
+      ) : (
+        <>
       <Table>
         <TableHeader>
           <TableRow>
@@ -377,6 +541,8 @@ export default function PaymentTrackingPage() {
       {visibleRows.length === 0 && (
         <p className="text-muted-foreground">No outstanding payments. 🎉</p>
       )}
+        </>
+      )}
 
       <Dialog
         open={confirmTarget !== null}
@@ -491,6 +657,97 @@ export default function PaymentTrackingPage() {
               }
             >
               {savingDiscount ? 'Saving…' : 'Apply discount'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={reviewTarget !== null} onOpenChange={(open) => !open && setReviewTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Review payment submission</DialogTitle>
+            <DialogDescription>
+              {reviewTarget
+                ? `${reviewTarget.participantName} — ${reviewTarget.courseName} (${reviewTarget.cohortLabel}), submitted via ${reviewTarget.method}.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {reviewTarget && (
+            <div className="space-y-3">
+              {reviewTarget.participantNotes && (
+                <p className="rounded-md bg-muted/30 p-3 text-sm">
+                  Participant note: {reviewTarget.participantNotes}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Approving adds this amount to the registration&apos;s existing amount paid — it does
+                not replace it.
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="reviewAmount">Amount to add (GHS)</Label>
+                <Input
+                  id="reviewAmount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={reviewOverrides.amountPaid}
+                  onChange={(event) =>
+                    setReviewOverrides((current) => ({ ...current, amountPaid: event.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reviewReference">Transaction / reference ID</Label>
+                <Input
+                  id="reviewReference"
+                  value={reviewOverrides.transactionId}
+                  onChange={(event) =>
+                    setReviewOverrides((current) => ({ ...current, transactionId: event.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reviewDate">Payment date</Label>
+                <Input
+                  id="reviewDate"
+                  type="date"
+                  value={reviewOverrides.paymentDate}
+                  onChange={(event) =>
+                    setReviewOverrides((current) => ({ ...current, paymentDate: event.target.value }))
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="reviewNote">Review note (optional — shown to the participant if rejected)</Label>
+                <Input
+                  id="reviewNote"
+                  value={reviewNote}
+                  onChange={(event) => setReviewNote(event.target.value)}
+                />
+              </div>
+              {reviewError && (
+                <p role="alert" className="text-sm text-destructive">
+                  {reviewError}
+                </p>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReviewTarget(null)} disabled={reviewSaving}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => submitReview('rejected')}
+              disabled={reviewSaving}
+            >
+              {reviewSaving ? 'Saving…' : 'Reject'}
+            </Button>
+            <Button
+              onClick={() => submitReview('approved')}
+              disabled={reviewSaving || !reviewOverrides.amountPaid || !reviewOverrides.paymentDate}
+            >
+              {reviewSaving ? 'Saving…' : 'Approve'}
             </Button>
           </DialogFooter>
         </DialogContent>

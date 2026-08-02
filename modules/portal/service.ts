@@ -50,6 +50,7 @@ import type {
   StudentStatusSummary,
 } from '@/modules/portal/types';
 import type { FeedbackSubmissionInput, FeedbackSubmissionResult } from '@/modules/feedback/types';
+import type { PaymentSubmission, PaymentSubmissionInput } from '@/modules/payments/types';
 
 const SESSION_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const LOCKOUT_THRESHOLD = 5;
@@ -347,6 +348,39 @@ export async function setUpInstallmentPlan(
     courseFee: Number(match.payment.course_fee),
     batchStartDate: match.batch.start_date,
   });
+}
+
+// Self-service payment submission (founder-requested 2026-08-01) — same
+// "never trust a client-supplied registrationId blindly" posture as
+// setUpInstallmentPlan above: the registration must appear in this session's
+// own dashboard data before anything is submitted.
+export async function submitPaymentProof(
+  sessionId: string | undefined,
+  input: PaymentSubmissionInput,
+  slip?: { buffer: Buffer; contentType: string; extension: string },
+): Promise<PaymentSubmission> {
+  const { participantId } = await requirePortalSession(sessionId);
+  const data = await portalRepository.selectPortalDashboardData(participantId);
+  const match = data.registrations.find((row) => row.registration.id === input.registrationId);
+  if (!match) {
+    throw new AppError('NOT_FOUND', 'Registration not found.', 404);
+  }
+
+  return paymentsService.submitPaymentProofSystem(input, slip);
+}
+
+export async function listMyPaymentSubmissions(
+  sessionId: string | undefined,
+  registrationId: string,
+): Promise<PaymentSubmission[]> {
+  const { participantId } = await requirePortalSession(sessionId);
+  const data = await portalRepository.selectPortalDashboardData(participantId);
+  const match = data.registrations.find((row) => row.registration.id === registrationId);
+  if (!match) {
+    throw new AppError('NOT_FOUND', 'Registration not found.', 404);
+  }
+
+  return paymentsService.listMyPaymentSubmissionsSystem(registrationId);
 }
 
 // Receipt (2026-07-26) — same "never trust a client-supplied registrationId
