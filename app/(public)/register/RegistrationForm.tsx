@@ -29,8 +29,16 @@ interface BatchOption {
 }
 
 type RegistrationResult =
-  | { outcome: 'registered'; registrationId: string; message: string }
+  | { outcome: 'registered'; registrationId: string; message: string; courseFee: number }
   | { outcome: 'waitlisted'; waitlistId: string; message: string };
+
+interface CodePreview {
+  valid: boolean;
+  discountType: 'percentage' | 'fixed_amount' | null;
+  discountValue: number | null;
+  partnerId: string | null;
+  reason?: string;
+}
 
 const LEAD_SOURCES = [
   'WhatsApp',
@@ -80,6 +88,9 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
   const [batchId, setBatchId] = useState('');
   const [leadSource, setLeadSource] = useState('');
   const [consentGiven, setConsentGiven] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
+  const [codePreview, setCodePreview] = useState<CodePreview | null>(null);
+  const [checkingCode, setCheckingCode] = useState(false);
 
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [bannerError, setBannerError] = useState<string | null>(null);
@@ -94,10 +105,17 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
   // this page doesn't have) since this is a one-time read on mount, not
   // something that needs to react to client-side navigation.
   useEffect(() => {
-    const requestedBatchId = new URLSearchParams(window.location.search).get('batchId');
+    const params = new URLSearchParams(window.location.search);
+    const requestedBatchId = params.get('batchId');
     if (requestedBatchId && batchOptions.some((option) => option.batchId === requestedBatchId)) {
       setBatchId(requestedBatchId);
     }
+    // Tracked-link prefill (Knowsia Growth Partner Programme, 2026-08-02) —
+    // app/r/[code] redirects here with ?ref=CODE; the code still has to be
+    // typed/confirmed by the visitor (this just saves them re-typing it),
+    // and an explicit edit to the field always wins at submit time.
+    const referralCode = params.get('ref');
+    if (referralCode) setCouponCode(referralCode.toUpperCase());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -105,6 +123,47 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
   const selectedBatchFee = selectedBatch ? effectiveCourseFee(selectedBatch) : null;
   const selectedBatchHasActiveDiscount =
     selectedBatch !== null && selectedBatchFee !== selectedBatch.courseFee;
+
+  // Live coupon/referral-code preview — debounced, re-runs whenever the code
+  // or the selected batch changes (a code can be course-restricted).
+  useEffect(() => {
+    const trimmed = couponCode.trim();
+    if (!trimmed || !batchId) {
+      setCodePreview(null);
+      return;
+    }
+    setCheckingCode(true);
+    const timer = setTimeout(async () => {
+      try {
+        const result = await apiFetch<CodePreview>('/api/register/preview-code', {
+          method: 'POST',
+          body: JSON.stringify({ code: trimmed, batchId }),
+        });
+        setCodePreview(result);
+      } catch {
+        setCodePreview({ valid: false, discountType: null, discountValue: null, partnerId: null, reason: 'Could not check this code right now.' });
+      } finally {
+        setCheckingCode(false);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [couponCode, batchId]);
+
+  // Best-price-wins preview (mirrors the server's rule exactly — see
+  // modules/registrations/service.ts): a code discount never stacks with
+  // the early-bird price, so show the visitor whichever is actually cheaper.
+  const codeDiscountedFee =
+    selectedBatch && codePreview?.valid && codePreview.discountType && codePreview.discountValue !== null
+      ? codePreview.discountType === 'percentage'
+        ? selectedBatch.courseFee * (1 - codePreview.discountValue / 100)
+        : Math.max(0, selectedBatch.courseFee - codePreview.discountValue)
+      : null;
+  const displayedFee =
+    codeDiscountedFee !== null && selectedBatchFee !== null
+      ? Math.min(codeDiscountedFee, selectedBatchFee)
+      : selectedBatchFee;
+  const codeBeatsEarlyBird =
+    codeDiscountedFee !== null && selectedBatchFee !== null && codeDiscountedFee < selectedBatchFee;
 
   function validateField(field: keyof FieldErrors): string | undefined {
     switch (field) {
@@ -215,6 +274,7 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
             batchId,
             leadSource,
             consentGiven,
+            couponCode: couponCode.trim() || null,
           }),
         },
       );
@@ -258,13 +318,13 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
           </h2>
           <p className="mt-2 text-sm">{success.message}</p>
         </div>
-        {selectedBatch && selectedBatchFee !== null && !paymentStarted && (
+        {selectedBatch && !paymentStarted && (
           <div className="space-y-3 border-t pt-4">
-            <p className="text-sm font-medium">Course fee: {formatGhs(selectedBatchFee)}</p>
+            <p className="text-sm font-medium">Course fee: {formatGhs(success.courseFee)}</p>
             <PaystackCheckout
               registrationId={success.registrationId}
               participantEmail={email.trim().toLowerCase()}
-              amountGhs={selectedBatchFee}
+              amountGhs={success.courseFee}
               onCompleted={handlePaymentCompleted}
             />
             <p className="text-xs text-muted-foreground">
@@ -335,7 +395,13 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
         )}
         {selectedBatch && selectedBatchFee !== null && (
           <div className="text-sm text-muted-foreground">
-            {selectedBatchHasActiveDiscount && selectedBatch.discountCutoffDate ? (
+            {codeBeatsEarlyBird && displayedFee !== null ? (
+              <p>
+                <span className="line-through">{formatGhs(selectedBatch.courseFee)}</span>{' '}
+                <span className="font-medium text-emerald-700">{formatGhs(displayedFee)}</span>{' '}
+                — with your code applied
+              </p>
+            ) : selectedBatchHasActiveDiscount && selectedBatch.discountCutoffDate ? (
               <p>
                 <span className="line-through">{formatGhs(selectedBatch.courseFee)}</span>{' '}
                 <span className="font-medium text-emerald-700">
@@ -502,6 +568,25 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
         </select>
         {fieldErrors.leadSource && (
           <p className="text-sm text-destructive">{fieldErrors.leadSource}</p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="couponCode">
+          Coupon / Referral Code <span className="text-muted-foreground">(optional)</span>
+        </Label>
+        <Input
+          id="couponCode"
+          value={couponCode}
+          className="h-11 uppercase"
+          onChange={(event) => setCouponCode(event.target.value.toUpperCase())}
+        />
+        {checkingCode && <p className="text-sm text-muted-foreground">Checking code…</p>}
+        {!checkingCode && codePreview?.valid && (
+          <p className="text-sm text-emerald-700">Code applied — discount shown above.</p>
+        )}
+        {!checkingCode && codePreview && !codePreview.valid && (
+          <p className="text-sm text-destructive">{codePreview.reason ?? 'This code is not valid.'}</p>
         )}
       </div>
 

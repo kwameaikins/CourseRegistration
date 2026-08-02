@@ -9,6 +9,9 @@ const sendEmailOnceMock = vi.fn();
 const sendWhatsappOnceMock = vi.fn();
 const sendSmsOnceMock = vi.fn();
 const issuePortalLoginTokenMock = vi.fn();
+const partnersServiceMock = {
+  accrueCommissionOnPaymentSystem: vi.fn(),
+};
 
 vi.mock('@/modules/payments/repository', () => repositoryMock);
 vi.mock('@/modules/communications/service', () => ({
@@ -19,6 +22,7 @@ vi.mock('@/modules/communications/service', () => ({
 vi.mock('@/modules/portal/service', () => ({
   issuePortalLoginToken: (...args: unknown[]) => issuePortalLoginTokenMock(...args),
 }));
+vi.mock('@/modules/partners/service', () => partnersServiceMock);
 
 const { processWebhookEvent } = await import(
   '@/modules/payments/paystack-webhook-handler'
@@ -52,9 +56,11 @@ beforeEach(() => {
     id: 'pay-1',
     registration_id: 'reg-1',
     payment_status: 'Paid',
+    amount_paid: 1200,
   });
   sendEmailOnceMock.mockResolvedValue('sent');
   issuePortalLoginTokenMock.mockResolvedValue(undefined);
+  partnersServiceMock.accrueCommissionOnPaymentSystem.mockResolvedValue(undefined);
 });
 
 describe('BR-14 — webhook idempotency (T-BR14-01 logic)', () => {
@@ -71,6 +77,7 @@ describe('BR-14 — webhook idempotency (T-BR14-01 logic)', () => {
       }),
     );
     expect(sendEmailOnceMock).toHaveBeenCalledWith('reg-1', 'payment_confirmation');
+    expect(partnersServiceMock.accrueCommissionOnPaymentSystem).toHaveBeenCalledWith('reg-1', 1200);
   });
 
   it('returns already_processed for a repeated reference without touching the payment', async () => {

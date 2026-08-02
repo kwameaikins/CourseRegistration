@@ -1,9 +1,11 @@
+import { cookies } from 'next/headers';
 import { AppError, handleRouteError, successResponse } from '@/lib/errors';
 import * as registrationsService from '@/modules/registrations/service';
 import {
   registrationInputSchema,
   registrationListFiltersSchema,
 } from '@/modules/registrations/types';
+import { REFERRAL_CODE_COOKIE } from '@/modules/partners/types';
 
 // POST /api/registrations — F1.01, public (Document 5, Section 2).
 export async function POST(request: Request) {
@@ -34,7 +36,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const result = await registrationsService.createRegistration(parsed.data);
+    const cookieStore = await cookies();
+    const referralCookieCode = cookieStore.get(REFERRAL_CODE_COOKIE)?.value ?? null;
+    const result = await registrationsService.createRegistration(parsed.data, referralCookieCode);
     return successResponse(result, 201);
   } catch (err) {
     return handleRouteError(err);

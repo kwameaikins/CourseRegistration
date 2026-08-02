@@ -13,6 +13,11 @@ import * as usersService from '@/modules/users/service';
 import * as attendanceService from '@/modules/attendance/service';
 import * as certificatesService from '@/modules/certificates/service';
 import * as liveSessionsService from '@/modules/live-sessions/service';
+// A category='tutor' partner (Knowsia Growth Partner Programme, 2026-08-02)
+// authenticates through this exact tutor_auth/tutor_sessions login, not a
+// separate partner_auth row — see modules/partners/service.ts's
+// loginToPartnerPortal, which rejects tutor-category partners outright.
+import * as partnersService from '@/modules/partners/service';
 import type {
   AddTutorSessionMaterialInput,
   CreateTutorInput,
@@ -187,6 +192,14 @@ export async function requireTutorPortalSession(
     throw new AppError('UNAUTHENTICATED', 'Your session has expired. Please log in again.', 401);
   }
   return { tutorId: session.tutor_id };
+}
+
+// Read-only summary for the tutor portal's Referrals panel — null if this
+// tutor has no linked partners row yet (not every tutor is a referral
+// partner).
+export async function getReferralSummaryForSession(sessionId: string | undefined) {
+  const { tutorId } = await requireTutorPortalSession(sessionId);
+  return partnersService.getReferralSummaryForTutor(tutorId);
 }
 
 export async function changeTutorPin(

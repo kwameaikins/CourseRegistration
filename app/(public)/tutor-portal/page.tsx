@@ -13,7 +13,7 @@ import Image from 'next/image';
 
 import { apiFetch } from '@/components/api-client';
 import { PORTAL_STYLES, PortalIcons } from '@/components/portal/portal-design-system';
-import { formatDate } from '@/lib/utils';
+import { formatDate, formatGhs } from '@/lib/utils';
 
 interface DashboardBatch {
   batchId: string;
@@ -80,6 +80,30 @@ interface MaterialEntry {
   createdAt: string;
 }
 
+// Knowsia Growth Partner Programme (2026-08-02) — a category='tutor'
+// partner's referral summary, surfaced here rather than a second login
+// (see modules/tutors/service.ts's getReferralSummaryForSession).
+interface ReferralCode {
+  id: string;
+  code: string;
+  discountType: 'percentage' | 'fixed_amount' | null;
+  discountValue: number | null;
+  usesCount: number;
+}
+
+interface ReferralPayout {
+  id: string;
+  totalAmount: number;
+  method: string;
+  paidAt: string;
+}
+
+interface ReferralSummary {
+  codes: ReferralCode[];
+  commissionTotals: Record<string, number>;
+  recentPayouts: ReferralPayout[];
+}
+
 type PanelId =
   | 'overview'
   | 'schedule'
@@ -87,6 +111,7 @@ type PanelId =
   | 'attendance'
   | 'materials'
   | 'certificates'
+  | 'referrals'
   | 'account';
 
 const NAV_ITEMS: Array<{ id: PanelId; label: string; icon: string }> = [
@@ -96,6 +121,7 @@ const NAV_ITEMS: Array<{ id: PanelId; label: string; icon: string }> = [
   { id: 'attendance', label: 'Attendance', icon: 'i-check' },
   { id: 'materials', label: 'Materials', icon: 'i-book' },
   { id: 'certificates', label: 'Certificate Eligibility', icon: 'i-award' },
+  { id: 'referrals', label: 'Referrals', icon: 'i-card' },
   { id: 'account', label: 'Account', icon: 'i-user' },
 ];
 
@@ -115,6 +141,7 @@ export default function TutorPortalDashboardPage() {
   const [attendance, setAttendance] = useState<AttendanceEntry[] | 'loading' | null>(null);
   const [certificates, setCertificates] = useState<CertificateCandidate[] | 'loading' | null>(null);
   const [materials, setMaterials] = useState<MaterialEntry[] | 'loading' | null>(null);
+  const [referrals, setReferrals] = useState<ReferralSummary | null | 'loading'>(null);
 
   const [editingContact, setEditingContact] = useState(false);
   const [contactForm, setContactForm] = useState({ fullName: '', phone: '' });
@@ -171,6 +198,14 @@ export default function TutorPortalDashboardPage() {
       apiFetch<MaterialEntry[]>(`/api/tutor-portal/materials/${selectedBatchId}`).then(setMaterials).catch(() => setMaterials([]));
     }
   }, [activePanel, selectedBatchId]);
+
+  useEffect(() => {
+    if (activePanel !== 'referrals') return;
+    setReferrals('loading');
+    apiFetch<ReferralSummary | null>('/api/tutor-portal/referrals')
+      .then(setReferrals)
+      .catch(() => setReferrals(null));
+  }, [activePanel]);
 
   function openFlagForm(registrationId: string, sessionDate: string) {
     setFlaggingKey(`${registrationId}:${sessionDate}`);
@@ -761,6 +796,83 @@ export default function TutorPortalDashboardPage() {
                           </table>
                         </div>
                       )
+                    )}
+                  </>
+                )}
+              </section>
+            )}
+
+            {activePanel === 'referrals' && (
+              <section className="panel active" role="tabpanel">
+                <p className="eyebrow">Referrals</p>
+                <h2 className="panel-title">Your referral earnings</h2>
+                <p className="panel-sub">
+                  Every approved tutor automatically earns a commission when someone registers using
+                  your code.
+                </p>
+
+                {referrals === 'loading' ? (
+                  <p className="empty-note">Loading…</p>
+                ) : referrals === null ? (
+                  <p className="empty-note">
+                    You&apos;re not set up as a referral partner yet — contact Knowsia to get your
+                    code.
+                  </p>
+                ) : (
+                  <>
+                    <div className="stat-grid">
+                      <div className="stat-tile"><span className="num tnum">{formatGhs(referrals.commissionTotals.pending ?? 0)}</span><span className="lbl">Pending</span></div>
+                      <div className="stat-tile"><span className="num tnum">{formatGhs(referrals.commissionTotals.approved ?? 0)}</span><span className="lbl">Approved</span></div>
+                      <div className="stat-tile"><span className="num tnum">{formatGhs(referrals.commissionTotals.payable ?? 0)}</span><span className="lbl">Payable</span></div>
+                      <div className="stat-tile"><span className="num tnum">{formatGhs(referrals.commissionTotals.paid ?? 0)}</span><span className="lbl">Paid</span></div>
+                    </div>
+
+                    <div className="section-heading">
+                      <h3>Your codes</h3>
+                    </div>
+                    {referrals.codes.length === 0 ? (
+                      <p className="empty-note">No codes assigned yet.</p>
+                    ) : (
+                      referrals.codes.map((code) => (
+                        <div key={code.id} className="mini-course-row">
+                          <div>
+                            <div className="name">{code.code}</div>
+                            <div className="meta">
+                              {code.discountType && code.discountValue !== null
+                                ? code.discountType === 'percentage'
+                                  ? `${code.discountValue}% off`
+                                  : `${formatGhs(code.discountValue)} off`
+                                : 'Attribution only'}
+                              {' · '}
+                              {code.usesCount} use(s)
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+
+                    <div className="section-heading">
+                      <h3>Payout history</h3>
+                    </div>
+                    {referrals.recentPayouts.length === 0 ? (
+                      <p className="empty-note">No payouts yet.</p>
+                    ) : (
+                      <div className="table-wrap">
+                        <table>
+                          <thead>
+                            <tr><th>Date</th><th className="num">Amount</th><th>Method</th></tr>
+                          </thead>
+                          <tbody>
+                            {referrals.recentPayouts.map((payout) => (
+                              <tr key={payout.id}>
+                                <td>{formatDate(payout.paidAt)}</td>
+                                <td className="num tnum">{formatGhs(payout.totalAmount)}</td>
+                                <td>{payout.method}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     )}
                   </>
                 )}

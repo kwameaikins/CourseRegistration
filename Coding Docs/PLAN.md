@@ -479,6 +479,130 @@ Migrations `202607290040_ad_hoc_calls.sql`, `202607290041_registration_campaigns
 
 ---
 
+## Class reminders, upsell/cross-sell, and WhatsApp group invitation (2026-08-01)
+
+Founder-flagged gap: `class_reminder_24h`/`class_reminder_2h`, `upsell`, and `whatsapp_invite`
+already existed as `EmailType` slots on the Messaging screen but had zero template content and zero
+trigger logic — "Not written yet — this email is skipped" for all four, in production, this whole
+time. Only the *voice-call* version of upsell (Vapi) was real. Closed across email + SMS + WhatsApp.
+
+Migration `202608010042_reminder_upsell_whatsapp_invite_types.sql`.
+
+- [x] Default template content authored for all 4 types (draft copy — founder to review/edit on the
+      Messaging screen) and backfilled onto all 13 existing courses (one-off script, 52 rows)
+- [x] `class_reminder_24h`/`2h` — new `modules/communications/class-reminder-scheduler.ts`
+      (`runClassReminderDispatch`), keyed off `batches.start_date`+`start_time` (Ghana is UTC+0
+      year-round, no timezone library needed). 24h is date-level precision (daily cron is enough,
+      same philosophy as reminder_3/4); 2h needs finer timing than Vercel Hobby's once-daily cron
+      allows
+- [x] `upsell` (email/SMS/WhatsApp) — new `modules/communications/upsell-scheduler.ts`
+      (`runUpsellMessageDispatch`), reusing the voice call's exact eligibility logic via a new
+      `voiceService.getUpsellCandidates` wrapper (no new matching logic). Inherits the voice call's
+      existing "one pitch ever per registrant, per channel" limitation (log-table dedup key has no
+      per-course dimension) — not new, not fixed this pass
+- [x] `whatsapp_invite` (email/SMS/WhatsApp) — event-triggered, not cron: added to
+      `modules/payments/service.ts`'s `runPaidTransitionSideEffects`, the one funnel all 3
+      Paid-transition paths already go through exactly once
+- [x] New `app/api/cron/class-reminders-frequent` route + `.github/workflows/
+      class-reminders-frequent.yml` — a free external scheduler (every 15 min) for the 2h-before
+      precision Vercel Hobby's cron can't hit, since both its 2 allowed job slots are already used
+- [ ] *(external)* Add `CRON_SECRET` as a GitHub Actions repository secret (Settings → Secrets and
+      variables → Actions) — same value as the Vercel env var. Workflow won't run without it
+- [ ] *(external)* The 4 new WhatsApp sends need Meta Business Manager templates created + approved
+      (`course_class_reminder_24h`, `course_class_reminder_2h`, `course_upsell_pitch`,
+      `course_whatsapp_group_invite` — positional params documented in the migration header) before
+      they'll actually send; code is wired regardless, same dormant-until-configured posture as
+      every other WhatsApp message type
+- [x] *(external)* Apply migration `202608010042` to production — applied 2026-08-02 (`npx supabase db push`)
+- [ ] Review/edit the 4 default templates' copy on the Messaging screen before relying on them —
+      they're founder-requested placeholder drafts, not reviewed final copy
+
+---
+
+## Self-service payment submission + staff approval (2026-08-02)
+
+Registrants paying by MTN MoMo or bank transfer previously had to email a transaction reference and
+wait for staff to manually reconcile it. Added a portal form (with an optional payment-slip upload)
+that queues into a finance/admin review screen; approving reuses the existing `applyPaymentUpdate`
+so BR-04/05/06/12 all keep working unchanged. Closest precedent: `attendance_exceptions`
+(submitter-raised row, always starts `pending`, only a staff review can change real state).
+
+Migration `202608010043_payment_submissions.sql`.
+
+- [x] Portal: "I've already paid via MoMo or bank transfer" action next to the existing Paystack
+      "Pay Now" button — method/amount/reference/date + optional slip (JPEG/PNG/PDF, max 5MB);
+      shows "awaiting confirmation" while pending, and the staff review note + a resubmit option if
+      rejected
+- [x] Staff: a "Payment Submissions" view on the existing Payments screen — finance/admin only,
+      approve (editable amount/reference/date before confirming) or reject with a note
+- [x] **First file-upload capability in this codebase** — slips are stored in **Cloudflare R2**
+      (founder-directed 2026-08-02, not Supabase Storage), via a new small `lib/r2/client.ts` using
+      `aws4fetch` (a ~5KB request-signer, not the full AWS SDK, matching this app's plain-fetch
+      integration style). Staff view a slip through a short-lived (5 min) presigned URL — file bytes
+      never pass through our own server
+- [x] One-pending-submission-at-a-time enforced at the DB level too (partial unique index), not just
+      in the service layer
+- [x] Approval math is additive: a submission's claimed amount is added to the registration's
+      existing `amount_paid`, never replaces it (this was the trickiest correctness point —
+      `applyPaymentUpdate` sets the total, it doesn't add)
+- [ ] *(external)* Add `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`,
+      `R2_BUCKET_NAME` to Vercel — create the bucket + API token in the Cloudflare dashboard first
+      (`.env.local.example` documents the four vars). Slip uploads are gated off
+      (`isR2Configured()`) until all four are set; nothing else in this feature depends on R2
+- [x] *(external)* Apply migration `202608010043` to production — applied 2026-08-02 (`npx supabase db push`)
+
+---
+
+## Knowsia Growth Partner Programme (founder-approved 2026-08-02, all-in scope)
+
+Affiliate/partner marketing + coupon codes, per `Coding Docs/knowsia_growth_partner_programme.md`
+(the founder's detailed strategy doc — supersedes an earlier, smaller plan from the same day).
+Founder chose the maximal scope on every open question: all 4 partner categories now, codes +
+tracked referral links, a public application form with manual approval, and a hold period of
+whichever is later of "14 days after payment" or "the batch has started."
+
+One `codes` table serves both coupon-discount and partner-attribution duty. Commission pipeline is
+`Tracked -> Pending -> Approved -> Payable -> Paid`; Tracked is a derived state (a `code_redemptions`
+row exists with no `partner_commissions` row yet, not a stored status) — a commission is only ever
+created once a payment actually clears, computed on the amount actually paid, never the listed
+course fee. Tutor Partners get no second login — a category='tutor' partner authenticates through
+their existing tutor portal, which gained a new "Referrals" panel.
+
+Migration `202608020044_partners_and_codes.sql`.
+
+- [x] Schema: `partners`, `partner_auth`/`partner_sessions` (zero-policy, service-role only, mirrors
+      `company_admin_auth`), `codes`, `code_redemptions` (existing-lead + self-referral fraud flags),
+      `partner_link_clicks`, `partner_commissions`, `partner_payouts`
+- [x] `modules/partners/` — commission-rate lookup (Ambassador tiered %, Institutional tiered flat
+      fee, Tutor flat 10%, Strategic manual-or-none), code validation/redemption, payment-clears
+      commission accrual, cron-driven qualification dispatch, payout workflow, partner-portal auth
+- [x] Fraud checks wired into `modules/registrations/service.ts`'s `createRegistration` *before*
+      `leadsService.createLead` runs (the existing-lead signal is gone once that dedup logic fires);
+      best-price-wins fee math (a code discount never stacks with the early-bird discount)
+- [x] Commission accrual hooked into `modules/payments/service.ts`'s `runPaidTransitionSideEffects`
+      (now takes the actual `amountPaid`); qualification dispatch bundled into the existing 07:00
+      cron (Vercel Hobby's two-job cap is already fully used)
+- [x] `/r/[code]` tracked-link redirect + 30-day `knowsia_ref_code` cookie; explicit code always
+      wins over the cookie at registration time
+- [x] Public: `/partners/apply` (Ambassador/Institutional only), coupon field + live discount
+      preview on `/register`
+- [x] `/partner-portal` (non-tutor categories — mirrors `modules/corporate`'s PIN + session-cookie
+      pattern exactly) with codes/QR, click/redemption counts, commission totals, payout history
+- [x] Tutor portal gained a "Referrals" panel — no second login, per the doc's own instruction
+- [x] Staff console at `/partners` — Applications / Partners / Codes / Commissions & Payouts,
+      admin+marketing for the first three, finance+admin for the last
+- [x] Unit tests: tier boundaries, the Tracked→Pending transition firing only on payment, the
+      `qualifies_at = GREATEST(...)` math, existing-lead/self-referral exclusions, payable/payout
+      double-review guards, best-price-wins fee math
+- [x] *(external)* Apply migration `202608020044` to production — applied 2026-08-02 (`npx supabase db push`)
+
+**Explicitly deferred** (the doc's own "Scale," Days 46–90, not "Foundation"): performance bonuses,
+the marketing/campaign content library, the partner leaderboard, subscription/renewal commissions
+(no subscription product exists — courses are one-time purchases), and the fuller admin fraud/
+analytics suite (duplicate-account detection, refund-rate dashboards, partner profitability).
+
+---
+
 ## Risk watch (carried from `/docs/01_PRD.md` risk register)
 
 | ID | Risk | Status |

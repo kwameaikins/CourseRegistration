@@ -90,7 +90,7 @@ export async function processWebhookEvent(payload: unknown): Promise<WebhookOutc
   }
 
   if (updated.payment_status === 'Paid') {
-    await paymentsService.runPaidTransitionSideEffects(registrationId);
+    await paymentsService.runPaidTransitionSideEffects(registrationId, Number(updated.amount_paid));
     // Auto-login (founder-approved 2026-07-22): this is the only Paid
     // transition with a live browser waiting on the other end (the
     // participant's own checkout), so mint a one-time token it can exchange

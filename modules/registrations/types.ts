@@ -96,6 +96,14 @@ export const registrationInputSchema = z.object({
   leadSource: z.enum(['WhatsApp', 'Facebook', 'LinkedIn', 'Referral', 'Website', 'Other']),
   // BR-15: consent must be literally true; z.literal rejects everything else.
   consentGiven: z.boolean(),
+  // Knowsia Growth Partner Programme (2026-08-02) — an explicit code always
+  // wins over a tracked-link cookie (see registrationsService.createRegistration).
+  couponCode: z
+    .string()
+    .trim()
+    .max(30)
+    .nullish()
+    .transform((value) => (value ? value.toUpperCase() : null)),
 });
 
 export type RegistrationInput = z.infer<typeof registrationInputSchema>;
@@ -253,6 +261,11 @@ export type CreateRegistrationResult =
       registrationStatus: RegistrationStatus;
       paymentStatus: PaymentStatus;
       message: string;
+      // Actual fee locked in for this registration (Knowsia Growth Partner
+      // Programme, 2026-08-02) — may be lower than the batch's listed fee if
+      // a coupon code discount beat the early-bird price. The client must
+      // charge this amount, not re-derive it from the batch.
+      courseFee: number;
     }
   | {
       outcome: 'waitlisted';

@@ -36,6 +36,11 @@ export const ROLE_ROUTES: Record<string, StaffRole[]> = {
   '/assistant': ['admin'],
   '/corporate': ['admin', 'finance', 'marketing', 'management'],
   '/follow-up': ['admin', 'marketing'], // Phase 2
+  // Knowsia Growth Partner Programme (2026-08-02) — applications/partners/
+  // codes are admin+marketing (same as leads/campaigns); commissions/
+  // payouts are finance+admin (same as payments). All 4 sections live on
+  // one page, so the route itself is open to the union of both.
+  '/partners': ['admin', 'marketing', 'finance'],
 };
 
 // Default landing page per role (Document 8: Finance lands on Payments,
@@ -64,6 +69,7 @@ export const NAV_ITEMS_BY_ROLE: Record<
     { href: '/leads/assignment-rules', label: 'Lead Routing Rules', section: 'Sales & Leads' },
     { href: '/campaigns', label: 'Campaigns', section: 'Sales & Leads' },
     { href: '/corporate', label: 'Corporate', section: 'Sales & Leads' },
+    { href: '/partners', label: 'Partners & Coupons', section: 'Sales & Leads' },
     { href: '/payments', label: 'Payments', section: 'Finance' },
     { href: '/courses', label: 'Courses', section: 'Operations' },
     { href: '/tutors', label: 'Tutors', section: 'Operations' },
@@ -78,6 +84,7 @@ export const NAV_ITEMS_BY_ROLE: Record<
   ],
   finance: [
     { href: '/payments', label: 'Payments', section: 'Finance' },
+    { href: '/partners', label: 'Partners & Coupons', section: 'Finance' },
     { href: '/registrations', label: 'Registrations', section: 'Sales & Leads' },
     { href: '/registrations/import', label: 'Import Registrations', section: 'Sales & Leads' },
     { href: '/corporate', label: 'Corporate', section: 'Sales & Leads' },
@@ -88,6 +95,7 @@ export const NAV_ITEMS_BY_ROLE: Record<
     { href: '/leads', label: 'Leads', section: 'Sales & Leads' },
     { href: '/sales', label: 'Sales Pipeline', section: 'Sales & Leads' },
     { href: '/campaigns', label: 'Campaigns', section: 'Sales & Leads' },
+    { href: '/partners', label: 'Partners & Coupons', section: 'Sales & Leads' },
     { href: '/registrations/import', label: 'Import Registrations', section: 'Sales & Leads' },
     { href: '/corporate', label: 'Corporate', section: 'Sales & Leads' },
   ],

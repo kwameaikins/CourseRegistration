@@ -39,6 +39,7 @@ your summary of it.
 | Paystack, Resend, Supabase, Sentry, Uptime Robot | `/docs/07_Integration_Specifications.md` |
 | UI screens, components, signifiers | `/docs/08_UIUX_Screen_Specification.md` |
 | Writing or running tests | `/docs/09_Test_Specification.md` |
+| Affiliate/partner marketing, coupon codes, commissions/payouts | `Coding Docs/knowsia_growth_partner_programme.md` — the founder strategy doc driving this feature |
 | What to build this week | `PLAN.md` (this repo root) — the live checklist |
 | Naming, file structure, conventions | `/docs/11_Coding_Standards_and_Conventions.md` |
 | How the founder will prompt you | `/docs/12_Agent_Prompt_Engineering_Guide.md` |
@@ -55,6 +56,7 @@ your summary of it.
 - **Admin assistant:** Anthropic Claude API (approved 2026-07-19; pay-per-use — accepted budget exception)
 - **Voice calls:** Vapi (approved 2026-07-19; ~$0.05–0.15/min, targeted triggers only — accepted budget exception)
 - **Payments:** Paystack (Card + MTN MoMo)
+- **File storage:** Cloudflare R2 (founder-directed 2026-08-02, payment slip uploads only; free tier at this scale) — accessed via `lib/r2/client.ts` using `aws4fetch`, not the AWS SDK
 - **UI:** Shadcn/ui + Tailwind CSS (components copied in via CLI, not npm-installed)
 - **Hosting:** Vercel (including Vercel Cron for scheduled jobs)
 - **Monitoring:** Uptime Robot (uptime) + Sentry (errors)
@@ -362,6 +364,84 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     ad-hoc calls dial but the assistant won't know what to say. Migrations
     `202607290040/041` pending production application (run
     `npx supabase db push` when ready).
+
+  Class reminders, upsell/cross-sell, and WhatsApp group invitation
+    (2026-08-01) — closed a real production gap: class_reminder_24h/2h,
+    upsell, and whatsapp_invite existed as EmailType slots on the Messaging
+    screen but had no template content and no trigger, ever ("Not written
+    yet — this email is skipped" for all four). Only the voice-call upsell
+    was real. Now wired across email/SMS/WhatsApp: class reminders via new
+    modules/communications/class-reminder-scheduler.ts (24h is date-level,
+    fine for the daily cron; 2h needs a new free external scheduler — GitHub
+    Actions hitting a new /api/cron/class-reminders-frequent route every 15
+    min, since Vercel Hobby's 2 cron-job slots are both already used and only
+    fire once/day); upsell via new modules/communications/upsell-scheduler.ts,
+    reusing the voice call's exact feedback-interest-matches-an-open-batch
+    logic (same "one pitch ever per registrant" limitation the voice call
+    already had, not new); whatsapp_invite via runPaidTransitionSideEffects
+    (fires once, alongside payment_confirmation). Default template copy is a
+    founder-requested draft, backfilled onto all 13 existing courses — needs
+    review/editing on the Messaging screen before considered final. Migration
+    `202608010042` applied to production 2026-08-02. WhatsApp sends for all 4
+    stay dormant until 4 new Meta Business Manager templates are created and
+    approved (names/params documented in the migration header). The GitHub
+    Actions workflow needs a `CRON_SECRET` repository secret added manually
+    before its schedule will actually run.
+
+  Self-service payment submission + staff approval (2026-08-02) — closed a
+    real gap: MoMo/bank-transfer payers had to email a transaction reference
+    and wait for manual reconciliation. Added a portal submission form
+    (amount/method/reference/date + optional slip upload) queuing into a new
+    finance/admin "Payment Submissions" view on the existing Payments
+    screen. Approving a submission doesn't reinvent payment-writing logic —
+    it calls the existing applyPaymentUpdate, so BR-04/05/06/12 all keep
+    working unchanged; the amount added is additive to the existing
+    amount_paid, never a replacement. First file-upload capability in this
+    codebase: slips live in Cloudflare R2 (not Supabase Storage, founder
+    directive), via lib/r2/client.ts (aws4fetch, not the AWS SDK) — gated
+    off until R2_ACCOUNT_ID/R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY/
+    R2_BUCKET_NAME are set (confirmed set in .env as of 2026-08-02).
+    Migration 202608010043 applied to production 2026-08-02.
+
+  Knowsia Growth Partner Programme (2026-08-02) — affiliate/partner
+    marketing + coupon codes, per `Coding Docs/knowsia_growth_partner_
+    programme.md`. All 4 partner categories built now: Ambassador (tiered
+    %: 12/15/18 at 10/30 paid enrolments this month), Tutor Partner (flat
+    10% of first payment — renewal commissions deferred, no subscription
+    product exists), Institutional Partner (tiered flat fee: GHS30/40/50 at
+    50/200 paid enrolments this year), Strategic Partner (manually
+    negotiated rate, or no automatic commission at all if none is set).
+    One `codes` table serves both coupon-discount and partner-attribution
+    duty. Commission pipeline is `Tracked -> Pending -> Approved -> Payable
+    -> Paid`; Tracked is a derived state (a `code_redemptions` row exists
+    with no `partner_commissions` row yet) — a commission is only ever
+    created once a payment actually clears
+    (`partnersService.accrueCommissionOnPaymentSystem`, hooked into the
+    existing `runPaidTransitionSideEffects`), computed on the amount
+    actually paid, never the listed course fee. `qualifies_at =
+    GREATEST(payment date + 14 days, the batch's start date)`; the existing
+    07:00 cron flips `pending -> approved` once that date passes. Anti-
+    fraud: no commission when the registrant was already an existing lead,
+    and none for a self-referral (partner's own email/phone) — the
+    student's discount still applies either way. Attribution priority is
+    an explicitly typed code, then a 30-day `knowsia_ref_code` cookie set
+    by the new `/r/[code]` tracked-link redirect (QR codes reuse the exact
+    `QRCode.toDataURL` call already in `lib/certificates/pdf.ts`). Public
+    surfaces: `/partners/apply` (Ambassador/Institutional only — Tutor/
+    Strategic are always staff-created) and a coupon field on `/register`
+    with a live discount preview; best-price-wins against the early-bird
+    discount (never stacked). Non-tutor partners get a new standalone
+    portal (`/partner-portal`, PIN + session cookie, mirrors
+    `modules/corporate` exactly); a Tutor Partner instead gets a new
+    "Referrals" panel inside their *existing* tutor portal login — no
+    second account. Staff console at `/partners` (Applications / Partners /
+    Codes / Commissions & Payouts), admin+marketing for the first three,
+    finance+admin for the last. Explicitly deferred (the doc's own "Scale"
+    phase, not "Foundation"): performance bonuses, the marketing/campaign
+    content library, the partner leaderboard, and the fuller fraud/
+    analytics suite (duplicate-account detection, refund-rate dashboards).
+    Migration `202608020044_partners_and_codes.sql` applied to production
+    2026-08-02.
 
 Open decisions (founder):
   - AI05 ("...Reporting and Modeling") vs AI02 ("...Reporting and

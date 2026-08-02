@@ -11,6 +11,13 @@ const paymentsRepositoryMock = {
   updateInstallmentAmountPaid: vi.fn(),
   updateInstallmentAmountDue: vi.fn(),
   selectDueSecondInstallments: vi.fn(),
+  selectPendingPaymentSubmissionForRegistration: vi.fn(),
+  insertPaymentSubmissionSystem: vi.fn(),
+  selectPaymentSubmissionsForRegistrationSystem: vi.fn(),
+  selectPaymentSubmissions: vi.fn(),
+  selectPaymentSubmissionById: vi.fn(),
+  updatePaymentSubmission: vi.fn(),
+  selectPaymentSubmissionContext: vi.fn(),
 };
 const usersServiceMock = {
   requireRole: vi.fn(),
@@ -24,6 +31,14 @@ const opportunitiesServiceMock = {
 const leadsServiceMock = {
   markEnrolledByRegistrationId: vi.fn(),
 };
+const r2ClientMock = {
+  isR2Configured: vi.fn(),
+  uploadObject: vi.fn(),
+  getSignedDownloadUrl: vi.fn(),
+};
+const partnersServiceMock = {
+  accrueCommissionOnPaymentSystem: vi.fn(),
+};
 
 vi.mock('@/modules/payments/repository', () => paymentsRepositoryMock);
 vi.mock('@/modules/users/service', () => usersServiceMock);
@@ -34,6 +49,8 @@ vi.mock('@/modules/communications/service', () => ({
 }));
 vi.mock('@/modules/opportunities/service', () => opportunitiesServiceMock);
 vi.mock('@/modules/leads/service', () => leadsServiceMock);
+vi.mock('@/lib/r2/client', () => r2ClientMock);
+vi.mock('@/modules/partners/service', () => partnersServiceMock);
 
 const {
   updatePaymentByStaff,
@@ -43,6 +60,10 @@ const {
   reconcileInstallments,
   rebalanceInstallmentsForDiscount,
   getDueInstallmentReminderCandidates,
+  submitPaymentProofSystem,
+  listPaymentSubmissions,
+  getPaymentSubmissionSlipUrl,
+  reviewPaymentSubmission,
 } = await import('@/modules/payments/service');
 const { paymentUpdateSchema, paymentDiscountSchema } = await import('@/modules/payments/types');
 
@@ -107,6 +128,7 @@ beforeEach(() => {
   paymentsRepositoryMock.selectInstallmentsForRegistration.mockResolvedValue([]);
   paymentsRepositoryMock.updateInstallmentAmountPaid.mockResolvedValue(undefined);
   paymentsRepositoryMock.updateInstallmentAmountDue.mockResolvedValue(undefined);
+  partnersServiceMock.accrueCommissionOnPaymentSystem.mockResolvedValue(undefined);
 });
 
 describe('BR-12 — verified_by is always the session staff id', () => {
@@ -164,6 +186,36 @@ describe('E07 — confirmation email only on the transition to Paid', () => {
     );
     await updatePaymentByStaff('reg-1', { amountPaid: 400, paymentMethod: 'MTN MoMo' });
     expect(sendEmailOnceMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('Knowsia Growth Partner Programme — commission accrual on the Paid transition (2026-08-02)', () => {
+  it('accrues using the ACTUAL amount paid, only on the transition to Paid', async () => {
+    await updatePaymentByStaff('reg-1', { amountPaid: 1200, paymentMethod: 'Bank Transfer' });
+    expect(partnersServiceMock.accrueCommissionOnPaymentSystem).toHaveBeenCalledWith('reg-1', 1200);
+  });
+
+  it('never accrues for a part payment (still Pending/Part Payment, not yet Paid)', async () => {
+    paymentsRepositoryMock.updatePaymentByRegistrationId.mockResolvedValue(
+      existingPayment({ amount_paid: 400, balance: 800, payment_status: 'Part Payment' }),
+    );
+    await updatePaymentByStaff('reg-1', { amountPaid: 400, paymentMethod: 'MTN MoMo' });
+    expect(partnersServiceMock.accrueCommissionOnPaymentSystem).not.toHaveBeenCalled();
+  });
+
+  it('never re-accrues on a payment that was already Paid (EC-05 double-mark)', async () => {
+    paymentsRepositoryMock.selectPaymentByRegistrationId.mockResolvedValue(
+      existingPayment({ amount_paid: 1200, balance: 0, payment_status: 'Paid' }),
+    );
+    await updatePaymentByStaff('reg-1', { amountPaid: 1200, paymentMethod: 'Bank Transfer' });
+    expect(partnersServiceMock.accrueCommissionOnPaymentSystem).not.toHaveBeenCalled();
+  });
+
+  it('a commission-accrual failure never fails the payment update itself', async () => {
+    partnersServiceMock.accrueCommissionOnPaymentSystem.mockRejectedValue(new Error('db down'));
+    await expect(
+      updatePaymentByStaff('reg-1', { amountPaid: 1200, paymentMethod: 'Bank Transfer' }),
+    ).resolves.toBeDefined();
   });
 });
 
@@ -589,5 +641,232 @@ describe('rebalanceInstallmentsForDiscount — keeps a payment plan in sync with
 
     const result = await applyDiscount('reg-1', { discountAmount: 300, reason: 'Test' });
     expect(result.discountAmount).toBe(300);
+  });
+});
+
+describe('Payment submissions (founder-requested 2026-08-01)', () => {
+  function submissionRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'sub-1',
+      registration_id: 'reg-1',
+      method: 'MTN MoMo',
+      amount: '500.00',
+      transaction_reference: 'MOMO-REF-1',
+      payment_date: '2026-08-01',
+      slip_file_path: null,
+      participant_notes: null,
+      status: 'pending',
+      reviewed_by: null,
+      reviewed_at: null,
+      review_note: null,
+      created_at: '2026-08-01T00:00:00Z',
+      ...overrides,
+    };
+  }
+
+  describe('submitPaymentProofSystem', () => {
+    it('rejects a new submission while one is already pending', async () => {
+      paymentsRepositoryMock.selectPendingPaymentSubmissionForRegistration.mockResolvedValue(
+        submissionRow(),
+      );
+
+      await expect(
+        submitPaymentProofSystem({
+          registrationId: 'reg-1',
+          method: 'MTN MoMo',
+          amount: 500,
+          transactionReference: 'ref',
+          paymentDate: '2026-08-01',
+        }),
+      ).rejects.toMatchObject({ code: 'CONFLICT' });
+      expect(paymentsRepositoryMock.insertPaymentSubmissionSystem).not.toHaveBeenCalled();
+    });
+
+    it('inserts without a slip when none is provided', async () => {
+      paymentsRepositoryMock.selectPendingPaymentSubmissionForRegistration.mockResolvedValue(null);
+      paymentsRepositoryMock.insertPaymentSubmissionSystem.mockResolvedValue(submissionRow());
+
+      await submitPaymentProofSystem({
+        registrationId: 'reg-1',
+        method: 'MTN MoMo',
+        amount: 500,
+        transactionReference: 'ref',
+        paymentDate: '2026-08-01',
+      });
+
+      expect(r2ClientMock.uploadObject).not.toHaveBeenCalled();
+      expect(paymentsRepositoryMock.insertPaymentSubmissionSystem).toHaveBeenCalledWith(
+        expect.objectContaining({ slip_file_path: null }),
+      );
+    });
+
+    it('uploads the slip to R2 and stores its key when R2 is configured', async () => {
+      paymentsRepositoryMock.selectPendingPaymentSubmissionForRegistration.mockResolvedValue(null);
+      paymentsRepositoryMock.insertPaymentSubmissionSystem.mockResolvedValue(submissionRow());
+      r2ClientMock.isR2Configured.mockReturnValue(true);
+      r2ClientMock.uploadObject.mockResolvedValue(undefined);
+
+      await submitPaymentProofSystem(
+        {
+          registrationId: 'reg-1',
+          method: 'MTN MoMo',
+          amount: 500,
+          transactionReference: 'ref',
+          paymentDate: '2026-08-01',
+        },
+        { buffer: Buffer.from('fake'), contentType: 'image/png', extension: 'png' },
+      );
+
+      expect(r2ClientMock.uploadObject).toHaveBeenCalledWith(
+        expect.objectContaining({ contentType: 'image/png' }),
+      );
+      expect(paymentsRepositoryMock.insertPaymentSubmissionSystem).toHaveBeenCalledWith(
+        expect.objectContaining({ slip_file_path: expect.stringContaining('reg-1/') }),
+      );
+    });
+
+    it('rejects a slip upload when R2 is not configured', async () => {
+      paymentsRepositoryMock.selectPendingPaymentSubmissionForRegistration.mockResolvedValue(null);
+      r2ClientMock.isR2Configured.mockReturnValue(false);
+
+      await expect(
+        submitPaymentProofSystem(
+          {
+            registrationId: 'reg-1',
+            method: 'MTN MoMo',
+            amount: 500,
+            transactionReference: 'ref',
+            paymentDate: '2026-08-01',
+          },
+          { buffer: Buffer.from('fake'), contentType: 'image/png', extension: 'png' },
+        ),
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+      expect(paymentsRepositoryMock.insertPaymentSubmissionSystem).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('reviewPaymentSubmission', () => {
+    it('rejects reviewing a submission that no longer exists', async () => {
+      paymentsRepositoryMock.selectPaymentSubmissionById.mockResolvedValue(null);
+      await expect(reviewPaymentSubmission('sub-1', 'approved')).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+      });
+    });
+
+    it('rejects reviewing a submission that has already been reviewed (no double-review)', async () => {
+      paymentsRepositoryMock.selectPaymentSubmissionById.mockResolvedValue(
+        submissionRow({ status: 'approved' }),
+      );
+      await expect(reviewPaymentSubmission('sub-1', 'approved')).rejects.toMatchObject({
+        code: 'CONFLICT',
+      });
+      expect(paymentsRepositoryMock.updatePaymentByRegistrationId).not.toHaveBeenCalled();
+    });
+
+    it('approving ADDS the submitted amount to the existing amount_paid, not replaces it', async () => {
+      paymentsRepositoryMock.selectPaymentSubmissionById.mockResolvedValue(
+        submissionRow({ amount: '500.00' }),
+      );
+      paymentsRepositoryMock.selectPaymentByRegistrationId.mockResolvedValue(
+        existingPayment({ amount_paid: 300, course_fee: 1200 }),
+      );
+
+      await reviewPaymentSubmission('sub-1', 'approved');
+
+      expect(paymentsRepositoryMock.updatePaymentByRegistrationId).toHaveBeenCalledWith(
+        'reg-1',
+        expect.objectContaining({ amount_paid: 800 }), // 300 already paid + 500 claimed
+      );
+    });
+
+    it('lets staff override the claimed amount/reference/date before approving', async () => {
+      paymentsRepositoryMock.selectPaymentSubmissionById.mockResolvedValue(
+        submissionRow({ amount: '500.00', transaction_reference: 'MOMO-REF-1' }),
+      );
+      paymentsRepositoryMock.selectPaymentByRegistrationId.mockResolvedValue(
+        existingPayment({ amount_paid: 0, course_fee: 1200 }),
+      );
+
+      await reviewPaymentSubmission('sub-1', 'approved', {
+        amountPaid: 450,
+        transactionId: 'CORRECTED-REF',
+      });
+
+      expect(paymentsRepositoryMock.updatePaymentByRegistrationId).toHaveBeenCalledWith(
+        'reg-1',
+        expect.objectContaining({ amount_paid: 450, transaction_id: 'CORRECTED-REF' }),
+      );
+    });
+
+    it('marks the submission approved with the reviewing staff id', async () => {
+      paymentsRepositoryMock.selectPaymentSubmissionById.mockResolvedValue(submissionRow());
+      paymentsRepositoryMock.selectPaymentByRegistrationId.mockResolvedValue(
+        existingPayment({ amount_paid: 0 }),
+      );
+
+      await reviewPaymentSubmission('sub-1', 'approved', undefined, 'Matches bank statement');
+
+      expect(paymentsRepositoryMock.updatePaymentSubmission).toHaveBeenCalledWith(
+        'sub-1',
+        expect.objectContaining({
+          status: 'approved',
+          reviewed_by: 'staff-fin-1',
+          review_note: 'Matches bank statement',
+        }),
+      );
+    });
+
+    it('rejecting never touches payments — only the submission row changes', async () => {
+      paymentsRepositoryMock.selectPaymentSubmissionById.mockResolvedValue(submissionRow());
+
+      await reviewPaymentSubmission('sub-1', 'rejected', undefined, 'Reference does not match');
+
+      expect(paymentsRepositoryMock.updatePaymentByRegistrationId).not.toHaveBeenCalled();
+      expect(paymentsRepositoryMock.updatePaymentSubmission).toHaveBeenCalledWith(
+        'sub-1',
+        expect.objectContaining({ status: 'rejected', review_note: 'Reference does not match' }),
+      );
+    });
+  });
+
+  describe('listPaymentSubmissions / getPaymentSubmissionSlipUrl', () => {
+    it('joins participant/course context onto each submission', async () => {
+      paymentsRepositoryMock.selectPaymentSubmissions.mockResolvedValue([submissionRow()]);
+      paymentsRepositoryMock.selectPaymentSubmissionContext.mockResolvedValue(
+        new Map([['reg-1', { participantName: 'Ama Owusu', courseName: 'AI02', cohortLabel: 'AUG-2026' }]]),
+      );
+
+      const result = await listPaymentSubmissions();
+
+      expect(result).toEqual([
+        expect.objectContaining({
+          id: 'sub-1',
+          participantName: 'Ama Owusu',
+          courseName: 'AI02',
+          cohortLabel: 'AUG-2026',
+        }),
+      ]);
+    });
+
+    it('returns a signed R2 url for a submission with a slip', async () => {
+      paymentsRepositoryMock.selectPaymentSubmissionById.mockResolvedValue(
+        submissionRow({ slip_file_path: 'reg-1/abc.png' }),
+      );
+      r2ClientMock.getSignedDownloadUrl.mockResolvedValue('https://r2.example/signed');
+
+      const url = await getPaymentSubmissionSlipUrl('sub-1');
+
+      expect(r2ClientMock.getSignedDownloadUrl).toHaveBeenCalledWith('reg-1/abc.png');
+      expect(url).toBe('https://r2.example/signed');
+    });
+
+    it('404s when the submission has no slip on file', async () => {
+      paymentsRepositoryMock.selectPaymentSubmissionById.mockResolvedValue(
+        submissionRow({ slip_file_path: null }),
+      );
+      await expect(getPaymentSubmissionSlipUrl('sub-1')).rejects.toMatchObject({
+        code: 'NOT_FOUND',
+      });
+    });
   });
 });

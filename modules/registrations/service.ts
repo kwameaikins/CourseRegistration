@@ -22,6 +22,10 @@ import * as communicationsService from '@/modules/communications/service';
 import * as paymentsService from '@/modules/payments/service';
 import * as leadsService from '@/modules/leads/service';
 import * as opportunitiesService from '@/modules/opportunities/service';
+// Permitted cross-module call, same posture as the others below — resolves
+// a coupon/referral code into a discount + attribution before the fee is
+// locked in (Knowsia Growth Partner Programme, 2026-08-02).
+import * as partnersService from '@/modules/partners/service';
 // Permitted cross-module call, same posture as portal/attendance below — a
 // Batch at capacity routes the submission to the waitlist instead of
 // creating a Registration (founder-approved 2026-07-24).
@@ -56,10 +60,18 @@ function isUniqueViolation(err: unknown): boolean {
   );
 }
 
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 // Deep endpoint orchestration (Document 5, Section 2): participant +
 // registration + payment + the three initial emails in one operation.
+// `referralCookieCode` is the knowsia_ref_code cookie (Knowsia Growth
+// Partner Programme, 2026-08-02) — the API route reads it off the incoming
+// request; an explicitly typed input.couponCode always wins over it.
 export async function createRegistration(
   input: RegistrationInput,
+  referralCookieCode?: string | null,
 ): Promise<CreateRegistrationResult> {
   // BR-15: server-side consent enforcement, independent of the client.
   if (input.consentGiven !== true) {
@@ -80,6 +92,25 @@ export async function createRegistration(
       400,
     );
   }
+
+  // Knowsia Growth Partner Programme (2026-08-02): resolve attribution
+  // before any other lookup runs. An explicitly typed code always beats the
+  // tracked-link cookie. The existing-lead fraud check must happen here,
+  // before leadsService.createLead's own dedup-by-email query runs further
+  // down — a partner earns no commission on someone who was already a lead.
+  const attributionCode = input.couponCode ?? referralCookieCode ?? null;
+  let codePreview: Awaited<ReturnType<typeof partnersService.previewCode>> | null = null;
+  let attributionMethod: 'code' | 'link' | null = null;
+  if (attributionCode) {
+    const preview = await partnersService.previewCode(attributionCode, input.batchId);
+    if (preview.valid) {
+      codePreview = preview;
+      attributionMethod = input.couponCode ? 'code' : 'link';
+    }
+  }
+  const existingLeadAtRedemption = codePreview
+    ? await leadsService.wasExistingLeadBeforeRegistration(input.email)
+    : false;
 
   // full_name is derived here so every downstream consumer (email/WhatsApp
   // templates, staff screens) keeps reading a single display name.
@@ -155,11 +186,47 @@ export async function createRegistration(
   // BR-18: the fee is copied from the Batch at registration time — the
   // early-registration discount, if the cutoff hasn't passed yet, decides
   // the effective fee once and for all here (Document 5 addendum).
-  const courseFee = effectiveCourseFee(batch, todayIso);
+  const earlyBirdFee = effectiveCourseFee(batch, todayIso);
+  // Best-price-wins (Knowsia Growth Partner Programme, 2026-08-02): a code
+  // discount never stacks with the early-bird discount — compare the code's
+  // discount off the original fee against the early-bird price and give the
+  // student whichever is cheaper.
+  let courseFee = earlyBirdFee;
+  let discountAmountApplied = 0;
+  if (codePreview?.discountType && codePreview.discountValue !== null) {
+    const codeDiscountedFee =
+      codePreview.discountType === 'percentage'
+        ? batch.courseFee * (1 - codePreview.discountValue / 100)
+        : Math.max(0, batch.courseFee - codePreview.discountValue);
+    if (codeDiscountedFee < earlyBirdFee) {
+      courseFee = round2(codeDiscountedFee);
+      discountAmountApplied = round2(earlyBirdFee - courseFee);
+    }
+  }
   const payment = await registrationsRepository.insertInitialPayment({
     registration_id: registration.id,
     course_fee: courseFee,
   });
+
+  // Record the redemption (discount tracking + attribution) — never blocks
+  // the registration itself. Commission accrual happens later, only once
+  // the payment actually clears (modules/payments' runPaidTransitionSideEffects).
+  if (codePreview && attributionMethod) {
+    try {
+      await partnersService.redeemCodeSystem({
+        code: attributionCode as string,
+        registrationId: registration.id,
+        participantId: participant.id,
+        participantEmail: input.email,
+        participantPhone: input.phone,
+        attributionMethod,
+        existingLeadAtRedemption,
+        discountAmountApplied,
+      });
+    } catch (err) {
+      console.error('[registration code redemption]', err);
+    }
+  }
 
   let createdLeadId: string | null = null;
   try {
@@ -230,6 +297,7 @@ export async function createRegistration(
     registrationStatus: parseRegistrationStatus(registration.registration_status),
     paymentStatus: parsePaymentStatus(payment.payment_status),
     message: `Thank you, ${fullName}. Your registration for ${course?.courseName ?? batch.cohortLabel} has been received. Please check your email for payment instructions.`,
+    courseFee,
   };
 }
 

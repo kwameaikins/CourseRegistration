@@ -28,6 +28,7 @@ const paymentsServiceMock = {
 };
 const leadsServiceMock = {
   createLead: vi.fn(),
+  wasExistingLeadBeforeRegistration: vi.fn(),
 };
 const opportunitiesServiceMock = {
   createOpportunity: vi.fn(),
@@ -38,6 +39,10 @@ const attendanceServiceMock = {
 const waitlistServiceMock = {
   joinWaitlist: vi.fn(),
   notifyNextIfSeatAvailable: vi.fn(),
+};
+const partnersServiceMock = {
+  previewCode: vi.fn(),
+  redeemCodeSystem: vi.fn(),
 };
 const sendEmailOnceMock = vi.fn();
 const sendWhatsappOnceMock = vi.fn();
@@ -53,6 +58,7 @@ vi.mock('@/modules/leads/service', () => leadsServiceMock);
 vi.mock('@/modules/opportunities/service', () => opportunitiesServiceMock);
 vi.mock('@/modules/attendance/service', () => attendanceServiceMock);
 vi.mock('@/modules/waitlist/service', () => waitlistServiceMock);
+vi.mock('@/modules/partners/service', () => partnersServiceMock);
 vi.mock('@/modules/communications/service', () => ({
   sendEmailOnce: (...args: unknown[]) => sendEmailOnceMock(...args),
   sendWhatsappOnce: (...args: unknown[]) => sendWhatsappOnceMock(...args),
@@ -97,6 +103,7 @@ function validInput() {
     batchId: '4c9f6ae2-0000-4000-8000-000000000001',
     leadSource: 'WhatsApp' as const,
     consentGiven: true,
+    couponCode: null,
   };
 }
 
@@ -167,6 +174,14 @@ beforeEach(() => {
     verifiedBy: 'Jane Doe (marketing)',
   });
   leadsServiceMock.createLead.mockResolvedValue({ id: 'lead-1' });
+  leadsServiceMock.wasExistingLeadBeforeRegistration.mockResolvedValue(false);
+  partnersServiceMock.previewCode.mockResolvedValue({
+    valid: false,
+    discountType: null,
+    discountValue: null,
+    partnerId: null,
+  });
+  partnersServiceMock.redeemCodeSystem.mockResolvedValue(undefined);
   opportunitiesServiceMock.createOpportunity.mockResolvedValue({ id: 'opp-1' });
   sendEmailOnceMock.mockResolvedValue('sent');
   sendWhatsappOnceMock.mockResolvedValue('sent');
@@ -363,6 +378,141 @@ describe('BR-18 addendum — early-registration discount decides the copied fee'
     expect(registrationsRepositoryMock.insertInitialPayment).toHaveBeenCalledWith({
       registration_id: 'reg-1',
       course_fee: 1200,
+    });
+  });
+});
+
+describe('Knowsia Growth Partner Programme — coupon/referral code resolution (2026-08-02)', () => {
+  it('does nothing when no code is typed and no referral cookie is present', async () => {
+    await createRegistration(validInput());
+    expect(partnersServiceMock.previewCode).not.toHaveBeenCalled();
+    expect(partnersServiceMock.redeemCodeSystem).not.toHaveBeenCalled();
+  });
+
+  it('an explicitly typed code wins over the referral cookie', async () => {
+    partnersServiceMock.previewCode.mockResolvedValue({
+      valid: true,
+      discountType: null,
+      discountValue: null,
+      partnerId: 'partner-1',
+    });
+    await createRegistration({ ...validInput(), couponCode: 'TYPED10' }, 'COOKIECODE');
+    expect(partnersServiceMock.previewCode).toHaveBeenCalledWith('TYPED10', expect.any(String));
+    expect(partnersServiceMock.redeemCodeSystem).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'TYPED10', attributionMethod: 'code' }),
+    );
+  });
+
+  it('falls back to the referral cookie when no code was typed', async () => {
+    partnersServiceMock.previewCode.mockResolvedValue({
+      valid: true,
+      discountType: null,
+      discountValue: null,
+      partnerId: 'partner-1',
+    });
+    await createRegistration(validInput(), 'COOKIECODE');
+    expect(partnersServiceMock.previewCode).toHaveBeenCalledWith('COOKIECODE', expect.any(String));
+    expect(partnersServiceMock.redeemCodeSystem).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'COOKIECODE', attributionMethod: 'link' }),
+    );
+  });
+
+  it('an invalid code never gets redeemed and never checks existing-lead status', async () => {
+    partnersServiceMock.previewCode.mockResolvedValue({
+      valid: false,
+      discountType: null,
+      discountValue: null,
+      partnerId: null,
+      reason: 'This code has expired.',
+    });
+    await createRegistration({ ...validInput(), couponCode: 'EXPIRED' });
+    expect(partnersServiceMock.redeemCodeSystem).not.toHaveBeenCalled();
+    expect(leadsServiceMock.wasExistingLeadBeforeRegistration).not.toHaveBeenCalled();
+  });
+
+  it('checks existing-lead status BEFORE leadsService.createLead runs, for a valid code', async () => {
+    partnersServiceMock.previewCode.mockResolvedValue({
+      valid: true,
+      discountType: null,
+      discountValue: null,
+      partnerId: 'partner-1',
+    });
+    leadsServiceMock.wasExistingLeadBeforeRegistration.mockResolvedValue(true);
+    await createRegistration({ ...validInput(), couponCode: 'PARTNER1' });
+    expect(leadsServiceMock.wasExistingLeadBeforeRegistration).toHaveBeenCalledWith(
+      'ama.owusu@example.com',
+    );
+    expect(partnersServiceMock.redeemCodeSystem).toHaveBeenCalledWith(
+      expect.objectContaining({ existingLeadAtRedemption: true }),
+    );
+  });
+
+  it('a code redemption failure never fails the registration itself', async () => {
+    partnersServiceMock.previewCode.mockResolvedValue({
+      valid: true,
+      discountType: null,
+      discountValue: null,
+      partnerId: 'partner-1',
+    });
+    partnersServiceMock.redeemCodeSystem.mockRejectedValue(new Error('db down'));
+    const result = await createRegistration({ ...validInput(), couponCode: 'PARTNER1' });
+    expect(result.outcome).toBe('registered');
+  });
+
+  describe('best-price-wins fee math (no stacking a code discount with the early-bird price)', () => {
+    it('applies the code discount off the original fee when it beats the early-bird price', async () => {
+      coursesServiceMock.getBatchByIdSystem.mockResolvedValue(
+        activeBatch({ courseFee: 1000, discountCutoffDate: FUTURE_DATE, discountedFee: 900 }),
+      );
+      partnersServiceMock.previewCode.mockResolvedValue({
+        valid: true,
+        discountType: 'percentage',
+        discountValue: 20, // 1000 * 0.8 = 800, cheaper than the 900 early-bird price
+        partnerId: 'partner-1',
+      });
+      const result = await createRegistration({ ...validInput(), couponCode: 'SAVE20' });
+      if (result.outcome !== 'registered') throw new Error('expected registered');
+      expect(result.courseFee).toBe(800);
+      expect(registrationsRepositoryMock.insertInitialPayment).toHaveBeenCalledWith({
+        registration_id: 'reg-1',
+        course_fee: 800,
+      });
+      expect(partnersServiceMock.redeemCodeSystem).toHaveBeenCalledWith(
+        expect.objectContaining({ discountAmountApplied: 100 }), // 900 - 800
+      );
+    });
+
+    it('keeps the early-bird price when the code discount would be worse for the student', async () => {
+      coursesServiceMock.getBatchByIdSystem.mockResolvedValue(
+        activeBatch({ courseFee: 1000, discountCutoffDate: FUTURE_DATE, discountedFee: 900 }),
+      );
+      partnersServiceMock.previewCode.mockResolvedValue({
+        valid: true,
+        discountType: 'fixed_amount',
+        discountValue: 50, // 1000 - 50 = 950, worse than the 900 early-bird price
+        partnerId: 'partner-1',
+      });
+      const result = await createRegistration({ ...validInput(), couponCode: 'SAVE50' });
+      if (result.outcome !== 'registered') throw new Error('expected registered');
+      expect(result.courseFee).toBe(900);
+      expect(partnersServiceMock.redeemCodeSystem).toHaveBeenCalledWith(
+        expect.objectContaining({ discountAmountApplied: 0 }),
+      );
+    });
+
+    it('a pure attribution code (no discount) never changes the fee', async () => {
+      partnersServiceMock.previewCode.mockResolvedValue({
+        valid: true,
+        discountType: null,
+        discountValue: null,
+        partnerId: 'partner-1',
+      });
+      const result = await createRegistration({ ...validInput(), couponCode: 'ATTRIBONLY' });
+      if (result.outcome !== 'registered') throw new Error('expected registered');
+      expect(result.courseFee).toBe(1200);
+      expect(partnersServiceMock.redeemCodeSystem).toHaveBeenCalledWith(
+        expect.objectContaining({ discountAmountApplied: 0 }),
+      );
     });
   });
 });

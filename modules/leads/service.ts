@@ -21,6 +21,17 @@ type LeadAssignmentRuleRow = Database['public']['Tables']['lead_assignment_rules
 
 const APP_URL = () => process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com';
 
+// Read-only check used by modules/registrations *before* createLead's own
+// dedup/merge logic runs — by the time a lead row exists for this
+// registration, the "was this person already a lead beforehand" signal is
+// gone. Used to withhold partner commission on an existing lead's
+// self-registration (Knowsia Growth Partner Programme, doc's anti-fraud
+// rules) without blocking the registration or its discount.
+export async function wasExistingLeadBeforeRegistration(email: string): Promise<boolean> {
+  const existing = await leadsRepository.selectLeadByEmail(email);
+  return existing !== null;
+}
+
 // The repository only ever deals in raw snake_case DB rows; everything this
 // service hands back to routes/UI must be the camelCase domain shape
 // instead (same convention as modules/payments/service.ts's toPayment).

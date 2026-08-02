@@ -46,12 +46,16 @@ const liveSessionsServiceMock = {
   getSessionMaterialsForBatchSystem: vi.fn(),
   getSessionMaterialsForBatch: vi.fn(),
 };
+const partnersServiceMock = {
+  getReferralSummaryForTutor: vi.fn(),
+};
 
 vi.mock('@/modules/tutors/repository', () => tutorsRepositoryMock);
 vi.mock('@/modules/users/service', () => usersServiceMock);
 vi.mock('@/modules/attendance/service', () => attendanceServiceMock);
 vi.mock('@/modules/certificates/service', () => certificatesServiceMock);
 vi.mock('@/modules/live-sessions/service', () => liveSessionsServiceMock);
+vi.mock('@/modules/partners/service', () => partnersServiceMock);
 
 const {
   listTutorsWithBatchCounts,
@@ -70,6 +74,7 @@ const {
   addMaterialForBatch,
   removeMaterial,
   listTutorActivity,
+  getReferralSummaryForSession,
 } = await import('@/modules/tutors/service');
 
 const ADMIN_STAFF = { id: 'staff-1', fullName: 'Jane Doe', role: 'admin' };
@@ -260,6 +265,32 @@ describe('requireTutorPortalSession', () => {
       revoked_at: null,
     });
     await expect(requireTutorPortalSession('session-1')).resolves.toEqual({ tutorId: 'tutor-1' });
+  });
+});
+
+describe('getReferralSummaryForSession — Knowsia Growth Partner Programme (2026-08-02)', () => {
+  it('rejects without a valid tutor session, before ever calling partnersService', async () => {
+    await expect(getReferralSummaryForSession(undefined)).rejects.toMatchObject({
+      code: 'UNAUTHENTICATED',
+    });
+    expect(partnersServiceMock.getReferralSummaryForTutor).not.toHaveBeenCalled();
+  });
+
+  it('resolves the session to a tutorId, then delegates to partnersService', async () => {
+    tutorsRepositoryMock.selectTutorSession.mockResolvedValue({
+      id: 'session-1',
+      tutor_id: 'tutor-1',
+      expires_at: '2099-01-01T00:00:00Z',
+      revoked_at: null,
+    });
+    partnersServiceMock.getReferralSummaryForTutor.mockResolvedValue({
+      codes: [],
+      commissionTotals: {},
+      recentPayouts: [],
+    });
+    const result = await getReferralSummaryForSession('session-1');
+    expect(partnersServiceMock.getReferralSummaryForTutor).toHaveBeenCalledWith('tutor-1');
+    expect(result).toEqual({ codes: [], commissionTotals: {}, recentPayouts: [] });
   });
 });
 

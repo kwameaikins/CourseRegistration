@@ -1,4 +1,5 @@
 // Payment business rules (BR-04, BR-05, BR-06, BR-12).
+import crypto from 'crypto';
 import { parsePaymentMethod, parsePaymentStatus } from '@/lib/domain/parsers';
 import { AppError } from '@/lib/errors';
 import * as paymentsRepository from '@/modules/payments/repository';
@@ -7,10 +8,18 @@ import * as communicationsService from '@/modules/communications/service';
 import * as attendanceService from '@/modules/attendance/service';
 import * as opportunitiesService from '@/modules/opportunities/service';
 import * as leadsService from '@/modules/leads/service';
+import * as r2Client from '@/lib/r2/client';
+// Permitted cross-module call, same posture as leads/opportunities/
+// attendance below — commission accrual only ever fires once a payment
+// actually clears (Knowsia Growth Partner Programme, 2026-08-02).
+import * as partnersService from '@/modules/partners/service';
 import type {
   Installment,
   Payment,
   PaymentDiscountInput,
+  PaymentSubmission,
+  PaymentSubmissionInput,
+  PaymentSubmissionView,
   PaymentUpdate,
 } from '@/modules/payments/types';
 import type { Database } from '@/lib/supabase/database.types';
@@ -62,7 +71,17 @@ type PaymentUpdateResult = {
 // (BR-07 makes a repeat call harmless regardless). Each side effect is
 // independently non-blocking — one failing must never sink the others or
 // the caller's write, which has already committed by the time this runs.
-export async function runPaidTransitionSideEffects(registrationId: string): Promise<void> {
+export async function runPaidTransitionSideEffects(
+  registrationId: string,
+  amountPaid?: number,
+): Promise<void> {
+  if (amountPaid !== undefined) {
+    try {
+      await partnersService.accrueCommissionOnPaymentSystem(registrationId, amountPaid);
+    } catch (err) {
+      console.error('[payment_confirmation partner commission accrual]', err);
+    }
+  }
   try {
     await communicationsService.sendEmailOnce(registrationId, 'payment_confirmation');
   } catch (err) {
@@ -77,6 +96,24 @@ export async function runPaidTransitionSideEffects(registrationId: string): Prom
     await communicationsService.sendSmsOnce(registrationId, 'payment_confirmation');
   } catch (err) {
     console.error('[payment_confirmation sms]', err);
+  }
+  // WhatsApp group invitation (founder-flagged gap closed 2026-08-01) — fires
+  // exactly once per registration alongside payment_confirmation, since this
+  // function is the one funnel every Paid-transition path goes through.
+  try {
+    await communicationsService.sendEmailOnce(registrationId, 'whatsapp_invite');
+  } catch (err) {
+    console.error('[whatsapp_invite email]', err);
+  }
+  try {
+    await communicationsService.sendWhatsappOnce(registrationId, 'whatsapp_invite');
+  } catch (err) {
+    console.error('[whatsapp_invite whatsapp]', err);
+  }
+  try {
+    await communicationsService.sendSmsOnce(registrationId, 'whatsapp_invite');
+  } catch (err) {
+    console.error('[whatsapp_invite sms]', err);
   }
   // Zoom attendance Option 2: a confirmed seat gets a personal join link.
   try {
@@ -131,7 +168,7 @@ export async function applyPaymentUpdate(
   });
 
   if (updated.payment_status === 'Paid' && statusBefore !== 'Paid') {
-    await runPaidTransitionSideEffects(registrationId);
+    await runPaidTransitionSideEffects(registrationId, Number(updated.amount_paid));
   }
 
   // Keep any payment-plan schedule in sync with the new total — never lets
@@ -388,7 +425,7 @@ export async function applyDiscount(
   if (updated.payment_status === 'Paid' && statusBefore !== 'Paid') {
     // Staff-initiated — no browser waiting, so no portal login token here
     // (only the Paystack webhook path mints one).
-    await runPaidTransitionSideEffects(registrationId);
+    await runPaidTransitionSideEffects(registrationId, Number(updated.amount_paid));
   }
 
   // Keep any payment-plan schedule in sync with the new, discounted fee —
@@ -411,4 +448,160 @@ export async function applyDiscount(
     originalFee,
     discountAmount: newDiscountAmount,
   };
+}
+
+// --- Payment submissions (founder-requested 2026-08-01) ---
+// A registrant's claimed MoMo/bank-transfer payment, always starting
+// 'pending'. Only a finance/admin review (reviewPaymentSubmission below) can
+// ever apply it to `payments` — always via the existing applyPaymentUpdate,
+// so BR-04/05/06/12 all keep working exactly as they do for every other
+// payment-writing path.
+
+function toPaymentSubmission(
+  row: Database['public']['Tables']['payment_submissions']['Row'],
+): PaymentSubmission {
+  return {
+    id: row.id,
+    registrationId: row.registration_id,
+    method: row.method as PaymentSubmission['method'],
+    amount: Number(row.amount),
+    transactionReference: row.transaction_reference,
+    paymentDate: row.payment_date,
+    hasSlip: row.slip_file_path !== null,
+    participantNotes: row.participant_notes,
+    status: row.status as PaymentSubmission['status'],
+    reviewedAt: row.reviewed_at,
+    reviewNote: row.review_note,
+    createdAt: row.created_at,
+  };
+}
+
+// Called only by modules/portal, after it has verified the registration
+// belongs to the calling participant's own session — this function itself
+// has no role/session gate, same posture as attendance's
+// raiseAttendanceException.
+export async function submitPaymentProofSystem(
+  input: PaymentSubmissionInput,
+  slip?: { buffer: Buffer; contentType: string; extension: string },
+): Promise<PaymentSubmission> {
+  const existingPending = await paymentsRepository.selectPendingPaymentSubmissionForRegistration(
+    input.registrationId,
+  );
+  if (existingPending) {
+    throw new AppError('CONFLICT', 'Your last submission is still under review.', 409);
+  }
+
+  let slipFilePath: string | null = null;
+  if (slip) {
+    if (!r2Client.isR2Configured()) {
+      throw new AppError(
+        'VALIDATION_ERROR',
+        'Slip uploads are not available right now — please submit without one, or contact us.',
+        400,
+      );
+    }
+    slipFilePath = `${input.registrationId}/${crypto.randomUUID()}.${slip.extension}`;
+    await r2Client.uploadObject({
+      key: slipFilePath,
+      body: slip.buffer,
+      contentType: slip.contentType,
+    });
+  }
+
+  const row = await paymentsRepository.insertPaymentSubmissionSystem({
+    registration_id: input.registrationId,
+    method: input.method,
+    amount: input.amount,
+    transaction_reference: input.transactionReference ?? null,
+    payment_date: input.paymentDate,
+    slip_file_path: slipFilePath,
+    participant_notes: input.participantNotes ?? null,
+  });
+  return toPaymentSubmission(row);
+}
+
+// Portal's own submission history for one registration — called only by
+// modules/portal after the same ownership check as the submit path above.
+export async function listMyPaymentSubmissionsSystem(
+  registrationId: string,
+): Promise<PaymentSubmission[]> {
+  const rows = await paymentsRepository.selectPaymentSubmissionsForRegistrationSystem(registrationId);
+  return rows.map(toPaymentSubmission);
+}
+
+export async function listPaymentSubmissions(filters?: {
+  status?: 'pending' | 'approved' | 'rejected';
+}): Promise<PaymentSubmissionView[]> {
+  await usersService.requireRole(['finance', 'admin']);
+  const rows = await paymentsRepository.selectPaymentSubmissions(filters);
+  const context = await paymentsRepository.selectPaymentSubmissionContext(
+    rows.map((row) => row.registration_id),
+  );
+  return rows.map((row) => {
+    const info = context.get(row.registration_id);
+    return {
+      ...toPaymentSubmission(row),
+      participantName: info?.participantName ?? '',
+      courseName: info?.courseName ?? '',
+      cohortLabel: info?.cohortLabel ?? '',
+    };
+  });
+}
+
+export async function getPaymentSubmissionSlipUrl(submissionId: string): Promise<string> {
+  await usersService.requireRole(['finance', 'admin']);
+  const submission = await paymentsRepository.selectPaymentSubmissionById(submissionId);
+  if (!submission?.slip_file_path) {
+    throw new AppError('NOT_FOUND', 'No slip on file for this submission.', 404);
+  }
+  return r2Client.getSignedDownloadUrl(submission.slip_file_path);
+}
+
+export async function reviewPaymentSubmission(
+  submissionId: string,
+  decision: 'approved' | 'rejected',
+  overrides?: { amountPaid?: number; transactionId?: string; paymentDate?: string },
+  reviewNote?: string,
+): Promise<void> {
+  const staffUser = await usersService.requireRole(['finance', 'admin']);
+  const submission = await paymentsRepository.selectPaymentSubmissionById(submissionId);
+  if (!submission) {
+    throw new AppError('NOT_FOUND', 'Submission not found.', 404);
+  }
+  if (submission.status !== 'pending') {
+    throw new AppError('CONFLICT', 'This submission has already been reviewed.', 409);
+  }
+
+  if (decision === 'approved') {
+    // applyPaymentUpdate SETS amount_paid (it doesn't add) — the value
+    // passed must be the registration's new TOTAL, not just this
+    // submission's claimed amount, or an existing partial payment would be
+    // clobbered instead of added to.
+    const existing = await paymentsRepository.selectPaymentByRegistrationId(
+      submission.registration_id,
+    );
+    if (!existing) {
+      throw new AppError('NOT_FOUND', 'No payment record exists for this registration.', 404);
+    }
+    const claimedAmount = overrides?.amountPaid ?? Number(submission.amount);
+    const newTotal = Number(existing.amount_paid) + claimedAmount;
+    await applyPaymentUpdate(
+      submission.registration_id,
+      {
+        amountPaid: newTotal,
+        paymentMethod: submission.method as PaymentUpdate['paymentMethod'],
+        transactionId: overrides?.transactionId ?? submission.transaction_reference,
+        paymentDate: overrides?.paymentDate ?? submission.payment_date,
+        paymentNotes: submission.participant_notes,
+      },
+      { id: staffUser.id, fullName: staffUser.fullName, role: staffUser.role },
+    );
+  }
+
+  await paymentsRepository.updatePaymentSubmission(submissionId, {
+    status: decision,
+    reviewed_by: staffUser.id,
+    reviewed_at: new Date().toISOString(),
+    review_note: reviewNote ?? null,
+  });
 }
