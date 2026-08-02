@@ -274,6 +274,16 @@ export async function recordInboundCall(input: {
   });
 }
 
+// Thin re-export (Admin Assistant / cron messaging tools, 2026-08-01) so
+// modules/communications' upsell-scheduler.ts can reuse the exact same
+// feedback-interest-matches-an-open-batch eligibility logic that already
+// drives the upsell voice call, without reaching into this module's
+// repository directly (module boundary rule — cross-module calls go through
+// a service function).
+export async function getUpsellCandidates(todayIso: string) {
+  return voiceRepository.selectUpsellCandidates(todayIso);
+}
+
 // Ad-hoc staff-triggered call (Admin Assistant tools, 2026-08-01) — same
 // reserve-before-dial flow as dispatchCallsOfType, but for one registration,
 // dialed immediately (no earliestAt scheduling window, since a human just

@@ -35,7 +35,11 @@ export type WhatsappMessageType =
   | 'reminder_2'
   | 'reminder_3'
   | 'reminder_4'
-  | 'payment_confirmation';
+  | 'payment_confirmation'
+  | 'class_reminder_24h'
+  | 'class_reminder_2h'
+  | 'upsell'
+  | 'whatsapp_invite';
 
 // SMS mirrors the WhatsApp key-moment set (same dedup semantics, sms_log).
 export type SmsMessageType = WhatsappMessageType;

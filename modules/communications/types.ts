@@ -43,8 +43,11 @@ export interface EmailTemplateView {
   updatedAt: string;
 }
 
-// The 7 Phase 1 email types (E01–E07). Phase 2 types exist in the database
-// CHECK constraint but have no sending logic yet.
+// Email types with real sending logic wired up. class_reminder_24h/2h, upsell,
+// and whatsapp_invite (2026-08-01) joined this list once class-reminder-
+// scheduler.ts/upsell-scheduler.ts/runPaidTransitionSideEffects started
+// calling sendEmailOnce for them — zoom_link and post_training_thankyou were
+// already sending before this list existed.
 export const PHASE_1_EMAIL_TYPES: readonly EmailType[] = [
   'welcome',
   'payment_instruction',
@@ -54,6 +57,10 @@ export const PHASE_1_EMAIL_TYPES: readonly EmailType[] = [
   'reminder_4',
   'payment_confirmation',
   'installment_reminder',
+  'class_reminder_24h',
+  'class_reminder_2h',
+  'upsell',
+  'whatsapp_invite',
 ] as const;
 
 // Which Batch automation toggle gates each email type (BR-10).

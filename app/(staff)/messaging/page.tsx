@@ -35,11 +35,11 @@ const EMAIL_TYPE_LABELS: Array<{ type: string; label: string; phase: 1 | 2 }> = 
   { type: 'reminder_4', label: 'Payment reminder 4 (morning of start)', phase: 1 },
   { type: 'payment_confirmation', label: 'Payment confirmation (on Paid)', phase: 1 },
   { type: 'zoom_link', label: 'Personal Zoom link (on Paid, attendance)', phase: 1 },
-  { type: 'class_reminder_24h', label: 'Class reminder — 24h before', phase: 2 },
-  { type: 'class_reminder_2h', label: 'Class reminder — 2h before', phase: 2 },
-  { type: 'whatsapp_invite', label: 'WhatsApp group invitation', phase: 2 },
+  { type: 'class_reminder_24h', label: 'Class reminder — 24h before', phase: 1 },
+  { type: 'class_reminder_2h', label: 'Class reminder — 2h before', phase: 1 },
+  { type: 'whatsapp_invite', label: 'WhatsApp group invitation', phase: 1 },
   { type: 'post_training_thankyou', label: 'Post-course thank you + feedback request (day after end)', phase: 1 },
-  { type: 'upsell', label: 'Upsell / cross-sell', phase: 2 },
+  { type: 'upsell', label: 'Upsell / cross-sell', phase: 1 },
 ];
 
 const PLACEHOLDERS =

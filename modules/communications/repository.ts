@@ -299,6 +299,47 @@ export async function selectUnpaidRegistrationsInActiveBatches(): Promise<
     });
 }
 
+// Class-reminder candidate query (class-reminder-scheduler.ts): every
+// Confirmed Registration (paid, not yet attended/cancelled — BR-06 keeps
+// this in sync) in an Active batch. Unlike the unpaid-reminder query above,
+// this doesn't need a payments join since registration_status already lives
+// on registrations.
+export async function selectConfirmedRegistrationsInActiveBatches(): Promise<
+  Array<{
+    registrationId: string;
+    batchStartDate: string;
+    batchStartTime: string;
+    classReminderEnabled: boolean;
+  }>
+> {
+  const supabase = createSupabaseServiceRoleClient();
+
+  const { data: batches, error: batchesError } = await supabase
+    .from('batches')
+    .select('id, start_date, start_time, class_reminder_enabled')
+    .eq('is_active', true);
+  if (batchesError) throw batchesError;
+  if (batches.length === 0) return [];
+  const batchById = new Map(batches.map((batch) => [batch.id, batch]));
+
+  const { data: registrations, error: registrationsError } = await supabase
+    .from('registrations')
+    .select('id, batch_id')
+    .in('batch_id', batches.map((batch) => batch.id))
+    .eq('registration_status', 'Confirmed');
+  if (registrationsError) throw registrationsError;
+
+  return registrations.map((registration) => {
+    const batch = batchById.get(registration.batch_id)!;
+    return {
+      registrationId: registration.id,
+      batchStartDate: batch.start_date,
+      batchStartTime: batch.start_time,
+      classReminderEnabled: batch.class_reminder_enabled,
+    };
+  });
+}
+
 // BR-08 fresh status check, executed immediately before each send.
 export async function selectCurrentPaymentStatus(
   registrationId: string,

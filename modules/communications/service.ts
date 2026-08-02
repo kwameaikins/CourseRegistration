@@ -7,6 +7,8 @@ export {
   runDailyReminders,
   runInstallmentReminders,
 } from '@/modules/communications/reminder-scheduler';
+export { runClassReminderDispatch } from '@/modules/communications/class-reminder-scheduler';
+export { runUpsellMessageDispatch } from '@/modules/communications/upsell-scheduler';
 export {
   getTemplatesForCourse,
   saveTemplate,

@@ -22,6 +22,7 @@ export type SmsSendOutcome =
 export function smsBodyForMessageType(
   messageType: SmsMessageType,
   context: RegistrationEmailContext,
+  extra: Record<string, string> = {},
 ): string {
   switch (messageType) {
     case 'welcome':
@@ -35,6 +36,28 @@ export function smsBodyForMessageType(
         `Hi ${context.participantFirstName}, your payment of ${formatGhs(context.amountPaid)} for ` +
         `${context.courseName} is received. Your seat is confirmed. ` +
         `Starts ${context.startDate} at ${context.startTime}. - Knowsia`
+      );
+    case 'class_reminder_24h':
+      return (
+        `Hi ${context.participantFirstName}, reminder: ${context.courseName} ` +
+        `(${context.cohortLabel}) starts tomorrow, ${context.startDate} at ${context.startTime}. ` +
+        `Your Zoom link is in your student portal. - Knowsia`
+      );
+    case 'class_reminder_2h':
+      return (
+        `Hi ${context.participantFirstName}, ${context.courseName} starts in about 2 hours ` +
+        `(${context.startTime}). Join here: ${context.zoomLink ?? ''} - Knowsia`
+      );
+    case 'upsell':
+      return (
+        `Hi ${context.participantFirstName}, the course you asked about, ` +
+        `${extra.pitch_course_name ?? ''} (${extra.pitch_cohort_label ?? ''}), starts ` +
+        `${extra.pitch_start_date ?? ''}. Fee: GHS ${extra.pitch_fee ?? ''}. Reply to reserve your seat! - Knowsia`
+      );
+    case 'whatsapp_invite':
+      return (
+        `Hi ${context.participantFirstName}, join the ${context.courseName} WhatsApp group ` +
+        `for updates: ${context.whatsappGroupLink ?? ''} - Knowsia`
       );
     default:
       // All four payment reminders share one body; dedup is per
@@ -50,6 +73,7 @@ export function smsBodyForMessageType(
 export async function sendSmsOnce(
   registrationId: string,
   messageType: SmsMessageType,
+  extra: Record<string, string> = {},
 ): Promise<SmsSendOutcome> {
   // Missing Arkesel credentials (pre-setup, local dev) must never reserve a
   // log slot — otherwise the message becomes permanently unsendable once
@@ -70,6 +94,15 @@ export async function sendSmsOnce(
     return 'skipped_gated';
   }
 
+  // Class reminders respect the class-reminder toggle, same BR-10 mapping as
+  // the email engine's EMAIL_TYPE_TOGGLE (SMS has no per-type lookup table).
+  if (
+    (messageType === 'class_reminder_24h' || messageType === 'class_reminder_2h') &&
+    !context.classReminderEnabled
+  ) {
+    return 'skipped_gated';
+  }
+
   if (!normalizeSmsPhone(context.participantPhone)) return 'skipped_bad_phone';
 
   const reservation = await communicationsRepository.reserveSmsLogSlot(
@@ -81,7 +114,7 @@ export async function sendSmsOnce(
   try {
     await sendSmsMessage({
       toPhone: context.participantPhone,
-      message: smsBodyForMessageType(messageType, context),
+      message: smsBodyForMessageType(messageType, context, extra),
     });
     await communicationsRepository.updateSmsLogEntry(registrationId, messageType, {
       success: true,

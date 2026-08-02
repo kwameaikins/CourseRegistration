@@ -13,6 +13,12 @@ import type { EmailType } from '@/lib/domain/types';
 const CONTACT = 'info.knowsia@gmail.com';
 const MOMO_PERSONAL = '0530531328';
 const MOMO_MERCHANT_CODE = '143735';
+// Interim bank details (founder-provided 2026-08-01, "for now" — confirm
+// before treating as permanent).
+const BANK_NAME = 'Zenith Bank';
+const BANK_ACCOUNT_NAME = 'Noohra Business Consult';
+const BANK_ACCOUNT_NUMBER = '0006012704149';
+const BANK_BRANCH = 'Koforidua, Ghana';
 const PORTAL_LOGIN_URL = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com'}/portal/login`;
 
 // Logo is referenced by public URL, not inlined — email clients (Gmail,
@@ -57,7 +63,10 @@ Log in to your <a href="${PORTAL_LOGIN_URL}">student portal</a> with your email 
 Send to our personal MoMo number <strong>${MOMO_PERSONAL}</strong>, or our MoMo Pay merchant code <strong>${MOMO_MERCHANT_CODE}</strong>.<br/>
 <em>After paying, send your MoMo transaction reference to ${CONTACT} so we can confirm your payment.</em></p>
 <p><strong>3. Bank transfer</strong><br/>
-Reply to this email or write to ${CONTACT} and we will send you our bank account details.<br/>
+Bank: <strong>${BANK_NAME}</strong><br/>
+Account name: <strong>${BANK_ACCOUNT_NAME}</strong><br/>
+Account number: <strong>${BANK_ACCOUNT_NUMBER}</strong><br/>
+Branch: ${BANK_BRANCH}<br/>
 <em>After making a bank transfer, send your transaction reference number to ${CONTACT} so we can confirm your payment.</em></p>
 <p>Your registration is only fully confirmed once payment is received.</p>`),
   },
@@ -68,7 +77,7 @@ Reply to this email or write to ${CONTACT} and we will send you our bank account
 <p>Dear {{participant_name}},</p>
 <p>This is a friendly reminder that your registration for <strong>{{course_name}}</strong> ({{cohort_label}}) is awaiting payment.</p>
 <p>Outstanding balance: <strong>GHS {{balance}}</strong></p>
-<p>Seats are limited and are confirmed in order of payment. Log in to your <a href="${PORTAL_LOGIN_URL}">student portal</a> anytime to pay by card or Mobile Money, or pay directly by MTN Mobile Money (personal number ${MOMO_PERSONAL} or MoMo Pay merchant code ${MOMO_MERCHANT_CODE}) or bank transfer — write to ${CONTACT} for bank details.</p>`),
+<p>Seats are limited and are confirmed in order of payment. Log in to your <a href="${PORTAL_LOGIN_URL}">student portal</a> anytime to pay by card or Mobile Money, or pay directly by MTN Mobile Money (personal number ${MOMO_PERSONAL} or MoMo Pay merchant code ${MOMO_MERCHANT_CODE}) or bank transfer (${BANK_NAME}, ${BANK_ACCOUNT_NAME}, account ${BANK_ACCOUNT_NUMBER}, ${BANK_BRANCH}).</p>`),
   },
   {
     emailType: 'reminder_2',
@@ -151,6 +160,49 @@ Course starts: {{start_date}} at {{start_time}}</p>
 <p style="margin:24px 0;"><a href="{{feedback_link}}" style="background:#1a1a2e;color:#ffffff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;">Share your feedback</a></p>
 <p>Your certificate of participation will be sent to you once your feedback is received.</p>
 <p>Thank you for learning with us — we hope to see you in another course soon.</p>`),
+  },
+  {
+    emailType: 'class_reminder_24h',
+    subject: 'Reminder: {{course_name}} starts tomorrow',
+    body: wrap(`
+<p>Dear {{participant_name}},</p>
+<p>Just a friendly reminder that <strong>{{course_name}}</strong> ({{cohort_label}}) begins tomorrow.</p>
+<ul>
+  <li>Starts: {{start_date}} at {{start_time}}</li>
+  <li>Facilitator: {{facilitator_name}}</li>
+</ul>
+<p>Your personal Zoom link is in your <a href="${PORTAL_LOGIN_URL}">student portal</a> — log in with your email or phone number and PIN. Please join a few minutes early to test your audio and video. We look forward to seeing you in class!</p>`),
+  },
+  {
+    emailType: 'class_reminder_2h',
+    subject: 'Starting soon: {{course_name}} begins in 2 hours',
+    body: wrap(`
+<p>Dear {{participant_name}},</p>
+<p><strong>{{course_name}}</strong> ({{cohort_label}}) begins in about 2 hours, at {{start_time}}.</p>
+<p>Join here when it's time: <a href="{{zoom_link}}">{{zoom_link}}</a></p>
+<p>See you soon!</p>`),
+  },
+  {
+    emailType: 'upsell',
+    subject: '{{pitch_course_name}} — the course you asked about is open',
+    body: wrap(`
+<p>Dear {{participant_name}},</p>
+<p>After your feedback on {{course_name}}, you mentioned interest in <strong>{{pitch_course_name}}</strong> — good news, a new cohort is opening.</p>
+<ul>
+  <li>Cohort: {{pitch_cohort_label}}</li>
+  <li>Starts: {{pitch_start_date}}</li>
+  <li>Fee: GHS {{pitch_fee}}</li>
+</ul>
+<p>Reply to this email or contact us at ${CONTACT} to reserve your seat.</p>`),
+  },
+  {
+    emailType: 'whatsapp_invite',
+    subject: 'Join the {{course_name}} WhatsApp group',
+    body: wrap(`
+<p>Dear {{participant_name}},</p>
+<p>Welcome aboard! Please join the <strong>{{course_name}}</strong> ({{cohort_label}}) WhatsApp group for class updates, materials, and reminders:</p>
+<p><a href="{{whatsapp_group_link}}">{{whatsapp_group_link}}</a></p>
+<p>See you there!</p>`),
   },
 ];
 

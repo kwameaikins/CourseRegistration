@@ -26,9 +26,45 @@ export type WhatsappSendOutcome =
 export function templateForMessageType(
   messageType: WhatsappMessageType,
   context: RegistrationEmailContext,
+  extra: Record<string, string> = {},
 ): { templateName: string; bodyParameters: string[] } {
   const courseLabel = `${context.courseName} (${context.cohortLabel})`;
   switch (messageType) {
+    case 'class_reminder_24h':
+      return {
+        templateName: 'course_class_reminder_24h',
+        bodyParameters: [
+          context.participantFirstName,
+          courseLabel,
+          context.startDate,
+          context.startTime,
+        ],
+      };
+    case 'class_reminder_2h':
+      return {
+        templateName: 'course_class_reminder_2h',
+        bodyParameters: [
+          context.participantFirstName,
+          courseLabel,
+          context.startTime,
+          context.zoomLink ?? '',
+        ],
+      };
+    case 'upsell':
+      return {
+        templateName: 'course_upsell_pitch',
+        bodyParameters: [
+          context.participantFirstName,
+          `${extra.pitch_course_name ?? ''} (${extra.pitch_cohort_label ?? ''})`,
+          extra.pitch_start_date ?? '',
+          extra.pitch_fee ?? '',
+        ],
+      };
+    case 'whatsapp_invite':
+      return {
+        templateName: 'course_whatsapp_group_invite',
+        bodyParameters: [context.participantFirstName, courseLabel, context.whatsappGroupLink ?? ''],
+      };
     case 'welcome':
       // Community links are business-wide (not per-Batch), so they come from
       // env rather than the join context — every participant gets the same
@@ -74,6 +110,7 @@ export function templateForMessageType(
 export async function sendWhatsappOnce(
   registrationId: string,
   messageType: WhatsappMessageType,
+  extra: Record<string, string> = {},
 ): Promise<WhatsappSendOutcome> {
   // Missing Meta credentials (pre-setup, local dev) must never reserve a
   // log slot — otherwise the message becomes permanently unsendable once
@@ -94,6 +131,15 @@ export async function sendWhatsappOnce(
     return 'skipped_gated';
   }
 
+  // Class reminders respect the class-reminder toggle, same BR-10 mapping as
+  // the email engine's EMAIL_TYPE_TOGGLE (WhatsApp has no per-type lookup table).
+  if (
+    (messageType === 'class_reminder_24h' || messageType === 'class_reminder_2h') &&
+    !context.classReminderEnabled
+  ) {
+    return 'skipped_gated';
+  }
+
   if (!normalizeWhatsappPhone(context.participantPhone)) return 'skipped_bad_phone';
 
   const reservation = await communicationsRepository.reserveWhatsappLogSlot(
@@ -103,7 +149,7 @@ export async function sendWhatsappOnce(
   if (reservation === 'duplicate') return 'skipped_duplicate';
 
   try {
-    const { templateName, bodyParameters } = templateForMessageType(messageType, context);
+    const { templateName, bodyParameters } = templateForMessageType(messageType, context, extra);
     await sendWhatsappTemplateMessage({
       toPhone: context.participantPhone,
       templateName,
