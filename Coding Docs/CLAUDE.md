@@ -443,6 +443,37 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     Migration `202608020044_partners_and_codes.sql` applied to production
     2026-08-02.
 
+  Existing-tutor/student self-serve referrals + commission-as-course-credit
+    redemption (2026-08-02, same-day follow-up) — closed three gaps founder-
+    flagged right after the Partner Programme shipped. (1) Existing tutors
+    now auto-provision a partner record + one referral code the first time
+    they view their portal's Referrals panel (`ensurePartnerForTutorSystem`),
+    instead of needing a staff member to manually link one first — matches
+    the doc's own stated intent that every tutor automatically has affiliate
+    capability. An admin "Backfill Tutor Partners" button on `/partners`
+    (Partners tab) provisions the whole existing roster in one click rather
+    than waiting for each tutor to log in. (2) An existing student can now
+    self-serve "Refer & Earn" from a new panel in their own student portal —
+    becomes an Ambassador partner instantly, no application, no staff
+    review (distinct from the public form's manual-approval path). (3)
+    Commission-as-course-credit redemption — a partner (tutor, self-served
+    student-ambassador, or a partner-portal partner) can spend their own
+    `payable` commission balance to reduce a course fee instead of waiting
+    for a cash payout: toward their own registration (a dropdown in the
+    student portal) or a referred student's (resolved server-side from an
+    email, since a partner won't know a raw registration id). `partners`
+    gained a nullable `participant_id` (mirrors `tutor_id` — links a self-
+    served Ambassador to their own student record); `partner_commissions`
+    gained a `redeemed` status (a terminal state alongside `paid`) and
+    `redeemed_against_registration_id`. The fee mutation itself reuses
+    `applyDiscount`'s exact course_fee/original_fee/discount_amount math,
+    just system-originated (`redeemCommissionCreditSystem` in
+    `modules/payments/service.ts`, which calls into `modules/partners` for
+    ownership validation and bookkeeping — payments owns the fee write,
+    partners owns the commission ledger, same split as the existing accrual/
+    payout flow). Migration `202608020045_partner_credit_redemption.sql`
+    applied to production 2026-08-02.
+
 Open decisions (founder):
   - AI05 ("...Reporting and Modeling") vs AI02 ("...Reporting and
     Analysis") are near-duplicate courses — pick a canonical one.

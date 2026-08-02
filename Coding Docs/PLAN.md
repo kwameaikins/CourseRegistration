@@ -603,6 +603,37 @@ analytics suite (duplicate-account detection, refund-rate dashboards, partner pr
 
 ---
 
+## Existing-tutor/student self-serve referrals + commission-as-course-credit redemption (2026-08-02)
+
+Same-day follow-up to the Partner Programme above, closing three gaps: existing tutors weren't
+automatically partners (contrary to the doc's own intent), existing students had no easy way to
+become referrers, and a partner's only way to get paid was a cash payout — never a course-fee
+discount, even for a student who'd rather spend their earnings on their own tuition.
+
+Migration `202608020045_partner_credit_redemption.sql`.
+
+- [x] `partners.participant_id` (nullable, mirrors `tutor_id`) — links a self-served Ambassador
+      partner to their own student record
+- [x] `partner_commissions.status` gains `redeemed` (terminal, alongside `paid`) +
+      `redeemed_against_registration_id`
+- [x] `ensurePartnerForTutorSystem` — auto-provisions a partner record + one referral code the
+      first time a tutor views Referrals; admin "Backfill Tutor Partners" button on `/partners`
+      provisions the whole existing roster in one click
+- [x] Student portal gained a "Refer & Earn" panel — self-serve, auto-approved Ambassador signup,
+      no application, no staff review
+- [x] `redeemCommissionCreditSystem` (`modules/payments/service.ts`) — spends a partner's own
+      `payable` balance as course-fee credit, toward their own registration or a referred
+      student's (resolved from email); reuses `applyDiscount`'s exact fee math, system-originated;
+      payments owns the fee write, partners owns the commission bookkeeping (same split as the
+      existing accrual/payout flow)
+- [x] Wired into the tutor portal, student portal, and partner portal — each partner category can
+      redeem from wherever they already log in
+- [x] *(external)* Apply migration `202608020045` to production — applied 2026-08-02 (`npx supabase db push`)
+- [ ] *(action)* Click "Backfill Tutor Partners" once on `/partners` to provision existing tutors
+      immediately — new tutors auto-provision on their first Referrals-panel view regardless
+
+---
+
 ## Risk watch (carried from `/docs/01_PRD.md` risk register)
 
 | ID | Risk | Status |
