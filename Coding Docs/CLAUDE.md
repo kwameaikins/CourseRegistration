@@ -14,9 +14,11 @@ replacing scattered Google Forms and Sheets for a Ghana-based training business.
 registrations, payments (Paystack card + MTN MoMo + bank transfer), automated participant
 email communication, and role-based staff access across 48 course intakes per year.
 
-This is an internal operations tool for one business. It is not a public product, not an
-LMS, and not multi-tenant. See `/docs/01_PRD.md`, Section 9 ("Out of Scope") before adding
-any feature not already specified.
+This is primarily an internal operations tool for one business — not an LMS, not
+multi-tenant. See `/docs/01_PRD.md`, Section 9 ("Out of Scope") before adding any feature
+not already specified. One deliberate exception as of 2026-08-02: **Knowsia Insights**
+(`/news/**`) is a genuinely public-facing news/content product, not an internal tool — see
+`Coding Docs/17_News_Insights_Operations.md`.
 
 ---
 
@@ -40,6 +42,7 @@ your summary of it.
 | UI screens, components, signifiers | `/docs/08_UIUX_Screen_Specification.md` |
 | Writing or running tests | `/docs/09_Test_Specification.md` |
 | Affiliate/partner marketing, coupon codes, commissions/payouts | `Coding Docs/knowsia_growth_partner_programme.md` — the founder strategy doc driving this feature |
+| Knowsia Insights (AI news pipeline, Editorial Dashboard, public news site) | `Coding Docs/17_News_Insights_Operations.md` — read this before touching `modules/news-insights`; also read the deviations list (§2) before assuming `Coding Docs/Knowsia_Insights_Agentic_News_Refined.md` (the original founder spec) is current |
 | What to build this week | `PLAN.md` (this repo root) — the live checklist |
 | Naming, file structure, conventions | `/docs/11_Coding_Standards_and_Conventions.md` |
 | How the founder will prompt you | `/docs/12_Agent_Prompt_Engineering_Guide.md` |
@@ -54,6 +57,7 @@ your summary of it.
 - **SMS:** Arkesel (approved 2026-07-19; ~GHS 0.029/SMS pay-as-you-go — accepted budget exception)
 - **Attendance:** Zoom Server-to-Server OAuth (approved 2026-07-19; free with existing Zoom plan)
 - **Admin assistant:** Anthropic Claude API (approved 2026-07-19; pay-per-use — accepted budget exception)
+- **Knowsia Insights news pipeline:** same Anthropic Claude API / `ANTHROPIC_API_KEY`, but continuous (not bounded pay-per-use like the assistant) — founder-approved 2026-08-02 as its own accepted budget exception given the different cost shape. See `Coding Docs/17_News_Insights_Operations.md` §7 for the (currently zero, since no source is configured) real cost.
 - **Voice calls:** Vapi (approved 2026-07-19; ~$0.05–0.15/min, targeted triggers only — accepted budget exception)
 - **Payments:** Paystack (Card + MTN MoMo)
 - **File storage:** Cloudflare R2 (founder-directed 2026-08-02, payment slip uploads only; free tier at this scale) — accessed via `lib/r2/client.ts` using `aws4fetch`, not the AWS SDK
@@ -491,6 +495,78 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     `/api/partner-portal/qr-code` exactly, reusing each portal's existing `getReferralSummaryForSession`
     for the ownership check — no new service-layer functions needed. No schema change — the batch id
     is a transient query-string hint, never persisted, and plays no role in attribution or commission.
+
+  Knowsia Insights (2026-08-02, Phase 1 shipped) — new `modules/news-insights` module: an
+    8-agent-minus-1 pipeline (source collection, triage/dedup, research & drafting,
+    independent verification, editorial risk routing, publishing, monitoring —
+    personalisation deferred to Phase 2) producing original news/analysis for accountants/
+    auditors/finance professionals across all 7 canonical categories (founder chose the full
+    set over the source doc's proposed 3-category beachhead). `pipeline_jobs.stage` is the
+    status-column backbone (doc's own recommendation, already this codebase's pattern);
+    `GET /api/cron/news-pipeline-advance` advances one bounded batch per stage, polled every
+    15 minutes by `.github/workflows/news-pipeline-advance.yml` (Vercel Hobby's 2 cron slots
+    are both already used, same external-scheduler workaround as class-reminders-frequent).
+    Every agent call is a forced structured tool call (never open-ended generation, the
+    doc's prompt-injection mitigation) and logs to `agent_run_log`
+    (`GET /api/news-pipeline/cost-summary` — real cost from day one). Verification is a
+    genuinely independent pass: it never receives the drafting agent's own reasoning, only
+    the draft's final text plus original sources, and unverified content is hard-blocked in
+    code from ever reaching Level 1 auto-publish regardless of the risk model's own read.
+    Staff Editorial Dashboard at `/editorial` (admin+marketing: Review Queue, Pipeline,
+    Sources, Cost); public site at `/news`, `/news/[category]`, `/news/article/[slug]`
+    (the first genuinely public-facing product surface in this codebase, not just a public
+    form). Three deliberate deviations from the source doc — no pgvector/embeddings (no
+    provider configured; dedup uses content_hash + pg_trgm fuzzy title matching instead),
+    no pre-seeded sources (fabricating source URLs isn't something to do — add real ones via
+    the Sources tab), and no Level 3 override UI yet. Retention (30-day raw-text purge) and
+    the Level 2 review SLA (4 business hours) are unconfirmed placeholders per the source
+    doc's own Section 12. Full details, all deviations, and required setup steps in
+    `Coding Docs/17_News_Insights_Operations.md`. Migrations
+    `202608020046_news_insights.sql` and `202608030047_news_relevance_filter.sql` both
+    applied to production 2026-08-03. The 11 new tables in
+    `lib/supabase/database.types.ts` were hand-written, then verified field-by-field
+    against `npx supabase gen types typescript --linked` output — they match. Do NOT
+    wholesale-replace that file with generated output: the current generated types
+    declare `fn_delete_registration_immediately`/`fn_delete_participant_immediately`
+    with a non-nullable `reason`, which breaks `modules/registrations/repository.ts`
+    (it passes `string | null`). Pre-existing, unrelated to this module, still open.
+
+  Knowsia Insights hardening from the first real run (2026-08-03) — four bugs that only
+    surfaced against live sources, all found by running the pipeline rather than by
+    typecheck. (1) The collector truncated to the first 15k chars of *raw HTML*, which for
+    icagh.org is 15k of WordPress CSS variables (383k-char page) and for ifac.org yields
+    386 characters of nav labels — both sources returned zero news while still paying for a
+    model call. It now reduces to readable text first (anchors rewritten to "text (url)" so
+    article links survive), which brings both pages to ~5.4k chars that fit entirely. This
+    single fix is what made ICAG produce real Ghana content. (2) Model-reported dates like
+    "June 2026" are rejected by a timestamptz; the throw aborted the item loop and discarded
+    every remaining item *after* the model call was already paid for — dates are now
+    normalized and each item is isolated. (3) Supabase errors aren't `Error` instances, so
+    `String(err)` wrote "[object Object]" into `news_sources.last_fetch_error`, destroying
+    the diagnostics the Sources tab exists to show. (4) A triage tag outside the hardcoded
+    enum threw from `.parse()` and 500'd the entire cron run; only `category` is strict now
+    (it's a DB CHECK), cosmetic tags are filtered, and every stage wraps each job in
+    `runJobSafely` (3 attempts, then the `error` stage) so one bad item can never take down
+    a tick. Note for future work: zod `.transform()`/`.catch()` cannot be used in any schema
+    passed to `callStructuredAgent` — `z.toJSONSchema()` throws outright on transforms.
+
+  Knowsia Insights relevance gate (2026-08-03, founder-approved) — the Triage Agent now also
+    scores each story 0-100 for relevance to a Ghana-based accounting/finance audience
+    (Ghana/Africa-first bands in its system prompt) and anything below
+    `RELEVANCE_THRESHOLD` (40, in `modules/news-insights/pipeline/triage.ts`) stops at the
+    new terminal `filtered` stage instead of reaching drafting/verification — the two
+    mid-tier agents that measured 81% of all spend at ~$0.045/story. The scoring adds no
+    extra API call (extra fields on the existing triage call), and every decision is
+    recorded in `agent_run_log.output_summary` so the threshold can be tuned against real
+    numbers from the Pipeline tab. Honest caveat: measured filter rate was only ~7% (1 of
+    14), far below the 40-50% estimated — the off-topic content problem was mostly the
+    broken collector above, not a filtering problem, so this saves less than expected.
+    Real measured cost is ~$0.05/story, i.e. roughly $25-38/month at the source doc's
+    assumed 15-25 stories/day. NOT YET BUILT and worth revisiting: a daily story/spend cap.
+    Nothing currently bounds volume — `BATCH_SIZE_PER_STAGE` is 8 and the workflow fires
+    every 15 minutes, so the theoretical ceiling is ~768 drafts/day (~$600/month) if source
+    volume ever rises. Founder declined the cap on 2026-08-03 when the gate was expected to
+    do more work; the measured shortfall makes it more relevant, not less.
 
 Open decisions (founder):
   - AI05 ("...Reporting and Modeling") vs AI02 ("...Reporting and

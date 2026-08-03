@@ -80,5 +80,6 @@ export const config = {
     '/assistant/:path*',
     '/follow-up/:path*',
     '/corporate/:path*',
+    '/editorial/:path*',
   ],
 };

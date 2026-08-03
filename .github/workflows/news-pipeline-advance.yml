@@ -1,0 +1,27 @@
+name: News pipeline advance (Knowsia Insights)
+
+# Vercel Hobby caps cron jobs at 2 (both already used by /api/cron/reminders
+# and /api/cron/attendance). This free external scheduler pings the new
+# /api/cron/news-pipeline-advance route every 15 minutes instead — safe to
+# call this often: pipeline_jobs.stage only ever moves forward, and an item
+# already past a stage is simply not picked up again.
+#
+# Setup required (external, one-time): reuses the same CRON_SECRET repository
+# secret as .github/workflows/class-reminders-frequent.yml (Settings ->
+# Secrets and variables -> Actions) — no new secret needed if that one is
+# already configured. Also verify the URL below matches the deployed domain
+# if it's not reg.knowsia.com.
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping-news-pipeline-advance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call news-pipeline-advance cron route
+        run: |
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://reg.knowsia.com/api/cron/news-pipeline-advance

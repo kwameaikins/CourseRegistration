@@ -2876,6 +2876,566 @@ export type Database = {
           },
         ]
       }
+      news_sources: {
+        Row: {
+          id: string
+          name: string
+          source_url: string
+          source_type: string
+          tier: number
+          default_category: string | null
+          reliability_score: number
+          status: string
+          last_fetched_at: string | null
+          last_fetch_error: string | null
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          source_url: string
+          source_type?: string
+          tier: number
+          default_category?: string | null
+          reliability_score?: number
+          status?: string
+          last_fetched_at?: string | null
+          last_fetch_error?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          source_url?: string
+          source_type?: string
+          tier?: number
+          default_category?: string | null
+          reliability_score?: number
+          status?: string
+          last_fetched_at?: string | null
+          last_fetch_error?: string | null
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "news_sources_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      raw_news_items: {
+        Row: {
+          id: string
+          source_id: string
+          external_url: string | null
+          content_hash: string
+          title: string
+          raw_text: string | null
+          raw_text_purged_at: string | null
+          published_at: string | null
+          collected_at: string
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          source_id: string
+          external_url?: string | null
+          content_hash: string
+          title: string
+          raw_text?: string | null
+          raw_text_purged_at?: string | null
+          published_at?: string | null
+          collected_at?: string
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          source_id?: string
+          external_url?: string | null
+          content_hash?: string
+          title?: string
+          raw_text?: string | null
+          raw_text_purged_at?: string | null
+          published_at?: string | null
+          collected_at?: string
+          status?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "raw_news_items_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "news_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stories: {
+        Row: {
+          id: string
+          canonical_title: string
+          category: string
+          subcategories: string[]
+          geography: string[]
+          audience: string[]
+          content_type: string | null
+          importance: string | null
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          canonical_title: string
+          category: string
+          subcategories?: string[]
+          geography?: string[]
+          audience?: string[]
+          content_type?: string | null
+          importance?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          canonical_title?: string
+          category?: string
+          subcategories?: string[]
+          geography?: string[]
+          audience?: string[]
+          content_type?: string | null
+          importance?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      story_sources: {
+        Row: {
+          id: string
+          story_id: string
+          raw_news_item_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          story_id: string
+          raw_news_item_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          story_id?: string
+          raw_news_item_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "story_sources_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "stories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "story_sources_raw_news_item_id_fkey"
+            columns: ["raw_news_item_id"]
+            isOneToOne: false
+            referencedRelation: "raw_news_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      article_drafts: {
+        Row: {
+          id: string
+          story_id: string
+          research_note: string | null
+          draft_headline: string | null
+          draft_summary: string | null
+          draft_sections: Json | null
+          model_used: string
+          tokens_in: number | null
+          tokens_out: number | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          story_id: string
+          research_note?: string | null
+          draft_headline?: string | null
+          draft_summary?: string | null
+          draft_sections?: Json | null
+          model_used: string
+          tokens_in?: number | null
+          tokens_out?: number | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          story_id?: string
+          research_note?: string | null
+          draft_headline?: string | null
+          draft_summary?: string | null
+          draft_sections?: Json | null
+          model_used?: string
+          tokens_in?: number | null
+          tokens_out?: number | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "article_drafts_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "stories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      editorial_reviews: {
+        Row: {
+          id: string
+          article_draft_id: string
+          verification_passed: boolean | null
+          claim_checks: Json | null
+          risk_level: number | null
+          risk_reasons: string[]
+          review_decision: string | null
+          review_note: string | null
+          reviewed_by: string | null
+          reviewed_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          article_draft_id: string
+          verification_passed?: boolean | null
+          claim_checks?: Json | null
+          risk_level?: number | null
+          risk_reasons?: string[]
+          review_decision?: string | null
+          review_note?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          article_draft_id?: string
+          verification_passed?: boolean | null
+          claim_checks?: Json | null
+          risk_level?: number | null
+          risk_reasons?: string[]
+          review_decision?: string | null
+          review_note?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "editorial_reviews_article_draft_id_fkey"
+            columns: ["article_draft_id"]
+            isOneToOne: false
+            referencedRelation: "article_drafts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "editorial_reviews_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      published_articles: {
+        Row: {
+          id: string
+          story_id: string | null
+          slug: string
+          headline: string
+          summary: string
+          sections: Json
+          category: string
+          subcategories: string[]
+          geography: string[]
+          audience: string[]
+          content_type: string | null
+          importance: string | null
+          transparency_labels: string[]
+          risk_level: number | null
+          source_urls: string[]
+          seo_title: string | null
+          seo_description: string | null
+          image_url: string | null
+          view_count: number
+          published_at: string
+          updated_at: string
+          last_corrected_at: string | null
+        }
+        Insert: {
+          id?: string
+          story_id?: string | null
+          slug: string
+          headline: string
+          summary: string
+          sections: Json
+          category: string
+          subcategories?: string[]
+          geography?: string[]
+          audience?: string[]
+          content_type?: string | null
+          importance?: string | null
+          transparency_labels?: string[]
+          risk_level?: number | null
+          source_urls?: string[]
+          seo_title?: string | null
+          seo_description?: string | null
+          image_url?: string | null
+          view_count?: number
+          published_at?: string
+          updated_at?: string
+          last_corrected_at?: string | null
+        }
+        Update: {
+          id?: string
+          story_id?: string | null
+          slug?: string
+          headline?: string
+          summary?: string
+          sections?: Json
+          category?: string
+          subcategories?: string[]
+          geography?: string[]
+          audience?: string[]
+          content_type?: string | null
+          importance?: string | null
+          transparency_labels?: string[]
+          risk_level?: number | null
+          source_urls?: string[]
+          seo_title?: string | null
+          seo_description?: string | null
+          image_url?: string | null
+          view_count?: number
+          published_at?: string
+          updated_at?: string
+          last_corrected_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "published_articles_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "stories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      deadlines: {
+        Row: {
+          id: string
+          title: string
+          professional_body: string | null
+          category: string | null
+          deadline_date: string
+          description: string | null
+          source_url: string | null
+          published_article_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          professional_body?: string | null
+          category?: string | null
+          deadline_date: string
+          description?: string | null
+          source_url?: string | null
+          published_article_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          professional_body?: string | null
+          category?: string | null
+          deadline_date?: string
+          description?: string | null
+          source_url?: string | null
+          published_article_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deadlines_published_article_id_fkey"
+            columns: ["published_article_id"]
+            isOneToOne: false
+            referencedRelation: "published_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      corrections_log: {
+        Row: {
+          id: string
+          published_article_id: string
+          correction_text: string
+          corrected_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          published_article_id: string
+          correction_text: string
+          corrected_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          published_article_id?: string
+          correction_text?: string
+          corrected_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "corrections_log_published_article_id_fkey"
+            columns: ["published_article_id"]
+            isOneToOne: false
+            referencedRelation: "published_articles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pipeline_jobs: {
+        Row: {
+          id: string
+          raw_news_item_id: string | null
+          story_id: string | null
+          stage: string
+          attempts: number
+          error_message: string | null
+          last_advanced_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          raw_news_item_id?: string | null
+          story_id?: string | null
+          stage?: string
+          attempts?: number
+          error_message?: string | null
+          last_advanced_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          raw_news_item_id?: string | null
+          story_id?: string | null
+          stage?: string
+          attempts?: number
+          error_message?: string | null
+          last_advanced_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pipeline_jobs_raw_news_item_id_fkey"
+            columns: ["raw_news_item_id"]
+            isOneToOne: false
+            referencedRelation: "raw_news_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pipeline_jobs_story_id_fkey"
+            columns: ["story_id"]
+            isOneToOne: false
+            referencedRelation: "stories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agent_run_log: {
+        Row: {
+          id: string
+          pipeline_job_id: string | null
+          agent_name: string
+          model: string
+          input_ref: string | null
+          output_summary: string | null
+          confidence: number | null
+          tokens_in: number | null
+          tokens_out: number | null
+          estimated_cost_usd: number | null
+          duration_ms: number | null
+          success: boolean
+          error_message: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          pipeline_job_id?: string | null
+          agent_name: string
+          model: string
+          input_ref?: string | null
+          output_summary?: string | null
+          confidence?: number | null
+          tokens_in?: number | null
+          tokens_out?: number | null
+          estimated_cost_usd?: number | null
+          duration_ms?: number | null
+          success?: boolean
+          error_message?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          pipeline_job_id?: string | null
+          agent_name?: string
+          model?: string
+          input_ref?: string | null
+          output_summary?: string | null
+          confidence?: number | null
+          tokens_in?: number | null
+          tokens_out?: number | null
+          estimated_cost_usd?: number | null
+          duration_ms?: number | null
+          success?: boolean
+          error_message?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_run_log_pipeline_job_id_fkey"
+            columns: ["pipeline_job_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -2883,6 +3443,14 @@ export type Database = {
     Functions: {
       fn_current_role: { Args: never; Returns: string }
       fn_current_staff_id: { Args: never; Returns: string }
+      fn_news_similar_titles: {
+        Args: { p_title: string; p_since: string }
+        Returns: { id: string; title: string }[]
+      }
+      fn_news_increment_view_count: {
+        Args: { p_article_id: string }
+        Returns: undefined
+      }
       fn_hard_delete_participant: {
         Args: { deleting_staff_id: string; participant_id_to_delete: string }
         Returns: undefined

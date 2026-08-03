@@ -612,3 +612,17 @@ additive nullable FKs: `batches.facilitator_tutor_id` and `live_sessions.tutor_i
 longer written to. The migration also drops `'tutor'` from `staff_users.role`'s CHECK
 constraint and removes the four now-dead tutor-scoped RLS policies from the foundation and live
 sessions migrations. Full definitions are in Document 16.
+
+## 14. Knowsia Insights Extension (2026-08-02)
+
+Migration `202608020046_news_insights.sql` adds the news pipeline's 11 tables
+(`news_sources`, `raw_news_items`, `stories`, `story_sources`, `article_drafts`,
+`editorial_reviews`, `published_articles`, `deadlines`, `corrections_log`, `pipeline_jobs`,
+`agent_run_log`) plus the `pg_trgm` extension. Deliberately **not** pgvector, despite the
+source doc's Section 8.3 recommendation — no embeddings provider is configured in this
+project, and dedup instead uses exact `content_hash` matching plus `pg_trgm` fuzzy title
+similarity (`fn_news_similar_titles`). RLS: admin+marketing manage everything;
+`published_articles`/`deadlines` also carry a public-read policy (`anon` +
+`authenticated`), the first public-read RLS grant in this schema beyond the registration
+form's public insert. No sources are pre-seeded. Full definitions and the agent pipeline
+architecture are in Document 17.

@@ -41,6 +41,11 @@ export const ROLE_ROUTES: Record<string, StaffRole[]> = {
   // payouts are finance+admin (same as payments). All 4 sections live on
   // one page, so the route itself is open to the union of both.
   '/partners': ['admin', 'marketing', 'finance'],
+  // Knowsia Insights (2026-08-02) — the Editorial Dashboard (source
+  // registry, pipeline queues, Level 2 review) is admin+marketing, same
+  // roles as leads/campaigns/partners (the closest existing precedent to an
+  // editorial function).
+  '/editorial': ['admin', 'marketing'],
 };
 
 // Default landing page per role (Document 8: Finance lands on Payments,
@@ -70,6 +75,7 @@ export const NAV_ITEMS_BY_ROLE: Record<
     { href: '/campaigns', label: 'Campaigns', section: 'Sales & Leads' },
     { href: '/corporate', label: 'Corporate', section: 'Sales & Leads' },
     { href: '/partners', label: 'Partners & Coupons', section: 'Sales & Leads' },
+    { href: '/editorial', label: 'Knowsia Insights', section: 'Communication' },
     { href: '/payments', label: 'Payments', section: 'Finance' },
     { href: '/courses', label: 'Courses', section: 'Operations' },
     { href: '/tutors', label: 'Tutors', section: 'Operations' },
@@ -98,6 +104,7 @@ export const NAV_ITEMS_BY_ROLE: Record<
     { href: '/partners', label: 'Partners & Coupons', section: 'Sales & Leads' },
     { href: '/registrations/import', label: 'Import Registrations', section: 'Sales & Leads' },
     { href: '/corporate', label: 'Corporate', section: 'Sales & Leads' },
+    { href: '/editorial', label: 'Knowsia Insights', section: 'Sales & Leads' },
   ],
   management: [
     { href: '/dashboard', label: 'Dashboard', section: 'Overview' },
