@@ -148,6 +148,10 @@ export async function selectBatchIssueContext(batchId: string): Promise<{
   defaultHours: number;
   defaultDescription: string;
   defaultCpdCredit: string;
+  // Free event / webinar: payment cannot stand in for participation here, so
+  // eligibility swaps the paid check for an attendance check (see
+  // isCertificateEligible in the service).
+  batchIsFree: boolean;
   candidates: Array<{
     registrationId: string;
     participantName: string;
@@ -164,7 +168,7 @@ export async function selectBatchIssueContext(batchId: string): Promise<{
 
   const { data: batch, error: batchError } = await supabase
     .from('batches')
-    .select('id, course_id')
+    .select('id, course_id, is_free')
     .eq('id', batchId)
     .maybeSingle();
   if (batchError) throw batchError;
@@ -188,6 +192,7 @@ export async function selectBatchIssueContext(batchId: string): Promise<{
     defaultHours: course.certificate_hours,
     defaultDescription: course.certificate_description,
     defaultCpdCredit: course.cpd_credit,
+    batchIsFree: batch.is_free,
   };
   if (!registrations || registrations.length === 0) {
     return { ...courseDefaults, candidates: [] };

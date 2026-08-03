@@ -41,6 +41,7 @@ function makeContext(
     courseName: 'ICAG Level 1 Prep',
     courseCode: 'ICAG-L1',
     cohortLabel: 'JUL-2026',
+    isFree: false,
     courseFee: 1200,
     amountPaid: 0,
     balance: 1200,
@@ -170,6 +171,17 @@ describe('SMS body composition', () => {
     expect(body).toContain('ICAG Level 1 Prep (JUL-2026)');
     expect(body).toContain('GHS 1,200.00');
     expect(body).toContain('email');
+  });
+
+  // Free events (2026-08-03) keep the 'welcome' message type — BR-07
+  // deduplication is unchanged — and swap only the body text.
+  it('welcome on a free event quotes no fee and promises no payment instructions', () => {
+    const body = smsBodyForMessageType('welcome', makeContext({ isFree: true, courseFee: 0 }));
+    expect(body).toContain('Hi Ama,');
+    expect(body).toContain('ICAG Level 1 Prep (JUL-2026)');
+    expect(body).not.toContain('GHS');
+    expect(body).not.toMatch(/payment/i);
+    expect(body).toMatch(/free/i);
   });
 
   it('all reminders share one body with the outstanding balance', () => {

@@ -148,6 +148,17 @@ async function computeCommissionAmount(
   partner: PartnerRow,
   amountPaid: number,
 ): Promise<number | null> {
+  // Nothing was collected, so there is nothing to commission on — a free
+  // event/webinar, a 100% code discount, or a fully-waived fee. This guard is
+  // NOT redundant: the institutional branch below returns a FLAT GHS 30-50
+  // that never looks at amountPaid, so without it a free signup would pay a
+  // real cash commission. Every other tier multiplies by amountPaid and would
+  // already yield zero. Free events still record their referral attribution
+  // (registrations/service.ts calls redeemCodeSystem regardless) — they just
+  // never earn.
+  if (amountPaid <= 0) {
+    return 0;
+  }
   if (partner.category === 'ambassador') {
     const since = new Date();
     since.setDate(since.getDate() - 30);

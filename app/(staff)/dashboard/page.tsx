@@ -88,31 +88,45 @@ export default async function ManagementDashboardPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="flex gap-4 text-sm">
-                  <span>
-                    <strong>{batch.totalRegistered}</strong> registered
-                  </span>
-                  <span className="text-emerald-600">
-                    <strong>{batch.totalPaid}</strong> paid
-                  </span>
-                  <span className="text-amber-600">
-                    <strong>{batch.totalPartPayment}</strong> part
-                  </span>
-                  <span className="text-red-600">
-                    <strong>{batch.totalUnpaid}</strong> unpaid
-                  </span>
-                </div>
-                <div className="flex items-baseline justify-between">
-                  <p className="text-sm text-muted-foreground">
-                    {formatGhs(batch.revenueReceived)} of {formatGhs(batch.expectedRevenue)}{' '}
-                    received
-                  </p>
-                  <p
-                    className={`text-2xl font-bold ${conversionColor(batch.paymentConversionRate)}`}
-                  >
-                    {batch.paymentConversionRate}%
-                  </p>
-                </div>
+                {/* A free event has no fee to collect, so the paid/part/unpaid
+                    split and the "X of Y received" line are meaningless — show
+                    the sign-up count instead of a revenue card reading zero. */}
+                {batch.isFree ? (
+                  <div className="flex items-baseline justify-between">
+                    <p className="text-sm">
+                      <strong>{batch.totalRegistered}</strong> registered
+                    </p>
+                    <p className="text-sm font-medium text-emerald-600">Free event</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex gap-4 text-sm">
+                      <span>
+                        <strong>{batch.totalRegistered}</strong> registered
+                      </span>
+                      <span className="text-emerald-600">
+                        <strong>{batch.totalPaid}</strong> paid
+                      </span>
+                      <span className="text-amber-600">
+                        <strong>{batch.totalPartPayment}</strong> part
+                      </span>
+                      <span className="text-red-600">
+                        <strong>{batch.totalUnpaid}</strong> unpaid
+                      </span>
+                    </div>
+                    <div className="flex items-baseline justify-between">
+                      <p className="text-sm text-muted-foreground">
+                        {formatGhs(batch.revenueReceived)} of{' '}
+                        {formatGhs(batch.expectedRevenue)} received
+                      </p>
+                      <p
+                        className={`text-2xl font-bold ${conversionColor(batch.paymentConversionRate)}`}
+                      >
+                        {batch.paymentConversionRate}%
+                      </p>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           );

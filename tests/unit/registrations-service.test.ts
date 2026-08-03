@@ -25,6 +25,7 @@ const usersServiceMock = {
 };
 const paymentsServiceMock = {
   applyPaymentUpdate: vi.fn(),
+  runZeroFeeEnrollmentSideEffects: vi.fn(),
 };
 const leadsServiceMock = {
   createLead: vi.fn(),
@@ -113,6 +114,7 @@ function activeBatch(overrides: Record<string, unknown> = {}) {
     courseId: 'course-1',
     cohortLabel: 'JUL-2026',
     courseFee: 1200,
+    isFree: false,
     startDate: FUTURE_DATE,
     startTime: '09:00',
     endDate: FUTURE_DATE,
@@ -173,6 +175,7 @@ beforeEach(() => {
     registrationStatus: 'Confirmed',
     verifiedBy: 'Jane Doe (marketing)',
   });
+  paymentsServiceMock.runZeroFeeEnrollmentSideEffects.mockResolvedValue(undefined);
   leadsServiceMock.createLead.mockResolvedValue({ id: 'lead-1' });
   leadsServiceMock.wasExistingLeadBeforeRegistration.mockResolvedValue(false);
   partnersServiceMock.previewCode.mockResolvedValue({
@@ -232,6 +235,87 @@ describe('BR-03 — duplicate registration (T-BR03-01 logic)', () => {
       message:
         'You are already registered for this course intake. If you need help, please contact us.',
     });
+  });
+});
+
+// Free events / webinars (founder request 2026-08-03). The payment row is
+// still written (course_fee 0) — the DB triggers settle it to Paid and
+// confirm the registration on INSERT — but nothing about money is ever shown
+// or sent to the registrant.
+describe('free events — zero-fee registration (2026-08-03)', () => {
+  beforeEach(() => {
+    coursesServiceMock.getBatchByIdSystem.mockResolvedValue(
+      activeBatch({ isFree: true, courseFee: 0 }),
+    );
+    registrationsRepositoryMock.insertInitialPayment.mockResolvedValue({
+      id: 'pay-1',
+      payment_status: 'Paid',
+    });
+  });
+
+  it('writes a zero-fee payment row and reports the registration as Confirmed/Paid', async () => {
+    const result = await createRegistration(validInput());
+    if (result.outcome !== 'registered') throw new Error('expected a registered outcome');
+
+    expect(registrationsRepositoryMock.insertInitialPayment).toHaveBeenCalledWith({
+      registration_id: 'reg-1',
+      course_fee: 0,
+    });
+    expect(result.paymentStatus).toBe('Paid');
+    expect(result.registrationStatus).toBe('Confirmed');
+    expect(result.courseFee).toBe(0);
+  });
+
+  it('runs the zero-fee enrollment side effects so the joining link still goes out', async () => {
+    await createRegistration(validInput());
+
+    expect(paymentsServiceMock.runZeroFeeEnrollmentSideEffects).toHaveBeenCalledWith('reg-1');
+  });
+
+  it('sends free_welcome only — never the payment instruction or the first chase', async () => {
+    await createRegistration(validInput());
+
+    expect(sendEmailOnceMock).toHaveBeenCalledWith('reg-1', 'free_welcome');
+    expect(sendEmailOnceMock).not.toHaveBeenCalledWith('reg-1', 'welcome');
+    expect(sendEmailOnceMock).not.toHaveBeenCalledWith('reg-1', 'payment_instruction');
+    expect(sendEmailOnceMock).not.toHaveBeenCalledWith('reg-1', 'reminder_1');
+  });
+
+  it('suppresses the WhatsApp welcome, whose approved template quotes a fee', async () => {
+    await createRegistration(validInput());
+
+    expect(sendWhatsappOnceMock).not.toHaveBeenCalled();
+    // SMS keeps the 'welcome' type and branches only its body text.
+    expect(sendSmsOnceMock).toHaveBeenCalledWith('reg-1', 'welcome');
+  });
+
+  it('never tells a free registrant to check their email for payment instructions', async () => {
+    const result = await createRegistration(validInput());
+    if (result.outcome !== 'registered') throw new Error('expected a registered outcome');
+
+    expect(result.message).not.toMatch(/payment/i);
+    expect(result.message).toMatch(/nothing to pay/i);
+  });
+
+  it('takes the same zero-fee path on a paid batch when a code covers the whole fee', async () => {
+    coursesServiceMock.getBatchByIdSystem.mockResolvedValue(activeBatch({ courseFee: 1200 }));
+    partnersServiceMock.previewCode.mockResolvedValue({
+      valid: true,
+      discountType: 'percentage',
+      discountValue: 100,
+      partnerId: 'partner-1',
+    });
+
+    const result = await createRegistration({ ...validInput(), couponCode: 'FREE100' });
+    if (result.outcome !== 'registered') throw new Error('expected a registered outcome');
+
+    expect(registrationsRepositoryMock.insertInitialPayment).toHaveBeenCalledWith({
+      registration_id: 'reg-1',
+      course_fee: 0,
+    });
+    expect(paymentsServiceMock.runZeroFeeEnrollmentSideEffects).toHaveBeenCalledWith('reg-1');
+    // The BATCH is still a paid one, so the paid templates are still correct.
+    expect(sendEmailOnceMock).toHaveBeenCalledWith('reg-1', 'welcome');
   });
 });
 
@@ -695,6 +779,7 @@ describe('createCorporateEmployeeRegistration — one employee row under a compa
     leadSource: 'Other' as const,
     paymentMethod: 'Bank Transfer' as const,
     courseFee: 1200,
+    isFree: false,
     companyAllocationId: 'allocation-1',
     companyName: 'Acme Ltd',
   };

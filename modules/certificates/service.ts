@@ -6,6 +6,8 @@
 // Eligibility for batch issuance: Paid + feedback submitted (the promise in
 // the post-course email); attendance is surfaced for admin judgment, and the
 // admin explicitly selects who gets issued (admin-approved, auto-computed).
+// On a free event (2026-08-03) the paid half of that rule is replaced by
+// attendance — see isCertificateEligible.
 import { generateCertificatePdf } from '@/lib/certificates/pdf';
 import { sendTransactionalEmail } from '@/lib/resend/client';
 import { AppError } from '@/lib/errors';
@@ -24,6 +26,28 @@ import type { Database } from '@/lib/supabase/database.types';
 type CertificateRow = Database['public']['Tables']['certificates']['Row'];
 
 const APP_URL = () => process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com';
+
+// The one eligibility rule, shared by auto-issue and the batch screen.
+//
+// On a paid Batch, payment is the proof of commitment and the rule is
+// unchanged: Paid + feedback submitted.
+//
+// On a free event, payment proves nothing — since 202608030048 a zero-fee
+// registration settles to 'Paid' the instant it is created, so `paid` is true
+// for everyone who filled in the form and would hand a certificate to people
+// who never turned up. Attendance replaces it as the participation signal.
+// This is an ADDITIONAL gate, not a swap of one true condition for another.
+//
+// Attendance comes from the Zoom sync (modules/attendance). totalSessions is
+// 0 until that sync has run at least once for the batch, which correctly
+// holds certificates back rather than issuing them early.
+function isCertificateEligible(
+  candidate: { paid: boolean; feedbackSubmitted: boolean; attendedSessions: number },
+  batchIsFree: boolean,
+): boolean {
+  if (!candidate.feedbackSubmitted) return false;
+  return batchIsFree ? candidate.attendedSessions > 0 : candidate.paid;
+}
 
 export function verifyUrlFor(certificateNumber: string): string {
   return `${APP_URL()}/verify/${encodeURIComponent(certificateNumber)}`;
@@ -154,7 +178,7 @@ export async function issueCertificateIfEligible(
 
   const candidate = context.candidates.find((c) => c.registrationId === registrationId);
   if (!candidate || candidate.participantDeleted || candidate.alreadyIssued) return null;
-  if (!(candidate.paid && candidate.feedbackSubmitted)) return null;
+  if (!isCertificateEligible(candidate, context.batchIsFree)) return null;
 
   let row: CertificateRow;
   try {
@@ -227,6 +251,10 @@ export async function getBatchIssueContext(batchId: string): Promise<{
   defaultHours: number;
   defaultDescription: string;
   defaultCpdCredit: string;
+  // Lets the Certificates screen state which rule it applied — on a free
+  // event, everyone reads as Paid, so showing that column without explanation
+  // would look like the gate had simply stopped working.
+  batchIsFree: boolean;
   candidates: BatchIssueCandidate[];
 } | null> {
   const context = await certificatesRepository.selectBatchIssueContext(batchId);
@@ -237,6 +265,7 @@ export async function getBatchIssueContext(batchId: string): Promise<{
     defaultHours: context.defaultHours,
     defaultDescription: context.defaultDescription,
     defaultCpdCredit: context.defaultCpdCredit,
+    batchIsFree: context.batchIsFree,
     candidates: context.candidates
       .filter((candidate) => !candidate.participantDeleted)
       .map((candidate) => ({
@@ -250,7 +279,8 @@ export async function getBatchIssueContext(batchId: string): Promise<{
             ? Math.round((candidate.attendedSessions / candidate.totalSessions) * 100)
             : null,
         alreadyIssued: candidate.alreadyIssued,
-        eligible: candidate.paid && candidate.feedbackSubmitted && !candidate.alreadyIssued,
+        eligible:
+          isCertificateEligible(candidate, context.batchIsFree) && !candidate.alreadyIssued,
       })),
   };
 }

@@ -14,8 +14,8 @@ export default async function RegisterPage() {
       <KnowsiaHeader />
       <h1 className="mt-6 text-2xl font-semibold">Course Registration</h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        Register for an upcoming course intake. Payment instructions will be emailed to
-        you after registration.
+        Register for an upcoming course intake or free webinar. Where there is a fee,
+        payment instructions are emailed to you after registration.
       </p>
       <div className="mt-8">
         <RegistrationForm batchOptions={batchOptions} />

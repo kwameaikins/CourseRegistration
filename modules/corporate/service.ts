@@ -228,6 +228,7 @@ export async function addEmployeesToAllocation(
           leadSource: input.leadSource,
           paymentMethod: input.paymentMethod,
           courseFee: batch.courseFee,
+          isFree: batch.isFree,
           companyAllocationId: allocationId,
           companyName: company?.name ?? 'Corporate client',
         },

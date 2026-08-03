@@ -52,6 +52,25 @@ export const DEFAULT_TEMPLATES: ReadonlyArray<{
 <p>If you have any questions, simply reply to this email or write to ${CONTACT}.</p>`),
   },
   {
+    // Free event / webinar welcome (2026-08-03) — replaces 'welcome' entirely
+    // on a Batch with is_free set. Deliberately contains no fee, no balance,
+    // no payment instructions and no "confirmed once payment is received":
+    // the place is already confirmed the moment they register.
+    emailType: 'free_welcome',
+    subject: "You're registered — {{course_name}} ({{cohort_label}})",
+    body: wrap(`
+<p>Dear {{participant_name}},</p>
+<p>You're registered for <strong>{{course_name}}</strong> ({{cohort_label}}) — your place is confirmed and there is nothing to pay.</p>
+<p><strong>Details:</strong></p>
+<ul>
+  <li>Date: {{start_date}}</li>
+  <li>Time: {{start_time}}</li>
+  <li>Facilitator: {{facilitator_name}}</li>
+</ul>
+<p>We've attached a calendar invite so it doesn't slip past you. Your personal joining link will arrive in a separate email, and is always available in your <a href="${PORTAL_LOGIN_URL}">student portal</a> — log in anytime with your email or phone number and PIN (the last 4 digits of your phone number).</p>
+<p>If you have any questions, simply reply to this email or write to ${CONTACT}.</p>`),
+  },
+  {
     emailType: 'payment_instruction',
     subject: 'Payment instructions — {{course_name}} ({{cohort_label}})',
     body: wrap(`

@@ -125,6 +125,22 @@ export async function sendWhatsappOnce(
   // Gates before reservation: batch active + per-batch WhatsApp toggle.
   if (!context.batchIsActive || !context.whatsappEnabled) return 'skipped_gated';
 
+  // Free events (2026-08-03): every money-shaped WhatsApp template quotes an
+  // amount in its Meta-approved positional parameters — 'welcome' takes the
+  // course fee, the reminders take the outstanding balance, and
+  // payment_confirmation takes the amount received. None can be sent for a
+  // webinar without reading "GHS 0.00", and the parameter list cannot be
+  // changed without re-approval. Skip before the BR-07 reservation, so these
+  // become sendable the moment a fee-free template is approved and wired up.
+  if (
+    context.isFree &&
+    (messageType === 'welcome' ||
+      messageType === 'payment_confirmation' ||
+      messageType.startsWith('reminder_'))
+  ) {
+    return 'skipped_gated';
+  }
+
   // Reminders additionally respect the payment-reminder toggle, matching the
   // email engine's BR-10 mapping.
   if (messageType.startsWith('reminder_') && !context.paymentReminderEnabled) {

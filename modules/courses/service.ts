@@ -45,6 +45,7 @@ function toBatch(row: BatchRow): Batch {
     cohortLabel: row.cohort_label,
     capacity: row.capacity,
     courseFee: Number(row.course_fee),
+    isFree: row.is_free,
     startDate: row.start_date,
     startTime: row.start_time,
     endDate: row.end_date,
@@ -172,6 +173,22 @@ export async function createBatch(input: BatchInput): Promise<Batch> {
     zoom_link: zoomLink,
     zoom_meeting_id: zoomMeetingId,
   });
+
+  // Courses created before free events existed (2026-08-03) have no
+  // free_welcome template, and seeding only ever runs at course creation — so
+  // without this a webinar on an existing Course would send its registrants
+  // nothing at all (sendEmailOnce returns skipped_no_template). Seeding is
+  // insert-only and idempotent, so this just fills the gap and never touches
+  // a template staff have edited. Same non-blocking posture as course
+  // creation's own seed call.
+  if (input.isFree) {
+    try {
+      await seedDefaultTemplatesForCourse(input.courseId);
+    } catch (err) {
+      console.error('[free batch template seed]', err);
+    }
+  }
+
   return toBatch(row);
 }
 
@@ -180,6 +197,7 @@ export async function updateBatch(batchId: string, changes: BatchUpdate): Promis
     ...(changes.capacity !== undefined && { capacity: changes.capacity }),
     ...(changes.cohortLabel !== undefined && { cohort_label: changes.cohortLabel }),
     ...(changes.courseFee !== undefined && { course_fee: changes.courseFee }),
+    ...(changes.isFree !== undefined && { is_free: changes.isFree }),
     ...(changes.startDate !== undefined && { start_date: changes.startDate }),
     ...(changes.startTime !== undefined && { start_time: changes.startTime }),
     ...(changes.endDate !== undefined && { end_date: changes.endDate }),
@@ -218,6 +236,16 @@ export async function updateBatch(batchId: string, changes: BatchUpdate): Promis
     ...(changes.discountedFee !== undefined && { discounted_fee: changes.discountedFee }),
   });
   const batch = toBatch(row);
+
+  // Flipping an existing Batch to free needs the same free_welcome backfill
+  // as createBatch — see the comment there.
+  if (changes.isFree === true) {
+    try {
+      await seedDefaultTemplatesForCourse(batch.courseId);
+    } catch (err) {
+      console.error('[free batch template seed]', err);
+    }
+  }
 
   // A capacity increase (or any other edit) may have freed a seat — cheap
   // to just always check rather than diff old vs new capacity, since
@@ -284,6 +312,7 @@ export async function getActiveBatchesForPublicForm(): Promise<PublicBatchOption
     cohortLabel: row.cohort_label,
     startDate: row.start_date,
     courseFee: Number(row.course_fee),
+    isFree: row.is_free,
     capacity: row.capacity,
     seatsRemaining,
     isFull: seatsRemaining !== null && seatsRemaining <= 0,
@@ -312,6 +341,7 @@ function toBatchInsert(input: BatchInput): Database['public']['Tables']['batches
     cohort_label: input.cohortLabel,
     capacity: input.capacity ?? null,
     course_fee: input.courseFee,
+    is_free: input.isFree,
     start_date: input.startDate,
     start_time: input.startTime,
     end_date: input.endDate,

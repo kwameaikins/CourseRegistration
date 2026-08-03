@@ -96,7 +96,7 @@ export async function selectRegistrationList(filters: RegistrationListFilters): 
       'full_name' | 'email' | 'phone' | 'job_title' | 'company' | 'gender'
     > | null;
     payment: PaymentRow | null;
-    batch: { cohort_label: string; course_id: string } | null;
+    batch: { cohort_label: string; course_id: string; is_free: boolean } | null;
     course: { course_name: string; course_code: string } | null;
     verifiedByName: string | null;
   }>;
@@ -145,7 +145,7 @@ export async function selectRegistrationList(filters: RegistrationListFilters): 
       .from('participants')
       .select('id, full_name, email, phone, job_title, company, gender')
       .in('id', participantIds),
-    supabase.from('batches').select('id, cohort_label, course_id').in('id', batchIds),
+    supabase.from('batches').select('id, cohort_label, course_id, is_free').in('id', batchIds),
     supabase.from('payments').select('*').in('registration_id', registrationIds),
   ]);
   if (participantsResult.error) throw participantsResult.error;
@@ -219,7 +219,7 @@ export async function selectAllRegistrationsForExport(
       'full_name' | 'email' | 'phone' | 'job_title' | 'company' | 'gender'
     > | null;
     payment: PaymentRow | null;
-    batch: { cohort_label: string; course_id: string } | null;
+    batch: { cohort_label: string; course_id: string; is_free: boolean } | null;
     course: { course_name: string; course_code: string } | null;
     verifiedByName: string | null;
   }>;
@@ -264,7 +264,7 @@ export async function selectAllRegistrationsForExport(
       .from('participants')
       .select('id, full_name, email, phone, job_title, company, gender')
       .in('id', participantIds),
-    supabase.from('batches').select('id, cohort_label, course_id').in('id', batchIds),
+    supabase.from('batches').select('id, cohort_label, course_id, is_free').in('id', batchIds),
     supabase.from('payments').select('*').in('registration_id', registrationIds),
   ]);
   if (participantsResult.error) throw participantsResult.error;

@@ -307,6 +307,39 @@ describe('applyDiscount — staff-granted discretionary discount / fee waiver', 
     expect(result.paymentStatus).toBe('Paid');
   });
 
+  // Before 202608030048_free_events.sql this case was silently broken:
+  // fn_derive_payment_status tested amount_paid <= 0 first, so waiving 100%
+  // of a never-paid fee left the row 'Unpaid' and none of the enrollment side
+  // effects ever fired — no confirmation, no Zoom join link — while the
+  // reminder cron kept chasing them for GHS 0.00.
+  it('runs the zero-fee enrollment side effects (not a payment receipt) when a waiver closes a never-paid balance', async () => {
+    usersServiceMock.requireRole.mockResolvedValue(ADMIN_STAFF);
+    paymentsRepositoryMock.selectPaymentByRegistrationId.mockResolvedValue(
+      existingPayment({ course_fee: 1200, amount_paid: 0, payment_status: 'Unpaid' }),
+    );
+    paymentsRepositoryMock.updatePaymentDiscount.mockResolvedValue(
+      existingPayment({
+        course_fee: 0,
+        original_fee: 1200,
+        discount_amount: 1200,
+        amount_paid: 0,
+        payment_status: 'Paid',
+      }),
+    );
+
+    const result = await applyDiscount('reg-1', { discountAmount: 1200, reason: 'Full waiver' });
+
+    expect(result.paymentStatus).toBe('Paid');
+    // The enrollment effects that matter still run...
+    expect(sendEmailOnceMock).toHaveBeenCalledWith('reg-1', 'whatsapp_invite');
+    expect(opportunitiesServiceMock.markWonByRegistrationId).toHaveBeenCalledWith('reg-1');
+    expect(leadsServiceMock.markEnrolledByRegistrationId).toHaveBeenCalledWith('reg-1');
+    // ...but no "we received your payment of GHS 0.00", and no commission on
+    // money that was never collected.
+    expect(sendEmailOnceMock).not.toHaveBeenCalledWith('reg-1', 'payment_confirmation');
+    expect(partnersServiceMock.accrueCommissionOnPaymentSystem).not.toHaveBeenCalled();
+  });
+
   it('rejects a discount exceeding the original fee', async () => {
     paymentsRepositoryMock.selectPaymentByRegistrationId.mockResolvedValue(
       existingPayment({ course_fee: 1200, amount_paid: 0 }),

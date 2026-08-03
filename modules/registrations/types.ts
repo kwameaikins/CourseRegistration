@@ -43,6 +43,9 @@ export interface RegistrationListRow {
   courseCode: string;
   cohortLabel: string;
   batchId: string;
+  // Free event / webinar: the row settles to Paid at GHS 0 on registration, so
+  // it is not a collections case and never belongs on the payments worklist.
+  isFree: boolean;
   leadSource: LeadSource;
   registrationStatus: RegistrationStatus;
   paymentStatus: PaymentStatus;

@@ -19,6 +19,9 @@ interface BatchOption {
   cohortLabel: string;
   startDate: string;
   courseFee: number;
+  // Free event / webinar (2026-08-03) — hides the fee line, the discount
+  // preview and the checkout entirely rather than showing them at zero.
+  isFree: boolean;
   // Waitlist feature (founder-approved 2026-07-24) — null capacity means
   // unlimited, so seatsRemaining/isFull are also null/false in that case.
   capacity: number | null;
@@ -120,6 +123,9 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
   }, []);
 
   const selectedBatch = batchOptions.find((option) => option.batchId === batchId) ?? null;
+  // Free event / webinar: no fee, no discount, no checkout — the whole
+  // payment side of this form is hidden rather than rendered at GHS 0.00.
+  const selectedBatchIsFree = selectedBatch?.isFree ?? false;
   const selectedBatchFee = selectedBatch ? effectiveCourseFee(selectedBatch) : null;
   const selectedBatchHasActiveDiscount =
     selectedBatch !== null && selectedBatchFee !== selectedBatch.courseFee;
@@ -310,15 +316,35 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
   }
 
   if (success) {
+    // A free event is settled the moment it is registered — there is nothing
+    // to check out, so this screen confirms and points at the portal instead
+    // of offering payment. Keyed on the amount actually owed rather than on
+    // isFree alone, so a code that covers the whole fee lands here too.
+    const owesNothing = success.courseFee <= 0;
     return (
       <div className="space-y-6 rounded-lg border bg-card p-6">
         <div>
           <h2 className="text-lg font-semibold text-emerald-700">
-            Registration received
+            {owesNothing ? "You're registered" : 'Registration received'}
           </h2>
           <p className="mt-2 text-sm">{success.message}</p>
         </div>
-        {selectedBatch && !paymentStarted && (
+        {owesNothing && (
+          <div className="space-y-3 border-t pt-4">
+            <p className="text-sm font-medium text-emerald-700">
+              Nothing to pay — your place is confirmed.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Your joining link is on its way by email, and is always available in your{' '}
+              <a href="/portal/login" className="underline">
+                student portal
+              </a>{' '}
+              — log in anytime with your email or phone number and PIN (the last 4 digits
+              of your phone number).
+            </p>
+          </div>
+        )}
+        {!owesNothing && selectedBatch && !paymentStarted && (
           <div className="space-y-3 border-t pt-4">
             <p className="text-sm font-medium">Course fee: {formatGhs(success.courseFee)}</p>
             <PaystackCheckout
@@ -387,6 +413,7 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
           {batchOptions.map((option) => (
             <option key={option.batchId} value={option.batchId}>
               {option.courseName} — {option.cohortLabel} — {formatDate(option.startDate)}
+              {option.isFree ? ' — Free' : ''}
             </option>
           ))}
         </select>
@@ -395,7 +422,9 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
         )}
         {selectedBatch && selectedBatchFee !== null && (
           <div className="text-sm text-muted-foreground">
-            {codeBeatsEarlyBird && displayedFee !== null ? (
+            {selectedBatchIsFree ? (
+              <p className="font-medium text-emerald-700">Free — no payment required</p>
+            ) : codeBeatsEarlyBird && displayedFee !== null ? (
               <p>
                 <span className="line-through">{formatGhs(selectedBatch.courseFee)}</span>{' '}
                 <span className="font-medium text-emerald-700">{formatGhs(displayedFee)}</span>{' '}
@@ -581,8 +610,16 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
           className="h-11 uppercase"
           onChange={(event) => setCouponCode(event.target.value.toUpperCase())}
         />
-        {checkingCode && <p className="text-sm text-muted-foreground">Checking code…</p>}
-        {!checkingCode && codePreview?.valid && (
+        {selectedBatchIsFree && (
+          <p className="text-sm text-muted-foreground">
+            This event is free, so there is no discount to apply — a code here just credits
+            whoever referred you.
+          </p>
+        )}
+        {checkingCode && !selectedBatchIsFree && (
+          <p className="text-sm text-muted-foreground">Checking code…</p>
+        )}
+        {!checkingCode && !selectedBatchIsFree && codePreview?.valid && (
           <p className="text-sm text-emerald-700">Code applied — discount shown above.</p>
         )}
         {!checkingCode && codePreview && !codePreview.valid && (

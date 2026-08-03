@@ -26,6 +26,18 @@ export function smsBodyForMessageType(
 ): string {
   switch (messageType) {
     case 'welcome':
+      // Free events keep the 'welcome' message type — so BR-07 deduplication
+      // is unchanged — and swap only the body. Quoting "Fee: GHS 0.00" and
+      // promising payment instructions on a webinar is exactly the failure
+      // this branch exists to prevent.
+      if (context.isFree) {
+        return (
+          `Hi ${context.participantFirstName}, you're registered for ` +
+          `${context.courseName} (${context.cohortLabel}) on ${context.startDate} at ` +
+          `${context.startTime}. It's free — nothing to pay. Joining details are in your ` +
+          `email. - Knowsia`
+        );
+      }
       return (
         `Hi ${context.participantFirstName}, we received your registration for ` +
         `${context.courseName} (${context.cohortLabel}). Fee: ${formatGhs(context.courseFee)}. ` +

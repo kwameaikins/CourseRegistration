@@ -35,6 +35,7 @@ interface RegistrationRow {
   courseName: string;
   cohortLabel: string;
   paymentStatus: 'Unpaid' | 'Part Payment' | 'Paid';
+  isFree: boolean;
   courseFee: number;
   originalFee: number | null;
   amountPaid: number;
@@ -183,11 +184,15 @@ export default function PaymentTrackingPage() {
     }
   }
 
-  const visibleRows = useMemo(
-    () =>
-      showSettled ? rows : rows.filter((row) => row.paymentStatus !== 'Paid'),
-    [rows, showSettled],
-  );
+  // Free events are dropped before the settled filter, not by it: their rows
+  // are Paid at GHS 0, so "show settled" would otherwise fill a collections
+  // screen with webinar sign-ups that were never a receivable.
+  const visibleRows = useMemo(() => {
+    const collectible = rows.filter((row) => !row.isFree);
+    return showSettled
+      ? collectible
+      : collectible.filter((row) => row.paymentStatus !== 'Paid');
+  }, [rows, showSettled]);
 
   function draftFor(row: RegistrationRow): DraftPayment {
     return (

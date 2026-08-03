@@ -14,6 +14,7 @@ export interface BatchSummaryRaw {
   cohortLabel: string;
   startDate: string;
   courseFee: number;
+  isFree: boolean;
   registrations: Array<{
     registrationId: string;
     leadSource: string;
@@ -29,7 +30,7 @@ export async function selectDashboardData(): Promise<BatchSummaryRaw[]> {
 
   const { data: batches, error: batchesError } = await supabase
     .from('batches')
-    .select('id, course_id, cohort_label, start_date, course_fee, is_active')
+    .select('id, course_id, cohort_label, start_date, course_fee, is_free, is_active')
     .eq('is_active', true)
     .order('start_date', { ascending: true });
   if (batchesError) throw batchesError;
@@ -63,6 +64,7 @@ export async function selectDashboardData(): Promise<BatchSummaryRaw[]> {
     cohortLabel: batch.cohort_label,
     startDate: batch.start_date,
     courseFee: Number(batch.course_fee),
+    isFree: batch.is_free,
     registrations: registrations
       .filter((registration) => registration.batch_id === batch.id)
       .map((registration) => {

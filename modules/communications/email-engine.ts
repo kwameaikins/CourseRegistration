@@ -102,11 +102,12 @@ export async function sendEmailOnce(
   };
 
   // Calendar invite (system review, 2026-07-24) — only on the welcome email,
-  // the one that lands right after registering. Built from the same context
-  // already loaded above, no extra DB read. A generation failure here must
-  // never block the email itself, so it's isolated in its own try/catch.
+  // the one that lands right after registering, in either its paid or its
+  // free-event form. Built from the same context already loaded above, no
+  // extra DB read. A generation failure here must never block the email
+  // itself, so it's isolated in its own try/catch.
   let attachments: Array<{ filename: string; content: string; contentType: string }> | undefined;
-  if (emailType === 'welcome') {
+  if (emailType === 'welcome' || emailType === 'free_welcome') {
     try {
       attachments = [
         buildCourseIcsAttachment({

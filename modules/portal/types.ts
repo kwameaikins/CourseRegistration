@@ -56,6 +56,10 @@ export interface PortalDashboardRegistration {
   // Same Paid-only visibility gate as zoomLink (founder-approved 2026-07-28
   // — course materials, same posture as the join link).
   resourcesLink: string | null;
+  // Free event / webinar: nothing was ever owed. The portal hides the fee,
+  // balance, receipt, installment-plan and payment-proof surfaces for these
+  // instead of rendering a row of zeros.
+  isFree: boolean;
   paymentStatus: string;
   courseFee: number;
   // Equal to courseFee when no staff discount has ever been granted;

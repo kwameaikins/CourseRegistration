@@ -55,6 +55,9 @@ interface DashboardRegistration {
   endDate: string;
   facilitatorName: string;
   zoomLink: string | null;
+  // Free event / webinar — nothing was ever owed, so every payment surface
+  // for this registration is hidden rather than shown at zero.
+  isFree: boolean;
   paymentStatus: string;
   courseFee: number;
   originalFee: number;
@@ -499,6 +502,14 @@ export default function PortalDashboardPage() {
   if (!dashboard) return null;
 
   const totalBalance = dashboard.registrations.reduce((sum, r) => sum + r.balance, 0);
+  // Free events never had a fee, so they are left out of Payments & Receipts
+  // entirely — a row of zeros there reads as a failed payment. A participant
+  // whose only registrations are free events sees no payments tab at all.
+  const payableRegistrations = dashboard.registrations.filter((r) => !r.isFree);
+  const navItems =
+    payableRegistrations.length > 0
+      ? NAV_ITEMS
+      : NAV_ITEMS.filter((item) => item.id !== 'payments');
   const allCertificates = dashboard.registrations.flatMap((r) =>
     r.certificates.map((c) => ({ ...c, courseName: r.courseName })),
   );
@@ -535,7 +546,7 @@ export default function PortalDashboardPage() {
           </div>
 
           <ul className="rail-nav" role="tablist">
-            {NAV_ITEMS.map((item) => (
+            {navItems.map((item) => (
               <li key={item.id}>
                 <button
                   type="button"
@@ -576,7 +587,7 @@ export default function PortalDashboardPage() {
             </button>
           </div>
           <nav className="topbar-nav" role="tablist" aria-label="Portal sections">
-            {NAV_ITEMS.map((item) => (
+            {navItems.map((item) => (
               <button
                 key={item.id}
                 type="button"
@@ -755,6 +766,17 @@ export default function PortalDashboardPage() {
                         </p>
                       )}
 
+                      {/* A free event never had a fee, so a Course fee /
+                          Amount paid / Balance grid of zeros only invites the
+                          question "did my payment go through?". */}
+                      {reg.isFree ? (
+                        <div className="fig-grid">
+                          <div>
+                            <span className="lbl">Cost</span>
+                            <span className="val">Free</span>
+                          </div>
+                        </div>
+                      ) : (
                       <div className="fig-grid">
                         <div>
                           <span className="lbl">Course fee</span>
@@ -772,6 +794,7 @@ export default function PortalDashboardPage() {
                         <div><span className="lbl">Amount paid</span><span className="val tnum">{formatGhs(reg.amountPaid)}</span></div>
                         <div><span className="lbl">Balance</span><span className={`val tnum${reg.balance > 0 ? ' balance' : ''}`}>{formatGhs(reg.balance)}</span></div>
                       </div>
+                      )}
 
                       <div className="join-row">
                         {reg.amountPaid > 0 && (
@@ -1048,7 +1071,7 @@ export default function PortalDashboardPage() {
                 <h2 className="panel-title">Payment history</h2>
                 <p className="panel-sub">One receipt per course, generated fresh each time so it always reflects your latest payment.</p>
 
-                {dashboard.registrations.length === 0 ? (
+                {payableRegistrations.length === 0 ? (
                   <p className="empty-note">No payments to show yet.</p>
                 ) : (
                   <div className="table-wrap">
@@ -1057,7 +1080,7 @@ export default function PortalDashboardPage() {
                         <tr><th>Course</th><th className="num">Fee</th><th className="num">Paid</th><th className="num">Balance</th><th>Status</th><th></th></tr>
                       </thead>
                       <tbody>
-                        {dashboard.registrations.map((reg) => (
+                        {payableRegistrations.map((reg) => (
                           <tr key={reg.registrationId}>
                             <td className="course-cell"><strong>{reg.courseName}</strong><span>{reg.cohortLabel}</span></td>
                             <td className="num tnum">{formatGhs(reg.courseFee)}</td>
@@ -1077,8 +1100,8 @@ export default function PortalDashboardPage() {
                       <tfoot>
                         <tr>
                           <td>Total</td>
-                          <td className="num tnum">{formatGhs(dashboard.registrations.reduce((s, r) => s + r.courseFee, 0))}</td>
-                          <td className="num tnum">{formatGhs(dashboard.registrations.reduce((s, r) => s + r.amountPaid, 0))}</td>
+                          <td className="num tnum">{formatGhs(payableRegistrations.reduce((s, r) => s + r.courseFee, 0))}</td>
+                          <td className="num tnum">{formatGhs(payableRegistrations.reduce((s, r) => s + r.amountPaid, 0))}</td>
                           <td className="num tnum">{formatGhs(totalBalance)}</td>
                           <td colSpan={2}></td>
                         </tr>

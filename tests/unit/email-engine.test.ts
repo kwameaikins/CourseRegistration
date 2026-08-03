@@ -31,6 +31,7 @@ function makeContext(overrides: Partial<RegistrationEmailContext> = {}): Registr
     courseName: 'ICAG Level 1 Prep',
     courseCode: 'ICAG-L1',
     cohortLabel: 'JUL-2026',
+    isFree: false,
     courseFee: 1200,
     amountPaid: 0,
     balance: 1200,

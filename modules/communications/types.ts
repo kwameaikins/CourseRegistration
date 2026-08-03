@@ -21,6 +21,7 @@ export const ALL_EMAIL_TYPES: readonly EmailType[] = [
   'post_training_thankyou',
   'upsell',
   'installment_reminder',
+  'free_welcome',
 ] as const;
 
 export const templateUpsertSchema = z.object({
@@ -61,6 +62,7 @@ export const PHASE_1_EMAIL_TYPES: readonly EmailType[] = [
   'class_reminder_2h',
   'upsell',
   'whatsapp_invite',
+  'free_welcome',
 ] as const;
 
 // Which Batch automation toggle gates each email type (BR-10).
@@ -71,6 +73,10 @@ export const EMAIL_TYPE_TOGGLE: Partial<
   Record<EmailType, 'welcome_email_enabled' | 'payment_reminder_enabled' | 'class_reminder_enabled'>
 > = {
   welcome: 'welcome_email_enabled',
+  // A free event's welcome carries its joining details, so it follows the
+  // welcome toggle — never the payment-reminder one, which staff would
+  // reasonably switch off for a webinar.
+  free_welcome: 'welcome_email_enabled',
   payment_instruction: 'payment_reminder_enabled',
   reminder_1: 'payment_reminder_enabled',
   reminder_2: 'payment_reminder_enabled',
@@ -99,6 +105,8 @@ export interface RegistrationEmailContext {
   courseName: string;
   courseCode: string;
   cohortLabel: string;
+  // Free event / webinar: message bodies must not quote a fee or a balance.
+  isFree: boolean;
   courseFee: number;
   amountPaid: number;
   balance: number;

@@ -129,12 +129,28 @@ registered for this course intake."
 runs inside the same transaction as any `UPDATE` or `INSERT` on `payments`. No application
 code ever sets `payment_status` directly — the column is set exclusively by the trigger.
 
-**Rule:**
+**Rule** (branch order revised 2026-08-03, `202608030048_free_events.sql`):
 ```
-IF amount_paid <= 0        THEN payment_status = 'Unpaid'
-IF 0 < amount_paid < fee    THEN payment_status = 'Part Payment'
 IF amount_paid >= fee       THEN payment_status = 'Paid'
+IF amount_paid <= 0         THEN payment_status = 'Unpaid'
+OTHERWISE                        payment_status = 'Part Payment'
 ```
+
+**Why the settled test comes first.** The original ordering tested
+`amount_paid <= 0` before `course_fee` was ever consulted, so a fee of zero —
+a free event (`batches.is_free`), a 100% code discount, or a full staff fee
+waiver granted before any money arrived — resolved to `'Unpaid'` and could
+never become `'Paid'`. That left those registrations permanently unconfirmed:
+no Zoom join link, no attendance, no certificate, and chased daily by the
+reminder cron for an outstanding GHS 0.00. The settled-first ordering matches
+`fn_derive_installment_status`, which has always ordered its branches this way.
+
+**Consequence:** a zero-fee Payment is `'Paid'` from the moment it is inserted.
+`payment_status = 'Paid'` therefore no longer implies money was collected —
+anything reasoning about revenue must read `amount_paid`, or exclude
+`batches.is_free`, rather than trusting the status alone. See BR-06 and the
+free-events notes in `modules/dashboard/service.ts` and
+`modules/certificates/service.ts`.
 
 **Application constraint:** The Finance UI and API layer must never send a `payment_status`
 value in a write request — only `amount_paid`. If a request includes `payment_status`
@@ -156,13 +172,24 @@ statement that attempts to set it.
 
 **Owning aggregate:** Registration+Payment
 **Concurrency control:** Database trigger (`trg_sync_registration_status`, Document 3,
-Section 4), `AFTER UPDATE OF amount_paid, course_fee`. `payment_status` is derived by a
+Section 4), `AFTER INSERT OR UPDATE OF amount_paid, course_fee`. `payment_status` is derived by a
 `BEFORE` trigger, so PostgreSQL would not fire an `UPDATE OF payment_status` trigger when the
 application's original `SET` clause only names `amount_paid`. The function compares old/new
-status, and the `WHERE registration_status = 'Registered'`
+status — guarded by `TG_OP`, since `OLD` is NULL on an INSERT — and the
+`WHERE registration_status = 'Registered'`
 clause in the trigger's `UPDATE` prevents overwriting a Registration that has already moved
 to `Attended` or `Cancelled` — the trigger only advances `Registered → Confirmed`, never
 regresses or overrides a later state.
+
+**INSERT arm (added 2026-08-03, `202608030048_free_events.sql`):** since BR-04's
+reorder, a zero-fee Payment is born `'Paid'` and no `UPDATE` ever follows it, so
+an UPDATE-only trigger would never confirm the Registration. The trigger now also
+fires on INSERT. Note that database triggers cannot send email or call Zoom, so
+the enrollment side effects that normally hang off the Paystack webhook are
+kicked off in application code instead — `paymentsService.runZeroFeeEnrollmentSideEffects`,
+called from `createRegistration` and from every discount/credit path that closes a
+balance at `amount_paid = 0`. That function deliberately omits the
+`payment_confirmation` receipt and commission accrual: no money changed hands.
 
 **Edge case handled:** If a Registration is manually set to `Cancelled` by an Admin, and a
 late bank transfer then arrives and is marked Paid, the trigger's guard clause prevents the

@@ -11,6 +11,10 @@ export interface DashboardSummary {
     courseName: string;
     cohortLabel: string;
     startDate: string;
+    // Free event / webinar. Every money figure below is 0 and every
+    // registration reads as Paid, so the dashboard renders a registration
+    // count for these instead of a revenue line and a 0%-collection tile.
+    isFree: boolean;
     totalRegistered: number;
     totalPaid: number;
     totalUnpaid: number;
@@ -80,6 +84,7 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       courseName: batch.courseName,
       cohortLabel: batch.cohortLabel,
       startDate: batch.startDate,
+      isFree: batch.isFree,
       totalRegistered: total,
       totalPaid: paid,
       totalUnpaid: unpaid,
@@ -87,20 +92,34 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       expectedRevenue: round2(expectedRevenue),
       revenueReceived: round2(revenueReceived),
       outstandingBalance: round2(expectedRevenue - revenueReceived),
-      paymentConversionRate: total === 0 ? 0 : round2((paid / total) * 100),
+      // A free event has no fee to collect, so "0 of 0 received, 0%" is not a
+      // collection failure — it is a category error. Report it as 100% rather
+      // than dragging the batch card into the red.
+      paymentConversionRate: batch.isFree ? 100 : total === 0 ? 0 : round2((paid / total) * 100),
     };
   });
 
+  // Two populations, deliberately: free-event registrations are real
+  // registrations and belong in the volume count, but they all read as Paid
+  // against a zero fee (see 202608030048), so including them in the money and
+  // conversion figures would inflate every conversion rate while contributing
+  // no revenue.
   const allRegistrations = batches.flatMap((batch) => batch.registrations);
+  const revenueRegistrations = batches
+    .filter((batch) => !batch.isFree)
+    .flatMap((batch) => batch.registrations);
   const monthStart = new Date();
   monthStart.setUTCDate(1);
   monthStart.setUTCHours(0, 0, 0, 0);
   const registrationsThisMonth = allRegistrations.filter(
     (r) => new Date(r.registeredAt) >= monthStart,
   );
+  const revenueRegistrationsThisMonth = revenueRegistrations.filter(
+    (r) => new Date(r.registeredAt) >= monthStart,
+  );
 
   const leadSourceMap = new Map<string, { count: number; paid: number }>();
-  for (const registration of allRegistrations) {
+  for (const registration of revenueRegistrations) {
     const entry = leadSourceMap.get(registration.leadSource) ?? { count: 0, paid: 0 };
     entry.count += 1;
     if (registration.paymentStatus === 'Paid') entry.paid += 1;
@@ -115,10 +134,10 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
       // registrations created this month — payment_date granularity per
       // payment event is a Phase 2 refinement.
       revenueReceivedThisMonth: round2(
-        registrationsThisMonth.reduce((sum, r) => sum + r.amountPaid, 0),
+        revenueRegistrationsThisMonth.reduce((sum, r) => sum + r.amountPaid, 0),
       ),
       totalOutstandingBalance: round2(
-        allRegistrations.reduce((sum, r) => sum + (r.courseFee - r.amountPaid), 0),
+        revenueRegistrations.reduce((sum, r) => sum + (r.courseFee - r.amountPaid), 0),
       ),
     },
     leadSources: [...leadSourceMap.entries()]

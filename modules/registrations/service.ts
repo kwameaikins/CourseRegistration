@@ -208,6 +208,24 @@ export async function createRegistration(
     course_fee: courseFee,
   });
 
+  // A registration that owes nothing the moment it is created — a free
+  // event/webinar, or a code discount that happened to cover the whole fee.
+  // fn_derive_payment_status marks the Payment 'Paid' and
+  // fn_sync_registration_status confirms the Registration on INSERT
+  // (202608030048), but no application code runs off those triggers, so the
+  // enrollment side effects the paid path gets from the Paystack webhook have
+  // to be kicked off here instead: WhatsApp group invite, Zoom registration
+  // and the personal join link, opportunity Won, lead Enrolled. Non-blocking,
+  // like every other post-registration effect below.
+  const owesNothing = courseFee <= 0;
+  if (owesNothing) {
+    try {
+      await paymentsService.runZeroFeeEnrollmentSideEffects(registration.id);
+    } catch (err) {
+      console.error('[registration zero-fee enrollment]', err);
+    }
+  }
+
   // Record the redemption (discount tracking + attribution) — never blocks
   // the registration itself. Commission accrual happens later, only once
   // the payment actually clears (modules/payments' runPaidTransitionSideEffects).
@@ -267,8 +285,14 @@ export async function createRegistration(
   }
 
   // E01, E02, E03 — email failures never fail the registration itself
-  // (Document 5, Section 2, step 7).
-  for (const emailType of ['welcome', 'payment_instruction', 'reminder_1'] as const) {
+  // (Document 5, Section 2, step 7). A free event gets its own money-free
+  // welcome instead, and none of the payment chase: asking a webinar
+  // registrant to settle GHS 0.00 is the single most visible way this feature
+  // goes wrong.
+  const emailTypes = batch.isFree
+    ? (['free_welcome'] as const)
+    : (['welcome', 'payment_instruction', 'reminder_1'] as const);
+  for (const emailType of emailTypes) {
     try {
       await communicationsService.sendEmailOnce(registration.id, emailType);
     } catch (err) {
@@ -278,13 +302,21 @@ export async function createRegistration(
 
   // WhatsApp welcome (doubles as payment instructions) — same non-blocking
   // posture as email: a messaging failure never fails the registration.
-  try {
-    await communicationsService.sendWhatsappOnce(registration.id, 'welcome');
-  } catch (err) {
-    console.error('[registration whatsapp welcome]', err);
+  // Suppressed on a free Batch: the send goes through the Meta-approved
+  // template course_registration_welcome, whose positional parameters include
+  // the fee, so there is no way to send it without quoting GHS 0.00. Restore
+  // this once a fee-free webinar template is approved (see whatsapp-engine).
+  if (!batch.isFree) {
+    try {
+      await communicationsService.sendWhatsappOnce(registration.id, 'welcome');
+    } catch (err) {
+      console.error('[registration whatsapp welcome]', err);
+    }
   }
 
-  // SMS welcome — same non-blocking posture.
+  // SMS welcome — same non-blocking posture. Free events keep the 'welcome'
+  // message type (so BR-07 deduplication is unchanged) and branch only the
+  // body text, which is assembled in sms-engine.
   try {
     await communicationsService.sendSmsOnce(registration.id, 'welcome');
   } catch (err) {
@@ -294,9 +326,15 @@ export async function createRegistration(
   return {
     outcome: 'registered',
     registrationId: registration.id,
-    registrationStatus: parseRegistrationStatus(registration.registration_status),
-    paymentStatus: parsePaymentStatus(payment.payment_status),
-    message: `Thank you, ${fullName}. Your registration for ${course?.courseName ?? batch.cohortLabel} has been received. Please check your email for payment instructions.`,
+    // The triggers already advanced a zero-fee registration to Confirmed by
+    // this point; the row read back from the INSERT above predates that.
+    registrationStatus: owesNothing
+      ? 'Confirmed'
+      : parseRegistrationStatus(registration.registration_status),
+    paymentStatus: owesNothing ? 'Paid' : parsePaymentStatus(payment.payment_status),
+    message: batch.isFree
+      ? `Thank you, ${fullName}. Your place at ${course?.courseName ?? batch.cohortLabel} is confirmed — there is nothing to pay. Check your email for the joining details.`
+      : `Thank you, ${fullName}. Your registration for ${course?.courseName ?? batch.cohortLabel} has been received. Please check your email for payment instructions.`,
     courseFee,
   };
 }
@@ -320,6 +358,7 @@ async function registerOneParticipant(params: {
   leadSource: RegistrationInput['leadSource'];
   paymentMethod: BulkImportRequest['paymentMethod'];
   courseFee: number;
+  isFree: boolean;
   notesSuffix: string;
   companyAllocationId?: string | null;
   actor: { id: string; fullName: string; role: string };
@@ -363,26 +402,47 @@ async function registerOneParticipant(params: {
     throw err;
   }
 
+  const appliedFee = row.courseFee ?? params.courseFee;
   await registrationsRepository.insertInitialPayment({
     registration_id: registration.id,
-    course_fee: row.courseFee ?? params.courseFee,
+    course_fee: appliedFee,
   });
 
   await registrationsRepository.updateRegistrationNotes(registration.id, params.notesSuffix);
 
+  // Same zero-fee enrollment path as createRegistration: the row is already
+  // Paid and Confirmed by the triggers, so the side effects that normally
+  // hang off the Paystack webhook have to be kicked off here. Skipped when
+  // the caller is about to apply a real payment below — that goes through
+  // applyPaymentUpdate, which runs them itself.
+  if (appliedFee <= 0 && row.amountPaid <= 0) {
+    try {
+      await paymentsService.runZeroFeeEnrollmentSideEffects(registration.id);
+    } catch (err) {
+      console.error('[registerOneParticipant zero-fee enrollment]', err);
+    }
+  }
+
   // Same non-blocking comms posture as createRegistration — a messaging
   // failure never fails the row itself.
-  for (const emailType of ['welcome', 'payment_instruction', 'reminder_1'] as const) {
+  const emailTypes = params.isFree
+    ? (['free_welcome'] as const)
+    : (['welcome', 'payment_instruction', 'reminder_1'] as const);
+  for (const emailType of emailTypes) {
     try {
       await communicationsService.sendEmailOnce(registration.id, emailType);
     } catch (err) {
       console.error(`[registerOneParticipant email ${emailType}]`, err);
     }
   }
-  try {
-    await communicationsService.sendWhatsappOnce(registration.id, 'welcome');
-  } catch (err) {
-    console.error('[registerOneParticipant whatsapp welcome]', err);
+  // Suppressed on a free Batch for the same reason as createRegistration: the
+  // approved Meta template quotes a fee.
+  if (!params.isFree) {
+    try {
+      await communicationsService.sendWhatsappOnce(registration.id, 'welcome');
+    } catch (err) {
+      console.error('[registerOneParticipant whatsapp welcome]', err);
+    }
   }
   try {
     await communicationsService.sendSmsOnce(registration.id, 'welcome');
@@ -439,6 +499,7 @@ export async function bulkImportRegistrations(
         leadSource: input.leadSource,
         paymentMethod: input.paymentMethod,
         courseFee: defaultCourseFee,
+        isFree: batch.isFree,
         notesSuffix,
         actor: { id: staffUser.id, fullName: staffUser.fullName, role: staffUser.role },
         paymentNotes: 'Bulk import',
@@ -490,6 +551,7 @@ export async function createCorporateEmployeeRegistration(
     leadSource: RegistrationInput['leadSource'];
     paymentMethod: BulkImportRequest['paymentMethod'];
     courseFee: number;
+    isFree: boolean;
     companyAllocationId: string;
     companyName: string;
   },
@@ -504,6 +566,7 @@ export async function createCorporateEmployeeRegistration(
     leadSource: context.leadSource,
     paymentMethod: context.paymentMethod,
     courseFee: context.courseFee,
+    isFree: context.isFree,
     notesSuffix: `Corporate registration — ${context.companyName}`,
     companyAllocationId: context.companyAllocationId,
     actor,
@@ -530,6 +593,7 @@ function toRegistrationListRow(
     courseCode: row.course?.course_code ?? '',
     cohortLabel: row.batch?.cohort_label ?? '',
     batchId: row.registration.batch_id,
+    isFree: row.batch?.is_free ?? false,
     leadSource: parseLeadSource(row.registration.lead_source),
     registrationStatus: parseRegistrationStatus(row.registration.registration_status),
     paymentStatus: parsePaymentStatus(row.payment?.payment_status ?? 'Unpaid'),
@@ -614,6 +678,10 @@ const EXPORT_COLUMNS: Array<{ key: keyof RegistrationListRow; header: string }> 
   { key: 'cohortLabel', header: 'Cohort' },
   { key: 'leadSource', header: 'Lead Source' },
   { key: 'registrationStatus', header: 'Registration Status' },
+  // Free-event rows export as Paid / 0 / 0 / 0, which is truthful but
+  // indistinguishable from a genuine settled sale. This column lets finance
+  // filter them out of a reconciliation instead of reading zeros as revenue.
+  { key: 'isFree', header: 'Free Event' },
   { key: 'paymentStatus', header: 'Payment Status' },
   { key: 'courseFee', header: 'Course Fee' },
   { key: 'amountPaid', header: 'Amount Paid' },

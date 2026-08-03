@@ -97,6 +97,7 @@ export async function selectActiveFutureBatchesPublic(): Promise<
       | 'cohort_label'
       | 'start_date'
       | 'course_fee'
+      | 'is_free'
       | 'capacity'
       | 'discount_cutoff_date'
       | 'discounted_fee'
@@ -109,7 +110,7 @@ export async function selectActiveFutureBatchesPublic(): Promise<
   const { data: batches, error: batchesError } = await supabase
     .from('batches')
     .select(
-      'id, course_id, cohort_label, start_date, course_fee, capacity, discount_cutoff_date, discounted_fee',
+      'id, course_id, cohort_label, start_date, course_fee, is_free, capacity, discount_cutoff_date, discounted_fee',
     )
     .eq('is_active', true)
     .gte('start_date', new Date().toISOString().slice(0, 10))
@@ -136,6 +137,7 @@ export async function selectActiveFutureBatchesPublic(): Promise<
     cohort_label: batch.cohort_label,
     start_date: batch.start_date,
     course_fee: batch.course_fee,
+    is_free: batch.is_free,
     capacity: batch.capacity,
     discount_cutoff_date: batch.discount_cutoff_date,
     discounted_fee: batch.discounted_fee,

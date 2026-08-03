@@ -65,6 +65,7 @@ export default function CertificatesPage() {
   // Batch issuance state.
   const [selectedBatchId, setSelectedBatchId] = useState('');
   const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [batchIsFree, setBatchIsFree] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchForm, setBatchForm] = useState({ hours: '', description: '', cpdCredit: 'TBD' });
   const [issuing, setIssuing] = useState(false);
@@ -100,6 +101,7 @@ export default function CertificatesPage() {
   async function loadCandidates(batchId: string) {
     setSelectedBatchId(batchId);
     setCandidates([]);
+    setBatchIsFree(false);
     setSelectedIds(new Set());
     if (!batchId) return;
     try {
@@ -108,7 +110,9 @@ export default function CertificatesPage() {
         defaultHours: number;
         defaultDescription: string;
         defaultCpdCredit: string;
+        batchIsFree: boolean;
       }>(`/api/certificates/batch?batchId=${encodeURIComponent(batchId)}`);
+      setBatchIsFree(data.batchIsFree);
       setCandidates(data.candidates);
       setSelectedIds(
         new Set(data.candidates.filter((c) => c.eligible).map((c) => c.registrationId)),
@@ -288,6 +292,14 @@ export default function CertificatesPage() {
                 }
               />
             </div>
+
+            {batchIsFree && (
+              <p className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
+                This is a free event, so every registration reads as Paid — eligibility
+                here is <strong>attended at least one session + feedback submitted</strong>.
+                Attendance only appears once the Zoom sync has run for this batch.
+              </p>
+            )}
 
             <div className="overflow-x-auto rounded-lg border">
               <table className="w-full text-sm">

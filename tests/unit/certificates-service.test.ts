@@ -139,6 +139,7 @@ describe('batch issuance', () => {
     repositoryMock.selectBatchIssueContext.mockResolvedValue({
       courseCode: 'ESG1',
       courseTitle: 'ESG and Sustainability Reporting',
+      batchIsFree: false,
       candidates: [
         candidate(),
         candidate({ registrationId: 'reg-2', paid: false }),
@@ -160,10 +161,47 @@ describe('batch issuance', () => {
     expect(context!.candidates[0].attendancePercent).toBe(80);
   });
 
+  // Free events (2026-08-03): a zero-fee registration settles to 'Paid' the
+  // instant it is created, so `paid` is true for everyone who filled in the
+  // form. Attendance replaces it as the participation signal — otherwise a
+  // certificate would go to people who never turned up.
+  it('requires attendance instead of payment on a free batch', async () => {
+    repositoryMock.selectBatchIssueContext.mockResolvedValue({
+      courseCode: 'ESG1',
+      courseTitle: 'ESG and Sustainability Reporting',
+      batchIsFree: true,
+      candidates: [
+        candidate(),
+        // Registered and "paid" (at zero) but never attended — must NOT qualify.
+        candidate({ registrationId: 'reg-2', attendedSessions: 0 }),
+        candidate({ registrationId: 'reg-3', feedbackSubmitted: false }),
+      ],
+    });
+
+    const context = await getBatchIssueContext('batch-1');
+    const eligibility = Object.fromEntries(
+      context!.candidates.map((c) => [c.registrationId, c.eligible]),
+    );
+    expect(eligibility).toEqual({ 'reg-1': true, 'reg-2': false, 'reg-3': false });
+  });
+
+  it('still ignores attendance on a paid batch, where payment is the gate', async () => {
+    repositoryMock.selectBatchIssueContext.mockResolvedValue({
+      courseCode: 'ESG1',
+      courseTitle: 'ESG and Sustainability Reporting',
+      batchIsFree: false,
+      candidates: [candidate({ attendedSessions: 0 })],
+    });
+
+    const context = await getBatchIssueContext('batch-1');
+    expect(context!.candidates[0].eligible).toBe(true);
+  });
+
   it('issues and emails selected registrations, skipping already-issued ones', async () => {
     repositoryMock.selectBatchIssueContext.mockResolvedValue({
       courseCode: 'ESG1',
       courseTitle: 'ESG and Sustainability Reporting',
+      batchIsFree: false,
       candidates: [candidate(), candidate({ registrationId: 'reg-4', alreadyIssued: true })],
     });
 
@@ -241,6 +279,7 @@ describe('issueCertificateIfEligible — feedback auto-issue (2026-07-27)', () =
       defaultHours: 20,
       defaultDescription: 'focused on ESG reporting.',
       defaultCpdCredit: 'TBD',
+      batchIsFree: false,
       candidates: [candidate()],
       ...overrides,
     };
@@ -249,6 +288,18 @@ describe('issueCertificateIfEligible — feedback auto-issue (2026-07-27)', () =
   beforeEach(() => {
     repositoryMock.selectBatchIdForRegistration.mockResolvedValue('batch-1');
     repositoryMock.selectBatchIssueContext.mockResolvedValue(batchIssueContext());
+  });
+
+  it('does not auto-issue on a free batch until attendance has been recorded', async () => {
+    repositoryMock.selectBatchIssueContext.mockResolvedValue(
+      batchIssueContext({
+        batchIsFree: true,
+        candidates: [candidate({ attendedSessions: 0 })],
+      }),
+    );
+
+    expect(await issueCertificateIfEligible('reg-1')).toBeNull();
+    expect(repositoryMock.insertCertificate).not.toHaveBeenCalled();
   });
 
   it('issues a certificate with issued_by null when Paid + feedback submitted', async () => {

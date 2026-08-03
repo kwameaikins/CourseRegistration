@@ -173,6 +173,7 @@ export type Database = {
           facilitator_tutor_id: string | null
           id: string
           is_active: boolean
+          is_free: boolean
           payment_reminder_enabled: boolean
           resources_link: string | null
           sms_enabled: boolean
@@ -200,6 +201,7 @@ export type Database = {
           facilitator_tutor_id?: string | null
           id?: string
           is_active?: boolean
+          is_free?: boolean
           payment_reminder_enabled?: boolean
           resources_link?: string | null
           sms_enabled?: boolean
@@ -227,6 +229,7 @@ export type Database = {
           facilitator_tutor_id?: string | null
           id?: string
           is_active?: boolean
+          is_free?: boolean
           payment_reminder_enabled?: boolean
           resources_link?: string | null
           sms_enabled?: boolean

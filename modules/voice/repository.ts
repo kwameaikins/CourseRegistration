@@ -219,7 +219,10 @@ export async function selectCustomerSummaryByIdentifier(identifier: string): Pro
 }
 
 // 1. payment_followup — Unpaid, registered 3+ days ago, batch active with
-// payment reminders on and not yet started.
+// payment reminders on and not yet started. Free events are excluded outright:
+// an AI voice call chasing a webinar registrant for a balance of GHS 0.00 is
+// the worst-case version of this feature going wrong, so it does not rely on
+// their payment_status settling to 'Paid' alone.
 export async function selectPaymentFollowupRegistrations(
   cutoffIso: string,
   todayIso: string,
@@ -229,6 +232,7 @@ export async function selectPaymentFollowupRegistrations(
     .from('batches')
     .select('id')
     .eq('is_active', true)
+    .eq('is_free', false)
     .eq('payment_reminder_enabled', true)
     .gte('start_date', todayIso);
   if (batchesError) throw batchesError;

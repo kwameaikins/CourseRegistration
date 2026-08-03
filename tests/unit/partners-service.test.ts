@@ -364,6 +364,33 @@ describe('accrueCommissionOnPaymentSystem — Pending starts only once payment c
     );
   });
 
+  // Free events (2026-08-03): attribution is still recorded (redeemCodeSystem
+  // runs at registration regardless of fee), but nothing was collected, so
+  // nothing is earned. The institutional case is the one that actually leaks
+  // money without the guard — its flat fee never looks at amountPaid.
+  it('accrues nothing for an institutional partner when the amount paid is zero (free event)', async () => {
+    partnersRepositoryMock.selectPartnerByIdSystem.mockResolvedValue(
+      partnerRow({ category: 'institutional' }),
+    );
+    partnersRepositoryMock.countCommissionsForPartnerSinceSystem.mockResolvedValue(60);
+    await accrueCommissionOnPaymentSystem(REGISTRATION_ID, 0);
+    expect(partnersRepositoryMock.insertCommissionSystem).not.toHaveBeenCalled();
+  });
+
+  it('accrues nothing for an ambassador or tutor partner on a zero-fee registration', async () => {
+    partnersRepositoryMock.selectPartnerByIdSystem.mockResolvedValue(
+      partnerRow({ category: 'ambassador' }),
+    );
+    await accrueCommissionOnPaymentSystem(REGISTRATION_ID, 0);
+
+    partnersRepositoryMock.selectPartnerByIdSystem.mockResolvedValue(
+      partnerRow({ category: 'tutor' }),
+    );
+    await accrueCommissionOnPaymentSystem(REGISTRATION_ID, 0);
+
+    expect(partnersRepositoryMock.insertCommissionSystem).not.toHaveBeenCalled();
+  });
+
   it('a strategic partner with no negotiated rate earns no automatic commission (doc SSD)', async () => {
     partnersRepositoryMock.selectPartnerByIdSystem.mockResolvedValue(
       partnerRow({ category: 'strategic', commission_rate: null }),

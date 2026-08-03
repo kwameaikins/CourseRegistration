@@ -300,6 +300,10 @@ export async function getPortalDashboard(sessionId: string | undefined): Promise
           : null,
       resourcesLink:
         row.payment?.payment_status === 'Paid' ? (row.batch?.resources_link ?? null) : null,
+      // Free event / webinar: nothing was ever owed, so the portal hides the
+      // fee, balance, receipt, installment-plan and payment-proof surfaces
+      // rather than showing a row of zeros the participant has to interpret.
+      isFree: row.batch?.is_free ?? false,
       paymentStatus: row.payment?.payment_status ?? 'Unpaid',
       courseFee: Number(row.payment?.course_fee ?? 0),
       originalFee: Number(row.payment?.original_fee ?? row.payment?.course_fee ?? 0),

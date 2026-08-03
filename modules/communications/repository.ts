@@ -232,6 +232,7 @@ export async function selectRegistrationEmailContext(
     courseName: course.course_name,
     courseCode: course.course_code,
     cohortLabel: batch.cohort_label,
+    isFree: batch.is_free,
     courseFee: Number(payment?.course_fee ?? batch.course_fee),
     amountPaid: Number(payment?.amount_paid ?? 0),
     balance: Number(payment?.balance ?? batch.course_fee),
@@ -253,6 +254,12 @@ export async function selectRegistrationEmailContext(
 
 // Cron candidate query (Document 2, Section 7, step 2): every Registration in
 // an Active batch whose payment is Unpaid or Part Payment.
+//
+// Free events are excluded twice over: their payments settle to 'Paid' at
+// registration so they would not match the status filter anyway, and the
+// is_free filter below states the intent outright. Chasing a webinar
+// registrant for an outstanding GHS 0.00 is the most visible way this feature
+// could embarrass us, so it does not rest on a trigger side effect alone.
 export async function selectUnpaidRegistrationsInActiveBatches(): Promise<
   Array<{
     registrationId: string;
@@ -266,7 +273,8 @@ export async function selectUnpaidRegistrationsInActiveBatches(): Promise<
   const { data: batches, error: batchesError } = await supabase
     .from('batches')
     .select('id, start_date, payment_reminder_enabled')
-    .eq('is_active', true);
+    .eq('is_active', true)
+    .eq('is_free', false);
   if (batchesError) throw batchesError;
   if (batches.length === 0) return [];
   const batchById = new Map(batches.map((batch) => [batch.id, batch]));

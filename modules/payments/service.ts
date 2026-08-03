@@ -97,6 +97,26 @@ export async function runPaidTransitionSideEffects(
   } catch (err) {
     console.error('[payment_confirmation sms]', err);
   }
+  await runSettledEnrollmentSideEffects(registrationId);
+}
+
+// A Registration that owes nothing from the moment it is created: a free
+// event/webinar (batches.is_free), a 100% code discount, or a full staff fee
+// waiver granted before any money arrived. It is Paid and Confirmed by the
+// database triggers, but no payment ever "transitioned", so it needs the same
+// enrollment side effects WITHOUT the two that only make sense against real
+// money:
+//   * payment_confirmation — would read "we received your payment of GHS 0.00"
+//   * commission accrual    — nothing was collected to commission on, and
+//     institutional partners earn a FLAT fee that ignores the amount paid
+//     (see partners/service.ts computeCommissionAmount), so calling it here
+//     would pay out real cash for a free signup.
+export async function runZeroFeeEnrollmentSideEffects(registrationId: string): Promise<void> {
+  await runSettledEnrollmentSideEffects(registrationId);
+}
+
+// The enrollment side effects that apply however the balance reached zero.
+async function runSettledEnrollmentSideEffects(registrationId: string): Promise<void> {
   // WhatsApp group invitation (founder-flagged gap closed 2026-08-01) — fires
   // exactly once per registration alongside payment_confirmation, since this
   // function is the one funnel every Paid-transition path goes through.
@@ -168,7 +188,13 @@ export async function applyPaymentUpdate(
   });
 
   if (updated.payment_status === 'Paid' && statusBefore !== 'Paid') {
-    await runPaidTransitionSideEffects(registrationId, Number(updated.amount_paid));
+    // Settling a zero-fee registration (a free event, or a fee already waived
+    // to nothing) records no money, so it skips the receipt and commission.
+    if (Number(updated.amount_paid) <= 0) {
+      await runZeroFeeEnrollmentSideEffects(registrationId);
+    } else {
+      await runPaidTransitionSideEffects(registrationId, Number(updated.amount_paid));
+    }
   }
 
   // Keep any payment-plan schedule in sync with the new total — never lets
@@ -377,9 +403,10 @@ export async function updatePaymentByStaff(
 
 // Staff-granted discretionary discount / full fee waiver (founder-approved
 // 2026-07-22). Reduces course_fee directly so it flows through the existing
-// fn_derive_payment_status / fn_sync_registration_status triggers with no
-// trigger changes: if amount_paid already covers the new, lower course_fee
-// the payment flips to Paid in the same write. Finance and admin can both
+// fn_derive_payment_status / fn_sync_registration_status triggers: if
+// amount_paid covers the new, lower course_fee the payment flips to Paid in
+// the same write — including the amount_paid = 0 case, which only became true
+// with 202608030048_free_events.sql. Finance and admin can both
 // grant a partial discount (free-form amount, mandatory reason — no system
 // cap); only admin may grant a discount that brings the remaining balance to
 // zero (a full fee waiver), regardless of how much has already been paid.
@@ -424,8 +451,18 @@ export async function applyDiscount(
 
   if (updated.payment_status === 'Paid' && statusBefore !== 'Paid') {
     // Staff-initiated — no browser waiting, so no portal login token here
-    // (only the Paystack webhook path mints one).
-    await runPaidTransitionSideEffects(registrationId, Number(updated.amount_paid));
+    // (only the Paystack webhook path mints one). A waiver granted before any
+    // money arrived settles the balance without a payment ever existing, so it
+    // takes the zero-fee path: no "we received your payment of GHS 0.00"
+    // receipt and no commission on nothing collected. Before 202608030048 this
+    // branch was unreachable in that case — fn_derive_payment_status left the
+    // row 'Unpaid', so a fully-waived registrant silently got no confirmation
+    // and no Zoom join link at all.
+    if (Number(updated.amount_paid) <= 0) {
+      await runZeroFeeEnrollmentSideEffects(registrationId);
+    } else {
+      await runPaidTransitionSideEffects(registrationId, Number(updated.amount_paid));
+    }
   }
 
   // Keep any payment-plan schedule in sync with the new, discounted fee —
@@ -517,7 +554,14 @@ export async function redeemCommissionCreditSystem(
   });
 
   if (updated.payment_status === 'Paid' && statusBefore !== 'Paid') {
-    await runPaidTransitionSideEffects(targetRegistrationId, Number(updated.amount_paid));
+    // Credit that closes the balance without any cash having been received
+    // takes the zero-fee path — accruing commission on a redemption that
+    // collected nothing would pay the partner twice for the same referral.
+    if (Number(updated.amount_paid) <= 0) {
+      await runZeroFeeEnrollmentSideEffects(targetRegistrationId);
+    } else {
+      await runPaidTransitionSideEffects(targetRegistrationId, Number(updated.amount_paid));
+    }
   }
 
   try {

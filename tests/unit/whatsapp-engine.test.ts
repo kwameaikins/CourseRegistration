@@ -43,6 +43,7 @@ function makeContext(
     courseName: 'ICAG Level 1 Prep',
     courseCode: 'ICAG-L1',
     cohortLabel: 'JUL-2026',
+    isFree: false,
     courseFee: 1200,
     amountPaid: 0,
     balance: 1200,
@@ -87,6 +88,36 @@ describe('Ghana phone normalization for WhatsApp', () => {
 
   it('rejects obviously unusable values', () => {
     expect(normalizeWhatsappPhone('12345')).toBeNull();
+  });
+});
+
+// Free events (2026-08-03): every money-shaped WhatsApp template quotes an
+// amount in its Meta-approved positional parameters, so none can be sent for
+// a webinar without reading "GHS 0.00". Skipped BEFORE the BR-07 reservation
+// so they become sendable the moment a fee-free template is approved.
+describe('sendWhatsappOnce — free events suppress the money-shaped templates', () => {
+  beforeEach(() => {
+    repositoryMock.selectRegistrationEmailContext.mockResolvedValue(
+      makeContext({ isFree: true, courseFee: 0, balance: 0 }),
+    );
+  });
+
+  it.each(['welcome', 'payment_confirmation', 'reminder_1', 'reminder_4'] as const)(
+    'skips %s without reserving a log slot',
+    async (messageType) => {
+      const outcome = await sendWhatsappOnce('reg-1', messageType);
+
+      expect(outcome).toBe('skipped_gated');
+      expect(repositoryMock.reserveWhatsappLogSlot).not.toHaveBeenCalled();
+      expect(clientMock.sendWhatsappTemplateMessage).not.toHaveBeenCalled();
+    },
+  );
+
+  it('still sends the group invite, which quotes no amount', async () => {
+    const outcome = await sendWhatsappOnce('reg-1', 'whatsapp_invite');
+
+    expect(outcome).toBe('sent');
+    expect(clientMock.sendWhatsappTemplateMessage).toHaveBeenCalled();
   });
 });
 

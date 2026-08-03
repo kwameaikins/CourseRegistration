@@ -26,6 +26,12 @@ export interface Batch {
   cohortLabel: string;
   capacity: number | null;
   courseFee: number;
+  // Free event / webinar (founder request 2026-08-03): no fee is ever
+  // charged, registrants are confirmed on sign-up. Requires courseFee 0 and
+  // no early-registration discount. Deliberately distinct from a paid Batch
+  // whose fee reached zero for one person via a code discount or a staff
+  // waiver — those still count as revenue-bearing.
+  isFree: boolean;
   startDate: string;
   startTime: string;
   endDate: string;
@@ -64,6 +70,7 @@ export interface PublicBatchOption {
   cohortLabel: string;
   startDate: string;
   courseFee: number;
+  isFree: boolean;
   capacity: number | null;
   seatsRemaining: number | null;
   isFull: boolean;
@@ -136,6 +143,7 @@ export const batchInputSchema = z
     cohortLabel: z.string().trim().min(1),
     capacity: z.number().int().positive().nullable().optional(),
     courseFee: z.number().min(0),
+    isFree: z.boolean().default(false),
     startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     startTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
     endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -171,13 +179,27 @@ export const batchInputSchema = z
       return fee === null || fee <= batch.courseFee;
     },
     { message: 'Discounted Fee must not exceed the Course Fee', path: ['discountedFee'] },
-  );
+  )
+  // Mirrors the free_batch_has_no_fee DB constraint (202608030048) so the
+  // staff form reports it as a field error instead of a 500 from Postgres.
+  .refine((batch) => !batch.isFree || batch.courseFee === 0, {
+    message: 'A free event cannot have a course fee',
+    path: ['courseFee'],
+  })
+  .refine((batch) => !batch.isFree || (batch.discountedFee ?? null) === null, {
+    message: 'A free event cannot have an early-registration discount',
+    path: ['discountedFee'],
+  });
 
 export const batchUpdateSchema = z
   .object({
     cohortLabel: z.string().trim().min(1).optional(),
     capacity: z.number().int().positive().nullable().optional(),
     courseFee: z.number().min(0).optional(),
+    // Same partial-PATCH caveat as the discount fields below: flipping a
+    // Batch to free without also sending courseFee: 0 in the same body is
+    // caught by the free_batch_has_no_fee DB constraint, not here.
+    isFree: z.boolean().optional(),
     startDate: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -211,7 +233,11 @@ export const batchUpdateSchema = z
   .refine(
     (batch) => !batch.startDate || !batch.endDate || batch.startDate <= batch.endDate,
     { message: 'Start Date must be on or before End Date', path: ['startDate'] },
-  );
+  )
+  .refine((batch) => batch.isFree !== true || batch.courseFee === undefined || batch.courseFee === 0, {
+    message: 'A free event cannot have a course fee',
+    path: ['courseFee'],
+  });
 
 export type CourseInput = z.infer<typeof courseInputSchema>;
 export type BatchInput = z.infer<typeof batchInputSchema>;

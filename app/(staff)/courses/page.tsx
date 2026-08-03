@@ -42,6 +42,9 @@ interface Batch {
   // Waitlist feature (founder-approved 2026-07-24) — null means unlimited.
   capacity: number | null;
   courseFee: number;
+  // Free event / webinar (2026-08-03) — requires courseFee 0 and no
+  // early-registration discount (DB constraint free_batch_has_no_fee).
+  isFree: boolean;
   startDate: string;
   startTime: string;
   endDate: string;
@@ -72,6 +75,7 @@ const EMPTY_BATCH_FORM = {
   cohortLabel: '',
   capacity: '',
   courseFee: '',
+  isFree: false,
   startDate: '',
   startTime: '09:00',
   endDate: '',
@@ -206,7 +210,11 @@ export default function CourseControlPanelPage() {
           courseId,
           cohortLabel: batchForm.cohortLabel,
           capacity: batchForm.capacity ? Number(batchForm.capacity) : null,
-          courseFee: Number(batchForm.courseFee),
+          // A free event carries no fee and no early-bird discount — send the
+          // zeroed values explicitly rather than whatever was typed before the
+          // toggle was flipped, which the DB constraint would reject.
+          courseFee: batchForm.isFree ? 0 : Number(batchForm.courseFee),
+          isFree: batchForm.isFree,
           startDate: batchForm.startDate,
           startTime: batchForm.startTime,
           endDate: batchForm.endDate,
@@ -214,8 +222,11 @@ export default function CourseControlPanelPage() {
           resourcesLink: batchForm.resourcesLink || null,
           facilitatorName: batchForm.facilitatorName,
           facilitatorTutorId: batchForm.facilitatorTutorId || null,
-          discountCutoffDate: batchForm.discountCutoffDate || null,
-          discountedFee: batchForm.discountedFee ? Number(batchForm.discountedFee) : null,
+          discountCutoffDate: batchForm.isFree ? null : batchForm.discountCutoffDate || null,
+          discountedFee:
+            batchForm.isFree || !batchForm.discountedFee
+              ? null
+              : Number(batchForm.discountedFee),
         }),
       });
       setBatchForm(EMPTY_BATCH_FORM);
@@ -248,6 +259,7 @@ export default function CourseControlPanelPage() {
       cohortLabel: batch.cohortLabel,
       capacity: batch.capacity !== null ? String(batch.capacity) : '',
       courseFee: String(batch.courseFee),
+      isFree: batch.isFree,
       startDate: batch.startDate,
       startTime: batch.startTime,
       endDate: batch.endDate,
@@ -269,7 +281,8 @@ export default function CourseControlPanelPage() {
         body: JSON.stringify({
           cohortLabel: editBatchForm.cohortLabel,
           capacity: editBatchForm.capacity ? Number(editBatchForm.capacity) : null,
-          courseFee: Number(editBatchForm.courseFee),
+          courseFee: editBatchForm.isFree ? 0 : Number(editBatchForm.courseFee),
+          isFree: editBatchForm.isFree,
           startDate: editBatchForm.startDate,
           startTime: editBatchForm.startTime,
           endDate: editBatchForm.endDate,
@@ -277,8 +290,13 @@ export default function CourseControlPanelPage() {
           resourcesLink: editBatchForm.resourcesLink || null,
           facilitatorName: editBatchForm.facilitatorName,
           facilitatorTutorId: editBatchForm.facilitatorTutorId || null,
-          discountCutoffDate: editBatchForm.discountCutoffDate || null,
-          discountedFee: editBatchForm.discountedFee ? Number(editBatchForm.discountedFee) : null,
+          discountCutoffDate: editBatchForm.isFree
+            ? null
+            : editBatchForm.discountCutoffDate || null,
+          discountedFee:
+            editBatchForm.isFree || !editBatchForm.discountedFee
+              ? null
+              : Number(editBatchForm.discountedFee),
         }),
       });
       setEditingBatchId(null);
@@ -584,15 +602,34 @@ export default function CourseControlPanelPage() {
                         <Label htmlFor={`edit-courseFee-${batch.id}`}>Course Fee (GHS)</Label>
                         <Input
                           id={`edit-courseFee-${batch.id}`}
-                          required
+                          required={!editBatchForm.isFree}
+                          disabled={editBatchForm.isFree}
                           type="number"
                           min="0"
                           step="0.01"
-                          value={editBatchForm.courseFee}
+                          value={editBatchForm.isFree ? '0' : editBatchForm.courseFee}
                           onChange={(event) =>
                             setEditBatchForm({ ...editBatchForm, courseFee: event.target.value })
                           }
                         />
+                      </div>
+                      <div className="col-span-2 flex items-start gap-3 rounded-md border p-3">
+                        <input
+                          id={`edit-isFree-${batch.id}`}
+                          type="checkbox"
+                          className="mt-1 h-4 w-4 shrink-0"
+                          checked={editBatchForm.isFree}
+                          onChange={(event) =>
+                            setEditBatchForm({ ...editBatchForm, isFree: event.target.checked })
+                          }
+                        />
+                        <Label htmlFor={`edit-isFree-${batch.id}`} className="font-normal">
+                          Free event / webinar
+                          <span className="mt-1 block text-xs text-muted-foreground">
+                            Clears the fee and any early-bird discount. Existing
+                            registrations on this batch keep the fee they were given.
+                          </span>
+                        </Label>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor={`edit-capacity-${batch.id}`}>
@@ -775,7 +812,8 @@ export default function CourseControlPanelPage() {
                           <p className="font-medium">{batch.cohortLabel}</p>
                           <p className="text-sm text-muted-foreground">
                             {formatDate(batch.startDate)} – {formatDate(batch.endDate)} ·{' '}
-                            {formatGhs(batch.courseFee)} · {batch.facilitatorName}
+                            {batch.isFree ? 'Free event' : formatGhs(batch.courseFee)} ·{' '}
+                            {batch.facilitatorName}
                           </p>
                           {batch.discountCutoffDate && batch.discountedFee !== null && (
                             <p className="text-sm text-emerald-700">
@@ -898,15 +936,35 @@ export default function CourseControlPanelPage() {
                       <Label htmlFor="courseFee">Course Fee (GHS)</Label>
                       <Input
                         id="courseFee"
-                        required
+                        required={!batchForm.isFree}
+                        disabled={batchForm.isFree}
                         type="number"
                         min="0"
                         step="0.01"
-                        value={batchForm.courseFee}
+                        value={batchForm.isFree ? '0' : batchForm.courseFee}
                         onChange={(event) =>
                           setBatchForm({ ...batchForm, courseFee: event.target.value })
                         }
                       />
+                    </div>
+                    <div className="col-span-2 flex items-start gap-3 rounded-md border p-3">
+                      <input
+                        id="isFree"
+                        type="checkbox"
+                        className="mt-1 h-4 w-4 shrink-0"
+                        checked={batchForm.isFree}
+                        onChange={(event) =>
+                          setBatchForm({ ...batchForm, isFree: event.target.checked })
+                        }
+                      />
+                      <Label htmlFor="isFree" className="font-normal">
+                        Free event / webinar
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          No fee is charged and no early-bird discount applies. Registrants
+                          are confirmed on sign-up and receive their joining link straight
+                          away — they are never asked to pay and never chased for a balance.
+                        </span>
+                      </Label>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="capacity">
