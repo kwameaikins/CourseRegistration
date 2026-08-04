@@ -4,7 +4,10 @@
 // Extracted 2026-07-27 when the corporate portal got the same app-shell
 // redesign the student portal already had, to avoid two copies of the
 // same ~230 lines of CSS drifting apart. Real brand colors (2026-07-26):
-// orange from the Knowsia logo, navy #1E3A8A — no invented purple.
+// orange from the Knowsia logo, navy #1E3A8A — no invented purple. The
+// palette itself now lives in components/brand.ts (2026-08-04).
+import { BRAND_TOKENS } from '@/components/brand';
+
 export function PortalIcons() {
   return (
     <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden>
@@ -32,49 +35,11 @@ export function PortalIcons() {
   );
 }
 
-export const PORTAL_STYLES = `
-:root {
-  --font-display: Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Times New Roman', serif;
-  --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-
-  --rail-bg: #12204C;
-  --rail-bg-2: #1E3A8A;
-  --rail-fg: #F3F5FA;
-  --rail-fg-muted: #9FB0D9;
-  --rail-active-bg: rgba(255,255,255,0.09);
-  --rail-line: rgba(255,255,255,0.10);
-  --rail-accent: #FB923C;
-
-  --ink: #211C17;
-  --ink-muted: #5C554B;
-  --ink-faint: #948C7E;
-  --paper: #F7F6F3;
-  --surface: #FFFFFF;
-  --surface-2: #FBFAF8;
-  --line: #E6E2DA;
-  --accent: #C2410C;
-  --accent-deep: #9A3412;
-  --accent-contrast: #FFFFFF;
-  --accent-tint: #FFEDD5;
-  --success: #047857;
-  --success-bg: #D1FAE5;
-  --warning: #A16207;
-  --warning-bg: #FEF3C7;
-  --danger: #B91C1C;
-  --danger-bg: #FEE2E2;
-  --shadow: 0 1px 2px rgba(33,28,23,0.05), 0 8px 24px -12px rgba(33,28,23,0.14);
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ink: #EDEFF3; --ink-muted: #A6ADBD; --ink-faint: #6E7690;
-    --paper: #0E1526; --surface: #17203A; --surface-2: #1C2544; --line: #2B3555;
-    --accent: #FB923C; --accent-deep: #F97316; --accent-contrast: #1C1109; --accent-tint: rgba(251,146,60,0.16);
-    --success: #34D399; --success-bg: rgba(52,211,153,0.14);
-    --warning: #EAB308; --warning-bg: rgba(234,179,8,0.14);
-    --danger: #F87171; --danger-bg: rgba(248,113,113,0.14);
-    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 28px -14px rgba(0,0,0,0.6);
-  }
-}
+// The :root token block moved to components/brand.ts (2026-08-04) so the
+// public marketing pages render in the same navy and orange as the portals
+// without a second copy of the palette to keep in sync. Composed here, so the
+// emitted CSS is byte-identical to what it was before the extraction.
+export const PORTAL_STYLES = `${BRAND_TOKENS}
 .portal-app * { box-sizing: border-box; }
 .portal-app {
   background: var(--paper); color: var(--ink); font-family: var(--font-body);

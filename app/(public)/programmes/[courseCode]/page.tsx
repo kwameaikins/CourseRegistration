@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { KnowsiaHeader } from '@/components/KnowsiaHeader';
 import { CourseSessionSummary } from '@/app/(public)/programmes/CourseSessionSummary';
+import { MARKETING_STYLES, MarketingIcons } from '@/components/marketing/marketing-design-system';
+import { formatDate, formatGhs } from '@/lib/utils';
 import * as feedbackService from '@/modules/feedback/service';
 import { getPublicCourseByCode } from '@/modules/courses/public-catalog';
 import { CATALOG_FAQ } from '@/modules/courses/public-content';
@@ -30,12 +32,11 @@ export async function generateMetadata({
   };
 }
 
-// Programme detail page — the destination for "View course details" and the
-// natural landing page for a course-specific referral link. Prose comes from
-// the founder's briefs in Coding Docs (via public-content.ts); every
-// commercial fact — dates, fee, seats, free-vs-paid — is read live from the
-// Batch, so this page can never advertise terms the registration form will
-// then contradict.
+// Programme detail page — the destination for "View details" and the natural
+// landing page for a course-specific referral link. Prose comes from the
+// founder's briefs (via public-content.ts); every commercial fact — dates,
+// fee, seats, free-vs-paid — is read live from the Batch, so this page can
+// never advertise terms the registration form will then contradict.
 export default async function ProgrammeDetailPage({
   params,
 }: {
@@ -56,259 +57,396 @@ export default async function ProgrammeDetailPage({
   );
 
   const content = course.content;
-  const registerHref = course.nextSession
-    ? `/register?batchId=${course.nextSession.batchId}`
-    : '/register';
-  const registerLabel = course.isFreeProgramme
-    ? 'Register for the free webinar'
-    : 'Register now';
+  const next = course.nextSession;
+  const registerHref = next ? `/register?batchId=${next.batchId}` : '/register';
+  const registerLabel = course.isFreeProgramme ? 'Register free' : 'Register now';
   // A programme with its own FAQ answers the specific questions people ask
   // about it; the generic catalogue FAQ is the fallback, not an addition.
   const faq = content && content.faq.length > 0 ? content.faq : CATALOG_FAQ;
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-10">
-      <KnowsiaHeader />
+    <div className="mk">
+      <style>{MARKETING_STYLES}</style>
+      <MarketingIcons />
+      <a href="#detail" className="skip">
+        Skip to programme details
+      </a>
 
-      <p className="mt-6 text-sm">
-        <Link href="/programmes" className="text-muted-foreground underline">
-          All programmes
-        </Link>
-      </p>
+      <header className="hero" style={{ paddingBottom: 56 }}>
+        <div className="wrap">
+          <nav className="hero-nav">
+            <Link href="/programmes">
+              <Image
+                src="/knowsia-logo.png"
+                alt="Knowsia"
+                width={185}
+                height={68}
+                priority
+                className="logo"
+              />
+            </Link>
+            <Link href="/programmes" className="plain">
+              All programmes
+            </Link>
+          </nav>
 
-      <header className="mt-4">
-        {course.isFreeProgramme && (
-          <p className="mb-2 inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-            Free webinar — no payment required
+          <p className="eyebrow">
+            {course.isFreeProgramme ? 'Free webinar' : `Programme · ${course.courseCode}`}
           </p>
-        )}
-        <h1 className="text-3xl font-semibold tracking-tight">{course.courseName}</h1>
-        {content && <p className="mt-4 text-lg text-muted-foreground">{content.tagline}</p>}
+          <h1 style={{ maxWidth: '22ch' }}>{course.courseName}</h1>
+          {content && <p className="lede">{content.tagline}</p>}
+
+          <div className="trust">
+            {next && (
+              <span>
+                <svg className="icon" aria-hidden>
+                  <use href="#m-calendar" />
+                </svg>
+                Next cohort {formatDate(next.startDate)}
+              </span>
+            )}
+            <span>
+              <svg className="icon" aria-hidden>
+                <use href="#m-live" />
+              </svg>
+              Live and interactive via Zoom
+            </span>
+            <span>
+              <svg className="icon" aria-hidden>
+                <use href="#m-shield" />
+              </svg>
+              Verifiable certificate
+            </span>
+          </div>
+        </div>
       </header>
 
-      <CourseSessionSummary course={course} className="mt-6" showAll />
-
-      <div className="mt-6 flex flex-wrap gap-3">
-        <Link
-          href={registerHref}
-          className="inline-flex h-11 items-center rounded-md bg-primary px-6 font-medium text-primary-foreground hover:bg-primary/90"
-        >
-          {registerLabel}
-        </Link>
-        <a
-          href={WHATSAPP_CONTACT_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex h-11 items-center rounded-md border px-6 font-medium hover:bg-muted"
-        >
-          Ask a question on WhatsApp
-        </a>
-      </div>
-
-      {!content ? (
-        <section className="mt-12">
-          <h2 className="text-xl font-semibold">About this programme</h2>
-          <p className="mt-3 text-muted-foreground">
-            Full programme details are being finalised. Upcoming dates are shown above and
-            registration is open — or{' '}
-            <a href={WHATSAPP_CONTACT_URL} className="underline">
-              message us on WhatsApp
-            </a>{' '}
-            for the outline.
+      <main id="detail" className="band">
+        <div className="wrap">
+          <p className="crumb">
+            <Link href="/programmes">Programmes</Link> · {course.courseName}
           </p>
-        </section>
-      ) : (
-        <>
-          <section className="mt-12">
-            <h2 className="text-xl font-semibold">About this programme</h2>
-            {content.overview.map((paragraph) => (
-              <p key={paragraph} className="mt-3 text-muted-foreground">
-                {paragraph}
-              </p>
-            ))}
-          </section>
 
-          <section className="mt-10">
-            <h2 className="text-xl font-semibold">Who should attend</h2>
-            <ul className="mt-3 list-disc space-y-2 pl-5 text-muted-foreground">
-              {content.primaryAudience.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-            </ul>
-            {content.alsoSuitableFor.length > 0 && (
-              <>
-                <p className="mt-5 font-medium">Also suitable for</p>
-                <ul className="mt-2 list-disc space-y-2 pl-5 text-muted-foreground">
-                  {content.alsoSuitableFor.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </section>
+          <div className="detail-grid" style={{ marginTop: 26 }}>
+            <div className="article">
+              {!content ? (
+                <section>
+                  <h2>About this programme</h2>
+                  <p style={{ marginTop: 14, color: 'var(--ink-muted)' }}>
+                    Full programme details are being finalised. The upcoming dates are
+                    shown alongside and registration is open — or{' '}
+                    <a href={WHATSAPP_CONTACT_URL} style={{ color: 'var(--accent)' }}>
+                      message us on WhatsApp
+                    </a>{' '}
+                    for the outline.
+                  </p>
+                </section>
+              ) : (
+                <>
+                  <section>
+                    <h2>About this programme</h2>
+                    <div className="prose" style={{ marginTop: 14, color: 'var(--ink-muted)' }}>
+                      {content.overview.map((paragraph) => (
+                        <p key={paragraph}>{paragraph}</p>
+                      ))}
+                    </div>
+                  </section>
 
-          <section className="mt-10">
-            <h2 className="text-xl font-semibold">{content.outcomesLabel}</h2>
-            <ul className="mt-3 list-disc space-y-2 pl-5 text-muted-foreground">
-              {content.outcomes.map((outcome) => (
-                <li key={outcome}>{outcome}</li>
-              ))}
-            </ul>
-          </section>
-
-          {content.curriculum.length > 0 && (
-            <section className="mt-10">
-              <h2 className="text-xl font-semibold">Programme curriculum</h2>
-              <div className="mt-4 space-y-4">
-                {content.curriculum.map((session) => (
-                  <div key={session.heading} className="rounded-lg border p-4">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      {session.heading}
-                    </p>
-                    <h3 className="mt-1 font-medium">{session.title}</h3>
-                    <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                      {session.points.map((point) => (
-                        <li key={point}>{point}</li>
+                  <section>
+                    <h2>{content.outcomesLabel}</h2>
+                    <ul className="list">
+                      {content.outcomes.map((outcome) => (
+                        <li key={outcome}>
+                          <svg className="icon" aria-hidden>
+                            <use href="#m-check" />
+                          </svg>
+                          <span>{outcome}</span>
+                        </li>
                       ))}
                     </ul>
-                    {session.practical && (
-                      <p className="mt-3 rounded-md bg-muted/50 p-3 text-sm">
-                        {session.practical}
+                  </section>
+
+                  <section>
+                    <h2>Who should attend</h2>
+                    <ul className="list">
+                      {content.primaryAudience.map((item) => (
+                        <li key={item}>
+                          <svg className="icon" aria-hidden>
+                            <use href="#m-users" />
+                          </svg>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {content.alsoSuitableFor.length > 0 && (
+                      <>
+                        <h3 style={{ marginTop: 26, fontSize: '1.05rem' }}>Also suitable for</h3>
+                        <ul className="list">
+                          {content.alsoSuitableFor.map((item) => (
+                            <li key={item}>
+                              <svg className="icon" aria-hidden>
+                                <use href="#m-check" />
+                              </svg>
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </section>
+
+                  {content.curriculum.length > 0 && (
+                    <section>
+                      <h2>Programme curriculum</h2>
+                      <div style={{ marginTop: 16 }}>
+                        {content.curriculum.map((session) => (
+                          <div key={session.heading} className="module">
+                            <p className="step-label">{session.heading}</p>
+                            <h3>{session.title}</h3>
+                            <ul>
+                              {session.points.map((point) => (
+                                <li key={point}>{point}</li>
+                              ))}
+                            </ul>
+                            {session.practical && (
+                              <p className="practical">{session.practical}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
+
+                  {content.format.length > 0 && (
+                    <section>
+                      <h2>Course format</h2>
+                      <dl className="spec">
+                        {/* Shown so a caller quoting the code and the catalogue
+                            are talking about the same programme. */}
+                        <div>
+                          <dt>Course code</dt>
+                          <dd>{course.courseCode}</dd>
+                        </div>
+                        {content.format.map((row) => (
+                          <div key={row.label}>
+                            <dt>{row.label}</dt>
+                            <dd>{row.value}</dd>
+                          </div>
+                        ))}
+                        {content.facilitator.name && (
+                          <div>
+                            <dt>Facilitator</dt>
+                            <dd>
+                              {content.facilitator.name}
+                              {content.facilitator.credentials &&
+                                `, ${content.facilitator.credentials}`}
+                            </dd>
+                          </div>
+                        )}
+                      </dl>
+                    </section>
+                  )}
+
+                  {content.prerequisites.length > 0 && (
+                    <section>
+                      <h2>Prerequisites</h2>
+                      <ul className="list">
+                        {content.prerequisites.map((item) => (
+                          <li key={item}>
+                            <svg className="icon" aria-hidden>
+                              <use href="#m-check" />
+                            </svg>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
+
+                  <section>
+                    <h2>What your registration includes</h2>
+                    <ul className="list">
+                      {content.includes.map((item) => (
+                        <li key={item}>
+                          <svg className="icon" aria-hidden>
+                            <use href="#m-check" />
+                          </svg>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                      <li>
+                        <svg className="icon" aria-hidden>
+                          <use href="#m-shield" />
+                        </svg>
+                        <span>
+                          A credential anyone can confirm through our{' '}
+                          <Link href="/verify" style={{ color: 'var(--accent)' }}>
+                            public certificate verification
+                          </Link>{' '}
+                          page.
+                        </span>
+                      </li>
+                    </ul>
+                  </section>
+
+                  {content.corporateNote && (
+                    <section>
+                      <div className="callout">
+                        <h2 style={{ fontSize: '1.2rem' }}>Training a team?</h2>
+                        <p style={{ marginTop: 10, color: 'var(--ink-muted)' }}>
+                          {content.corporateNote}
+                        </p>
+                        <div style={{ marginTop: 16 }}>
+                          <a
+                            href={WHATSAPP_CONTACT_URL}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="btn btn-outline btn-sm"
+                          >
+                            Arrange a corporate booking
+                          </a>
+                        </div>
+                      </div>
+                    </section>
+                  )}
+                </>
+              )}
+
+              {courseTestimonials.length > 0 && (
+                <section>
+                  <h2>What participants say</h2>
+                  <div className="quotes" style={{ marginTop: 16 }}>
+                    {courseTestimonials.map((testimonial, index) => (
+                      <figure key={index} className="quote">
+                        <p className="mark" aria-hidden>
+                          &ldquo;
+                        </p>
+                        <blockquote>{testimonial.quote}</blockquote>
+                        <figcaption>
+                          {testimonial.attributedName ?? 'Anonymous participant'}
+                        </figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              <section>
+                <h2>Frequently asked questions</h2>
+                <div className="faq" style={{ marginTop: 16 }}>
+                  {faq.map((item) => (
+                    <details key={item.question}>
+                      <summary>{item.question}</summary>
+                      <p className="answer">{item.answer}</p>
+                    </details>
+                  ))}
+                </div>
+              </section>
+            </div>
+
+            {/* The buy box travels with the reader on desktop: a long detail
+                page otherwise leaves the price and the CTA far above wherever
+                the decision actually gets made. */}
+            <aside className="sticky">
+              <div className="buybox">
+                {next ? (
+                  <>
+                    <p className="kicker">
+                      {course.isFreeProgramme ? 'No payment required' : 'Next cohort'}
+                    </p>
+                    <p style={{ marginTop: 10 }}>
+                      {course.isFreeProgramme ? (
+                        <span className="price-now" style={{ color: 'var(--success)' }}>
+                          Free
+                        </span>
+                      ) : (
+                        <>
+                          {next.earlyBirdEndsOn && (
+                            <span className="price-was">{formatGhs(next.listFee)} </span>
+                          )}
+                          <span className="price-now">{formatGhs(next.effectiveFee)}</span>
+                        </>
+                      )}
+                    </p>
+                    {next.earlyBirdEndsOn && (
+                      <p style={{ marginTop: 8, fontSize: 14, color: 'var(--success)' }}>
+                        Early-bird price until {formatDate(next.earlyBirdEndsOn)}
                       </p>
                     )}
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {content.format.length > 0 && (
-            <section className="mt-10">
-              <h2 className="text-xl font-semibold">Course format</h2>
-              <dl className="mt-4 divide-y rounded-lg border">
-                {/* Course code is shown so a caller quoting it to staff and the
-                    catalogue are talking about the same programme. */}
-                <div className="flex flex-wrap gap-x-4 px-4 py-3 text-sm">
-                  <dt className="w-40 shrink-0 font-medium">Course code</dt>
-                  <dd className="text-muted-foreground">{course.courseCode}</dd>
-                </div>
-                {content.format.map((row) => (
-                  <div key={row.label} className="flex flex-wrap gap-x-4 px-4 py-3 text-sm">
-                    <dt className="w-40 shrink-0 font-medium">{row.label}</dt>
-                    <dd className="text-muted-foreground">{row.value}</dd>
-                  </div>
-                ))}
-                {content.facilitator.name && (
-                  <div className="flex flex-wrap gap-x-4 px-4 py-3 text-sm">
-                    <dt className="w-40 shrink-0 font-medium">Facilitator</dt>
-                    <dd className="text-muted-foreground">
-                      {content.facilitator.name}
-                      {content.facilitator.credentials && `, ${content.facilitator.credentials}`}
-                    </dd>
-                  </div>
+                    <p style={{ marginTop: 14, fontSize: 15, color: 'var(--ink-muted)' }}>
+                      Starts {formatDate(next.startDate)} at {next.startTime.slice(0, 5)}
+                    </p>
+                    {next.isFull && (
+                      <p style={{ marginTop: 10 }}>
+                        <span className="tag tag-full">Fully booked</span>
+                      </p>
+                    )}
+                    <div style={{ marginTop: 18 }}>
+                      <Link href={registerHref} className="btn btn-primary btn-block">
+                        {next.isFull ? 'Join the waiting list' : registerLabel}
+                      </Link>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="kicker">Dates to be announced</p>
+                    <p style={{ marginTop: 12, fontSize: 15, color: 'var(--ink-muted)' }}>
+                      No cohort is open for registration on this programme right now.
+                    </p>
+                  </>
                 )}
-              </dl>
-            </section>
-          )}
 
-          {content.prerequisites.length > 0 && (
-            <section className="mt-10">
-              <h2 className="text-xl font-semibold">Prerequisites</h2>
-              <ul className="mt-3 list-disc space-y-2 pl-5 text-muted-foreground">
-                {content.prerequisites.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </section>
-          )}
+                <div style={{ marginTop: 12 }}>
+                  <a
+                    href={WHATSAPP_CONTACT_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn-outline btn-sm btn-block"
+                  >
+                    Ask a question
+                  </a>
+                </div>
+              </div>
 
-          <section className="mt-10">
-            <h2 className="text-xl font-semibold">What your registration includes</h2>
-            <ul className="mt-3 list-disc space-y-2 pl-5 text-muted-foreground">
-              {content.includes.map((item) => (
-                <li key={item}>{item}</li>
-              ))}
-              <li>
-                A credential anyone can confirm through our{' '}
-                <Link href="/verify" className="underline">
-                  public certificate verification
-                </Link>{' '}
-                page.
-              </li>
-            </ul>
-          </section>
-
-          {content.corporateNote && (
-            <section className="mt-10 rounded-lg border p-5">
-              <h2 className="text-xl font-semibold">Corporate enrolment</h2>
-              <p className="mt-3 text-muted-foreground">{content.corporateNote}</p>
-              <p className="mt-3 text-sm text-muted-foreground">
-                To arrange a corporate booking,{' '}
-                <a href={WHATSAPP_CONTACT_URL} className="underline">
-                  message us on WhatsApp
-                </a>
-                .
-              </p>
-            </section>
-          )}
-        </>
-      )}
-
-      {courseTestimonials.length > 0 && (
-        <section className="mt-10">
-          <h2 className="text-xl font-semibold">What participants say</h2>
-          <div className="mt-4 space-y-4">
-            {courseTestimonials.map((testimonial, index) => (
-              <figure key={index} className="rounded-lg border p-4">
-                <blockquote className="text-sm italic">
-                  &ldquo;{testimonial.quote}&rdquo;
-                </blockquote>
-                <figcaption className="mt-3 text-sm font-medium">
-                  — {testimonial.attributedName ?? 'Anonymous Participant'}
-                </figcaption>
-              </figure>
-            ))}
+              <div style={{ marginTop: 20 }}>
+                <CourseSessionSummary course={course} showAll />
+              </div>
+            </aside>
           </div>
-        </section>
-      )}
+        </div>
+      </main>
 
-      <section className="mt-10">
-        <h2 className="text-xl font-semibold">Frequently asked questions</h2>
-        <div className="mt-4 space-y-3">
-          {faq.map((item) => (
-            <details key={item.question} className="rounded-lg border p-4">
-              <summary className="cursor-pointer font-medium">{item.question}</summary>
-              <p className="mt-2 text-sm text-muted-foreground">{item.answer}</p>
-            </details>
-          ))}
+      <section style={{ paddingBottom: 24 }}>
+        <div className="wrap">
+          <div className="closer">
+            <h2>{next?.isFull ? 'This cohort is full' : 'Ready to join?'}</h2>
+            <p>
+              {next
+                ? next.isFull
+                  ? 'Register to join the waiting list and we will contact you the moment a place opens up.'
+                  : 'Secure your place on the next cohort.'
+                : 'Register your interest and we will let you know as soon as dates are confirmed.'}
+            </p>
+            <div className="hero-cta">
+              <Link href={registerHref} className="btn btn-primary">
+                {next?.isFull ? 'Join the waiting list' : registerLabel}
+              </Link>
+              <Link href="/programmes" className="btn btn-ghost-light">
+                Browse all programmes
+              </Link>
+            </div>
+          </div>
         </div>
       </section>
 
-      <section className="mt-12 rounded-lg border p-6">
-        <h2 className="text-xl font-semibold">Ready to join?</h2>
-        <p className="mt-2 text-muted-foreground">
-          {course.nextSession
-            ? course.nextSession.isFull
-              ? 'This cohort is fully booked — register to join the waiting list and we will contact you the moment a place opens up.'
-              : 'Secure your place on the next cohort.'
-            : 'Register your interest and we will let you know as soon as dates are confirmed.'}
-        </p>
-        <div className="mt-5">
-          <Link
-            href={registerHref}
-            className="inline-flex h-11 items-center rounded-md bg-primary px-6 font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            {registerLabel}
-          </Link>
+      <footer className="foot">
+        <div className="wrap">
+          <p>
+            Questions before registering? Call 053 053 1328 or 020 370 1923, or email{' '}
+            <a href="mailto:info@knowsia.com">info@knowsia.com</a>
+          </p>
         </div>
-        <p className="mt-4 text-sm text-muted-foreground">
-          Questions before registering? Call 053 053 1328 or 020 370 1923, or email{' '}
-          <a href="mailto:info@knowsia.com" className="underline">
-            info@knowsia.com
-          </a>
-          .
-        </p>
-      </section>
-    </main>
+      </footer>
+    </div>
   );
 }
