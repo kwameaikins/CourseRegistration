@@ -173,6 +173,84 @@ export async function countRegistrationsByBatchIdsSystem(
 }
 
 
+// Public course catalogue (2026-08-03) — every Course, each with the Active,
+// not-yet-started Batches a visitor could actually register for. Service-role
+// for the same reason as selectActiveFutureBatchesPublic: the anon role has no
+// RLS SELECT policy on courses/batches, and this runs on a public page with no
+// session. Only the non-sensitive columns the catalogue renders are selected —
+// notably NOT zoom_link, which must never reach an unregistered visitor.
+//
+// Courses with no upcoming Batch are still returned: the catalogue shows them
+// as "Dates to be announced" rather than hiding a programme the founder's copy
+// says is on offer.
+export async function selectPublicCourseCatalogSystem(): Promise<
+  Array<{
+    course: Pick<
+      CourseRow,
+      'id' | 'course_code' | 'course_name' | 'certificate_hours' | 'cpd_credit'
+    >;
+    batches: Array<
+      Pick<
+        BatchRow,
+        | 'id'
+        | 'cohort_label'
+        | 'start_date'
+        | 'start_time'
+        | 'end_date'
+        | 'course_fee'
+        | 'is_free'
+        | 'capacity'
+        | 'discount_cutoff_date'
+        | 'discounted_fee'
+        | 'facilitator_name'
+      >
+    >;
+  }>
+> {
+  const supabase = createSupabaseServiceRoleClient();
+
+  const { data: courses, error: coursesError } = await supabase
+    .from('courses')
+    .select('id, course_code, course_name, certificate_hours, cpd_credit')
+    .order('course_name', { ascending: true });
+  if (coursesError) throw coursesError;
+  if (!courses || courses.length === 0) return [];
+
+  const { data: batches, error: batchesError } = await supabase
+    .from('batches')
+    .select(
+      'id, course_id, cohort_label, start_date, start_time, end_date, course_fee, is_free, capacity, discount_cutoff_date, discounted_fee, facilitator_name',
+    )
+    .eq('is_active', true)
+    .gte('start_date', new Date().toISOString().slice(0, 10))
+    .order('start_date', { ascending: true });
+  if (batchesError) throw batchesError;
+
+  const batchesByCourseId = new Map<string, typeof batches>();
+  for (const batch of batches ?? []) {
+    const list = batchesByCourseId.get(batch.course_id) ?? [];
+    list.push(batch);
+    batchesByCourseId.set(batch.course_id, list);
+  }
+
+  return courses.map((course) => ({
+    course,
+    batches: (batchesByCourseId.get(course.id) ?? []).map((batch) => ({
+      id: batch.id,
+      cohort_label: batch.cohort_label,
+      start_date: batch.start_date,
+      start_time: batch.start_time,
+      end_date: batch.end_date,
+      course_fee: batch.course_fee,
+      is_free: batch.is_free,
+      capacity: batch.capacity,
+      discount_cutoff_date: batch.discount_cutoff_date,
+      discounted_fee: batch.discounted_fee,
+      facilitator_name: batch.facilitator_name,
+    })),
+  }));
+}
+
 // System-context course read used by the public registration orchestration,
 // where no staff session exists.
 export async function selectCourseByIdSystem(courseId: string): Promise<CourseRow | null> {

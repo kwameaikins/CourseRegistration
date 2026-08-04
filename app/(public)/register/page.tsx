@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import * as coursesService from '@/modules/courses/service';
 import { RegistrationForm } from '@/app/(public)/register/RegistrationForm';
 import { KnowsiaHeader } from '@/components/KnowsiaHeader';
@@ -16,6 +18,13 @@ export default async function RegisterPage() {
       <p className="mt-2 text-sm text-muted-foreground">
         Register for an upcoming course intake or free webinar. Where there is a fee,
         payment instructions are emailed to you after registration.
+      </p>
+      <p className="mt-2 text-sm text-muted-foreground">
+        Not sure which to choose?{' '}
+        <Link href="/programmes" className="underline">
+          Browse our programmes
+        </Link>{' '}
+        for full details.
       </p>
       <div className="mt-8">
         <RegistrationForm batchOptions={batchOptions} />

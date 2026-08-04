@@ -170,3 +170,27 @@ export async function getBatchFeedbackSummary(
     })),
   };
 }
+
+export interface PublishableTestimonial {
+  quote: string;
+  // Null for a participant who consented anonymously — the catalogue renders
+  // "Anonymous Participant" rather than inventing an attribution.
+  attributedName: string | null;
+  courseName: string;
+  overallRating: number;
+}
+
+// Consented testimonials for the public course catalogue (2026-08-03). No role
+// gate on purpose — this feeds a page with no session — but the repository
+// filters hard on testimonial consent and erasure status, so nothing reaches
+// here that a participant did not agree to publish.
+//
+// Returns an empty array when nobody has consented yet, and the catalogue
+// hides the section entirely rather than showing placeholder quotes. Fabricated
+// social proof on a page selling professional certification is not a
+// placeholder problem, it's a credibility problem.
+export async function getPublishableTestimonials(
+  limit = 6,
+): Promise<PublishableTestimonial[]> {
+  return feedbackRepository.selectPublishableTestimonialsSystem(limit);
+}

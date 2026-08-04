@@ -157,3 +157,98 @@ export async function selectFeedbackForBatch(batchId: string): Promise<
 export async function countPaidRegistrationsForBatch(batchId: string): Promise<number> {
   return (await selectPaidRegistrationIdsForBatch(batchId)).length;
 }
+
+// Consented testimonials for the public course catalogue (2026-08-03).
+// Service-role because this renders on a page with no session at all.
+//
+// Consent is the whole point of this query, so the filters are not incidental:
+//   * testimonial_choice must be 'Named' or 'Anonymous' — 'No' means the
+//     participant answered "may we use this as a testimonial?" with no, and
+//     their words never leave staff view.
+//   * the attributed name is attached ONLY for 'Named'. 'Anonymous' rows carry
+//     null and the page renders "Anonymous Participant".
+//   * soft-deleted participants (BR-16 erasure) are dropped entirely, name or
+//     not — an erasure request has to remove them from the marketing site too,
+//     not just anonymise the byline.
+// Job title is deliberately not returned: consent was asked for the name, not
+// for the employer-identifying detail alongside it.
+export async function selectPublishableTestimonialsSystem(limit: number): Promise<
+  Array<{
+    quote: string;
+    attributedName: string | null;
+    courseName: string;
+    overallRating: number;
+  }>
+> {
+  const supabase = createSupabaseServiceRoleClient();
+
+  const { data: rows, error } = await supabase
+    .from('feedback')
+    .select('registration_id, most_valuable_text, testimonial_choice, overall_rating')
+    .in('testimonial_choice', ['Named', 'Anonymous'])
+    .not('most_valuable_text', 'is', null)
+    .order('submitted_at', { ascending: false })
+    .limit(limit * 4); // headroom for the deleted/blank filtering below
+  if (error) throw error;
+  if (!rows || rows.length === 0) return [];
+
+  const usable = rows.filter((row) => (row.most_valuable_text ?? '').trim().length > 0);
+  if (usable.length === 0) return [];
+
+  const { data: registrations, error: registrationsError } = await supabase
+    .from('registrations')
+    .select('id, participant_id, batch_id')
+    .in('id', usable.map((row) => row.registration_id));
+  if (registrationsError) throw registrationsError;
+  if (!registrations || registrations.length === 0) return [];
+
+  const [{ data: participants }, { data: batches }] = await Promise.all([
+    supabase
+      .from('participants')
+      .select('id, full_name, deleted_at')
+      .in('id', registrations.map((registration) => registration.participant_id)),
+    supabase
+      .from('batches')
+      .select('id, course_id')
+      .in('id', registrations.map((registration) => registration.batch_id)),
+  ]);
+
+  const { data: courses } = await supabase
+    .from('courses')
+    .select('id, course_name')
+    .in('id', [...new Set((batches ?? []).map((batch) => batch.course_id))]);
+
+  const participantById = new Map((participants ?? []).map((p) => [p.id, p]));
+  const courseNameByBatchId = new Map(
+    (batches ?? []).map((batch) => [
+      batch.id,
+      (courses ?? []).find((course) => course.id === batch.course_id)?.course_name ?? '',
+    ]),
+  );
+  const registrationById = new Map(registrations.map((r) => [r.id, r]));
+
+  const testimonials: Array<{
+    quote: string;
+    attributedName: string | null;
+    courseName: string;
+    overallRating: number;
+  }> = [];
+
+  for (const row of usable) {
+    const registration = registrationById.get(row.registration_id);
+    if (!registration) continue;
+    const participant = participantById.get(registration.participant_id);
+    if (!participant || participant.deleted_at !== null) continue;
+
+    testimonials.push({
+      quote: (row.most_valuable_text ?? '').trim(),
+      attributedName:
+        row.testimonial_choice === 'Named' ? (participant.full_name ?? null) : null,
+      courseName: courseNameByBatchId.get(registration.batch_id) ?? '',
+      overallRating: row.overall_rating,
+    });
+    if (testimonials.length >= limit) break;
+  }
+
+  return testimonials;
+}
