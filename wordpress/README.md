@@ -12,22 +12,44 @@ reg.knowsia.com.
 
 ### Install
 
-1. Copy the `knowsia-programmes/` folder to `wp-content/plugins/` on knowsia.com.
-2. Add to `wp-config.php` (above the "That's all, stop editing" line):
+The ready-to-upload file is **`knowsia-programmes.zip`** in this folder. No SSH or FTP needed.
 
-   ```php
-   define( 'KNOWSIA_CATALOG_API_KEY', 'the-value-of-CATALOG_API_KEY-from-vercel' );
-   ```
+1. **Set the key in Vercel first.** In the reg.knowsia.com project → Settings → Environment
+   Variables, add `CATALOG_API_KEY` with a long random value, then redeploy. Until this is set
+   the API returns 401 to everyone (it fails closed by design).
+2. **Upload the plugin.** In WordPress admin: **Plugins → Add New → Upload Plugin**, choose
+   `knowsia-programmes.zip`, then **Install Now** → **Activate**.
+3. **Paste the key.** Go to **Settings → Knowsia Programmes** and enter the same value you set
+   as `CATALOG_API_KEY` in step 1. Save.
+4. **Click "Test connection"** on that same screen. It calls the live API and tells you exactly
+   what came back — "Connected. 4 programmes returned." means everything works. Fix any error
+   here before going further; a failure at this step is why the page would otherwise render blank.
+5. **Create the page.** Pages → Add New, title *Programmes*, slug exactly **`programmes`**,
+   content: `[knowsia_programmes]`. Publish.
+6. **Flush permalinks.** Settings → Permalinks → Save (no changes needed). Without this,
+   `/programmes/AI02` will 404 even though `/programmes` works.
+7. **Add it to the menu.** Appearance → Menus, add the Programmes page.
 
-   Use the same value set as `CATALOG_API_KEY` in the Vercel project. **Never** commit it or
-   store it in the WordPress database.
+#### Optional: keep the key out of the database
 
-3. Activate **Knowsia Live Programmes** in Plugins.
-4. Create a Page titled *Programmes* with the slug exactly **`programmes`**, and put this in the
-   content: `[knowsia_programmes]`
-5. Visit **Settings → Permalinks** and click Save once, to flush rewrite rules. Without this,
-   `/programmes/AI05` will 404.
-6. Add *Programmes* to the main navigation menu.
+Step 3 stores the key in `wp_options`, which is convenient but means it appears in database
+backups. If you can edit `wp-config.php`, this is tidier — add it above the "That's all, stop
+editing" line:
+
+```php
+define( 'KNOWSIA_CATALOG_API_KEY', 'the-value-of-CATALOG_API_KEY-from-vercel' );
+```
+
+The constant always wins over the settings field, and the settings screen will show the field as
+read-only so nobody wonders why editing it does nothing.
+
+Either way the key guards data that is already public — it exists to stop the endpoint being
+scraped, not to protect secrets — so the settings-page route is a reasonable trade.
+
+#### Updating the plugin later
+
+Re-zip the folder and upload again via **Plugins → Add New → Upload Plugin**; WordPress will
+offer to replace the existing copy. Your saved settings survive the update.
 
 ### What you get
 

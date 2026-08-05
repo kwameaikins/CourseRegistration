@@ -32,3 +32,6 @@ npm-debug.log*
 KNOWSIA ASSETS/
 .vercel
 .env*
+
+# Built WordPress plugin bundle — regenerate from wordpress/knowsia-programmes/
+wordpress/*.zip

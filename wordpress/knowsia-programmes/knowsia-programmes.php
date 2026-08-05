@@ -45,9 +45,28 @@ define( 'KNOWSIA_PAGE_SLUG', 'programmes' );
  * ---------------------------------------------------------------------- */
 
 function knowsia_api_base() {
-	return defined( 'KNOWSIA_CATALOG_API_BASE' )
-		? rtrim( KNOWSIA_CATALOG_API_BASE, '/' )
-		: 'https://reg.knowsia.com';
+	if ( defined( 'KNOWSIA_CATALOG_API_BASE' ) && KNOWSIA_CATALOG_API_BASE ) {
+		return rtrim( KNOWSIA_CATALOG_API_BASE, '/' );
+	}
+	$stored = get_option( 'knowsia_api_base' );
+	return $stored ? rtrim( $stored, '/' ) : 'https://reg.knowsia.com';
+}
+
+/**
+ * The API key, from wp-config.php if defined, otherwise from Settings.
+ *
+ * The constant is preferred: it keeps the secret out of the database, and so
+ * out of database dumps and backups. The settings-page fallback exists
+ * because plenty of managed hosts make editing wp-config.php awkward, and a
+ * blocked setup is worse than a secret in wp_options — especially here, where
+ * the key guards data that is already public and exists mainly to stop the
+ * endpoint being scraped.
+ */
+function knowsia_api_key() {
+	if ( defined( 'KNOWSIA_CATALOG_API_KEY' ) && KNOWSIA_CATALOG_API_KEY ) {
+		return KNOWSIA_CATALOG_API_KEY;
+	}
+	return (string) get_option( 'knowsia_api_key', '' );
 }
 
 /**
@@ -72,8 +91,9 @@ function knowsia_fetch( $path, $slot = 'list' ) {
 		return $cached;
 	}
 
-	if ( ! defined( 'KNOWSIA_CATALOG_API_KEY' ) || ! KNOWSIA_CATALOG_API_KEY ) {
-		knowsia_log( 'KNOWSIA_CATALOG_API_KEY is not defined in wp-config.php' );
+	$api_key = knowsia_api_key();
+	if ( ! $api_key ) {
+		knowsia_log( 'No API key set — add it under Settings > Knowsia Programmes, or define KNOWSIA_CATALOG_API_KEY in wp-config.php' );
 		return knowsia_fallback_or_error( $fallback_key, 'Catalogue is not configured.' );
 	}
 
@@ -82,7 +102,7 @@ function knowsia_fetch( $path, $slot = 'list' ) {
 		array(
 			'timeout' => 8,
 			'headers' => array(
-				'Authorization' => 'Bearer ' . KNOWSIA_CATALOG_API_KEY,
+				'Authorization' => 'Bearer ' . $api_key,
 				'Accept'        => 'application/json',
 			),
 		)
@@ -542,6 +562,124 @@ add_action(
 	},
 	1
 );
+
+/* -------------------------------------------------------------------------
+ * SETTINGS PAGE  (Settings > Knowsia Programmes)
+ *
+ * Exists so the plugin can be configured entirely from wp-admin, without SSH
+ * or a wp-config.php edit. When the constant is defined it wins, and the
+ * field is shown read-only so nobody wonders why their typing has no effect.
+ * ---------------------------------------------------------------------- */
+
+add_action(
+	'admin_menu',
+	function () {
+		add_options_page(
+			'Knowsia Programmes',
+			'Knowsia Programmes',
+			'manage_options',
+			'knowsia-programmes',
+			'knowsia_render_settings_page'
+		);
+	}
+);
+
+add_action(
+	'admin_init',
+	function () {
+		register_setting( 'knowsia_programmes', 'knowsia_api_key', array( 'sanitize_callback' => 'sanitize_text_field' ) );
+		register_setting( 'knowsia_programmes', 'knowsia_api_base', array( 'sanitize_callback' => 'esc_url_raw' ) );
+	}
+);
+
+function knowsia_render_settings_page() {
+	if ( ! current_user_can( 'manage_options' ) ) {
+		return;
+	}
+
+	$key_from_config = defined( 'KNOWSIA_CATALOG_API_KEY' ) && KNOWSIA_CATALOG_API_KEY;
+
+	// "Test connection" hits the real API and reports exactly what came back,
+	// so a misconfiguration is diagnosed here rather than as a blank page.
+	$test_result = null;
+	if ( isset( $_POST['knowsia_test'] ) && check_admin_referer( 'knowsia_test_action' ) ) {
+		delete_transient( KNOWSIA_CACHE_KEY . '_list' );
+		$probe = knowsia_fetch( '/api/public/catalog', 'list' );
+		if ( is_wp_error( $probe ) ) {
+			$test_result = array( 'ok' => false, 'message' => $probe->get_error_message() );
+		} else {
+			$count       = isset( $probe['courses'] ) ? count( $probe['courses'] ) : 0;
+			$test_result = array(
+				'ok'      => true,
+				'message' => sprintf( 'Connected. %d programme%s returned.', $count, 1 === $count ? '' : 's' ),
+			);
+		}
+	}
+	?>
+	<div class="wrap">
+		<h1>Knowsia Programmes</h1>
+
+		<?php if ( $test_result ) : ?>
+			<div class="notice notice-<?php echo $test_result['ok'] ? 'success' : 'error'; ?>">
+				<p><?php echo esc_html( $test_result['message'] ); ?></p>
+			</div>
+		<?php endif; ?>
+
+		<form method="post" action="options.php">
+			<?php settings_fields( 'knowsia_programmes' ); ?>
+			<table class="form-table" role="presentation">
+				<tr>
+					<th scope="row"><label for="knowsia_api_key">API key</label></th>
+					<td>
+						<?php if ( $key_from_config ) : ?>
+							<input type="text" class="regular-text" value="Set in wp-config.php" disabled />
+							<p class="description">Defined by <code>KNOWSIA_CATALOG_API_KEY</code>, which takes precedence over this field.</p>
+						<?php else : ?>
+							<input type="password" class="regular-text" id="knowsia_api_key"
+								name="knowsia_api_key"
+								value="<?php echo esc_attr( get_option( 'knowsia_api_key', '' ) ); ?>"
+								autocomplete="off" />
+							<p class="description">
+								The same value as <code>CATALOG_API_KEY</code> in the Vercel project for reg.knowsia.com.
+							</p>
+						<?php endif; ?>
+					</td>
+				</tr>
+				<tr>
+					<th scope="row"><label for="knowsia_api_base">Portal URL</label></th>
+					<td>
+						<input type="url" class="regular-text" id="knowsia_api_base"
+							name="knowsia_api_base"
+							placeholder="https://reg.knowsia.com"
+							value="<?php echo esc_attr( get_option( 'knowsia_api_base', '' ) ); ?>" />
+						<p class="description">Leave blank unless the portal moves. Defaults to <code>https://reg.knowsia.com</code>.</p>
+					</td>
+				</tr>
+			</table>
+			<?php submit_button( 'Save settings' ); ?>
+		</form>
+
+		<hr />
+		<h2>Test connection</h2>
+		<p>Calls the live API and reports what came back. Run this before adding the page to your menu.</p>
+		<form method="post">
+			<?php wp_nonce_field( 'knowsia_test_action' ); ?>
+			<?php submit_button( 'Test connection', 'secondary', 'knowsia_test', false ); ?>
+		</form>
+
+		<hr />
+		<h2>How to display the catalogue</h2>
+		<ol>
+			<li>Create a Page with the slug <code><?php echo esc_html( KNOWSIA_PAGE_SLUG ); ?></code>.</li>
+			<li>Put this shortcode in its content: <code>[knowsia_programmes]</code></li>
+			<li>Go to <a href="<?php echo esc_url( admin_url( 'options-permalink.php' ) ); ?>">Settings &rsaquo; Permalinks</a> and click Save once, so <code>/<?php echo esc_html( KNOWSIA_PAGE_SLUG ); ?>/AI02</code> resolves.</li>
+		</ol>
+		<p>
+			Catalogue: <a href="<?php echo esc_url( home_url( '/' . KNOWSIA_PAGE_SLUG ) ); ?>" target="_blank"><?php echo esc_html( home_url( '/' . KNOWSIA_PAGE_SLUG ) ); ?></a>
+		</p>
+	</div>
+	<?php
+}
 
 /* -------------------------------------------------------------------------
  * STYLES  (minimal; inherits the active theme's typography and colours)
