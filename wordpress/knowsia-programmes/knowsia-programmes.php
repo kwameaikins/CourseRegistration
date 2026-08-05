@@ -18,14 +18,19 @@
  * courses. This plugin deliberately uses /programmes/ and must never be
  * pointed at /courses/, or it will collide with LearnPress's post type.
  *
- * SETUP
- *   1. Add to wp-config.php (never commit the real key):
- *        define( 'KNOWSIA_CATALOG_API_KEY', '...' );
- *        // Optional override, defaults to https://reg.knowsia.com
- *        define( 'KNOWSIA_CATALOG_API_BASE', 'https://reg.knowsia.com' );
- *   2. Activate the plugin.
- *   3. Create a Page with slug exactly "programmes" containing: [knowsia_programmes]
+ * SETUP (everything is configurable from wp-admin; no file editing required)
+ *   1. Activate the plugin.
+ *   2. Settings > Knowsia Programmes: paste the API key, and set the page slug
+ *      to match the page you will create. Click "Test connection" — it reports
+ *      exactly what went wrong if anything did.
+ *   3. Create a Page with that slug, containing: [knowsia_programmes]
+ *      Title it "Live Programmes"; the title and the slug need not match.
  *   4. Visit Settings > Permalinks once to flush rewrite rules.
+ *
+ * Optionally, to keep the key out of the database, define these in
+ * wp-config.php instead — both take precedence over the settings fields:
+ *     define( 'KNOWSIA_CATALOG_API_KEY', '...' );
+ *     define( 'KNOWSIA_PROGRAMMES_SLUG', 'live-programmes' );
  *
  * @package Knowsia
  */
@@ -54,10 +59,13 @@ define( 'KNOWSIA_FALLBACK_TTL', WEEK_IN_SECONDS );
 // "Live Programmes" is the recommended wording, to distinguish these
 // cohort-based trainings from the self-paced LearnPress courses at /courses/.
 // The label can say "Live Programmes" while the slug stays /programmes.
-if ( ! defined( 'KNOWSIA_PROGRAMMES_SLUG' ) ) {
-	define( 'KNOWSIA_PROGRAMMES_SLUG', 'programmes' );
+function knowsia_page_slug() {
+	if ( defined( 'KNOWSIA_PROGRAMMES_SLUG' ) && KNOWSIA_PROGRAMMES_SLUG ) {
+		return trim( KNOWSIA_PROGRAMMES_SLUG, '/' );
+	}
+	$stored = get_option( 'knowsia_page_slug' );
+	return $stored ? trim( $stored, '/' ) : 'programmes';
 }
-define( 'KNOWSIA_PAGE_SLUG', KNOWSIA_PROGRAMMES_SLUG );
 
 /* -------------------------------------------------------------------------
  * API CLIENT
@@ -113,7 +121,10 @@ function knowsia_fetch( $path, $slot = 'list' ) {
 	$api_key = knowsia_api_key();
 	if ( ! $api_key ) {
 		knowsia_log( 'No API key set — add it under Settings > Knowsia Programmes, or define KNOWSIA_CATALOG_API_KEY in wp-config.php' );
-		return knowsia_fallback_or_error( $fallback_key, 'Catalogue is not configured.' );
+		return knowsia_fallback_or_error(
+			$fallback_key,
+			'No API key is saved. Add it under Settings > Knowsia Programmes.'
+		);
 	}
 
 	$response = wp_remote_get(
@@ -129,10 +140,30 @@ function knowsia_fetch( $path, $slot = 'list' ) {
 
 	if ( is_wp_error( $response ) ) {
 		knowsia_log( 'Request failed for ' . $path . ': ' . $response->get_error_message() );
-		return knowsia_fallback_or_error( $fallback_key, 'Could not reach the catalogue.' );
+		// Almost always the host blocking outbound HTTP, or DNS. Say so —
+		// this is the single most common install failure and the previous
+		// wording ("Could not reach the catalogue") sent people looking at
+		// the wrong thing.
+		return knowsia_fallback_or_error(
+			$fallback_key,
+			'Could not reach ' . knowsia_api_base() . ' — the host may be blocking outbound HTTP requests. '
+			. 'Details: ' . $response->get_error_message()
+		);
 	}
 
 	$code = wp_remote_retrieve_response_code( $response );
+
+	// A 401 means we reached the API fine and it rejected the key. That is a
+	// completely different fix from an outage, so it gets its own message
+	// rather than hiding inside "temporarily unavailable".
+	if ( 401 === $code ) {
+		knowsia_log( 'API rejected the key for ' . $path );
+		return knowsia_fallback_or_error(
+			$fallback_key,
+			'The API key was rejected (HTTP 401). The key saved here must match CATALOG_API_KEY '
+			. 'in the Vercel project for ' . knowsia_api_base() . ' exactly.'
+		);
+	}
 
 	// A 404 is a legitimate answer ("no such programme"), not an outage — do
 	// not serve stale fallback data over it, or a retired programme would
@@ -143,7 +174,10 @@ function knowsia_fetch( $path, $slot = 'list' ) {
 
 	if ( 200 !== $code ) {
 		knowsia_log( 'Unexpected HTTP ' . $code . ' for ' . $path );
-		return knowsia_fallback_or_error( $fallback_key, 'Catalogue is temporarily unavailable.' );
+		return knowsia_fallback_or_error(
+			$fallback_key,
+			'Catalogue is temporarily unavailable (HTTP ' . $code . ').'
+		);
 	}
 
 	$body = json_decode( wp_remote_retrieve_body( $response ), true );
@@ -248,8 +282,8 @@ add_action(
 	'init',
 	function () {
 		add_rewrite_rule(
-			'^' . KNOWSIA_PAGE_SLUG . '/([A-Za-z0-9_-]+)/?$',
-			'index.php?pagename=' . KNOWSIA_PAGE_SLUG . '&knowsia_code=$matches[1]',
+			'^' . knowsia_page_slug() . '/([A-Za-z0-9_-]+)/?$',
+			'index.php?pagename=' . knowsia_page_slug() . '&knowsia_code=$matches[1]',
 			'top'
 		);
 	}
@@ -269,14 +303,30 @@ register_activation_hook(
 	__FILE__,
 	function () {
 		add_rewrite_rule(
-			'^' . KNOWSIA_PAGE_SLUG . '/([A-Za-z0-9_-]+)/?$',
-			'index.php?pagename=' . KNOWSIA_PAGE_SLUG . '&knowsia_code=$matches[1]',
+			'^' . knowsia_page_slug() . '/([A-Za-z0-9_-]+)/?$',
+			'index.php?pagename=' . knowsia_page_slug() . '&knowsia_code=$matches[1]',
 			'top'
 		);
 		flush_rewrite_rules();
 	}
 );
 register_deactivation_hook( __FILE__, 'flush_rewrite_rules' );
+
+// Changing the slug changes the rewrite rule, and rewrite rules live in the
+// database — so without this, saving a new slug appears to work but every
+// detail URL 404s until someone manually re-saves permalinks. Flushing on
+// change removes that trap entirely.
+add_action(
+	'update_option_knowsia_page_slug',
+	function () {
+		add_rewrite_rule(
+			'^' . knowsia_page_slug() . '/([A-Za-z0-9_-]+)/?$',
+			'index.php?pagename=' . knowsia_page_slug() . '&knowsia_code=$matches[1]',
+			'top'
+		);
+		flush_rewrite_rules();
+	}
+);
 
 /* -------------------------------------------------------------------------
  * SHORTCODE
@@ -347,7 +397,7 @@ function knowsia_render_card( $course ) {
 		return;
 	}
 
-	$detail_url = home_url( '/' . KNOWSIA_PAGE_SLUG . '/' . rawurlencode( $course['courseCode'] ) );
+	$detail_url = home_url( '/' . knowsia_page_slug() . '/' . rawurlencode( $course['courseCode'] ) );
 	$seats      = knowsia_seats_label( $next );
 
 	echo '<article class="kn-card">';
@@ -576,7 +626,7 @@ add_action(
 		// reg.knowsia.com/programmes redirects here.
 		printf(
 			'<link rel="canonical" href="%s" />' . "\n",
-			esc_url( home_url( '/' . KNOWSIA_PAGE_SLUG . '/' . rawurlencode( $course['courseCode'] ) ) )
+			esc_url( home_url( '/' . knowsia_page_slug() . '/' . rawurlencode( $course['courseCode'] ) ) )
 		);
 	},
 	1
@@ -608,6 +658,7 @@ add_action(
 	function () {
 		register_setting( 'knowsia_programmes', 'knowsia_api_key', array( 'sanitize_callback' => 'sanitize_text_field' ) );
 		register_setting( 'knowsia_programmes', 'knowsia_api_base', array( 'sanitize_callback' => 'esc_url_raw' ) );
+		register_setting( 'knowsia_programmes', 'knowsia_page_slug', array( 'sanitize_callback' => 'sanitize_title' ) );
 	}
 );
 
@@ -674,6 +725,27 @@ function knowsia_render_settings_page() {
 						<p class="description">Leave blank unless the portal moves. Defaults to <code>https://reg.knowsia.com</code>.</p>
 					</td>
 				</tr>
+				<tr>
+					<th scope="row"><label for="knowsia_page_slug">Page slug</label></th>
+					<td>
+						<?php if ( defined( 'KNOWSIA_PROGRAMMES_SLUG' ) && KNOWSIA_PROGRAMMES_SLUG ) : ?>
+							<input type="text" class="regular-text" value="<?php echo esc_attr( knowsia_page_slug() ); ?>" disabled />
+							<p class="description">Defined by <code>KNOWSIA_PROGRAMMES_SLUG</code> in wp-config.php, which takes precedence.</p>
+						<?php else : ?>
+							<input type="text" class="regular-text" id="knowsia_page_slug"
+								name="knowsia_page_slug"
+								placeholder="programmes"
+								value="<?php echo esc_attr( get_option( 'knowsia_page_slug', '' ) ); ?>" />
+							<p class="description">
+								<strong>Must exactly match the slug of the page holding the shortcode.</strong>
+								Currently <code>/<?php echo esc_html( knowsia_page_slug() ); ?>/</code>.
+								This builds every "Full details" link and the detail-page URL rule — if it does
+								not match, the grid still renders but <code>/<?php echo esc_html( knowsia_page_slug() ); ?>/AI02</code>
+								will 404. Re-save permalinks after changing it.
+							</p>
+						<?php endif; ?>
+					</td>
+				</tr>
 			</table>
 			<?php submit_button( 'Save settings' ); ?>
 		</form>
@@ -689,12 +761,12 @@ function knowsia_render_settings_page() {
 		<hr />
 		<h2>How to display the catalogue</h2>
 		<ol>
-			<li>Create a Page with the slug <code><?php echo esc_html( KNOWSIA_PAGE_SLUG ); ?></code>.</li>
+			<li>Create a Page with the slug <code><?php echo esc_html( knowsia_page_slug() ); ?></code>.</li>
 			<li>Put this shortcode in its content: <code>[knowsia_programmes]</code></li>
-			<li>Go to <a href="<?php echo esc_url( admin_url( 'options-permalink.php' ) ); ?>">Settings &rsaquo; Permalinks</a> and click Save once, so <code>/<?php echo esc_html( KNOWSIA_PAGE_SLUG ); ?>/AI02</code> resolves.</li>
+			<li>Go to <a href="<?php echo esc_url( admin_url( 'options-permalink.php' ) ); ?>">Settings &rsaquo; Permalinks</a> and click Save once, so <code>/<?php echo esc_html( knowsia_page_slug() ); ?>/AI02</code> resolves.</li>
 		</ol>
 		<p>
-			Catalogue: <a href="<?php echo esc_url( home_url( '/' . KNOWSIA_PAGE_SLUG ) ); ?>" target="_blank"><?php echo esc_html( home_url( '/' . KNOWSIA_PAGE_SLUG ) ); ?></a>
+			Catalogue: <a href="<?php echo esc_url( home_url( '/' . knowsia_page_slug() ) ); ?>" target="_blank"><?php echo esc_html( home_url( '/' . knowsia_page_slug() ) ); ?></a>
 		</p>
 	</div>
 	<?php
