@@ -42,12 +42,26 @@ export function isCatalogApiConfigured(): boolean {
  * control, so absence has to mean "closed", not "off".
  */
 export function assertCatalogApiKey(request: Request): void {
-  const expected = process.env.CATALOG_API_KEY;
+  // Trimmed on both sides. Pasting a secret into the Vercel dashboard or a
+  // WordPress field very easily carries a trailing newline or space, and the
+  // resulting 401 is indistinguishable from a genuinely wrong key — the
+  // difference is invisible in both UIs. A shared secret has no meaningful
+  // leading or trailing whitespace, so trimming costs nothing and removes a
+  // whole class of unexplainable failure.
+  const expected = process.env.CATALOG_API_KEY?.trim();
   if (!expected) {
     throw new AppError('UNAUTHENTICATED', 'Catalog API is not configured.', 401);
   }
-  const authorization = request.headers.get('authorization');
-  if (authorization !== `Bearer ${expected}`) {
+
+  const authorization = request.headers.get('authorization')?.trim();
+  if (!authorization) {
+    throw new AppError('UNAUTHENTICATED', 'Invalid or missing API key.', 401);
+  }
+
+  // Case-insensitive scheme match: the RFC treats the scheme token that way,
+  // and some HTTP clients normalise it to 'bearer'.
+  const match = /^Bearer\s+(.+)$/i.exec(authorization);
+  if (!match || match[1].trim() !== expected) {
     throw new AppError('UNAUTHENTICATED', 'Invalid or missing API key.', 401);
   }
 }

@@ -90,10 +90,13 @@ function knowsia_api_base() {
  * endpoint being scraped.
  */
 function knowsia_api_key() {
+	// Trimmed: pasting a secret very easily carries a trailing newline or
+	// space, and the resulting 401 looks identical to a wrong key in both the
+	// WordPress field and the Vercel dashboard. The API trims its side too.
 	if ( defined( 'KNOWSIA_CATALOG_API_KEY' ) && KNOWSIA_CATALOG_API_KEY ) {
-		return KNOWSIA_CATALOG_API_KEY;
+		return trim( KNOWSIA_CATALOG_API_KEY );
 	}
-	return (string) get_option( 'knowsia_api_key', '' );
+	return trim( (string) get_option( 'knowsia_api_key', '' ) );
 }
 
 /**
@@ -712,6 +715,27 @@ function knowsia_render_settings_page() {
 							<p class="description">
 								The same value as <code>CATALOG_API_KEY</code> in the Vercel project for reg.knowsia.com.
 							</p>
+							<?php
+							// A fingerprint, not the secret: enough to compare against the
+							// value shown in the Vercel dashboard without exposing it, and
+							// enough to spot the two failures a password field hides —
+							// a truncated paste (wrong length) and stray whitespace.
+							$saved = knowsia_api_key();
+							if ( $saved ) {
+								$raw = (string) get_option( 'knowsia_api_key', '' );
+								printf(
+									'<p class="description"><strong>Saved key:</strong> %d characters, starts <code>%s</code>, ends <code>%s</code>%s</p>',
+									strlen( $saved ),
+									esc_html( substr( $saved, 0, 4 ) ),
+									esc_html( substr( $saved, -4 ) ),
+									$raw !== $saved
+										? ' &mdash; <em>had surrounding whitespace, which is now trimmed automatically</em>'
+										: ''
+								);
+								echo '<p class="description">Compare that length and those first/last characters with the value in Vercel. '
+									. 'If they differ, the paste was truncated or is from a different key.</p>';
+							}
+							?>
 						<?php endif; ?>
 					</td>
 				</tr>

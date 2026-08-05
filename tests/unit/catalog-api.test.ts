@@ -220,6 +220,33 @@ describe('API key', () => {
     expect(() => assertCatalogApiKey(req())).toThrow();
     expect(() => assertCatalogApiKey(req({ authorization: 'Bearer nope' }))).toThrow();
     expect(() => assertCatalogApiKey(req({ authorization: 'secret-value' }))).toThrow();
+    expect(() => assertCatalogApiKey(req({ authorization: 'Bearer ' }))).toThrow();
+    expect(() => assertCatalogApiKey(req({ authorization: 'Basic secret-value' }))).toThrow();
+  });
+
+  // A trailing newline on a secret pasted into the Vercel dashboard is
+  // invisible in both that UI and the WordPress field, and produces a 401
+  // indistinguishable from a genuinely wrong key. This cost real debugging
+  // time on 2026-08-05, so it is pinned down here.
+  it('tolerates surrounding whitespace on the configured key', () => {
+    process.env.CATALOG_API_KEY = '  secret-value\n';
+    expect(() => assertCatalogApiKey(req({ authorization: 'Bearer secret-value' }))).not.toThrow();
+  });
+
+  it('tolerates surrounding whitespace on the presented token', () => {
+    process.env.CATALOG_API_KEY = 'secret-value';
+    expect(() => assertCatalogApiKey(req({ authorization: 'Bearer secret-value ' }))).not.toThrow();
+  });
+
+  it('accepts a lower-case bearer scheme, which some clients normalise to', () => {
+    process.env.CATALOG_API_KEY = 'secret-value';
+    expect(() => assertCatalogApiKey(req({ authorization: 'bearer secret-value' }))).not.toThrow();
+  });
+
+  // Trimming must not make a whitespace-only key look configured.
+  it('treats a whitespace-only key as unconfigured', () => {
+    process.env.CATALOG_API_KEY = '   ';
+    expect(() => assertCatalogApiKey(req({ authorization: 'Bearer    ' }))).toThrow();
   });
 
   // Opposite of the isR2Configured/isSmsConfigured gates elsewhere: those
