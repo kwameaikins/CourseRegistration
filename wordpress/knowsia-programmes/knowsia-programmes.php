@@ -38,7 +38,26 @@ define( 'KNOWSIA_CACHE_KEY', 'knowsia_catalog_v1' );
 define( 'KNOWSIA_FALLBACK_KEY', 'knowsia_catalog_fallback_v1' );
 define( 'KNOWSIA_CACHE_TTL', 60 );          // Seconds. Freshness vs. load.
 define( 'KNOWSIA_FALLBACK_TTL', WEEK_IN_SECONDS );
-define( 'KNOWSIA_PAGE_SLUG', 'programmes' );
+
+// The page slug this plugin renders on, and the first segment of every
+// detail URL (/programmes/AI02). Override in wp-config.php BEFORE the page
+// is published and indexed:
+//
+//     define( 'KNOWSIA_PROGRAMMES_SLUG', 'live-programmes' );
+//
+// Two things must move together if you change it: the WordPress page's own
+// slug, and RETIRE_PROGRAMMES_REDIRECT's destination on reg.knowsia.com
+// (MARKETING_PROGRAMMES_PATH in next.config.ts). A mismatch sends every
+// redirected visitor to a 404.
+//
+// The DISPLAY label is separate and lives in the page title and menu item —
+// "Live Programmes" is the recommended wording, to distinguish these
+// cohort-based trainings from the self-paced LearnPress courses at /courses/.
+// The label can say "Live Programmes" while the slug stays /programmes.
+if ( ! defined( 'KNOWSIA_PROGRAMMES_SLUG' ) ) {
+	define( 'KNOWSIA_PROGRAMMES_SLUG', 'programmes' );
+}
+define( 'KNOWSIA_PAGE_SLUG', KNOWSIA_PROGRAMMES_SLUG );
 
 /* -------------------------------------------------------------------------
  * API CLIENT

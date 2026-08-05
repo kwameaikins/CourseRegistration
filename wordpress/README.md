@@ -24,11 +24,32 @@ The ready-to-upload file is **`knowsia-programmes.zip`** in this folder. No SSH 
 4. **Click "Test connection"** on that same screen. It calls the live API and tells you exactly
    what came back — "Connected. 4 programmes returned." means everything works. Fix any error
    here before going further; a failure at this step is why the page would otherwise render blank.
-5. **Create the page.** Pages → Add New, title *Programmes*, slug exactly **`programmes`**,
-   content: `[knowsia_programmes]`. Publish.
+5. **Create the page.** Pages → Add New, title **Live Programmes**, slug exactly
+   **`programmes`**, content: `[knowsia_programmes]`. Publish.
+
+   The title and the slug deliberately differ. "Live Programmes" tells visitors these are
+   cohort-based, date-bound trainings, distinct from the self-paced LearnPress courses at
+   `/courses/` — that is the whole reason this catalogue needed its own home. The slug stays
+   short, and matches the path already indexed on reg.knowsia.com so the redirect maps 1:1.
+   Set the slug by hand in the page editor; WordPress will otherwise derive `live-programmes`
+   from the title.
+
 6. **Flush permalinks.** Settings → Permalinks → Save (no changes needed). Without this,
    `/programmes/AI02` will 404 even though `/programmes` works.
-7. **Add it to the menu.** Appearance → Menus, add the Programmes page.
+7. **Add it to the menu.** Appearance → Menus. Label it **Live Programmes**, and make sure it
+   reads clearly next to the existing "All Courses" LearnPress entry.
+
+#### If you want the URL to be `/live-programmes` too
+
+Free to do right now — nothing is published or indexed yet. Two settings must change together:
+
+1. In `wp-config.php`: `define( 'KNOWSIA_PROGRAMMES_SLUG', 'live-programmes' );`
+   (and set the WordPress page's slug to match), then re-save permalinks.
+2. In Vercel on the reg.knowsia.com project: `MARKETING_PROGRAMMES_PATH=/live-programmes`.
+
+If only one of the two changes, every visitor following the retirement redirect from
+reg.knowsia.com lands on a 404. After the page is published and indexed, changing the slug also
+means orphaning any links already shared, so decide before step 5.
 
 #### Optional: keep the key out of the database
 

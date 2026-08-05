@@ -20,6 +20,13 @@ import { withSentryConfig } from '@sentry/nextjs';
 // bare /programmes redirect alone would strand every one of those links.
 const RETIRE_PROGRAMMES = process.env.RETIRE_PROGRAMMES_REDIRECT === 'true';
 const MARKETING_SITE = process.env.MARKETING_SITE_URL ?? 'https://knowsia.com';
+// The path segment the WordPress catalogue lives on. Must match the plugin's
+// KNOWSIA_PROGRAMMES_SLUG exactly — if the WordPress page is at
+// /live-programmes and this still says /programmes, every redirected visitor
+// lands on a 404. Kept as an env var so the two can be aligned without a code
+// change, and so this app's own /programmes path (which is what is already
+// indexed) does not have to change with it.
+const MARKETING_PATH = (process.env.MARKETING_PROGRAMMES_PATH ?? '/programmes').replace(/\/$/, '');
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -28,12 +35,12 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/programmes',
-        destination: `${MARKETING_SITE}/programmes`,
+        destination: `${MARKETING_SITE}${MARKETING_PATH}`,
         permanent: true,
       },
       {
         source: '/programmes/:courseCode',
-        destination: `${MARKETING_SITE}/programmes/:courseCode`,
+        destination: `${MARKETING_SITE}${MARKETING_PATH}/:courseCode`,
         permanent: true,
       },
     ];
