@@ -13,6 +13,9 @@ import * as usersService from '@/modules/users/service';
 import * as attendanceService from '@/modules/attendance/service';
 import * as certificatesService from '@/modules/certificates/service';
 import * as liveSessionsService from '@/modules/live-sessions/service';
+// Assignments (2026-08-04) — modules/assignments owns the grade write, which
+// Document 14 §3 explicitly forbids modules/live-sessions from doing.
+import * as assignmentsService from '@/modules/assignments/service';
 // A category='tutor' partner (Knowsia Growth Partner Programme, 2026-08-02)
 // authenticates through this exact tutor_auth/tutor_sessions login, not a
 // separate partner_auth row — see modules/partners/service.ts's
@@ -21,13 +24,23 @@ import * as partnersService from '@/modules/partners/service';
 // Commission-credit redemption (2026-08-02) — payments owns the fee
 // mutation; see modules/payments/service.ts's redeemCommissionCreditSystem.
 import * as paymentsService from '@/modules/payments/service';
+import type { ParsedUpload } from '@/lib/uploads';
 import type { RedeemCommissionCreditInput } from '@/modules/partners/types';
+import type {
+  Assignment,
+  AssignmentWithStats,
+  CreateAssignmentInput,
+  ReviewSubmissionInput,
+  UpdateAssignmentInput,
+} from '@/modules/assignments/types';
 import type {
   AddTutorSessionMaterialInput,
   CreateTutorInput,
   FlagAttendanceExceptionInput,
   Tutor,
   TutorActivityEntry,
+  TutorAssignmentSubmissionEntry,
+  UploadTutorSessionMaterialInput,
   TutorPortalAttendanceEntry,
   TutorPortalBatch,
   TutorPortalCertificateCandidate,
@@ -476,4 +489,164 @@ export async function removeMaterial(
   const tutorId = await requireOwnBatch(sessionId, batchId);
   await liveSessionsService.removeSessionMaterial(materialId, tutorId);
   await logTutorAction(tutorId, 'material_removed', batchId, { materialId });
+}
+
+// --- Learning resource file uploads (founder-requested 2026-08-04) —
+// completes what Document 14 §6 always specified ("Tutor ... upload
+// materials"); the earlier link-only shape existed because no file storage
+// was available before Cloudflare R2 landed on 2026-08-02. ---
+
+export async function uploadMaterialForBatch(
+  sessionId: string | undefined,
+  input: UploadTutorSessionMaterialInput,
+  file: ParsedUpload,
+): Promise<SessionMaterial> {
+  const tutorId = await requireOwnBatch(sessionId, input.batchId);
+  const material = await liveSessionsService.uploadSessionMaterialFile({
+    batchId: input.batchId,
+    liveSessionId: input.liveSessionId ?? null,
+    uploadedByTutorId: tutorId,
+    title: input.title,
+    file,
+  });
+  await logTutorAction(tutorId, 'material_uploaded', input.batchId, {
+    title: input.title,
+    fileName: file.fileName,
+  });
+  return material;
+}
+
+// Resolves the presigned URL only after confirming the material's own batch
+// belongs to this tutor — never trusts the caller's batch claim, same as
+// every other tutor-portal read.
+export async function getMaterialDownloadUrl(
+  sessionId: string | undefined,
+  materialId: string,
+): Promise<string> {
+  const { tutorId } = await requireTutorPortalSession(sessionId);
+  const material = await liveSessionsService.getSessionMaterialDownloadUrlSystem(materialId);
+  const batch = await tutorsRepository.selectBatchForTutorSystem(material.batchId, tutorId);
+  if (!batch) throw new AppError('NOT_FOUND', 'Material not found.', 404);
+  return material.url;
+}
+
+// --- Assignments (founder-requested 2026-08-04) — see the scope note in
+// modules/assignments/service.ts. A tutor may only ever act on assignments
+// belonging to their own batches. ---
+
+// Every assignment-id-keyed action funnels through here: resolve the
+// assignment, then prove its batch is this tutor's.
+async function requireOwnAssignment(
+  sessionId: string | undefined,
+  assignmentId: string,
+): Promise<{ tutorId: string; assignment: Assignment }> {
+  const { tutorId } = await requireTutorPortalSession(sessionId);
+  const assignment = await assignmentsService.getAssignmentByIdSystem(assignmentId);
+  const batch = await tutorsRepository.selectBatchForTutorSystem(assignment.batchId, tutorId);
+  if (!batch) throw new AppError('NOT_FOUND', 'Assignment not found.', 404);
+  return { tutorId, assignment };
+}
+
+export async function getAssignmentsForBatch(
+  sessionId: string | undefined,
+  batchId: string,
+): Promise<AssignmentWithStats[]> {
+  await requireOwnBatch(sessionId, batchId);
+  return assignmentsService.getAssignmentsForBatchSystem(batchId);
+}
+
+export async function createAssignmentForBatch(
+  sessionId: string | undefined,
+  input: CreateAssignmentInput,
+): Promise<Assignment> {
+  const tutorId = await requireOwnBatch(sessionId, input.batchId);
+  const assignment = await assignmentsService.createAssignmentSystem(input, { tutorId });
+  await logTutorAction(tutorId, 'assignment_created', input.batchId, { title: input.title });
+  return assignment;
+}
+
+export async function updateAssignmentForTutor(
+  sessionId: string | undefined,
+  assignmentId: string,
+  input: UpdateAssignmentInput,
+): Promise<Assignment> {
+  const { tutorId, assignment } = await requireOwnAssignment(sessionId, assignmentId);
+  const updated = await assignmentsService.updateAssignmentSystem(assignmentId, input);
+  await logTutorAction(tutorId, 'assignment_updated', assignment.batchId, { assignmentId });
+  return updated;
+}
+
+export async function deleteAssignmentForTutor(
+  sessionId: string | undefined,
+  assignmentId: string,
+): Promise<void> {
+  const { tutorId, assignment } = await requireOwnAssignment(sessionId, assignmentId);
+  await assignmentsService.deleteAssignmentSystem(assignmentId);
+  await logTutorAction(tutorId, 'assignment_deleted', assignment.batchId, {
+    assignmentId,
+    title: assignment.title,
+  });
+}
+
+// Merges the submissions (keyed by registrationId) against this batch's
+// roster to attach learner names. Name/email only — BR-33 still holds, no
+// payment field is ever joined in.
+export async function getSubmissionsForAssignment(
+  sessionId: string | undefined,
+  assignmentId: string,
+): Promise<TutorAssignmentSubmissionEntry[]> {
+  const { assignment } = await requireOwnAssignment(sessionId, assignmentId);
+  const [submissions, roster] = await Promise.all([
+    assignmentsService.getSubmissionsForAssignmentSystem(assignmentId),
+    tutorsRepository.selectRosterForBatchSystem(assignment.batchId),
+  ]);
+  const participantByRegistration = new Map(
+    roster.map(({ registration, participant }) => [
+      registration.id,
+      { name: participant?.full_name ?? '[unavailable]', email: participant?.email ?? '' },
+    ]),
+  );
+  return submissions.map((submission) => {
+    const participant = participantByRegistration.get(submission.registrationId);
+    return {
+      submissionId: submission.id,
+      registrationId: submission.registrationId,
+      participantName: participant?.name ?? '[unavailable]',
+      participantEmail: participant?.email ?? '',
+      fileName: submission.fileName,
+      fileSizeBytes: submission.fileSizeBytes,
+      participantNotes: submission.participantNotes,
+      submittedAt: submission.submittedAt,
+      status: submission.status,
+      grade: submission.grade,
+      feedback: submission.feedback,
+      reviewedAt: submission.reviewedAt,
+    };
+  });
+}
+
+export async function reviewSubmissionForTutor(
+  sessionId: string | undefined,
+  submissionId: string,
+  input: ReviewSubmissionInput,
+): Promise<void> {
+  // Resolve the submission's assignment first, then prove that assignment's
+  // batch is this tutor's — a submission id alone says nothing about who owns it.
+  const submission = await assignmentsService.getSubmissionByIdSystem(submissionId);
+  const { tutorId, assignment } = await requireOwnAssignment(sessionId, submission.assignmentId);
+  await assignmentsService.reviewSubmissionSystem(submissionId, input, { tutorId });
+  await logTutorAction(tutorId, 'assignment_submission_reviewed', assignment.batchId, {
+    submissionId,
+    grade: input.grade ?? null,
+  });
+}
+
+export async function getSubmissionDownloadUrlForTutor(
+  sessionId: string | undefined,
+  submissionId: string,
+): Promise<string> {
+  const submission = await assignmentsService.getSubmissionByIdSystem(submissionId);
+  await requireOwnAssignment(sessionId, submission.assignmentId);
+  const target = await assignmentsService.getSubmissionDownloadUrlSystem(submissionId);
+  return target.url;
 }

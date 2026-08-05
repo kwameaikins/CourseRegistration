@@ -6,6 +6,7 @@ type LiveSessionRow = Database['public']['Tables']['live_sessions']['Row'];
 type LiveSessionInsert = Database['public']['Tables']['live_sessions']['Insert'];
 type LiveSessionUpdate = Database['public']['Tables']['live_sessions']['Update'];
 type SessionMaterialRow = Database['public']['Tables']['session_materials']['Row'];
+type SessionMaterialInsert = Database['public']['Tables']['session_materials']['Insert'];
 
 export async function selectLiveSessions(): Promise<LiveSessionRow[]> {
   const supabase = await createSupabaseServerClient();
@@ -66,19 +67,17 @@ export async function insertLiveSessionAuditEvent(input: {
   if (error) throw error;
 }
 
-// --- Session Materials (Tutor Portal Phase 4, founder-approved 2026-07-31) ---
-// Link-based, no file storage (same precedent as batches.resources_link).
-// Tutor/participant-portal writes and reads use the service-role client
-// (neither has a Supabase Auth session for RLS to key off); the staff
-// screen reads under its own RLS-gated session.
+// --- Session Materials (Tutor Portal Phase 4, founder-approved 2026-07-31;
+// file uploads added 2026-08-04) ---
+// Either a shared link or a Cloudflare R2 object key (file_path) — the DB
+// enforces exactly one via chk_session_materials_link_xor_file. Bytes never
+// land in Postgres. Tutor/participant-portal writes and reads use the
+// service-role client (neither has a Supabase Auth session for RLS to key
+// off); the staff screen reads under its own RLS-gated session.
 
-export async function insertSessionMaterialSystem(input: {
-  batch_id: string;
-  live_session_id: string | null;
-  uploaded_by_tutor_id: string;
-  title: string;
-  link: string;
-}): Promise<SessionMaterialRow> {
+export async function insertSessionMaterialSystem(
+  input: SessionMaterialInsert,
+): Promise<SessionMaterialRow> {
   const supabase = createSupabaseServiceRoleClient();
   const { data, error } = await supabase.from('session_materials').insert(input).select().single();
   if (error) throw error;

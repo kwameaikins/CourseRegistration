@@ -146,6 +146,34 @@ export const addTutorSessionMaterialSchema = z.object({
 });
 export type AddTutorSessionMaterialInput = z.infer<typeof addTutorSessionMaterialSchema>;
 
+// File-upload counterpart (2026-08-04) — the file itself arrives as a
+// separate multipart field, parsed by lib/uploads.ts.
+export const uploadTutorSessionMaterialSchema = z.object({
+  batchId: z.uuid(),
+  liveSessionId: z.uuid().nullable().optional(),
+  title: z.string().trim().min(2).max(200),
+});
+export type UploadTutorSessionMaterialInput = z.infer<typeof uploadTutorSessionMaterialSchema>;
+
+// Assignments (founder-requested 2026-08-04) — a tutor's view of one
+// submission, with the learner's identity merged in from the roster this
+// module already reads. modules/assignments itself never touches the
+// participants/registrations tables (module boundary rule).
+export interface TutorAssignmentSubmissionEntry {
+  submissionId: string;
+  registrationId: string;
+  participantName: string;
+  participantEmail: string;
+  fileName: string;
+  fileSizeBytes: number;
+  participantNotes: string | null;
+  submittedAt: string;
+  status: 'submitted' | 'reviewed';
+  grade: number | null;
+  feedback: string | null;
+  reviewedAt: string | null;
+}
+
 // Staff-facing tutor activity view.
 export interface TutorActivityEntry {
   id: string;

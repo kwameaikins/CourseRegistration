@@ -1,5 +1,4 @@
 // Payment business rules (BR-04, BR-05, BR-06, BR-12).
-import crypto from 'crypto';
 import { parsePaymentMethod, parsePaymentStatus } from '@/lib/domain/parsers';
 import { AppError } from '@/lib/errors';
 import * as paymentsRepository from '@/modules/payments/repository';
@@ -9,6 +8,7 @@ import * as attendanceService from '@/modules/attendance/service';
 import * as opportunitiesService from '@/modules/opportunities/service';
 import * as leadsService from '@/modules/leads/service';
 import * as r2Client from '@/lib/r2/client';
+import { paymentSlipKey } from '@/lib/r2/keys';
 // Permitted cross-module call, same posture as leads/opportunities/
 // attendance below — commission accrual only ever fires once a payment
 // actually clears (Knowsia Growth Partner Programme, 2026-08-02).
@@ -637,7 +637,11 @@ export async function submitPaymentProofSystem(
         400,
       );
     }
-    slipFilePath = `${input.registrationId}/${crypto.randomUUID()}.${slip.extension}`;
+    // Was a bare `<registrationId>/<uuid>.<ext>` at the bucket root until
+    // 2026-08-05 — normalised under the `slips/` prefix once two more upload
+    // types joined the same bucket. Safe to change: no slip had ever been
+    // uploaded in production, so nothing was orphaned. See lib/r2/keys.ts.
+    slipFilePath = paymentSlipKey(input.registrationId, slip.extension);
     await r2Client.uploadObject({
       key: slipFilePath,
       body: slip.buffer,

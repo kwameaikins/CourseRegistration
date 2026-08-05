@@ -29,6 +29,16 @@ import * as feedbackService from '@/modules/feedback/service';
 // same posture as every other cross-module call in this file.
 import * as liveSessionsService from '@/modules/live-sessions/service';
 import type { SessionMaterial } from '@/modules/live-sessions/types';
+// Permitted cross-module call (2026-08-04) — assignments owns the
+// submission/grade tables; portal only verifies the registration belongs to
+// this session before delegating, same posture as liveSessionsService above.
+import * as assignmentsService from '@/modules/assignments/service';
+import type {
+  AssignmentSubmission,
+  StudentAssignment,
+  SubmitAssignmentInput,
+} from '@/modules/assignments/types';
+import type { ParsedUpload } from '@/lib/uploads';
 // Permitted cross-module call (2026-08-02) — an existing student can
 // self-serve "Refer & Earn" from their own portal login instead of the
 // public application form; portal only resolves the participant before
@@ -554,6 +564,94 @@ export async function getSessionMaterials(
     throw new AppError('NOT_FOUND', 'Registration not found.', 404);
   }
   return liveSessionsService.getSessionMaterialsForBatchSystem(match.batch.id);
+}
+
+// A presigned URL for a file-backed material (2026-08-04). Resolves the
+// material's own batch first, then requires that batch to match one this
+// session is actually registered in — a material id from another cohort
+// therefore reads as 404, never as a download.
+export async function getMaterialDownloadUrl(
+  sessionId: string | undefined,
+  registrationId: string,
+  materialId: string,
+): Promise<string> {
+  const { participantId } = await requirePortalSession(sessionId);
+  const data = await portalRepository.selectPortalDashboardData(participantId);
+  const match = data.registrations.find((row) => row.registration.id === registrationId);
+  if (!match || !match.batch) {
+    throw new AppError('NOT_FOUND', 'Registration not found.', 404);
+  }
+  const material = await liveSessionsService.getSessionMaterialDownloadUrlSystem(materialId);
+  if (material.batchId !== match.batch.id) {
+    throw new AppError('NOT_FOUND', 'Material not found.', 404);
+  }
+  return material.url;
+}
+
+// --- Assignments (founder-requested 2026-08-04) — see the scope note in
+// modules/assignments/service.ts. Same ownership posture as every other
+// cross-module call in this file: portal proves the registration belongs to
+// this session, then delegates. ---
+
+export async function getAssignments(
+  sessionId: string | undefined,
+  registrationId: string,
+): Promise<StudentAssignment[]> {
+  const { participantId } = await requirePortalSession(sessionId);
+  const data = await portalRepository.selectPortalDashboardData(participantId);
+  const match = data.registrations.find((row) => row.registration.id === registrationId);
+  if (!match || !match.batch) {
+    throw new AppError('NOT_FOUND', 'Registration not found.', 404);
+  }
+  return assignmentsService.getAssignmentsForRegistrationSystem(match.batch.id, registrationId);
+}
+
+export async function submitAssignment(
+  sessionId: string | undefined,
+  input: SubmitAssignmentInput,
+  file: ParsedUpload,
+): Promise<AssignmentSubmission> {
+  const { participantId } = await requirePortalSession(sessionId);
+  const data = await portalRepository.selectPortalDashboardData(participantId);
+  const match = data.registrations.find((row) => row.registration.id === input.registrationId);
+  if (!match || !match.batch) {
+    throw new AppError('NOT_FOUND', 'Registration not found.', 404);
+  }
+
+  // The registration is this session's, but the assignment must also belong
+  // to that registration's own batch — otherwise a learner could submit
+  // against another cohort's assignment using their own registration id.
+  const assignment = await assignmentsService.getAssignmentByIdSystem(input.assignmentId);
+  if (assignment.batchId !== match.batch.id) {
+    throw new AppError('NOT_FOUND', 'Assignment not found.', 404);
+  }
+
+  return assignmentsService.submitAssignmentSystem({
+    assignmentId: input.assignmentId,
+    registrationId: input.registrationId,
+    participantNotes: input.participantNotes ?? null,
+    file,
+  });
+}
+
+// A learner may only ever download their own submission back.
+export async function getMySubmissionDownloadUrl(
+  sessionId: string | undefined,
+  registrationId: string,
+  submissionId: string,
+): Promise<string> {
+  const { participantId } = await requirePortalSession(sessionId);
+  const data = await portalRepository.selectPortalDashboardData(participantId);
+  const match = data.registrations.find((row) => row.registration.id === registrationId);
+  if (!match) {
+    throw new AppError('NOT_FOUND', 'Registration not found.', 404);
+  }
+  const submission = await assignmentsService.getSubmissionByIdSystem(submissionId);
+  if (submission.registrationId !== registrationId) {
+    throw new AppError('NOT_FOUND', 'Submission not found.', 404);
+  }
+  const target = await assignmentsService.getSubmissionDownloadUrlSystem(submissionId);
+  return target.url;
 }
 
 // Browse other courses (2026-07-26) — reuses the exact same public-batch

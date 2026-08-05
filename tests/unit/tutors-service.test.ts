@@ -42,12 +42,29 @@ const certificatesServiceMock = {
 };
 const liveSessionsServiceMock = {
   addSessionMaterial: vi.fn(),
+  uploadSessionMaterialFile: vi.fn(),
+  getSessionMaterialDownloadUrlSystem: vi.fn(),
   removeSessionMaterial: vi.fn(),
   getSessionMaterialsForBatchSystem: vi.fn(),
   getSessionMaterialsForBatch: vi.fn(),
 };
+// Assignments (2026-08-04) — modules/tutors delegates every assignment
+// read/write here after proving the batch is the calling tutor's own.
+const assignmentsServiceMock = {
+  getAssignmentByIdSystem: vi.fn(),
+  getAssignmentsForBatchSystem: vi.fn(),
+  createAssignmentSystem: vi.fn(),
+  updateAssignmentSystem: vi.fn(),
+  deleteAssignmentSystem: vi.fn(),
+  getSubmissionsForAssignmentSystem: vi.fn(),
+  getSubmissionByIdSystem: vi.fn(),
+  reviewSubmissionSystem: vi.fn(),
+  getSubmissionDownloadUrlSystem: vi.fn(),
+};
 const partnersServiceMock = {
   getReferralSummaryForTutor: vi.fn(),
+  ensurePartnerForTutorSystem: vi.fn(),
+  getPartnerForTutorSystem: vi.fn(),
 };
 
 vi.mock('@/modules/tutors/repository', () => tutorsRepositoryMock);
@@ -56,6 +73,7 @@ vi.mock('@/modules/attendance/service', () => attendanceServiceMock);
 vi.mock('@/modules/certificates/service', () => certificatesServiceMock);
 vi.mock('@/modules/live-sessions/service', () => liveSessionsServiceMock);
 vi.mock('@/modules/partners/service', () => partnersServiceMock);
+vi.mock('@/modules/assignments/service', () => assignmentsServiceMock);
 
 const {
   listTutorsWithBatchCounts,
@@ -73,6 +91,13 @@ const {
   flagAttendanceException,
   addMaterialForBatch,
   removeMaterial,
+  uploadMaterialForBatch,
+  getMaterialDownloadUrl,
+  getAssignmentsForBatch,
+  createAssignmentForBatch,
+  getSubmissionsForAssignment,
+  reviewSubmissionForTutor,
+  getSubmissionDownloadUrlForTutor,
   listTutorActivity,
   getReferralSummaryForSession,
 } = await import('@/modules/tutors/service');
@@ -283,6 +308,13 @@ describe('getReferralSummaryForSession — Knowsia Growth Partner Programme (202
       expires_at: '2099-01-01T00:00:00Z',
       revoked_at: null,
     });
+    // The 2026-08-02 auto-provisioning follow-up added a
+    // `selectTutorByIdSystem` lookup (returning null short-circuits the whole
+    // function) plus an ensurePartnerForTutorSystem call ahead of the
+    // delegation this test asserts. Both need stubbing or the function
+    // returns null before ever reaching getReferralSummaryForTutor.
+    tutorsRepositoryMock.selectTutorByIdSystem.mockResolvedValue(tutorRow());
+    partnersServiceMock.ensurePartnerForTutorSystem.mockResolvedValue(undefined);
     partnersServiceMock.getReferralSummaryForTutor.mockResolvedValue({
       codes: [],
       commissionTotals: {},
@@ -423,6 +455,154 @@ describe('batch-scoped reads reject a batch that does not belong to the calling 
       code: 'NOT_FOUND',
     });
     expect(certificatesServiceMock.getBatchIssueContext).not.toHaveBeenCalled();
+  });
+
+  // Learning resource uploads + assignments (2026-08-04) — the same
+  // "never trust a client-supplied id" posture as every read above.
+
+  it('uploadMaterialForBatch rejects a batch that is not this tutor’s, before touching R2', async () => {
+    tutorsRepositoryMock.selectBatchForTutorSystem.mockResolvedValue(null);
+    await expect(
+      uploadMaterialForBatch(
+        'session-1',
+        { batchId: 'batch-not-mine', title: 'Slides' },
+        {
+          buffer: Buffer.from('x'),
+          contentType: 'application/pdf',
+          extension: 'pdf',
+          fileName: 'slides.pdf',
+          sizeBytes: 10,
+        },
+      ),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(liveSessionsServiceMock.uploadSessionMaterialFile).not.toHaveBeenCalled();
+  });
+
+  it('getMaterialDownloadUrl rejects a material belonging to another tutor’s batch', async () => {
+    liveSessionsServiceMock.getSessionMaterialDownloadUrlSystem.mockResolvedValue({
+      url: 'https://r2.example/signed',
+      batchId: 'batch-not-mine',
+      fileName: 'slides.pdf',
+    });
+    tutorsRepositoryMock.selectBatchForTutorSystem.mockResolvedValue(null);
+    await expect(getMaterialDownloadUrl('session-1', 'material-1')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+  });
+
+  it('getAssignmentsForBatch rejects a batch that is not this tutor’s', async () => {
+    tutorsRepositoryMock.selectBatchForTutorSystem.mockResolvedValue(null);
+    await expect(getAssignmentsForBatch('session-1', 'batch-not-mine')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    expect(assignmentsServiceMock.getAssignmentsForBatchSystem).not.toHaveBeenCalled();
+  });
+
+  it('createAssignmentForBatch attributes the assignment to the session’s own tutor', async () => {
+    tutorsRepositoryMock.selectBatchForTutorSystem.mockResolvedValue({
+      id: 'batch-1',
+      facilitator_tutor_id: 'tutor-1',
+    });
+    assignmentsServiceMock.createAssignmentSystem.mockResolvedValue({ id: 'assignment-1' });
+    await createAssignmentForBatch('session-1', { batchId: 'batch-1', title: 'Case study' });
+    expect(assignmentsServiceMock.createAssignmentSystem).toHaveBeenCalledWith(
+      expect.objectContaining({ batchId: 'batch-1' }),
+      { tutorId: 'tutor-1' },
+    );
+  });
+
+  it('getSubmissionsForAssignment rejects an assignment on another tutor’s batch', async () => {
+    assignmentsServiceMock.getAssignmentByIdSystem.mockResolvedValue({
+      id: 'assignment-1',
+      batchId: 'batch-not-mine',
+    });
+    tutorsRepositoryMock.selectBatchForTutorSystem.mockResolvedValue(null);
+    await expect(getSubmissionsForAssignment('session-1', 'assignment-1')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
+    expect(assignmentsServiceMock.getSubmissionsForAssignmentSystem).not.toHaveBeenCalled();
+  });
+
+  it('getSubmissionsForAssignment merges learner names from the roster, with no payment field', async () => {
+    assignmentsServiceMock.getAssignmentByIdSystem.mockResolvedValue({
+      id: 'assignment-1',
+      batchId: 'batch-1',
+    });
+    tutorsRepositoryMock.selectBatchForTutorSystem.mockResolvedValue({
+      id: 'batch-1',
+      facilitator_tutor_id: 'tutor-1',
+    });
+    assignmentsServiceMock.getSubmissionsForAssignmentSystem.mockResolvedValue([
+      {
+        id: 'submission-1',
+        assignmentId: 'assignment-1',
+        registrationId: 'reg-1',
+        fileName: 'answer.pdf',
+        fileSizeBytes: 1024,
+        contentType: 'application/pdf',
+        participantNotes: null,
+        submittedAt: '2026-08-04T10:00:00Z',
+        status: 'submitted',
+        grade: null,
+        feedback: null,
+        reviewedByTutorId: null,
+        reviewedByStaffId: null,
+        reviewedAt: null,
+      },
+    ]);
+    tutorsRepositoryMock.selectRosterForBatchSystem.mockResolvedValue([
+      {
+        registration: { id: 'reg-1', registration_status: 'Confirmed', registered_at: '2026-08-01' },
+        participant: { full_name: 'Ama Mensah', email: 'ama@example.com', phone: '0244000000' },
+      },
+    ]);
+
+    const [entry] = await getSubmissionsForAssignment('session-1', 'assignment-1');
+
+    expect(entry.participantName).toBe('Ama Mensah');
+    expect(entry.participantEmail).toBe('ama@example.com');
+    // BR-33: no payment/financial field ever reaches a tutor. Matched on
+    // whole keys so the legitimate "feedback" field isn't caught by "fee".
+    expect(Object.keys(entry)).not.toContain(
+      expect.stringMatching(/^(amountPaid|courseFee|balance|paymentStatus)$/),
+    );
+    expect(Object.keys(entry)).toEqual(
+      expect.arrayContaining(['participantName', 'participantEmail', 'submissionId']),
+    );
+  });
+
+  it('reviewSubmissionForTutor resolves ownership from the submission, not from client input', async () => {
+    assignmentsServiceMock.getSubmissionByIdSystem.mockResolvedValue({
+      id: 'submission-1',
+      assignmentId: 'assignment-1',
+    });
+    assignmentsServiceMock.getAssignmentByIdSystem.mockResolvedValue({
+      id: 'assignment-1',
+      batchId: 'batch-not-mine',
+    });
+    tutorsRepositoryMock.selectBatchForTutorSystem.mockResolvedValue(null);
+
+    await expect(
+      reviewSubmissionForTutor('session-1', 'submission-1', { grade: 90 }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(assignmentsServiceMock.reviewSubmissionSystem).not.toHaveBeenCalled();
+  });
+
+  it('getSubmissionDownloadUrlForTutor authorizes before ever signing a URL', async () => {
+    assignmentsServiceMock.getSubmissionByIdSystem.mockResolvedValue({
+      id: 'submission-1',
+      assignmentId: 'assignment-1',
+    });
+    assignmentsServiceMock.getAssignmentByIdSystem.mockResolvedValue({
+      id: 'assignment-1',
+      batchId: 'batch-not-mine',
+    });
+    tutorsRepositoryMock.selectBatchForTutorSystem.mockResolvedValue(null);
+
+    await expect(
+      getSubmissionDownloadUrlForTutor('session-1', 'submission-1'),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(assignmentsServiceMock.getSubmissionDownloadUrlSystem).not.toHaveBeenCalled();
   });
 
   it('getRosterForBatch never selects payment fields, only name/email/phone/status', async () => {

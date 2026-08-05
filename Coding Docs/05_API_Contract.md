@@ -521,3 +521,56 @@ Tutor-portal-facing (`app/api/tutor-portal/**`, its own session cookie, never a 
 scoped to `tutor_id`), `roster/[batchId]`, `attendance/[batchId]`, `certificates/[batchId]`
 (each verifies the batch belongs to the calling tutor's own session before returning anything —
 BR-32). See Document 16 before implementation.
+
+## 17. Learning Resources and Assignments API Surface (2026-08-04)
+
+Read Document 16 Phase 5 first — the assignment half is **new scope against PRD §9**, added at
+explicit founder request.
+
+**Uploads.** `POST` of a learning resource accepts *either* `application/json` (a link, the
+original 2026-07-31 shape, still supported unchanged) *or* `multipart/form-data` (a file); the
+route branches on `Content-Type`. Assignment submission is multipart-only — the file *is* the
+submission. Allowed types and the 20MB cap live in `lib/upload-constants.ts`
+(`lib/uploads.ts` does the server-side parsing; the extension is derived from the MIME type,
+never from the client-supplied filename).
+
+**Downloads.** No endpoint ever returns an R2 object key. A client asks for a short-lived (5 min)
+presigned URL by id, and every one of these routes authorizes the *owning batch or registration*
+server-side before signing — see Document 16 Phase 5 "Authorization".
+
+Tutor-portal-facing (`app/api/tutor-portal/**`):
+
+| Route | Method | Purpose |
+|---|---|---|
+| `materials` | POST | Share a resource — JSON link or multipart file |
+| `materials/[id]` | GET / DELETE | `id` is a **batchId** on GET (list), a **material id** on DELETE — the App Router forbids differing slug names at one path position |
+| `materials/[id]/download-url` | GET | Presigned URL for a file-backed material |
+| `assignments?batchId=` | GET / POST | List (with submission/review counts) / create |
+| `assignments/[id]` | PATCH / DELETE | Edit, open/close, or delete (cascades to submissions) |
+| `assignments/[id]/submissions` | GET | Every learner's submission, names merged from the roster (no payment field — BR-33) |
+| `submissions/[id]` | PATCH | Record a grade and/or feedback |
+| `submissions/[id]/download-url` | GET | Presigned URL for a learner's submitted file |
+
+Student-portal-facing (`app/api/portal/**`, participant session cookie):
+
+| Route | Method | Purpose |
+|---|---|---|
+| `materials/[registrationId]` | GET | Resources for that registration's batch |
+| `materials/[registrationId]/download-url?materialId=` | GET | Presigned URL, 404 if the material is another cohort's |
+| `assignments/[registrationId]` | GET | Batch assignments, each carrying **only this learner's own** submission |
+| `assignments` | POST | Submit or resubmit (multipart) |
+| `assignments/[registrationId]/download-url?submissionId=` | GET | The learner's own submission back; 404 on anyone else's |
+
+Staff-facing (`app/api/live-sessions/**`, admin authors / management reads):
+
+| Route | Method | Purpose |
+|---|---|---|
+| `materials?batchId=` | GET | Resources on a batch (tutor- or staff-authored) |
+| `materials` | POST | Share a resource — JSON link or multipart file (admin) |
+| `materials/[id]` | DELETE | Remove any material, including a tutor's (admin) |
+| `materials/[id]/download-url` | GET | Presigned URL (admin/management) |
+| `assignments?batchId=` | GET / POST | List with counts / create (admin) |
+| `assignments/[id]` | PATCH / DELETE | Edit, open/close, or delete (admin) |
+
+There is deliberately **no** staff endpoint for reading or marking an individual submission —
+see Document 16 Phase 5 "Deliberately not built".

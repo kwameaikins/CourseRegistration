@@ -626,3 +626,31 @@ similarity (`fn_news_similar_titles`). RLS: admin+marketing manage everything;
 `authenticated`), the first public-read RLS grant in this schema beyond the registration
 form's public insert. No sources are pre-seeded. Full definitions and the agent pipeline
 architecture are in Document 17.
+
+## 15. Learning Resources and Assignments Extension (2026-08-04)
+
+Migration `202608040049_learning_resources_and_assignments.sql`. Two parts.
+
+**`session_materials` gains file uploads.** `link` becomes nullable and four columns are added
+(`file_path`, `file_name`, `file_size_bytes`, `content_type`) plus `uploaded_by_staff_id` (admin
+authorship, alongside the existing `uploaded_by_tutor_id`). `chk_session_materials_link_xor_file`
+enforces that a row is **either** a link **or** a file, never both and never neither;
+`chk_session_materials_file_metadata` requires `file_name` + `content_type` whenever `file_path`
+is set. Every pre-existing row is a link and remains valid. `file_path` is a Cloudflare R2 object
+key — never bytes, never a public URL — matching `payment_submissions.slip_file_path`.
+
+**Two new tables.** `assignments` (batch-scoped coursework; `status` `open`/`closed`,
+`allow_resubmission`, optional `due_at`, and exactly one of `created_by_tutor_id` /
+`created_by_staff_id`) and `assignment_submissions` (`file_path`/`file_name`/`file_size_bytes`/
+`content_type` all NOT NULL — the file *is* the submission; optional `grade numeric(5,2)`
+constrained to 0–100, `feedback`, and both reviewer columns).
+`assignment_submissions_one_per_registration` is a **plain** unique index on
+`(assignment_id, registration_id)`: a resubmission is an UPDATE of that row, not a new version,
+which is why this does not need the partial index `payment_submissions` uses for its accumulating
+history.
+
+RLS on both new tables follows `session_materials` exactly: admin full, management read, and
+**no tutor- or participant-facing policy at all** — neither portal has a Supabase Auth session for
+RLS to key off (BR-31), so both go through the service-role client with authorization enforced in
+the service layer. See Document 16 Phase 5 for the two ownership checks that boundary depends on,
+and for why the assignment half is flagged as new scope against PRD §9.

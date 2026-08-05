@@ -568,6 +568,69 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     volume ever rises. Founder declined the cap on 2026-08-03 when the gate was expected to
     do more work; the measured shortfall makes it more relevant, not less.
 
+  Learning resource uploads + student assignment submissions (2026-08-04) —
+    founder request: "tutors or admin should be able to upload learning
+    resources and students able to submit assignments." Two parts.
+    (1) session_materials gained real file uploads (file_path/file_name/
+    file_size_bytes/content_type + uploaded_by_staff_id). A material is now
+    either a link or an R2-backed file, never both — enforced by
+    chk_session_materials_link_xor_file, with SessionMaterial.kind as the UI
+    discriminator; existing link rows are untouched and still valid. This
+    completes what Document 14 §4/§6 always specified ("Tutor ... upload
+    materials"); the earlier link-only shape was a shortcut taken before any
+    file storage existed, and Cloudflare R2 landed 2026-08-02. Admin can now
+    author/delete materials on any batch from /live-sessions; management
+    still reads only. (2) NEW SCOPE, flagged per rule 10: `assignments` +
+    `assignment_submissions`. PRD §9 lists content delivery as out of scope
+    ("not an LMS") and Document 14 §6 gave students no submit capability —
+    built anyway on explicit founder instruction, deliberately in the
+    existing "submitter-raised row, reviewer acts on it" shape
+    (attendance_exceptions/payment_submissions), NOT as a gradebook: one
+    current submission per Registration per Assignment (a resubmission
+    overwrites in place AND clears any grade given against the file it
+    replaced), optional 0-100 grade + feedback, no version history, and no
+    link to certificates/attendance/payment. New `modules/assignments` owns
+    it rather than modules/live-sessions, because Document 14 §3 forbids
+    live-sessions from changing grades. Neither new table has a tutor- or
+    participant-facing RLS policy (no portal session is a Supabase Auth
+    session, BR-31) — the service layer is the boundary: requireOwnBatch /
+    a new requireOwnAssignment for tutors, and for students BOTH "the
+    registration is this session's" AND "the assignment/material belongs to
+    that registration's own batch" (checking only the former would let a
+    learner submit against another cohort's assignment). Marking is
+    tutor-only by design — staff see counts, not individual work; see
+    Document 16 Phase 5 for why, and for the deferred list. Uploads are
+    capped at 20MB, but Vercel Hobby's 4.5MB request-body cap binds first —
+    revisit with direct-to-R2 presigned uploads if large decks are needed.
+    R2 objects are intentionally not deleted when a row is. Migration
+    `202608040049_learning_resources_and_assignments.sql` applied to
+    production 2026-08-05 and verified against the remote database (both new
+    tables present with every column, session_materials carrying all five new
+    columns, and anon blocked by RLS on all three). Storage: all three upload
+    types share ONE R2 bucket, `knowsia-course-bucket` (founder confirmed
+    2026-08-05: one bucket, no new ones — a new upload type gets a new key
+    prefix instead). Note `.env.local.example` long carried a stale
+    `payment-slips` placeholder from when slips were the only upload; that is
+    a placeholder, not the real bucket. The KEY is what organises the bucket,
+    and every key is built by `lib/r2/keys.ts` and nowhere else:
+      slips/<registrationId>/<uuid>.<ext>
+      materials/<batchId>/<uuid>.<ext>
+      submissions/<assignmentId>/<registrationId>/<uuid>.<ext>
+    i.e. <content type>/<owning aggregate>[/<sub-scope>]/<random uuid>.<ext> —
+    so each type can be listed/lifecycle-ruled alone, and everything belonging
+    to one registration/batch/assignment is a single prefix listing (what a DPA
+    erasure or batch cleanup needs). Filenames are always fresh UUIDs, never
+    the uploader's (untrusted; the display name lives in the DB), and the
+    extension comes from the validated MIME type. All three prefixes were
+    normalised 2026-08-05 while the bucket was still empty — payment slips
+    previously sat at the bucket ROOT as `<registrationId>/...`, which is why
+    this was free; treat the prefixes as fixed now, since changing one orphans
+    existing objects (the DB stores whole keys, so old rows still resolve).
+    Covered by `tests/unit/r2-keys.test.ts`. Also fixed one pre-existing
+    unrelated red test (tutors-service "getReferralSummaryForSession
+    delegates to partnersService" — its mock was never updated when the
+    2026-08-02 auto-provisioning guard landed, so it had been failing since).
+
 Open decisions (founder):
   - AI05 ("...Reporting and Modeling") vs AI02 ("...Reporting and
     Analysis") are near-duplicate courses — pick a canonical one.

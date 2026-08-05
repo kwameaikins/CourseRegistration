@@ -8,11 +8,30 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { formatDate } from '@/lib/utils';
+import { UPLOAD_ACCEPT_ATTRIBUTE, UPLOAD_TYPES_HINT } from '@/lib/upload-constants';
 import type { LiveSession, LiveSessionStatus } from '@/modules/live-sessions/types';
 
 type BatchOption = { id: string; cohortLabel: string; startDate: string };
 type TutorOption = { id: string; fullName: string };
-type MaterialOption = { id: string; title: string; link: string; createdAt: string };
+// A material is either a shared link or an uploaded file (2026-08-04).
+type MaterialOption = {
+  id: string;
+  title: string;
+  kind: 'link' | 'file';
+  link: string | null;
+  fileName: string | null;
+  fileSizeBytes: number | null;
+  createdAt: string;
+};
+type AssignmentOption = {
+  id: string;
+  title: string;
+  instructions: string | null;
+  dueAt: string | null;
+  status: 'open' | 'closed';
+  submissionCount: number;
+  reviewedCount: number;
+};
 
 const EMPTY_FORM = {
   batchId: '',
@@ -68,6 +87,21 @@ export function LiveSessionsWorkspace({
   const [materialsBatchId, setMaterialsBatchId] = useState('');
   const [materials, setMaterials] = useState<MaterialOption[]>([]);
   const [materialsLoading, setMaterialsLoading] = useState(false);
+  // Staff-authored learning resources (2026-08-04) — admin only, matching
+  // the service's role gate.
+  const [materialTitle, setMaterialTitle] = useState('');
+  const [materialMode, setMaterialMode] = useState<'file' | 'link'>('file');
+  const [materialLink, setMaterialLink] = useState('');
+  const [materialFile, setMaterialFile] = useState<File | null>(null);
+  const [materialSaving, setMaterialSaving] = useState(false);
+
+  // Assignments (2026-08-04)
+  const [assignments, setAssignments] = useState<AssignmentOption[]>([]);
+  const [assignmentsLoading, setAssignmentsLoading] = useState(false);
+  const [assignmentTitle, setAssignmentTitle] = useState('');
+  const [assignmentInstructions, setAssignmentInstructions] = useState('');
+  const [assignmentDueAt, setAssignmentDueAt] = useState('');
+  const [assignmentSaving, setAssignmentSaving] = useState(false);
 
   useEffect(() => {
     if (!canManage) return;
@@ -79,6 +113,7 @@ export function LiveSessionsWorkspace({
   useEffect(() => {
     if (!materialsBatchId) {
       setMaterials([]);
+      setAssignments([]);
       return;
     }
     setMaterialsLoading(true);
@@ -88,11 +123,150 @@ export function LiveSessionsWorkspace({
       .then(({ materials }) => setMaterials(materials))
       .catch(() => setMaterials([]))
       .finally(() => setMaterialsLoading(false));
+
+    setAssignmentsLoading(true);
+    apiFetch<{ assignments: AssignmentOption[] }>(
+      `/api/live-sessions/assignments?batchId=${encodeURIComponent(materialsBatchId)}`,
+    )
+      .then(({ assignments }) => setAssignments(assignments))
+      .catch(() => setAssignments([]))
+      .finally(() => setAssignmentsLoading(false));
   }, [materialsBatchId]);
 
   function showStatus(message: string) {
     setStatusMessage(message);
     setErrorMessage(null);
+  }
+
+  function reloadMaterials() {
+    if (!materialsBatchId) return;
+    apiFetch<{ materials: MaterialOption[] }>(
+      `/api/live-sessions/materials?batchId=${encodeURIComponent(materialsBatchId)}`,
+    )
+      .then(({ materials }) => setMaterials(materials))
+      .catch(() => setMaterials([]));
+  }
+
+  function reloadAssignments() {
+    if (!materialsBatchId) return;
+    apiFetch<{ assignments: AssignmentOption[] }>(
+      `/api/live-sessions/assignments?batchId=${encodeURIComponent(materialsBatchId)}`,
+    )
+      .then(({ assignments }) => setAssignments(assignments))
+      .catch(() => setAssignments([]));
+  }
+
+  // Link posts JSON, upload posts multipart — the same two transports the
+  // tutor portal uses against its own endpoint.
+  async function addMaterial() {
+    if (!materialsBatchId || !materialTitle.trim()) return;
+    setMaterialSaving(true);
+    try {
+      if (materialMode === 'file' && materialFile) {
+        const formData = new FormData();
+        formData.append('batchId', materialsBatchId);
+        formData.append('title', materialTitle.trim());
+        formData.append('file', materialFile);
+        await apiFetch('/api/live-sessions/materials', { method: 'POST', body: formData });
+      } else {
+        await apiFetch('/api/live-sessions/materials', {
+          method: 'POST',
+          body: JSON.stringify({
+            batchId: materialsBatchId,
+            title: materialTitle.trim(),
+            link: materialLink.trim(),
+          }),
+        });
+      }
+      setMaterialTitle('');
+      setMaterialLink('');
+      setMaterialFile(null);
+      reloadMaterials();
+      showStatus('Learning resource shared with this batch.');
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to share the resource.');
+    } finally {
+      setMaterialSaving(false);
+    }
+  }
+
+  async function openMaterial(material: MaterialOption) {
+    if (material.kind === 'link') {
+      window.open(material.link ?? '#', '_blank', 'noopener,noreferrer');
+      return;
+    }
+    try {
+      const { url } = await apiFetch<{ url: string }>(
+        `/api/live-sessions/materials/${material.id}/download-url`,
+      );
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Could not open that file.');
+    }
+  }
+
+  async function removeMaterial(id: string) {
+    try {
+      await apiFetch(`/api/live-sessions/materials/${id}`, { method: 'DELETE' });
+      setMaterials((current) => current.filter((item) => item.id !== id));
+      showStatus('Resource removed.');
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to remove the resource.');
+    }
+  }
+
+  async function addAssignment() {
+    if (!materialsBatchId || !assignmentTitle.trim()) return;
+    setAssignmentSaving(true);
+    try {
+      await apiFetch('/api/live-sessions/assignments', {
+        method: 'POST',
+        body: JSON.stringify({
+          batchId: materialsBatchId,
+          title: assignmentTitle.trim(),
+          instructions: assignmentInstructions.trim() || null,
+          // datetime-local is timezone-naive; the browser reads it as local
+          // (Ghana) time and toISOString converts to the UTC the API expects.
+          dueAt: assignmentDueAt ? new Date(assignmentDueAt).toISOString() : null,
+        }),
+      });
+      setAssignmentTitle('');
+      setAssignmentInstructions('');
+      setAssignmentDueAt('');
+      reloadAssignments();
+      showStatus('Assignment set for this batch.');
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to set the assignment.');
+    } finally {
+      setAssignmentSaving(false);
+    }
+  }
+
+  async function setAssignmentStatus(id: string, status: 'open' | 'closed') {
+    try {
+      await apiFetch(`/api/live-sessions/assignments/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      });
+      setAssignments((current) =>
+        current.map((item) => (item.id === id ? { ...item, status } : item)),
+      );
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to update the assignment.');
+    }
+  }
+
+  async function removeAssignment(id: string) {
+    if (!window.confirm('Delete this assignment and every submission against it? This cannot be undone.')) {
+      return;
+    }
+    try {
+      await apiFetch(`/api/live-sessions/assignments/${id}`, { method: 'DELETE' });
+      setAssignments((current) => current.filter((item) => item.id !== id));
+      showStatus('Assignment deleted.');
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to delete the assignment.');
+    }
   }
 
   async function handleCreate(event: React.FormEvent) {
@@ -216,7 +390,7 @@ export function LiveSessionsWorkspace({
       )}
 
       <Card>
-        <CardHeader><CardTitle>Tutor-shared materials</CardTitle></CardHeader>
+        <CardHeader><CardTitle>Learning resources</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <div className="space-y-2">
             <Label htmlFor="materialsBatch">Batch</Label>
@@ -234,6 +408,67 @@ export function LiveSessionsWorkspace({
               ))}
             </select>
           </div>
+
+          {canManage && materialsBatchId && (
+            <div className="grid gap-3 rounded-md border p-3 md:grid-cols-2">
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="materialTitle">Title</Label>
+                <Input
+                  id="materialTitle"
+                  value={materialTitle}
+                  onChange={(event) => setMaterialTitle(event.target.value)}
+                  placeholder="e.g. Slides — Session 3"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="materialMode">Share as</Label>
+                <select
+                  id="materialMode"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value={materialMode}
+                  onChange={(event) => setMaterialMode(event.target.value as 'file' | 'link')}
+                >
+                  <option value="file">Upload a file</option>
+                  <option value="link">Link to somewhere else</option>
+                </select>
+              </div>
+              {materialMode === 'file' ? (
+                <div className="space-y-2">
+                  <Label htmlFor="materialFile">File</Label>
+                  <Input
+                    id="materialFile"
+                    type="file"
+                    accept={UPLOAD_ACCEPT_ATTRIBUTE}
+                    onChange={(event) => setMaterialFile(event.target.files?.[0] ?? null)}
+                  />
+                  <p className="text-xs text-muted-foreground">{UPLOAD_TYPES_HINT}</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Label htmlFor="materialLink">Link</Label>
+                  <Input
+                    id="materialLink"
+                    value={materialLink}
+                    onChange={(event) => setMaterialLink(event.target.value)}
+                    placeholder="https://drive.google.com/…"
+                  />
+                </div>
+              )}
+              <div className="md:col-span-2">
+                <Button
+                  disabled={
+                    materialSaving ||
+                    !materialTitle.trim() ||
+                    (materialMode === 'file' ? !materialFile : !materialLink.trim())
+                  }
+                  onClick={() => void addMaterial()}
+                >
+                  {materialSaving ? 'Sharing…' : 'Share resource'}
+                </Button>
+              </div>
+            </div>
+          )}
+
           {materialsLoading ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : materials.length === 0 ? (
@@ -244,13 +479,126 @@ export function LiveSessionsWorkspace({
             <ul className="space-y-1 text-sm">
               {materials.map((material) => (
                 <li key={material.id} className="flex items-center justify-between border-b pb-1 last:border-b-0">
-                  <a href={material.link} target="_blank" rel="noreferrer" className="text-primary underline">
+                  <button
+                    type="button"
+                    className="text-primary underline"
+                    onClick={() => void openMaterial(material)}
+                  >
                     {material.title}
-                  </a>
-                  <span className="text-xs text-muted-foreground">{formatDate(material.createdAt)}</span>
+                  </button>
+                  <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                    {material.kind === 'file' ? 'File' : 'Link'}
+                    <span>{formatDate(material.createdAt)}</span>
+                    {canManage && (
+                      <button
+                        type="button"
+                        className="underline"
+                        onClick={() => void removeMaterial(material.id)}
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </span>
                 </li>
               ))}
             </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Assignments</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          {!materialsBatchId ? (
+            <p className="text-sm text-muted-foreground">
+              Select a batch above to see its assignments.
+            </p>
+          ) : (
+            <>
+              {canManage && (
+                <div className="grid gap-3 rounded-md border p-3 md:grid-cols-2">
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="assignmentTitle">Title</Label>
+                    <Input
+                      id="assignmentTitle"
+                      value={assignmentTitle}
+                      onChange={(event) => setAssignmentTitle(event.target.value)}
+                      placeholder="e.g. Case study — risk register"
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="assignmentInstructions">Instructions</Label>
+                    <textarea
+                      id="assignmentInstructions"
+                      className="min-h-20 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={assignmentInstructions}
+                      onChange={(event) => setAssignmentInstructions(event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="assignmentDueAt">Due (optional)</Label>
+                    <Input
+                      id="assignmentDueAt"
+                      type="datetime-local"
+                      value={assignmentDueAt}
+                      onChange={(event) => setAssignmentDueAt(event.target.value)}
+                    />
+                  </div>
+                  <div className="flex items-end md:col-span-2">
+                    <Button
+                      disabled={assignmentSaving || !assignmentTitle.trim()}
+                      onClick={() => void addAssignment()}
+                    >
+                      {assignmentSaving ? 'Setting…' : 'Set assignment'}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {assignmentsLoading ? (
+                <p className="text-sm text-muted-foreground">Loading…</p>
+              ) : assignments.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No assignments set for this batch.</p>
+              ) : (
+                <ul className="space-y-2 text-sm">
+                  {assignments.map((assignment) => (
+                    <li key={assignment.id} className="rounded-md border p-3">
+                      <p className="font-medium">{assignment.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {assignment.status === 'closed' ? 'Closed' : 'Open'}
+                        {assignment.dueAt && <> · Due {formatDate(assignment.dueAt)}</>}
+                        {' · '}
+                        {assignment.reviewedCount} of {assignment.submissionCount} marked
+                      </p>
+                      {assignment.instructions && (
+                        <p className="mt-1 whitespace-pre-wrap text-sm">{assignment.instructions}</p>
+                      )}
+                      {/* Marking itself is a tutor responsibility (Document 14
+                          §6) and happens in the tutor portal — staff see
+                          progress here, not individual learners' work. */}
+                      {canManage && (
+                        <div className="mt-2 flex gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={() =>
+                              void setAssignmentStatus(
+                                assignment.id,
+                                assignment.status === 'closed' ? 'open' : 'closed',
+                              )
+                            }
+                          >
+                            {assignment.status === 'closed' ? 'Reopen' : 'Close'}
+                          </Button>
+                          <Button variant="destructive" onClick={() => void removeAssignment(assignment.id)}>
+                            Delete
+                          </Button>
+                        </div>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
         </CardContent>
       </Card>

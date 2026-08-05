@@ -148,6 +148,107 @@ the highest-value, lowest-risk items now and defer the rest.
   client, same posture as every other tutor-portal read) and repointed the tutor-portal caller at
   it. The staff-facing function is unchanged.
 
+## Phase 5 (2026-08-04) — Learning resource uploads and assignments
+
+Founder request: "Tutors or admin should be able to upload learning resources and students able to
+submit assignments."
+
+### Learning resources are now real file uploads
+
+`session_materials` gained `file_path` / `file_name` / `file_size_bytes` / `content_type` plus
+`uploaded_by_staff_id` (migration `202608040049`). A material is now **either** a link **or** an
+uploaded file, never both and never neither — enforced by
+`chk_session_materials_link_xor_file`, with `SessionMaterial.kind` as the discriminator the UI
+switches on. Every pre-existing row is a link and stays valid untouched.
+
+This is not a scope change: Document 14 §4 always specified `session_materials` as "Agenda, slides,
+readings, assignments" and §6 always gave the Tutor role "upload materials". The link-only shape
+was a shortcut taken because no file storage existed in this codebase at the time (see the
+`202607290039` header). Cloudflare R2 landed on 2026-08-02, so that constraint is gone.
+
+Files live in R2 (`lib/r2/client.ts`), keyed by `file_path`; bytes and public URLs never touch
+Postgres. Downloads are short-lived presigned GET URLs fetched on click, so a signed credential
+never sits in the DOM. Admin can now author and delete materials on any batch from
+`/live-sessions`; management still reads only.
+
+**Where the files actually go.** One R2 bucket (`knowsia-course-bucket`) holds every upload in
+this app, so the object key is what organises it. Every key is built by `lib/r2/keys.ts` and
+nowhere else — a new upload type gets a new prefix there, never a new bucket:
+
+```
+slips/<registrationId>/<uuid>.<ext>                        payment slips
+materials/<batchId>/<uuid>.<ext>                           learning resources
+submissions/<assignmentId>/<registrationId>/<uuid>.<ext>   student submissions
+```
+
+Shape is always `<content type>/<owning aggregate>[/<sub-scope>]/<random uuid>.<ext>`, so each
+type can be listed or lifecycle-ruled on its own, and everything belonging to one registration,
+batch, or assignment is a single prefix listing — which is what a DPA erasure request or an
+end-of-cohort cleanup actually needs. The filename is always a fresh UUID, never the uploader's
+(untrusted input; the display name lives in `session_materials.file_name` /
+`assignment_submissions.file_name`), and the extension comes from the validated MIME type.
+
+All three prefixes were normalised on 2026-08-05, while the bucket was still empty — payment
+slips had previously been written to the bucket *root* as `<registrationId>/<uuid>.<ext>`. Treat
+the prefixes as fixed now: changing one orphans existing objects (old rows keep resolving, since
+the database stores whole keys, but new writes land elsewhere).
+
+### Assignments and student submissions — NEW SCOPE, flagged
+
+**This exceeds the documented product scope and was built at explicit founder request.** PRD §9
+lists course content delivery as out of scope ("This is a management system, not an LMS"), and
+Document 14 §6 gives the Student role no submit capability. Flagged per CLAUDE.md rule 10 and
+built anyway on the founder's 2026-08-04 instruction.
+
+It is deliberately **not** an LMS gradebook. Shape follows the codebase's existing
+"submitter-raised row, reviewer acts on it" pattern (`attendance_exceptions`,
+`payment_submissions`):
+
+- `assignments` — batch-scoped, authored by a tutor (their own batches) or an admin (any batch).
+  Title, optional instructions, optional `due_at`, `status` (`open`/`closed`), `allow_resubmission`.
+- `assignment_submissions` — **one current submission per Registration per Assignment** (a plain
+  unique index, not the partial one `payment_submissions` needed). A resubmission overwrites the
+  row in place and **clears any grade/feedback given against the file it replaces** — a mark must
+  never appear to apply to work it wasn't given for. No version history, by design.
+- Optional 0–100 `grade` plus free-text `feedback`. A tutor may acknowledge without scoring.
+- Nothing here touches certificates, attendance, payments, or registration status.
+
+`modules/assignments` is its own module rather than part of `modules/live-sessions` because
+Document 14 §3 states live-sessions "must not directly change payment status, registration status,
+certificates, or **grades**" — and a review writes a grade.
+
+### Authorization
+
+Neither new table has a tutor- or participant-facing RLS policy: no portal session is a Supabase
+Auth session (BR-31), so **the service layer is the security boundary**, same as
+`session_materials` and `payment_submissions` already are. Two checks, both server-side:
+
+- Tutors — `requireOwnBatch`, and a new `requireOwnAssignment` that resolves an assignment (or a
+  submission → its assignment) back to its batch before any read or write. A submission id alone
+  never implies ownership.
+- Students — the registration must belong to the calling session **and** the material/assignment
+  must belong to that registration's own batch. Checking only the registration would let a learner
+  submit against another cohort's assignment using their own registration id.
+
+Covered by `tests/unit/assignments-service.test.ts`,
+`tests/unit/portal-assignments-access.test.ts`, and additions to
+`tests/unit/tutors-service.test.ts`.
+
+### Deliberately not built
+
+- **Staff marking of individual submissions.** Document 14 §6 makes marking a tutor
+  responsibility, and staff would need learner names merged in — which `modules/assignments`
+  cannot do (module boundary: it must not read `participants`/`registrations`) and which
+  `registrationsService.listRegistrations` cannot supply either (its role gate excludes
+  `management`, and it is paginated). Staff see submission/review **counts** per assignment;
+  the tutor portal is the grading surface. `assignment_submissions.reviewed_by_staff_id` exists
+  so this can be added later without a migration — only the tutor column is written today.
+- **Upload size beyond 20MB.** Vercel Hobby caps a serverless request body at 4.5MB, so larger
+  files fail at the platform edge regardless. Revisit alongside direct-to-R2 presigned uploads.
+- **Deleting the R2 object when a material or assignment is deleted.** The bucket is private and
+  orphans cost effectively nothing at this scale; a delete that half-succeeds is worse than a tidy
+  one that never runs.
+
 ### Explicitly considered and declined for now
 
 - **Tutor payment/financial visibility** — raised by the founder mid-build ("tutors should also

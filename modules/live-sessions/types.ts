@@ -74,13 +74,25 @@ export type LiveSessionUpdate = z.infer<typeof liveSessionUpdateSchema>;
 
 // Session Materials (Tutor Portal Phase 4, founder-approved 2026-07-31) —
 // link-based, not a file upload (see modules/live-sessions/repository.ts).
+// A material is either a shared link or an uploaded file, never both — the
+// DB enforces it (chk_session_materials_link_xor_file, migration
+// 202608040049). `kind` is the discriminator the UI switches on so it never
+// has to null-check its way to the same conclusion.
 export interface SessionMaterial {
   id: string;
   batchId: string;
   liveSessionId: string | null;
   uploadedByTutorId: string | null;
+  uploadedByStaffId: string | null;
   title: string;
-  link: string;
+  kind: 'link' | 'file';
+  link: string | null;
+  // File-backed materials only. `filePath` is an R2 object key and is
+  // deliberately NOT part of this type — it never leaves the server; the
+  // client asks for a short-lived presigned URL by material id instead.
+  fileName: string | null;
+  fileSizeBytes: number | null;
+  contentType: string | null;
   createdAt: string;
 }
 
@@ -91,3 +103,12 @@ export const addSessionMaterialSchema = z.object({
   link: z.url().max(2000),
 });
 export type AddSessionMaterialInput = z.infer<typeof addSessionMaterialSchema>;
+
+// The multipart counterpart — same fields minus `link`, since the file
+// itself arrives as a separate form field and is parsed by lib/uploads.ts.
+export const uploadSessionMaterialSchema = z.object({
+  batchId: z.uuid(),
+  liveSessionId: z.uuid().nullable().optional(),
+  title: z.string().trim().min(2).max(200),
+});
+export type UploadSessionMaterialInput = z.infer<typeof uploadSessionMaterialSchema>;

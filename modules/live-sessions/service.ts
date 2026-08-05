@@ -1,4 +1,7 @@
 import { AppError } from '@/lib/errors';
+import * as r2Client from '@/lib/r2/client';
+import { learningResourceKey } from '@/lib/r2/keys';
+import type { ParsedUpload } from '@/lib/uploads';
 import type { Database } from '@/lib/supabase/database.types';
 import * as liveSessionsRepository from '@/modules/live-sessions/repository';
 import * as usersService from '@/modules/users/service';
@@ -137,8 +140,9 @@ export async function updateLiveSession(
   return toLiveSession(row);
 }
 
-// --- Session Materials (Tutor Portal Phase 4, founder-approved 2026-07-31) ---
-// Link-based (no file storage — see repository.ts header comment).
+// --- Session Materials (Tutor Portal Phase 4, founder-approved 2026-07-31;
+// file uploads added 2026-08-04) ---
+// A material is either a shared link or a file uploaded to Cloudflare R2.
 
 function toSessionMaterial(
   row: Database['public']['Tables']['session_materials']['Row'],
@@ -148,8 +152,13 @@ function toSessionMaterial(
     batchId: row.batch_id,
     liveSessionId: row.live_session_id,
     uploadedByTutorId: row.uploaded_by_tutor_id,
+    uploadedByStaffId: row.uploaded_by_staff_id,
     title: row.title,
+    kind: row.file_path ? 'file' : 'link',
     link: row.link,
+    fileName: row.file_name,
+    fileSizeBytes: row.file_size_bytes,
+    contentType: row.content_type,
     createdAt: row.created_at,
   };
 }
@@ -173,7 +182,73 @@ export async function addSessionMaterial(input: {
   return toSessionMaterial(row);
 }
 
-// Only the uploading tutor may remove their own material.
+// File-upload counterpart of addSessionMaterial. Uploads to R2 first, then
+// inserts — an orphaned R2 object on a failed insert is harmless (it is
+// unreferenced and invisible), whereas a row pointing at a key that was
+// never written would render as a permanently broken download.
+//
+// Callers: modules/tutors (tutor portal, after requireOwnBatch) and the
+// staff /live-sessions route (after its own admin role gate). Exactly one of
+// uploadedByTutorId/uploadedByStaffId is set, mirroring the two authorship
+// columns on the table.
+export async function uploadSessionMaterialFile(input: {
+  batchId: string;
+  liveSessionId: string | null;
+  uploadedByTutorId?: string;
+  uploadedByStaffId?: string;
+  title: string;
+  file: ParsedUpload;
+}): Promise<SessionMaterial> {
+  if (!r2Client.isR2Configured()) {
+    throw new AppError(
+      'VALIDATION_ERROR',
+      'File uploads are not available right now — share a link instead, or contact us.',
+      400,
+    );
+  }
+
+  const filePath = learningResourceKey(input.batchId, input.file.extension);
+  await r2Client.uploadObject({
+    key: filePath,
+    body: input.file.buffer,
+    contentType: input.file.contentType,
+  });
+
+  const row = await liveSessionsRepository.insertSessionMaterialSystem({
+    batch_id: input.batchId,
+    live_session_id: input.liveSessionId,
+    uploaded_by_tutor_id: input.uploadedByTutorId ?? null,
+    uploaded_by_staff_id: input.uploadedByStaffId ?? null,
+    title: input.title,
+    link: null,
+    file_path: filePath,
+    file_name: input.file.fileName,
+    file_size_bytes: input.file.sizeBytes,
+    content_type: input.file.contentType,
+  });
+  return toSessionMaterial(row);
+}
+
+// Short-lived presigned GET URL for a file-backed material, same pattern as
+// the payment slip's. The caller is responsible for authorizing access to
+// the material's batch BEFORE calling this — this function only resolves the
+// key, it has no session context of its own.
+export async function getSessionMaterialDownloadUrlSystem(
+  id: string,
+): Promise<{ url: string; batchId: string; fileName: string }> {
+  const existing = await liveSessionsRepository.selectSessionMaterialByIdSystem(id);
+  if (!existing || !existing.file_path) {
+    throw new AppError('NOT_FOUND', 'Material not found.', 404);
+  }
+  if (!r2Client.isR2Configured()) {
+    throw new AppError('VALIDATION_ERROR', 'File downloads are not available right now.', 400);
+  }
+  const url = await r2Client.getSignedDownloadUrl(existing.file_path);
+  return { url, batchId: existing.batch_id, fileName: existing.file_name ?? 'download' };
+}
+
+// Only the uploading tutor may remove their own material. Staff removal goes
+// through removeSessionMaterialAsStaff below.
 export async function removeSessionMaterial(id: string, requestingTutorId: string): Promise<void> {
   const existing = await liveSessionsRepository.selectSessionMaterialByIdSystem(id);
   if (!existing) {
@@ -181,6 +256,20 @@ export async function removeSessionMaterial(id: string, requestingTutorId: strin
   }
   if (existing.uploaded_by_tutor_id !== requestingTutorId) {
     throw new AppError('FORBIDDEN', 'You can only remove materials you added.', 403);
+  }
+  await liveSessionsRepository.deleteSessionMaterialSystem(id);
+}
+
+// Admin can remove any material on any batch, including a tutor's — the
+// same admin-overrides-everything posture the /live-sessions screen already
+// has for sessions themselves. The R2 object is left in place deliberately:
+// the bucket is private, orphans cost effectively nothing at this scale, and
+// a delete that half-succeeds is worse than a tidy one that never runs.
+export async function removeSessionMaterialAsStaff(id: string): Promise<void> {
+  await usersService.requireRole(['admin']);
+  const existing = await liveSessionsRepository.selectSessionMaterialByIdSystem(id);
+  if (!existing) {
+    throw new AppError('NOT_FOUND', 'Material not found.', 404);
   }
   await liveSessionsRepository.deleteSessionMaterialSystem(id);
 }
@@ -197,4 +286,44 @@ export async function getSessionMaterialsForBatch(batchId: string): Promise<Sess
   await usersService.requireRole(['admin', 'management']);
   const rows = await liveSessionsRepository.selectSessionMaterialsForBatch(batchId);
   return rows.map(toSessionMaterial);
+}
+
+// --- Staff-authored materials (founder-requested 2026-08-04: "tutors or
+// admin should be able to upload learning resources"). Admin only — the
+// same write/read split /live-sessions already has, where management reads
+// but does not author. ---
+
+export async function addSessionMaterialAsStaff(input: {
+  batchId: string;
+  liveSessionId: string | null;
+  title: string;
+  link: string;
+}): Promise<SessionMaterial> {
+  const staffUser = await usersService.requireRole(['admin']);
+  const row = await liveSessionsRepository.insertSessionMaterialSystem({
+    batch_id: input.batchId,
+    live_session_id: input.liveSessionId,
+    uploaded_by_staff_id: staffUser.id,
+    title: input.title,
+    link: input.link,
+  });
+  return toSessionMaterial(row);
+}
+
+export async function uploadSessionMaterialFileAsStaff(input: {
+  batchId: string;
+  liveSessionId: string | null;
+  title: string;
+  file: ParsedUpload;
+}): Promise<SessionMaterial> {
+  const staffUser = await usersService.requireRole(['admin']);
+  return uploadSessionMaterialFile({ ...input, uploadedByStaffId: staffUser.id });
+}
+
+// Staff download of any material on any batch — admin/management, matching
+// the read gate on getSessionMaterialsForBatch above.
+export async function getSessionMaterialDownloadUrlAsStaff(id: string): Promise<string> {
+  await usersService.requireRole(['admin', 'management']);
+  const material = await getSessionMaterialDownloadUrlSystem(id);
+  return material.url;
 }

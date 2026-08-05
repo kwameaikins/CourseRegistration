@@ -40,7 +40,8 @@ app/ -> modules/live-sessions/service.ts -> repository.ts -> lib/supabase
 | `live_sessions` | One scheduled learning occurrence for a batch | Status workflow; `Africa/Accra` timestamps; no hard delete after publishing |
 | `live_session_tutors` | Tutor and substitute assignments | Tutor sees only assigned sessions; substitution reason required |
 | `live_session_access` | Per-registration eligibility and provider join reference | Paid/approved gate; overrides record actor, reason, and expiry |
-| `session_materials` | Agenda, slides, readings, assignments | Version history; enrolled-role access only |
+| `session_materials` | Agenda, slides, readings | Link or R2-backed file upload (exactly one); enrolled-role access only. **No version history** — superseded 2026-08-04, see Document 16 Phase 5 |
+| `assignments` / `assignment_submissions` | Coursework set by a tutor/admin, and one current submission per Registration | **New scope 2026-08-04**, added at founder request against PRD §9's "not an LMS" exclusion — see Document 16 Phase 5 before touching |
 | `attendance_exceptions` | Learner technical issue, excused absence, or manual correction request | Tutor/admin decision and immutable review evidence |
 | `session_recordings` | Provider recording reference, consent, release, and retention metadata | Tutor approval before release; no raw provider credentials |
 | `session_audit_log` | Critical lifecycle evidence | Append-only application audit for access, reschedule, override, attendance review, and recording release |
@@ -66,7 +67,7 @@ app/ -> modules/live-sessions/service.ts -> repository.ts -> lib/supabase
 | --- | --- | --- |
 | Admin | Publish, reschedule, override access with reason, approve final exceptions and recording policy | Expose host links to learners without an audit event |
 | Tutor | Host assigned session, upload materials, flag learners, approve proposed attendance exceptions, request recording release | View payment details or finalise certificates |
-| Student | View own sessions, join eligible sessions, access released content, request a technical exception | View another learner's link, attendance, or materials |
+| Student | View own sessions, join eligible sessions, access released content, request a technical exception, submit assigned work (added 2026-08-04) | View another learner's link, attendance, materials, or submitted work |
 | Management | Read operational and cohort analytics | Change attendance or access records |
 | AI assistant | Draft summaries, reminders, catch-up tasks, and risk lists | Finalise attendance, grades, access overrides, or certificates |
 

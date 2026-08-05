@@ -12,6 +12,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 
 import { apiFetch } from '@/components/api-client';
+import { UPLOAD_ACCEPT_ATTRIBUTE, UPLOAD_TYPES_HINT } from '@/lib/upload-constants';
 import { PORTAL_STYLES, PortalIcons } from '@/components/portal/portal-design-system';
 import { formatDate, formatGhs } from '@/lib/utils';
 
@@ -73,11 +74,44 @@ interface CertificateCandidate {
   eligible: boolean;
 }
 
+// A material is either a shared link or an uploaded file (2026-08-04) —
+// `kind` is the discriminator; a file's bytes are fetched through a
+// short-lived presigned URL, never a stored public link.
 interface MaterialEntry {
   id: string;
   title: string;
-  link: string;
+  kind: 'link' | 'file';
+  link: string | null;
+  fileName: string | null;
+  fileSizeBytes: number | null;
   createdAt: string;
+}
+
+interface AssignmentEntry {
+  id: string;
+  title: string;
+  instructions: string | null;
+  dueAt: string | null;
+  status: 'open' | 'closed';
+  allowResubmission: boolean;
+  submissionCount: number;
+  reviewedCount: number;
+  createdAt: string;
+}
+
+interface SubmissionEntry {
+  submissionId: string;
+  registrationId: string;
+  participantName: string;
+  participantEmail: string;
+  fileName: string;
+  fileSizeBytes: number;
+  participantNotes: string | null;
+  submittedAt: string;
+  status: 'submitted' | 'reviewed';
+  grade: number | null;
+  feedback: string | null;
+  reviewedAt: string | null;
 }
 
 // Knowsia Growth Partner Programme (2026-08-02) — a category='tutor'
@@ -120,6 +154,7 @@ type PanelId =
   | 'roster'
   | 'attendance'
   | 'materials'
+  | 'assignments'
   | 'certificates'
   | 'referrals'
   | 'account';
@@ -130,10 +165,25 @@ const NAV_ITEMS: Array<{ id: PanelId; label: string; icon: string }> = [
   { id: 'roster', label: 'Roster', icon: 'i-users' },
   { id: 'attendance', label: 'Attendance', icon: 'i-check' },
   { id: 'materials', label: 'Materials', icon: 'i-book' },
+  { id: 'assignments', label: 'Assignments', icon: 'i-check' },
   { id: 'certificates', label: 'Certificate Eligibility', icon: 'i-award' },
   { id: 'referrals', label: 'Referrals', icon: 'i-card' },
   { id: 'account', label: 'Account', icon: 'i-user' },
 ];
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// Opens a presigned download in a new tab. The URL is fetched on click
+// rather than rendered into the page, so a short-lived credential never sits
+// in the DOM waiting to be scraped or shared.
+async function openSignedDownload(url: string): Promise<void> {
+  const { url: signedUrl } = await apiFetch<{ url: string }>(url);
+  window.open(signedUrl, '_blank', 'noopener,noreferrer');
+}
 
 function initials(fullName: string): string {
   const parts = fullName.trim().split(/\s+/);
@@ -177,8 +227,27 @@ export default function TutorPortalDashboardPage() {
   const [flaggedKeys, setFlaggedKeys] = useState<Set<string>>(new Set());
 
   const [materialForm, setMaterialForm] = useState({ title: '', link: '' });
+  const [materialMode, setMaterialMode] = useState<'link' | 'file'>('file');
+  const [materialFile, setMaterialFile] = useState<File | null>(null);
   const [materialSaving, setMaterialSaving] = useState(false);
   const [materialError, setMaterialError] = useState<string | null>(null);
+
+  // Assignments (2026-08-04)
+  const [assignments, setAssignments] = useState<AssignmentEntry[] | 'loading' | null>(null);
+  const [assignmentForm, setAssignmentForm] = useState({
+    title: '',
+    instructions: '',
+    dueAt: '',
+    allowResubmission: true,
+  });
+  const [assignmentSaving, setAssignmentSaving] = useState(false);
+  const [assignmentError, setAssignmentError] = useState<string | null>(null);
+  const [openAssignmentId, setOpenAssignmentId] = useState<string | null>(null);
+  const [submissions, setSubmissions] = useState<SubmissionEntry[] | 'loading' | null>(null);
+  const [gradingId, setGradingId] = useState<string | null>(null);
+  const [gradeForm, setGradeForm] = useState({ grade: '', feedback: '' });
+  const [gradeSaving, setGradeSaving] = useState(false);
+  const [gradeError, setGradeError] = useState<string | null>(null);
 
   const loadDashboard = useCallback(() => {
     return apiFetch<Dashboard>('/api/tutor-portal/me')
@@ -214,6 +283,15 @@ export default function TutorPortalDashboardPage() {
     if (activePanel === 'materials') {
       setMaterials('loading');
       apiFetch<MaterialEntry[]>(`/api/tutor-portal/materials/${selectedBatchId}`).then(setMaterials).catch(() => setMaterials([]));
+    }
+    if (activePanel === 'assignments') {
+      // Switching batch invalidates whichever assignment was expanded.
+      setOpenAssignmentId(null);
+      setSubmissions(null);
+      setAssignments('loading');
+      apiFetch<AssignmentEntry[]>(`/api/tutor-portal/assignments?batchId=${encodeURIComponent(selectedBatchId)}`)
+        .then(setAssignments)
+        .catch(() => setAssignments([]));
     }
   }, [activePanel, selectedBatchId]);
 
@@ -269,26 +347,175 @@ export default function TutorPortalDashboardPage() {
     }
   }
 
+  function reloadMaterials() {
+    setMaterials('loading');
+    apiFetch<MaterialEntry[]>(`/api/tutor-portal/materials/${selectedBatchId}`)
+      .then(setMaterials)
+      .catch(() => setMaterials([]));
+  }
+
+  // One handler, two transports: a link posts JSON (the original shape), an
+  // upload posts multipart. apiFetch leaves FormData's Content-Type to the
+  // browser so the boundary header is correct.
   async function submitMaterial() {
-    if (!materialForm.title.trim() || !materialForm.link.trim()) return;
+    if (!materialForm.title.trim()) return;
+    if (materialMode === 'link' ? !materialForm.link.trim() : !materialFile) return;
+
     setMaterialSaving(true);
     setMaterialError(null);
     try {
-      await apiFetch('/api/tutor-portal/materials', {
-        method: 'POST',
-        body: JSON.stringify({
-          batchId: selectedBatchId,
-          title: materialForm.title.trim(),
-          link: materialForm.link.trim(),
-        }),
-      });
+      if (materialMode === 'file' && materialFile) {
+        const formData = new FormData();
+        formData.append('batchId', selectedBatchId);
+        formData.append('title', materialForm.title.trim());
+        formData.append('file', materialFile);
+        await apiFetch('/api/tutor-portal/materials', { method: 'POST', body: formData });
+      } else {
+        await apiFetch('/api/tutor-portal/materials', {
+          method: 'POST',
+          body: JSON.stringify({
+            batchId: selectedBatchId,
+            title: materialForm.title.trim(),
+            link: materialForm.link.trim(),
+          }),
+        });
+      }
       setMaterialForm({ title: '', link: '' });
-      setMaterials('loading');
-      apiFetch<MaterialEntry[]>(`/api/tutor-portal/materials/${selectedBatchId}`).then(setMaterials).catch(() => setMaterials([]));
+      setMaterialFile(null);
+      reloadMaterials();
     } catch (err) {
       setMaterialError(err instanceof Error ? err.message : 'Could not add material — try again.');
     } finally {
       setMaterialSaving(false);
+    }
+  }
+
+  async function downloadMaterial(id: string) {
+    try {
+      await openSignedDownload(`/api/tutor-portal/materials/${id}/download-url`);
+    } catch (err) {
+      setMaterialError(err instanceof Error ? err.message : 'Could not open that file.');
+    }
+  }
+
+  // --- Assignments (2026-08-04) ---
+
+  function reloadAssignments() {
+    setAssignments('loading');
+    apiFetch<AssignmentEntry[]>(`/api/tutor-portal/assignments?batchId=${encodeURIComponent(selectedBatchId)}`)
+      .then(setAssignments)
+      .catch(() => setAssignments([]));
+  }
+
+  async function createAssignment() {
+    if (!assignmentForm.title.trim()) return;
+    setAssignmentSaving(true);
+    setAssignmentError(null);
+    try {
+      await apiFetch('/api/tutor-portal/assignments', {
+        method: 'POST',
+        body: JSON.stringify({
+          batchId: selectedBatchId,
+          title: assignmentForm.title.trim(),
+          instructions: assignmentForm.instructions.trim() || null,
+          // datetime-local has no timezone; the browser reads it as local
+          // (Ghana) time and toISOString converts to the UTC the API expects.
+          dueAt: assignmentForm.dueAt ? new Date(assignmentForm.dueAt).toISOString() : null,
+          allowResubmission: assignmentForm.allowResubmission,
+        }),
+      });
+      setAssignmentForm({ title: '', instructions: '', dueAt: '', allowResubmission: true });
+      reloadAssignments();
+    } catch (err) {
+      setAssignmentError(err instanceof Error ? err.message : 'Could not create it — try again.');
+    } finally {
+      setAssignmentSaving(false);
+    }
+  }
+
+  async function setAssignmentStatus(id: string, status: 'open' | 'closed') {
+    try {
+      await apiFetch(`/api/tutor-portal/assignments/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status }),
+      });
+      setAssignments((current) =>
+        Array.isArray(current) ? current.map((a) => (a.id === id ? { ...a, status } : a)) : current,
+      );
+    } catch (err) {
+      setAssignmentError(err instanceof Error ? err.message : 'Could not update it — try again.');
+    }
+  }
+
+  async function deleteAssignment(id: string) {
+    // Cascades to every submission, so this one gets an explicit confirm —
+    // unlike removing a material, it destroys learners' work.
+    if (!window.confirm('Delete this assignment and every submission against it? This cannot be undone.')) {
+      return;
+    }
+    try {
+      await apiFetch(`/api/tutor-portal/assignments/${id}`, { method: 'DELETE' });
+      if (openAssignmentId === id) {
+        setOpenAssignmentId(null);
+        setSubmissions(null);
+      }
+      setAssignments((current) => (Array.isArray(current) ? current.filter((a) => a.id !== id) : current));
+    } catch (err) {
+      setAssignmentError(err instanceof Error ? err.message : 'Could not delete it — try again.');
+    }
+  }
+
+  function toggleSubmissions(assignmentId: string) {
+    if (openAssignmentId === assignmentId) {
+      setOpenAssignmentId(null);
+      setSubmissions(null);
+      return;
+    }
+    setOpenAssignmentId(assignmentId);
+    setGradingId(null);
+    setSubmissions('loading');
+    apiFetch<SubmissionEntry[]>(`/api/tutor-portal/assignments/${assignmentId}/submissions`)
+      .then(setSubmissions)
+      .catch(() => setSubmissions([]));
+  }
+
+  async function downloadSubmission(submissionId: string) {
+    try {
+      await openSignedDownload(`/api/tutor-portal/submissions/${submissionId}/download-url`);
+    } catch (err) {
+      setGradeError(err instanceof Error ? err.message : 'Could not open that file.');
+    }
+  }
+
+  async function saveGrade(submissionId: string) {
+    if (!gradeForm.grade.trim() && !gradeForm.feedback.trim()) {
+      setGradeError('Give a grade, written feedback, or both.');
+      return;
+    }
+    setGradeSaving(true);
+    setGradeError(null);
+    try {
+      await apiFetch(`/api/tutor-portal/submissions/${submissionId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          grade: gradeForm.grade.trim() ? Number(gradeForm.grade) : null,
+          feedback: gradeForm.feedback.trim() || null,
+        }),
+      });
+      setGradingId(null);
+      setGradeForm({ grade: '', feedback: '' });
+      if (openAssignmentId) {
+        setSubmissions('loading');
+        apiFetch<SubmissionEntry[]>(`/api/tutor-portal/assignments/${openAssignmentId}/submissions`)
+          .then(setSubmissions)
+          .catch(() => setSubmissions([]));
+      }
+      // The assignment's "n of m reviewed" count is now stale.
+      reloadAssignments();
+    } catch (err) {
+      setGradeError(err instanceof Error ? err.message : 'Could not save — try again.');
+    } finally {
+      setGradeSaving(false);
     }
   }
 
@@ -603,6 +830,7 @@ export default function TutorPortalDashboardPage() {
             {(activePanel === 'roster' ||
               activePanel === 'attendance' ||
               activePanel === 'materials' ||
+              activePanel === 'assignments' ||
               activePanel === 'certificates') && (
               <section className="panel active" role="tabpanel">
                 <p className="eyebrow">
@@ -612,12 +840,15 @@ export default function TutorPortalDashboardPage() {
                       ? 'Attendance'
                       : activePanel === 'materials'
                         ? 'Materials'
-                        : 'Certificate Eligibility'}
+                        : activePanel === 'assignments'
+                          ? 'Assignments'
+                          : 'Certificate Eligibility'}
                 </p>
                 <h2 className="panel-title">
                   {activePanel === 'roster' && 'Who’s registered'}
                   {activePanel === 'attendance' && 'Session attendance'}
                   {activePanel === 'materials' && 'Shared with your class'}
+                  {activePanel === 'assignments' && 'Set work and mark it'}
                   {activePanel === 'certificates' && 'Ready for a certificate'}
                 </h2>
 
@@ -790,6 +1021,7 @@ export default function TutorPortalDashboardPage() {
                       <>
                         <div className="account-card" style={{ marginBottom: 16 }}>
                           {materialError && <p className="plan-confirm-error">{materialError}</p>}
+
                           <div className="field">
                             <label htmlFor="materialTitle">Title</label>
                             <input
@@ -799,22 +1031,62 @@ export default function TutorPortalDashboardPage() {
                               onChange={(event) => setMaterialForm({ ...materialForm, title: event.target.value })}
                             />
                           </div>
+
                           <div className="field">
-                            <label htmlFor="materialLink">Link</label>
-                            <input
-                              id="materialLink"
-                              placeholder="https://drive.google.com/…"
-                              value={materialForm.link}
-                              onChange={(event) => setMaterialForm({ ...materialForm, link: event.target.value })}
-                            />
+                            <label htmlFor="materialMode">Share as</label>
+                            <select
+                              id="materialMode"
+                              value={materialMode}
+                              onChange={(event) => {
+                                setMaterialMode(event.target.value as 'link' | 'file');
+                                setMaterialError(null);
+                              }}
+                            >
+                              <option value="file">Upload a file</option>
+                              <option value="link">Link to somewhere else</option>
+                            </select>
                           </div>
+
+                          {materialMode === 'file' ? (
+                            <div className="field">
+                              <label htmlFor="materialFile">File</label>
+                              <input
+                                id="materialFile"
+                                type="file"
+                                accept={UPLOAD_ACCEPT_ATTRIBUTE}
+                                onChange={(event) => setMaterialFile(event.target.files?.[0] ?? null)}
+                              />
+                              <p className="field-hint">{UPLOAD_TYPES_HINT}</p>
+                            </div>
+                          ) : (
+                            <div className="field">
+                              <label htmlFor="materialLink">Link</label>
+                              <input
+                                id="materialLink"
+                                placeholder="https://drive.google.com/…"
+                                value={materialForm.link}
+                                onChange={(event) => setMaterialForm({ ...materialForm, link: event.target.value })}
+                              />
+                            </div>
+                          )}
+
                           <button
                             type="button"
                             className="btn btn-primary btn-sm"
-                            disabled={materialSaving || !materialForm.title.trim() || !materialForm.link.trim()}
+                            disabled={
+                              materialSaving ||
+                              !materialForm.title.trim() ||
+                              (materialMode === 'file' ? !materialFile : !materialForm.link.trim())
+                            }
                             onClick={() => void submitMaterial()}
                           >
-                            {materialSaving ? 'Adding…' : 'Add material'}
+                            {materialSaving
+                              ? materialMode === 'file'
+                                ? 'Uploading…'
+                                : 'Adding…'
+                              : materialMode === 'file'
+                                ? 'Upload resource'
+                                : 'Add material'}
                           </button>
                         </div>
 
@@ -826,8 +1098,23 @@ export default function TutorPortalDashboardPage() {
                           <ul className="att-list">
                             {materials.map((material) => (
                               <li key={material.id}>
-                                <a href={material.link} target="_blank" rel="noreferrer">{material.title}</a>
+                                {material.kind === 'file' ? (
+                                  <button
+                                    type="button"
+                                    className="link-btn"
+                                    onClick={() => void downloadMaterial(material.id)}
+                                  >
+                                    {material.title}
+                                  </button>
+                                ) : (
+                                  <a href={material.link ?? '#'} target="_blank" rel="noreferrer">
+                                    {material.title}
+                                  </a>
+                                )}
                                 <span className="duration">
+                                  {material.kind === 'file' && material.fileSizeBytes !== null && (
+                                    <>{formatFileSize(material.fileSizeBytes)}{' · '}</>
+                                  )}
                                   {formatDate(material.createdAt)}
                                   {' · '}
                                   <button type="button" className="link-btn" onClick={() => void deleteMaterial(material.id)}>
@@ -837,6 +1124,222 @@ export default function TutorPortalDashboardPage() {
                               </li>
                             ))}
                           </ul>
+                        )}
+                      </>
+                    )}
+
+                    {activePanel === 'assignments' && (
+                      <>
+                        <div className="account-card" style={{ marginBottom: 16 }}>
+                          {assignmentError && <p className="plan-confirm-error">{assignmentError}</p>}
+                          <div className="field">
+                            <label htmlFor="assignmentTitle">Title</label>
+                            <input
+                              id="assignmentTitle"
+                              placeholder="Case study — risk register"
+                              value={assignmentForm.title}
+                              onChange={(event) =>
+                                setAssignmentForm({ ...assignmentForm, title: event.target.value })
+                              }
+                            />
+                          </div>
+                          <div className="field">
+                            <label htmlFor="assignmentInstructions">Instructions (optional)</label>
+                            <textarea
+                              id="assignmentInstructions"
+                              rows={3}
+                              placeholder="What should they submit, and in what format?"
+                              value={assignmentForm.instructions}
+                              onChange={(event) =>
+                                setAssignmentForm({ ...assignmentForm, instructions: event.target.value })
+                              }
+                            />
+                          </div>
+                          <div className="field">
+                            <label htmlFor="assignmentDueAt">Due (optional)</label>
+                            <input
+                              id="assignmentDueAt"
+                              type="datetime-local"
+                              value={assignmentForm.dueAt}
+                              onChange={(event) =>
+                                setAssignmentForm({ ...assignmentForm, dueAt: event.target.value })
+                              }
+                            />
+                            <p className="field-hint">Ghana time. A due date is a signal, not a lock — close the assignment to stop submissions.</p>
+                          </div>
+                          <div className="field">
+                            <label htmlFor="assignmentResubmit">
+                              <input
+                                id="assignmentResubmit"
+                                type="checkbox"
+                                checked={assignmentForm.allowResubmission}
+                                onChange={(event) =>
+                                  setAssignmentForm({
+                                    ...assignmentForm,
+                                    allowResubmission: event.target.checked,
+                                  })
+                                }
+                              />
+                              {' '}Allow resubmission
+                            </label>
+                            <p className="field-hint">A resubmission replaces the file and clears any grade already given.</p>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            disabled={assignmentSaving || !assignmentForm.title.trim()}
+                            onClick={() => void createAssignment()}
+                          >
+                            {assignmentSaving ? 'Creating…' : 'Set assignment'}
+                          </button>
+                        </div>
+
+                        {assignments === 'loading' || assignments === null ? (
+                          <p className="empty-note">Loading…</p>
+                        ) : assignments.length === 0 ? (
+                          <p className="empty-note">No assignments set for {selectedBatch?.cohortLabel} yet.</p>
+                        ) : (
+                          assignments.map((assignment) => (
+                            <article key={assignment.id} className="account-card" style={{ marginBottom: 12 }}>
+                              <h3 style={{ margin: 0 }}>{assignment.title}</h3>
+                              <p className="duration" style={{ marginTop: 4 }}>
+                                {assignment.status === 'closed' ? 'Closed' : 'Open'}
+                                {assignment.dueAt && <> · Due {formatDate(assignment.dueAt)}</>}
+                                {' · '}
+                                {assignment.reviewedCount} of {assignment.submissionCount} marked
+                              </p>
+                              {assignment.instructions && (
+                                <p style={{ whiteSpace: 'pre-wrap', marginTop: 8 }}>{assignment.instructions}</p>
+                              )}
+                              <p style={{ marginTop: 8 }}>
+                                <button type="button" className="link-btn" onClick={() => toggleSubmissions(assignment.id)}>
+                                  {openAssignmentId === assignment.id ? 'Hide submissions' : `View submissions (${assignment.submissionCount})`}
+                                </button>
+                                {' · '}
+                                <button
+                                  type="button"
+                                  className="link-btn"
+                                  onClick={() =>
+                                    void setAssignmentStatus(
+                                      assignment.id,
+                                      assignment.status === 'closed' ? 'open' : 'closed',
+                                    )
+                                  }
+                                >
+                                  {assignment.status === 'closed' ? 'Reopen' : 'Close'}
+                                </button>
+                                {' · '}
+                                <button type="button" className="link-btn" onClick={() => void deleteAssignment(assignment.id)}>
+                                  Delete
+                                </button>
+                              </p>
+
+                              {openAssignmentId === assignment.id && (
+                                <>
+                                  {gradeError && <p className="plan-confirm-error">{gradeError}</p>}
+                                  {submissions === 'loading' || submissions === null ? (
+                                    <p className="empty-note">Loading…</p>
+                                  ) : submissions.length === 0 ? (
+                                    <p className="empty-note">Nobody has submitted yet.</p>
+                                  ) : (
+                                    <ul className="att-list">
+                                      {submissions.map((submission) => (
+                                        <li key={submission.submissionId} style={{ display: 'block' }}>
+                                          <strong>{submission.participantName}</strong>
+                                          <span className="duration" style={{ display: 'block' }}>
+                                            {submission.participantEmail}
+                                          </span>
+                                          <span className="duration" style={{ display: 'block' }}>
+                                            Submitted {formatDate(submission.submittedAt)} ·{' '}
+                                            {formatFileSize(submission.fileSizeBytes)}
+                                            {submission.status === 'reviewed' && (
+                                              <>
+                                                {' · Marked'}
+                                                {submission.grade !== null && <> — {submission.grade}/100</>}
+                                              </>
+                                            )}
+                                          </span>
+                                          {submission.participantNotes && (
+                                            <p style={{ whiteSpace: 'pre-wrap', margin: '4px 0' }}>
+                                              {submission.participantNotes}
+                                            </p>
+                                          )}
+                                          {submission.feedback && (
+                                            <p className="duration" style={{ whiteSpace: 'pre-wrap', margin: '4px 0' }}>
+                                              Your feedback: {submission.feedback}
+                                            </p>
+                                          )}
+                                          <p style={{ margin: '4px 0' }}>
+                                            <button
+                                              type="button"
+                                              className="link-btn"
+                                              onClick={() => void downloadSubmission(submission.submissionId)}
+                                            >
+                                              Download {submission.fileName}
+                                            </button>
+                                            {' · '}
+                                            <button
+                                              type="button"
+                                              className="link-btn"
+                                              onClick={() => {
+                                                setGradingId(
+                                                  gradingId === submission.submissionId ? null : submission.submissionId,
+                                                );
+                                                setGradeError(null);
+                                                setGradeForm({
+                                                  grade: submission.grade !== null ? String(submission.grade) : '',
+                                                  feedback: submission.feedback ?? '',
+                                                });
+                                              }}
+                                            >
+                                              {submission.status === 'reviewed' ? 'Edit mark' : 'Mark'}
+                                            </button>
+                                          </p>
+
+                                          {gradingId === submission.submissionId && (
+                                            <div style={{ marginBottom: 12 }}>
+                                              <div className="field">
+                                                <label htmlFor={`grade-${submission.submissionId}`}>Grade out of 100 (optional)</label>
+                                                <input
+                                                  id={`grade-${submission.submissionId}`}
+                                                  type="number"
+                                                  min={0}
+                                                  max={100}
+                                                  value={gradeForm.grade}
+                                                  onChange={(event) =>
+                                                    setGradeForm({ ...gradeForm, grade: event.target.value })
+                                                  }
+                                                />
+                                              </div>
+                                              <div className="field">
+                                                <label htmlFor={`feedback-${submission.submissionId}`}>Feedback (optional)</label>
+                                                <textarea
+                                                  id={`feedback-${submission.submissionId}`}
+                                                  rows={3}
+                                                  value={gradeForm.feedback}
+                                                  onChange={(event) =>
+                                                    setGradeForm({ ...gradeForm, feedback: event.target.value })
+                                                  }
+                                                />
+                                              </div>
+                                              <button
+                                                type="button"
+                                                className="btn btn-primary btn-sm"
+                                                disabled={gradeSaving}
+                                                onClick={() => void saveGrade(submission.submissionId)}
+                                              >
+                                                {gradeSaving ? 'Saving…' : 'Save mark'}
+                                              </button>
+                                            </div>
+                                          )}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </>
+                              )}
+                            </article>
+                          ))
                         )}
                       </>
                     )}

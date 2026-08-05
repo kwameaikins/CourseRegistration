@@ -28,6 +28,7 @@ import { AddToLinkedInButton } from '@/components/AddToLinkedInButton';
 import { PaystackCheckout } from '@/components/PaystackCheckout';
 import { PORTAL_STYLES, PortalIcons } from '@/components/portal/portal-design-system';
 import { formatDate, formatGhs } from '@/lib/utils';
+import { UPLOAD_ACCEPT_ATTRIBUTE, UPLOAD_TYPES_HINT } from '@/lib/upload-constants';
 import {
   FEEDBACK_IMPROVEMENT_LABEL,
   FEEDBACK_MATERIALS_LABEL,
@@ -88,11 +89,39 @@ interface NextClass {
   joinUrl: string | null;
 }
 
+// A material is either a shared link or an uploaded file (2026-08-04) —
+// `kind` is the discriminator; a file opens through a short-lived presigned
+// URL fetched on click, never a stored public link.
 interface SessionMaterialEntry {
   id: string;
   title: string;
-  link: string;
+  kind: 'link' | 'file';
+  link: string | null;
+  fileName: string | null;
+  fileSizeBytes: number | null;
   createdAt: string;
+}
+
+interface AssignmentSubmissionEntry {
+  id: string;
+  fileName: string;
+  fileSizeBytes: number;
+  participantNotes: string | null;
+  submittedAt: string;
+  status: 'submitted' | 'reviewed';
+  grade: number | null;
+  feedback: string | null;
+  reviewedAt: string | null;
+}
+
+interface StudentAssignmentEntry {
+  id: string;
+  title: string;
+  instructions: string | null;
+  dueAt: string | null;
+  status: 'open' | 'closed';
+  allowResubmission: boolean;
+  mySubmission: AssignmentSubmissionEntry | null;
 }
 
 interface PaymentSubmissionEntry {
@@ -231,8 +260,18 @@ export default function PortalDashboardPage() {
     Record<string, SessionMaterialEntry[] | 'loading'>
   >({});
   const [courseTab, setCourseTab] = useState<
-    Record<string, 'attendance' | 'materials' | 'feedback'>
+    Record<string, 'attendance' | 'materials' | 'assignments' | 'feedback'>
   >({});
+
+  // Assignments (2026-08-04)
+  const [assignmentsByRegistration, setAssignmentsByRegistration] = useState<
+    Record<string, StudentAssignmentEntry[] | 'loading'>
+  >({});
+  const [submittingAssignmentId, setSubmittingAssignmentId] = useState<string | null>(null);
+  const [assignmentFile, setAssignmentFile] = useState<File | null>(null);
+  const [assignmentNotes, setAssignmentNotes] = useState('');
+  const [assignmentSaving, setAssignmentSaving] = useState(false);
+  const [assignmentError, setAssignmentError] = useState<string | null>(null);
 
   const [otherCourses, setOtherCourses] = useState<OtherCourse[]>([]);
 
@@ -270,6 +309,43 @@ export default function PortalDashboardPage() {
       .then((materials) => setMaterialsByRegistration((current) => ({ ...current, [registrationId]: materials })))
       .catch(() => setMaterialsByRegistration((current) => ({ ...current, [registrationId]: [] })));
   }, []);
+
+  const fetchAssignments = useCallback((registrationId: string) => {
+    setAssignmentsByRegistration((current) => ({ ...current, [registrationId]: 'loading' }));
+    apiFetch<StudentAssignmentEntry[]>(`/api/portal/assignments/${registrationId}`)
+      .then((assignments) =>
+        setAssignmentsByRegistration((current) => ({ ...current, [registrationId]: assignments })),
+      )
+      .catch(() => setAssignmentsByRegistration((current) => ({ ...current, [registrationId]: [] })));
+  }, []);
+
+  // Uploads the learner's file, then refreshes that registration's list so
+  // the new submission (and its cleared grade, on a resubmission) is shown.
+  const submitAssignment = useCallback(
+    async (registrationId: string, assignmentId: string) => {
+      if (!assignmentFile) return;
+      setAssignmentSaving(true);
+      setAssignmentError(null);
+      try {
+        const formData = new FormData();
+        formData.append('assignmentId', assignmentId);
+        formData.append('registrationId', registrationId);
+        formData.append('file', assignmentFile);
+        if (assignmentNotes.trim()) formData.append('participantNotes', assignmentNotes.trim());
+        await apiFetch('/api/portal/assignments', { method: 'POST', body: formData });
+
+        setSubmittingAssignmentId(null);
+        setAssignmentFile(null);
+        setAssignmentNotes('');
+        fetchAssignments(registrationId);
+      } catch (err) {
+        setAssignmentError(err instanceof Error ? err.message : 'Could not submit — try again.');
+      } finally {
+        setAssignmentSaving(false);
+      }
+    },
+    [assignmentFile, assignmentNotes, fetchAssignments],
+  );
 
   const fetchSubmissions = useCallback((registrationId: string) => {
     setSubmissionsByRegistration((current) => ({ ...current, [registrationId]: 'loading' }));
@@ -734,6 +810,7 @@ export default function PortalDashboardPage() {
                 {dashboard.registrations.map((reg) => {
                   const activeCert = reg.certificates.find((c) => !c.revoked);
                   const materials = materialsByRegistration[reg.registrationId];
+                  const assignments = assignmentsByRegistration[reg.registrationId];
                   const submissions = submissionsByRegistration[reg.registrationId];
                   const pendingSubmission = Array.isArray(submissions)
                     ? submissions.find((s) => s.status === 'pending')
@@ -1019,6 +1096,16 @@ export default function PortalDashboardPage() {
                             Materials
                           </button>
                           <button
+                            className={courseTab[reg.registrationId] === 'assignments' ? 'active' : ''}
+                            type="button"
+                            onClick={() => {
+                              setCourseTab((cur) => ({ ...cur, [reg.registrationId]: 'assignments' }));
+                              if (!assignments) fetchAssignments(reg.registrationId);
+                            }}
+                          >
+                            Assignments
+                          </button>
+                          <button
                             className={courseTab[reg.registrationId] === 'feedback' ? 'active' : ''}
                             type="button"
                             onClick={() => setCourseTab((cur) => ({ ...cur, [reg.registrationId]: 'feedback' }))}
@@ -1043,7 +1130,31 @@ export default function PortalDashboardPage() {
                               </ul>
                             )
                           )}
-                          {courseTab[reg.registrationId] === 'materials' && <MaterialsList entry={materials} />}
+                          {courseTab[reg.registrationId] === 'materials' && (
+                            <MaterialsList entry={materials} registrationId={reg.registrationId} />
+                          )}
+                          {courseTab[reg.registrationId] === 'assignments' && (
+                            <AssignmentsList
+                              entry={assignments}
+                              registrationId={reg.registrationId}
+                              openId={submittingAssignmentId}
+                              onOpen={(id) => {
+                                setSubmittingAssignmentId(id);
+                                setAssignmentFile(null);
+                                setAssignmentNotes('');
+                                setAssignmentError(null);
+                              }}
+                              file={assignmentFile}
+                              onFileChange={setAssignmentFile}
+                              notes={assignmentNotes}
+                              onNotesChange={setAssignmentNotes}
+                              saving={assignmentSaving}
+                              error={assignmentError}
+                              onSubmit={(assignmentId) =>
+                                void submitAssignment(reg.registrationId, assignmentId)
+                              }
+                            />
+                          )}
                           {courseTab[reg.registrationId] === 'feedback' && (
                             reg.feedbackSubmitted ? (
                               <p className="fb-submitted">
@@ -1524,19 +1635,226 @@ function NameEditForm({
   );
 }
 
-function MaterialsList({ entry }: { entry: SessionMaterialEntry[] | 'loading' | undefined }) {
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// Fetches the presigned URL on click and opens it, rather than rendering it
+// into the page — a short-lived credential never sits in the DOM.
+async function openSignedDownload(url: string): Promise<void> {
+  const { url: signedUrl } = await apiFetch<{ url: string }>(url);
+  window.open(signedUrl, '_blank', 'noopener,noreferrer');
+}
+
+function MaterialsList({
+  entry,
+  registrationId,
+}: {
+  entry: SessionMaterialEntry[] | 'loading' | undefined;
+  registrationId: string;
+}) {
+  const [error, setError] = useState<string | null>(null);
+
   if (entry === undefined) return <p className="empty-note">Loading…</p>;
   if (entry === 'loading') return <p className="empty-note">Loading…</p>;
   if (entry.length === 0) return <p className="empty-note">No materials shared yet.</p>;
   return (
-    <ul className="att-list">
-      {entry.map((material) => (
-        <li key={material.id}>
-          <a href={material.link} target="_blank" rel="noreferrer">{material.title}</a>
-          <span className="duration">{formatDate(material.createdAt)}</span>
-        </li>
-      ))}
-    </ul>
+    <>
+      {error && <p className="plan-confirm-error">{error}</p>}
+      <ul className="att-list">
+        {entry.map((material) => (
+          <li key={material.id}>
+            {material.kind === 'file' ? (
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() => {
+                  setError(null);
+                  void openSignedDownload(
+                    `/api/portal/materials/${registrationId}/download-url?materialId=${material.id}`,
+                  ).catch((err: unknown) =>
+                    setError(err instanceof Error ? err.message : 'Could not open that file.'),
+                  );
+                }}
+              >
+                {material.title}
+              </button>
+            ) : (
+              <a href={material.link ?? '#'} target="_blank" rel="noreferrer">
+                {material.title}
+              </a>
+            )}
+            <span className="duration">
+              {material.kind === 'file' && material.fileSizeBytes !== null && (
+                <>{formatFileSize(material.fileSizeBytes)}{' · '}</>
+              )}
+              {formatDate(material.createdAt)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+// Assignments tab (2026-08-04). A learner sees every assignment on their
+// batch but only ever their own submission.
+function AssignmentsList({
+  entry,
+  registrationId,
+  openId,
+  onOpen,
+  file,
+  onFileChange,
+  notes,
+  onNotesChange,
+  saving,
+  error,
+  onSubmit,
+}: {
+  entry: StudentAssignmentEntry[] | 'loading' | undefined;
+  registrationId: string;
+  openId: string | null;
+  onOpen: (id: string | null) => void;
+  file: File | null;
+  onFileChange: (file: File | null) => void;
+  notes: string;
+  onNotesChange: (notes: string) => void;
+  saving: boolean;
+  error: string | null;
+  onSubmit: (assignmentId: string) => void;
+}) {
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  if (entry === undefined || entry === 'loading') return <p className="empty-note">Loading…</p>;
+  if (entry.length === 0) return <p className="empty-note">No assignments set yet.</p>;
+
+  return (
+    <>
+      {downloadError && <p className="plan-confirm-error">{downloadError}</p>}
+      {entry.map((assignment) => {
+        const submission = assignment.mySubmission;
+        // Closed stops everything; an open assignment that disallows
+        // resubmission is a one-shot once something is already in.
+        const canSubmit =
+          assignment.status === 'open' && (!submission || assignment.allowResubmission);
+
+        return (
+          <div key={assignment.id} className="att-list" style={{ marginBottom: 16 }}>
+            <p style={{ margin: 0, fontWeight: 600 }}>{assignment.title}</p>
+            <p className="duration" style={{ marginTop: 2 }}>
+              {assignment.status === 'closed' ? 'Closed' : 'Open'}
+              {assignment.dueAt && <> · Due {formatDate(assignment.dueAt)}</>}
+            </p>
+            {assignment.instructions && (
+              <p style={{ whiteSpace: 'pre-wrap', marginTop: 6 }}>{assignment.instructions}</p>
+            )}
+
+            {submission ? (
+              <div style={{ marginTop: 6 }}>
+                <p className="duration" style={{ margin: 0 }}>
+                  Submitted {formatDate(submission.submittedAt)} ·{' '}
+                  {formatFileSize(submission.fileSizeBytes)}
+                  {' · '}
+                  <button
+                    type="button"
+                    className="link-btn"
+                    onClick={() => {
+                      setDownloadError(null);
+                      void openSignedDownload(
+                        `/api/portal/assignments/${registrationId}/download-url?submissionId=${submission.id}`,
+                      ).catch((err: unknown) =>
+                        setDownloadError(
+                          err instanceof Error ? err.message : 'Could not open that file.',
+                        ),
+                      );
+                    }}
+                  >
+                    {submission.fileName}
+                  </button>
+                </p>
+                {submission.status === 'reviewed' ? (
+                  <p style={{ margin: '4px 0' }}>
+                    Marked
+                    {submission.grade !== null && <strong> — {submission.grade}/100</strong>}
+                    {submission.feedback && (
+                      <span style={{ display: 'block', whiteSpace: 'pre-wrap' }}>
+                        {submission.feedback}
+                      </span>
+                    )}
+                  </p>
+                ) : (
+                  <p className="duration" style={{ margin: '4px 0' }}>Awaiting marking.</p>
+                )}
+              </div>
+            ) : (
+              <p className="duration" style={{ marginTop: 6 }}>Not submitted yet.</p>
+            )}
+
+            {canSubmit && (
+              openId === assignment.id ? (
+                <div style={{ marginTop: 8 }}>
+                  {error && <p className="plan-confirm-error">{error}</p>}
+                  <div className="field">
+                    <label htmlFor={`assignmentFile-${assignment.id}`}>Your file</label>
+                    <input
+                      id={`assignmentFile-${assignment.id}`}
+                      type="file"
+                      accept={UPLOAD_ACCEPT_ATTRIBUTE}
+                      onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
+                    />
+                    <p className="field-hint">{UPLOAD_TYPES_HINT}</p>
+                  </div>
+                  <div className="field">
+                    <label htmlFor={`assignmentNotes-${assignment.id}`}>Notes for your tutor (optional)</label>
+                    <textarea
+                      id={`assignmentNotes-${assignment.id}`}
+                      rows={2}
+                      value={notes}
+                      onChange={(event) => onNotesChange(event.target.value)}
+                    />
+                  </div>
+                  {submission && (
+                    <p className="field-hint">
+                      This replaces your current submission, and clears any mark already given.
+                    </p>
+                  )}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      disabled={saving || !file}
+                      onClick={() => onSubmit(assignment.id)}
+                    >
+                      {saving ? 'Uploading…' : submission ? 'Replace submission' : 'Submit'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      disabled={saving}
+                      onClick={() => onOpen(null)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  style={{ marginTop: 8 }}
+                  onClick={() => onOpen(assignment.id)}
+                >
+                  {submission ? 'Resubmit' : 'Submit your work'}
+                </button>
+              )
+            )}
+          </div>
+        );
+      })}
+    </>
   );
 }
 

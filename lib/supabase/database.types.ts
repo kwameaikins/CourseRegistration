@@ -2485,8 +2485,13 @@ export type Database = {
           batch_id: string
           live_session_id: string | null
           uploaded_by_tutor_id: string | null
+          uploaded_by_staff_id: string | null
           title: string
-          link: string
+          link: string | null
+          file_path: string | null
+          file_name: string | null
+          file_size_bytes: number | null
+          content_type: string | null
           created_at: string
         }
         Insert: {
@@ -2494,8 +2499,13 @@ export type Database = {
           batch_id: string
           live_session_id?: string | null
           uploaded_by_tutor_id?: string | null
+          uploaded_by_staff_id?: string | null
           title: string
-          link: string
+          link?: string | null
+          file_path?: string | null
+          file_name?: string | null
+          file_size_bytes?: number | null
+          content_type?: string | null
           created_at?: string
         }
         Update: {
@@ -2503,8 +2513,13 @@ export type Database = {
           batch_id?: string
           live_session_id?: string | null
           uploaded_by_tutor_id?: string | null
+          uploaded_by_staff_id?: string | null
           title?: string
-          link?: string
+          link?: string | null
+          file_path?: string | null
+          file_name?: string | null
+          file_size_bytes?: number | null
+          content_type?: string | null
           created_at?: string
         }
         Relationships: [
@@ -2527,6 +2542,167 @@ export type Database = {
             columns: ["uploaded_by_tutor_id"]
             isOneToOne: false
             referencedRelation: "tutors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_materials_uploaded_by_staff_id_fkey"
+            columns: ["uploaded_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assignments: {
+        Row: {
+          id: string
+          batch_id: string
+          live_session_id: string | null
+          title: string
+          instructions: string | null
+          due_at: string | null
+          status: string
+          allow_resubmission: boolean
+          created_by_tutor_id: string | null
+          created_by_staff_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          batch_id: string
+          live_session_id?: string | null
+          title: string
+          instructions?: string | null
+          due_at?: string | null
+          status?: string
+          allow_resubmission?: boolean
+          created_by_tutor_id?: string | null
+          created_by_staff_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          batch_id?: string
+          live_session_id?: string | null
+          title?: string
+          instructions?: string | null
+          due_at?: string | null
+          status?: string
+          allow_resubmission?: boolean
+          created_by_tutor_id?: string | null
+          created_by_staff_id?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assignments_batch_id_fkey"
+            columns: ["batch_id"]
+            isOneToOne: false
+            referencedRelation: "batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignments_live_session_id_fkey"
+            columns: ["live_session_id"]
+            isOneToOne: false
+            referencedRelation: "live_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignments_created_by_tutor_id_fkey"
+            columns: ["created_by_tutor_id"]
+            isOneToOne: false
+            referencedRelation: "tutors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignments_created_by_staff_id_fkey"
+            columns: ["created_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assignment_submissions: {
+        Row: {
+          id: string
+          assignment_id: string
+          registration_id: string
+          file_path: string
+          file_name: string
+          file_size_bytes: number
+          content_type: string
+          participant_notes: string | null
+          submitted_at: string
+          status: string
+          grade: number | null
+          feedback: string | null
+          reviewed_by_tutor_id: string | null
+          reviewed_by_staff_id: string | null
+          reviewed_at: string | null
+        }
+        Insert: {
+          id?: string
+          assignment_id: string
+          registration_id: string
+          file_path: string
+          file_name: string
+          file_size_bytes: number
+          content_type: string
+          participant_notes?: string | null
+          submitted_at?: string
+          status?: string
+          grade?: number | null
+          feedback?: string | null
+          reviewed_by_tutor_id?: string | null
+          reviewed_by_staff_id?: string | null
+          reviewed_at?: string | null
+        }
+        Update: {
+          id?: string
+          assignment_id?: string
+          registration_id?: string
+          file_path?: string
+          file_name?: string
+          file_size_bytes?: number
+          content_type?: string
+          participant_notes?: string | null
+          submitted_at?: string
+          status?: string
+          grade?: number | null
+          feedback?: string | null
+          reviewed_by_tutor_id?: string | null
+          reviewed_by_staff_id?: string | null
+          reviewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assignment_submissions_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignment_submissions_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignment_submissions_reviewed_by_tutor_id_fkey"
+            columns: ["reviewed_by_tutor_id"]
+            isOneToOne: false
+            referencedRelation: "tutors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "assignment_submissions_reviewed_by_staff_id_fkey"
+            columns: ["reviewed_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
             referencedColumns: ["id"]
           },
         ]
