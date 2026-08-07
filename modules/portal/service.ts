@@ -45,6 +45,8 @@ import type { ParsedUpload } from '@/lib/uploads';
 // delegating, same posture as every other cross-module call in this file.
 import * as partnersService from '@/modules/partners/service';
 import type { RedeemCommissionCreditInput } from '@/modules/partners/types';
+import * as couponsService from '@/modules/coupons/service';
+import type { ApplyCouponInput } from '@/modules/coupons/types';
 import { sendTransactionalEmail } from '@/lib/resend/client';
 import { parsePaymentStatus } from '@/lib/domain/parsers';
 import type {
@@ -439,6 +441,42 @@ export async function redeemCommissionCreditForSession(
     registrationId: input.targetRegistrationId,
     participantEmail: input.targetParticipantEmail,
   });
+}
+
+// Apply a standalone coupon code to one of this session's own registrations
+// (founder-approved 2026-08-07). Same "never trust a client-supplied
+// registrationId blindly" posture as buildReceiptData below — deliberately
+// NOT the looser redeemCommissionCreditForSession posture, which allows a
+// partner to target someone else's registration.
+//
+// Invalid codes are throttled: a coupon code is a short guessable string, so
+// a logged-in student could otherwise sit and enumerate them.
+export async function applyCouponForSession(
+  sessionId: string | undefined,
+  input: ApplyCouponInput,
+) {
+  const { participantId } = await requirePortalSession(sessionId);
+
+  const data = await portalRepository.selectPortalDashboardData(participantId);
+  const owns = data.registrations.some((row) => row.registration.id === input.registrationId);
+  if (!owns) {
+    throw new AppError('NOT_FOUND', 'Registration not found.', 404);
+  }
+
+  await couponsService.assertAttemptAllowed(participantId);
+
+  try {
+    return await paymentsService.applyCouponToRegistrationSystem(input.registrationId, input.code, {
+      staffId: null,
+    });
+  } catch (err) {
+    // Only a rejected code counts against the throttle — a genuine failure
+    // (no payment row, nothing owed) is not a guessing attempt.
+    if (err instanceof AppError && err.code === 'VALIDATION_ERROR') {
+      await couponsService.recordFailedAttempt(participantId);
+    }
+    throw err;
+  }
 }
 
 // Receipt (2026-07-26) — same "never trust a client-supplied registrationId

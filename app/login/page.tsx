@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -15,17 +16,21 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 
+const ERROR_MESSAGES: Record<string, string> = {
+  inactive: 'This account has been deactivated. Contact your administrator.',
+  'no-account': 'This email is not registered as a staff account. Contact your administrator.',
+  oauth: 'Google sign-in could not be completed. Please try again.',
+  // Invite and password-reset links are single-use and time-limited.
+  link: 'That link has expired or has already been used. Request a new one below.',
+};
+
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(
-    searchParams.get('error') === 'inactive'
-      ? 'This account is inactive. Contact your administrator.'
-      : searchParams.get('error') === 'oauth'
-        ? 'Google sign-in could not be completed. Please try again.'
-        : null,
+    ERROR_MESSAGES[searchParams.get('error') ?? ''] ?? null,
   );
   const [submitting, setSubmitting] = useState<'password' | 'google' | null>(null);
 
@@ -104,6 +109,15 @@ function LoginForm() {
             <Button type="submit" className="w-full" disabled={submitting !== null}>
               {submitting === 'password' ? 'Signing in…' : 'Sign In'}
             </Button>
+
+            <p className="text-center text-sm">
+              <Link
+                href="/auth/forgot-password"
+                className="text-primary underline-offset-2 hover:underline"
+              >
+                Forgot password?
+              </Link>
+            </p>
 
             <div className="relative">
               <div className="absolute inset-0 flex items-center">

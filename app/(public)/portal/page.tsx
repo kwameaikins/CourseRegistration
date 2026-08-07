@@ -284,6 +284,11 @@ export default function PortalDashboardPage() {
   const [redeeming, setRedeeming] = useState(false);
   const [redeemError, setRedeemError] = useState<string | null>(null);
   const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null);
+  // Coupon entry, keyed by registration — each course card has its own field.
+  const [couponInput, setCouponInput] = useState<Record<string, string>>({});
+  const [applyingCouponFor, setApplyingCouponFor] = useState<string | null>(null);
+  const [couponError, setCouponError] = useState<Record<string, string>>({});
+  const [couponSuccess, setCouponSuccess] = useState<Record<string, string>>({});
   const [batchOptions, setBatchOptions] = useState<ActiveBatch[] | 'loading' | null>(null);
   const [selectedBatchByCode, setSelectedBatchByCode] = useState<Record<string, string>>({});
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -409,6 +414,36 @@ export default function PortalDashboardPage() {
       setAmbassadorError(err instanceof Error ? err.message : 'Could not set you up as a partner — try again.');
     } finally {
       setBecomingAmbassador(false);
+    }
+  }
+
+  async function applyCoupon(registrationId: string) {
+    const code = (couponInput[registrationId] ?? '').trim();
+    if (!code) return;
+
+    setApplyingCouponFor(registrationId);
+    setCouponError((cur) => ({ ...cur, [registrationId]: '' }));
+    setCouponSuccess((cur) => ({ ...cur, [registrationId]: '' }));
+    try {
+      const result = await apiFetch<{ balance: number; discountApplied: number }>(
+        '/api/portal/apply-coupon',
+        { method: 'POST', body: JSON.stringify({ registrationId, code }) },
+      );
+      setCouponSuccess((cur) => ({
+        ...cur,
+        [registrationId]: `Code applied — ${formatGhs(result.discountApplied)} off. You now owe ${formatGhs(result.balance)}.`,
+      }));
+      setCouponInput((cur) => ({ ...cur, [registrationId]: '' }));
+      // The fee, balance and any installment plan all change together, so
+      // re-read the dashboard rather than patching this card locally.
+      loadDashboard();
+    } catch (err) {
+      setCouponError((cur) => ({
+        ...cur,
+        [registrationId]: err instanceof Error ? err.message : 'Could not apply that code.',
+      }));
+    } finally {
+      setApplyingCouponFor(null);
     }
   }
 
@@ -902,6 +937,45 @@ export default function PortalDashboardPage() {
 
                       {reg.balance > 0 && (
                         <div className="pay-block">
+                          {/* Discount code (2026-08-07) — applying one here
+                              lowers the balance before checkout, so the Pay
+                              button below always charges the reduced amount. */}
+                          <div className="coupon-row">
+                            <input
+                              aria-label="Discount code"
+                              placeholder="Discount code"
+                              value={couponInput[reg.registrationId] ?? ''}
+                              disabled={applyingCouponFor === reg.registrationId}
+                              onChange={(event) =>
+                                setCouponInput((cur) => ({
+                                  ...cur,
+                                  [reg.registrationId]: event.target.value.toUpperCase(),
+                                }))
+                              }
+                            />
+                            <button
+                              type="button"
+                              className="btn btn-outline btn-sm"
+                              disabled={
+                                applyingCouponFor === reg.registrationId ||
+                                !(couponInput[reg.registrationId] ?? '').trim()
+                              }
+                              onClick={() => void applyCoupon(reg.registrationId)}
+                            >
+                              {applyingCouponFor === reg.registrationId ? 'Applying…' : 'Apply'}
+                            </button>
+                          </div>
+                          {couponError[reg.registrationId] && (
+                            <p role="alert" className="plan-confirm-error">
+                              {couponError[reg.registrationId]}
+                            </p>
+                          )}
+                          {couponSuccess[reg.registrationId] && (
+                            <p className="panel-sub" style={{ color: '#1a7f4b' }}>
+                              {couponSuccess[reg.registrationId]}
+                            </p>
+                          )}
+
                           {confirmingRegistrationId === reg.registrationId ? (
                             <p className="confirming-note">
                               Payment received — confirming now, this will update automatically.

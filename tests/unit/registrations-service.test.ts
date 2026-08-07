@@ -45,6 +45,11 @@ const partnersServiceMock = {
   previewCode: vi.fn(),
   redeemCodeSystem: vi.fn(),
 };
+const couponsServiceMock = {
+  previewCoupon: vi.fn(),
+  computeCouponFee: vi.fn(),
+  recordCouponRedemptionSystem: vi.fn(),
+};
 const sendEmailOnceMock = vi.fn();
 const sendWhatsappOnceMock = vi.fn();
 const sendSmsOnceMock = vi.fn();
@@ -60,6 +65,7 @@ vi.mock('@/modules/opportunities/service', () => opportunitiesServiceMock);
 vi.mock('@/modules/attendance/service', () => attendanceServiceMock);
 vi.mock('@/modules/waitlist/service', () => waitlistServiceMock);
 vi.mock('@/modules/partners/service', () => partnersServiceMock);
+vi.mock('@/modules/coupons/service', () => couponsServiceMock);
 vi.mock('@/modules/communications/service', () => ({
   sendEmailOnce: (...args: unknown[]) => sendEmailOnceMock(...args),
   sendWhatsappOnce: (...args: unknown[]) => sendWhatsappOnceMock(...args),
@@ -185,6 +191,14 @@ beforeEach(() => {
     partnerId: null,
   });
   partnersServiceMock.redeemCodeSystem.mockResolvedValue(undefined);
+  couponsServiceMock.previewCoupon.mockResolvedValue({
+    valid: false,
+    couponId: null,
+    code: null,
+    discountType: null,
+    discountValue: null,
+  });
+  couponsServiceMock.recordCouponRedemptionSystem.mockResolvedValue(undefined);
   opportunitiesServiceMock.createOpportunity.mockResolvedValue({ id: 'opp-1' });
   sendEmailOnceMock.mockResolvedValue('sent');
   sendWhatsappOnceMock.mockResolvedValue('sent');
@@ -1284,5 +1298,103 @@ describe('AppError shape', () => {
     const err = new AppError('FORBIDDEN', 'no', 403);
     expect(err.code).toBe('FORBIDDEN');
     expect(err.httpStatus).toBe(403);
+  });
+});
+
+describe('Standalone coupons at registration (2026-08-07)', () => {
+  // One field on the form serves both systems: partner code first, coupon
+  // second. A code that resolves as a partner code is never looked up as a
+  // coupon.
+  it('only tries a coupon when the typed code is not a partner code', async () => {
+    partnersServiceMock.previewCode.mockResolvedValue({
+      valid: true,
+      discountType: null,
+      discountValue: null,
+      partnerId: 'partner-1',
+    });
+
+    await createRegistration({ ...validInput(), couponCode: 'PARTNER10' });
+    expect(couponsServiceMock.previewCoupon).not.toHaveBeenCalled();
+  });
+
+  it('falls through to the coupon lookup when the code is not a partner code', async () => {
+    await createRegistration({ ...validInput(), couponCode: 'NEWYEAR25' });
+    expect(couponsServiceMock.previewCoupon).toHaveBeenCalledWith('NEWYEAR25', expect.any(String));
+  });
+
+  // A referral-link cookie is attribution, not a discount a student typed —
+  // it must never resolve to a coupon.
+  it('never resolves a referral cookie as a coupon', async () => {
+    await createRegistration(validInput(), 'COOKIECODE');
+    expect(couponsServiceMock.previewCoupon).not.toHaveBeenCalled();
+  });
+
+  it('applies the coupon when it beats the early-bird price, and consumes it', async () => {
+    coursesServiceMock.getBatchByIdSystem.mockResolvedValue(
+      activeBatch({ courseFee: 1200, discountCutoffDate: FUTURE_DATE, discountedFee: 1000 }),
+    );
+    couponsServiceMock.previewCoupon.mockResolvedValue({
+      valid: true,
+      couponId: 'coupon-1',
+      code: 'NEWYEAR25',
+      discountType: 'percentage',
+      discountValue: 25,
+    });
+    couponsServiceMock.computeCouponFee.mockReturnValue(900);
+
+    await createRegistration({ ...validInput(), couponCode: 'NEWYEAR25' });
+
+    expect(registrationsRepositoryMock.insertInitialPayment).toHaveBeenCalledWith({
+      registration_id: 'reg-1',
+      course_fee: 900,
+    });
+    expect(couponsServiceMock.recordCouponRedemptionSystem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        couponId: 'coupon-1',
+        discountAmountApplied: 100,
+        stage: 'registration',
+        appliedByStaffId: null,
+      }),
+    );
+  });
+
+  // A single-use coupon must not be burnt on a registration whose fee it
+  // never changed.
+  it('leaves the coupon unconsumed when the early-bird price already wins', async () => {
+    coursesServiceMock.getBatchByIdSystem.mockResolvedValue(
+      activeBatch({ courseFee: 1200, discountCutoffDate: FUTURE_DATE, discountedFee: 800 }),
+    );
+    couponsServiceMock.previewCoupon.mockResolvedValue({
+      valid: true,
+      couponId: 'coupon-1',
+      code: 'SMALL',
+      discountType: 'fixed_amount',
+      discountValue: 100,
+    });
+    couponsServiceMock.computeCouponFee.mockReturnValue(1100);
+
+    await createRegistration({ ...validInput(), couponCode: 'SMALL' });
+
+    expect(registrationsRepositoryMock.insertInitialPayment).toHaveBeenCalledWith({
+      registration_id: 'reg-1',
+      course_fee: 800,
+    });
+    expect(couponsServiceMock.recordCouponRedemptionSystem).not.toHaveBeenCalled();
+  });
+
+  it('does not block the registration when recording the coupon fails', async () => {
+    couponsServiceMock.previewCoupon.mockResolvedValue({
+      valid: true,
+      couponId: 'coupon-1',
+      code: 'NEWYEAR25',
+      discountType: 'percentage',
+      discountValue: 25,
+    });
+    couponsServiceMock.computeCouponFee.mockReturnValue(900);
+    couponsServiceMock.recordCouponRedemptionSystem.mockRejectedValue(new Error('db down'));
+
+    await expect(
+      createRegistration({ ...validInput(), couponCode: 'NEWYEAR25' }),
+    ).resolves.toBeDefined();
   });
 });

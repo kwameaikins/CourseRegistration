@@ -26,6 +26,9 @@ import * as opportunitiesService from '@/modules/opportunities/service';
 // a coupon/referral code into a discount + attribution before the fee is
 // locked in (Knowsia Growth Partner Programme, 2026-08-02).
 import * as partnersService from '@/modules/partners/service';
+// Standalone marketing coupons (2026-08-07) — same posture as partners, but a
+// separate system with no attribution and no commission.
+import * as couponsService from '@/modules/coupons/service';
 // Permitted cross-module call, same posture as portal/attendance below — a
 // Batch at capacity routes the submission to the waitlist instead of
 // creating a Registration (founder-approved 2026-07-24).
@@ -111,6 +114,15 @@ export async function createRegistration(
   const existingLeadAtRedemption = codePreview
     ? await leadsService.wasExistingLeadBeforeRegistration(input.email)
     : false;
+
+  // One field on the form serves both systems (2026-08-07): a typed code is
+  // tried as a partner code first, and only if that fails is it looked up as
+  // a standalone coupon. A referral-link cookie never resolves to a coupon —
+  // coupons are not shareable attribution.
+  const couponPreview =
+    input.couponCode && !codePreview
+      ? await couponsService.previewCoupon(input.couponCode, input.batchId)
+      : null;
 
   // full_name is derived here so every downstream consumer (email/WhatsApp
   // templates, staff screens) keeps reading a single display name.
@@ -203,6 +215,26 @@ export async function createRegistration(
       discountAmountApplied = round2(earlyBirdFee - courseFee);
     }
   }
+
+  // A standalone coupon joins the same best-price-wins comparison as a third
+  // candidate (2026-08-07). It is measured off the same list price the
+  // partner-code branch uses, and only wins if it beats whatever is currently
+  // cheapest — so it never stacks with the early-bird or a partner discount.
+  let couponDiscountApplied = 0;
+  if (couponPreview?.valid && couponPreview.discountType && couponPreview.discountValue !== null) {
+    const couponFee = couponsService.computeCouponFee(
+      batch.courseFee,
+      couponPreview.discountType,
+      couponPreview.discountValue,
+    );
+    if (couponFee < courseFee) {
+      couponDiscountApplied = round2(courseFee - couponFee);
+      courseFee = couponFee;
+      // The partner code no longer moved the price, so its redemption records
+      // no discount — attribution and commission are unaffected either way.
+      discountAmountApplied = 0;
+    }
+  }
   const payment = await registrationsRepository.insertInitialPayment({
     registration_id: registration.id,
     course_fee: courseFee,
@@ -243,6 +275,24 @@ export async function createRegistration(
       });
     } catch (err) {
       console.error('[registration code redemption]', err);
+    }
+  }
+
+  // The coupon is only consumed when it actually won the price comparison —
+  // a single-use code must not be burnt on a registration whose fee it never
+  // changed. Non-blocking, like the partner redemption above.
+  if (couponPreview?.valid && couponPreview.couponId && couponDiscountApplied > 0) {
+    try {
+      await couponsService.recordCouponRedemptionSystem({
+        couponId: couponPreview.couponId,
+        registrationId: registration.id,
+        participantId: participant.id,
+        discountAmountApplied: couponDiscountApplied,
+        stage: 'registration',
+        appliedByStaffId: null,
+      });
+    } catch (err) {
+      console.error('[registration coupon redemption]', err);
     }
   }
 

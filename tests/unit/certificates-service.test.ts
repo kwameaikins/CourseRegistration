@@ -12,8 +12,12 @@ const repositoryMock = {
   selectBatchIdForRegistration: vi.fn(),
 };
 const sendTransactionalEmailMock = vi.fn();
+// The staff-facing certificate actions gate on requireRole; mocking the users
+// service keeps these tests off lib/supabase (and out of a request scope).
+const usersServiceMock = { requireRole: vi.fn() };
 
 vi.mock('@/modules/certificates/repository', () => repositoryMock);
+vi.mock('@/modules/users/service', () => usersServiceMock);
 vi.mock('@/lib/resend/client', () => ({
   sendTransactionalEmail: (...args: unknown[]) => sendTransactionalEmailMock(...args),
 }));
@@ -25,7 +29,9 @@ const {
   issueCertificateIfEligible,
   issueForBatch,
   issueManual,
+  listCertificates,
   resendCertificateEmail,
+  revokeCertificate,
   verifyCertificate,
 } = await import('@/modules/certificates/service');
 
@@ -46,6 +52,7 @@ function candidate(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  usersServiceMock.requireRole.mockResolvedValue({ id: 'staff-1', role: 'admin' });
   repositoryMock.selectMaxSerialForCourseYear.mockResolvedValue(35);
   repositoryMock.selectCourseSerialFloor.mockResolvedValue(0);
   repositoryMock.insertCertificate.mockImplementation(async (row) => ({
@@ -393,5 +400,75 @@ describe('verification and download', () => {
   it('refuses to generate a PDF for a revoked certificate', async () => {
     repositoryMock.selectCertificateById.mockResolvedValue({ id: 'cert-1', revoked: true });
     await expect(getCertificatePdf('cert-1')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+});
+
+describe('authorization — the staff-facing certificate actions', () => {
+  // These run on the service-role client, which bypasses RLS, so the
+  // requireRole call in the service is the only thing standing between a
+  // non-admin caller and the data.
+  it('restricts listing to admin', async () => {
+    repositoryMock.selectCertificates.mockResolvedValue([]);
+    await listCertificates();
+    expect(usersServiceMock.requireRole).toHaveBeenCalledWith(['admin']);
+  });
+
+  it('restricts manual issuance to admin', async () => {
+    await issueManual(
+      {
+        recipientName: 'Ama Owusu',
+        courseTitle: 'AI Reporting',
+        courseCode: 'AI05',
+        description: '',
+        hours: 20,
+        cpdCredit: 'TBD',
+        issuedDate: '2026-08-07',
+        sendEmail: false,
+      },
+      'staff-1',
+    );
+    expect(usersServiceMock.requireRole).toHaveBeenCalledWith(['admin']);
+  });
+
+  it('restricts batch issuance to admin', async () => {
+    repositoryMock.selectBatchIssueContext.mockResolvedValue(null);
+    await expect(
+      issueForBatch(
+        {
+          batchId: 'batch-1',
+          registrationIds: [],
+          description: '',
+          hours: 20,
+          cpdCredit: 'TBD',
+          sendEmail: false,
+        },
+        'staff-1',
+      ),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(usersServiceMock.requireRole).toHaveBeenCalledWith(['admin']);
+  });
+
+  it('restricts revocation to admin', async () => {
+    repositoryMock.selectCertificateById.mockResolvedValue({ id: 'cert-1' });
+    await revokeCertificate('cert-1', 'issued in error');
+    expect(usersServiceMock.requireRole).toHaveBeenCalledWith(['admin']);
+  });
+
+  it('restricts resending to admin', async () => {
+    repositoryMock.selectCertificateById.mockResolvedValue({
+      id: 'cert-1',
+      revoked: false,
+      recipient_email: null,
+    });
+    await resendCertificateEmail('cert-1');
+    expect(usersServiceMock.requireRole).toHaveBeenCalledWith(['admin']);
+  });
+
+  // Public verification and the emailed download link must keep working for
+  // people who have no staff session at all.
+  it('leaves public verification ungated', async () => {
+    repositoryMock.selectCertificateByNumber.mockResolvedValue(null);
+    await expect(verifyCertificate('KNS-2026-0001')).resolves.toEqual({ status: 'not_found' });
+    expect(usersServiceMock.requireRole).not.toHaveBeenCalled();
   });
 });

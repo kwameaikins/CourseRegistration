@@ -606,7 +606,11 @@ export async function callDeleteRegistrationImmediately(
   const { error } = await supabase.rpc('fn_delete_registration_immediately', {
     registration_id_to_delete: registrationId,
     deleting_staff_id: staffId,
-    reason,
+    // The SQL parameter is a plain `reason text`, which accepts NULL, but
+    // `supabase gen types` types every argument without a default as
+    // non-nullable. NULL is written straight into manual_deletion_log.reason,
+    // so coercing it to '' here would falsify the audit record.
+    reason: reason as string,
   });
   if (error) throw error;
 }
@@ -620,7 +624,9 @@ export async function callDeleteParticipantImmediately(
   const { error } = await supabase.rpc('fn_delete_participant_immediately', {
     participant_id_to_delete: participantId,
     deleting_staff_id: staffId,
-    reason,
+    // See the note in callDeleteRegistrationImmediately above — NULL is a
+    // legitimate value the generated argument type does not model.
+    reason: reason as string,
   });
   if (error) throw error;
 }

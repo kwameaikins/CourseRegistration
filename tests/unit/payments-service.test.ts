@@ -18,6 +18,8 @@ const paymentsRepositoryMock = {
   selectPaymentSubmissionById: vi.fn(),
   updatePaymentSubmission: vi.fn(),
   selectPaymentSubmissionContext: vi.fn(),
+  selectRegistrationContextSystem: vi.fn(),
+  updatePaymentDiscountSystem: vi.fn(),
 };
 const usersServiceMock = {
   requireRole: vi.fn(),
@@ -39,6 +41,11 @@ const r2ClientMock = {
 const partnersServiceMock = {
   accrueCommissionOnPaymentSystem: vi.fn(),
 };
+const couponsServiceMock = {
+  previewCoupon: vi.fn(),
+  computeCouponFee: vi.fn(),
+  recordCouponRedemptionSystem: vi.fn(),
+};
 
 vi.mock('@/modules/payments/repository', () => paymentsRepositoryMock);
 vi.mock('@/modules/users/service', () => usersServiceMock);
@@ -51,6 +58,7 @@ vi.mock('@/modules/opportunities/service', () => opportunitiesServiceMock);
 vi.mock('@/modules/leads/service', () => leadsServiceMock);
 vi.mock('@/lib/r2/client', () => r2ClientMock);
 vi.mock('@/modules/partners/service', () => partnersServiceMock);
+vi.mock('@/modules/coupons/service', () => couponsServiceMock);
 
 const {
   updatePaymentByStaff,
@@ -64,6 +72,8 @@ const {
   listPaymentSubmissions,
   getPaymentSubmissionSlipUrl,
   reviewPaymentSubmission,
+  applyCouponToRegistrationSystem,
+  applyCouponAsStaff,
 } = await import('@/modules/payments/service');
 const { paymentUpdateSchema, paymentDiscountSchema } = await import('@/modules/payments/types');
 
@@ -901,5 +911,186 @@ describe('Payment submissions (founder-requested 2026-08-01)', () => {
         code: 'NOT_FOUND',
       });
     });
+  });
+});
+
+describe('applyCouponToRegistrationSystem — a coupon applied to an existing registration', () => {
+  // The fee lane here is the same one applyDiscount and the commission-credit
+  // redemption use: original_fee snapshots once, discount_amount accumulates,
+  // and course_fee is derived so the payments_discount_consistency CHECK holds.
+  function paymentRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: 'pay-1',
+      registration_id: 'reg-1',
+      course_fee: 1200,
+      amount_paid: 0,
+      balance: 1200,
+      payment_status: 'Unpaid',
+      payment_method: null,
+      transaction_id: null,
+      payment_date: null,
+      verified_by: null,
+      payment_notes: null,
+      original_fee: null,
+      discount_amount: 0,
+      discount_reason: null,
+      discount_granted_by: null,
+      discount_granted_at: null,
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    paymentsRepositoryMock.selectRegistrationContextSystem.mockResolvedValue({
+      batchId: 'batch-1',
+      participantId: 'p-1',
+    });
+    paymentsRepositoryMock.selectPaymentByRegistrationIdSystem.mockResolvedValue(paymentRow());
+    paymentsRepositoryMock.updatePaymentDiscountSystem.mockResolvedValue(
+      paymentRow({ course_fee: 900, balance: 900, original_fee: 1200, discount_amount: 300 }),
+    );
+    paymentsRepositoryMock.selectInstallmentsForRegistration.mockResolvedValue([]);
+    couponsServiceMock.previewCoupon.mockResolvedValue({
+      valid: true,
+      couponId: 'coupon-1',
+      code: 'NEWYEAR25',
+      discountType: 'percentage',
+      discountValue: 25,
+    });
+    couponsServiceMock.computeCouponFee.mockReturnValue(900);
+  });
+
+  it('reduces the fee and records the redemption against the campaign', async () => {
+    const result = await applyCouponToRegistrationSystem('reg-1', 'NEWYEAR25', { staffId: null });
+
+    expect(paymentsRepositoryMock.updatePaymentDiscountSystem).toHaveBeenCalledWith(
+      'reg-1',
+      expect.objectContaining({
+        course_fee: 900,
+        original_fee: 1200,
+        discount_amount: 300,
+        discount_reason: 'Coupon code NEWYEAR25',
+        // Null marks a participant-applied discount — the column is nullable
+        // precisely so a non-staff actor can own one.
+        discount_granted_by: null,
+      }),
+    );
+    expect(couponsServiceMock.recordCouponRedemptionSystem).toHaveBeenCalledWith(
+      expect.objectContaining({
+        couponId: 'coupon-1',
+        registrationId: 'reg-1',
+        participantId: 'p-1',
+        discountAmountApplied: 300,
+        stage: 'post_registration',
+        appliedByStaffId: null,
+      }),
+    );
+    expect(result.discountApplied).toBe(300);
+  });
+
+  it('records the redemption only AFTER the fee change has landed', async () => {
+    const order: string[] = [];
+    paymentsRepositoryMock.updatePaymentDiscountSystem.mockImplementation(async () => {
+      order.push('fee');
+      return paymentRow({ course_fee: 900, balance: 900, original_fee: 1200, discount_amount: 300 });
+    });
+    couponsServiceMock.recordCouponRedemptionSystem.mockImplementation(async () => {
+      order.push('redemption');
+    });
+
+    await applyCouponToRegistrationSystem('reg-1', 'NEWYEAR25', { staffId: null });
+    expect(order).toEqual(['fee', 'redemption']);
+  });
+
+  // A coupon reduces a balance; it never creates a credit or claws back money
+  // already collected.
+  it('caps the discount at the outstanding balance after a part payment', async () => {
+    paymentsRepositoryMock.selectPaymentByRegistrationIdSystem.mockResolvedValue(
+      paymentRow({ amount_paid: 1000, balance: 200, payment_status: 'Part Payment' }),
+    );
+    couponsServiceMock.computeCouponFee.mockReturnValue(900); // a 300 discount
+
+    await applyCouponToRegistrationSystem('reg-1', 'NEWYEAR25', { staffId: null });
+
+    expect(paymentsRepositoryMock.updatePaymentDiscountSystem).toHaveBeenCalledWith(
+      'reg-1',
+      expect.objectContaining({ discount_amount: 200, course_fee: 1000 }),
+    );
+  });
+
+  it('accumulates onto an existing discount without re-snapshotting original_fee', async () => {
+    paymentsRepositoryMock.selectPaymentByRegistrationIdSystem.mockResolvedValue(
+      paymentRow({ course_fee: 1000, balance: 1000, original_fee: 1200, discount_amount: 200 }),
+    );
+    couponsServiceMock.computeCouponFee.mockReturnValue(900); // a further 100 off
+
+    await applyCouponToRegistrationSystem('reg-1', 'NEWYEAR25', { staffId: null });
+
+    expect(paymentsRepositoryMock.updatePaymentDiscountSystem).toHaveBeenCalledWith(
+      'reg-1',
+      expect.objectContaining({ original_fee: 1200, discount_amount: 300, course_fee: 900 }),
+    );
+  });
+
+  it('refuses when there is nothing left to discount', async () => {
+    paymentsRepositoryMock.selectPaymentByRegistrationIdSystem.mockResolvedValue(
+      paymentRow({ amount_paid: 1200, balance: 0, payment_status: 'Paid' }),
+    );
+    await expect(
+      applyCouponToRegistrationSystem('reg-1', 'NEWYEAR25', { staffId: null }),
+    ).rejects.toMatchObject({ code: 'CONFLICT' });
+    expect(paymentsRepositoryMock.updatePaymentDiscountSystem).not.toHaveBeenCalled();
+  });
+
+  it('surfaces the validation reason for a rejected code and changes nothing', async () => {
+    couponsServiceMock.previewCoupon.mockResolvedValue({
+      valid: false,
+      couponId: null,
+      code: null,
+      discountType: null,
+      discountValue: null,
+      reason: 'This code has expired.',
+    });
+
+    await expect(
+      applyCouponToRegistrationSystem('reg-1', 'EXPIRED', { staffId: null }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR', message: 'This code has expired.' });
+    expect(paymentsRepositoryMock.updatePaymentDiscountSystem).not.toHaveBeenCalled();
+    expect(couponsServiceMock.recordCouponRedemptionSystem).not.toHaveBeenCalled();
+  });
+
+  // A coupon that settles the balance with money already collected still owes
+  // the student their receipt and Zoom link.
+  it('runs the paid-transition side effects when the coupon closes the balance', async () => {
+    paymentsRepositoryMock.selectPaymentByRegistrationIdSystem.mockResolvedValue(
+      paymentRow({ amount_paid: 900, balance: 300, payment_status: 'Part Payment' }),
+    );
+    paymentsRepositoryMock.updatePaymentDiscountSystem.mockResolvedValue(
+      paymentRow({
+        course_fee: 900,
+        amount_paid: 900,
+        balance: 0,
+        payment_status: 'Paid',
+        original_fee: 1200,
+        discount_amount: 300,
+      }),
+    );
+
+    await applyCouponToRegistrationSystem('reg-1', 'NEWYEAR25', { staffId: null });
+
+    expect(sendEmailOnceMock).toHaveBeenCalledWith('reg-1', 'payment_confirmation');
+  });
+
+  it('restricts the staff entry point to finance and admin', async () => {
+    usersServiceMock.requireRole.mockResolvedValue(ADMIN_STAFF);
+    await applyCouponAsStaff('reg-1', 'NEWYEAR25');
+
+    expect(usersServiceMock.requireRole).toHaveBeenCalledWith(['finance', 'admin']);
+    // Staff-applied coupons are attributed to the staff member, unlike the
+    // participant path which writes null.
+    expect(paymentsRepositoryMock.updatePaymentDiscountSystem).toHaveBeenCalledWith(
+      'reg-1',
+      expect.objectContaining({ discount_granted_by: ADMIN_STAFF.id }),
+    );
   });
 });

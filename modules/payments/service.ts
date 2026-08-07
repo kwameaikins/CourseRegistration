@@ -13,6 +13,9 @@ import { paymentSlipKey } from '@/lib/r2/keys';
 // attendance below — commission accrual only ever fires once a payment
 // actually clears (Knowsia Growth Partner Programme, 2026-08-02).
 import * as partnersService from '@/modules/partners/service';
+// Same posture as partners above: coupons owns code validation and the
+// redemption record, this module owns the fee mutation.
+import * as couponsService from '@/modules/coupons/service';
 import type {
   Installment,
   Payment,
@@ -25,6 +28,8 @@ import type {
 import type { Database } from '@/lib/supabase/database.types';
 
 const TWO_INSTALLMENT_DUE_LEAD_DAYS = 7;
+
+const round2 = (value: number): number => Math.round(value * 100) / 100;
 
 function toPayment(row: Database['public']['Tables']['payments']['Row']): Payment {
   return {
@@ -585,6 +590,137 @@ export async function redeemCommissionCreditSystem(
     registrationStatus: payment.paymentStatus === 'Paid' ? 'Confirmed' : 'Registered',
     verifiedBy: 'Partner commission credit redemption',
   };
+}
+
+// --- Coupon application (founder-approved 2026-08-07) ---
+//
+// A standalone marketing coupon applied to a registration that already
+// exists, either by the student from their portal or by finance on their
+// behalf. Same fee math as applyDiscount and redeemCommissionCreditSystem
+// above — this is the third caller of that lane, and the second
+// system-originated one (discount_granted_by is null when the student did it
+// themselves).
+//
+// Nothing here touches partner commission: coupons carry no partner, and
+// accrueCommissionOnPaymentSystem keys off code_redemptions, a different
+// table. A student who registered through a partner's link keeps that
+// partner's commission intact after applying a coupon.
+export async function applyCouponToRegistrationSystem(
+  registrationId: string,
+  code: string,
+  actor: { staffId: string | null },
+): Promise<PaymentUpdateResult & { discountApplied: number; couponCode: string }> {
+  const context = await paymentsRepository.selectRegistrationContextSystem(registrationId);
+  if (!context) {
+    throw new AppError('NOT_FOUND', 'Registration not found.', 404);
+  }
+
+  const existing = await paymentsRepository.selectPaymentByRegistrationIdSystem(registrationId);
+  if (!existing) {
+    throw new AppError('NOT_FOUND', 'No payment record exists for this registration.', 404);
+  }
+
+  const currentFee = Number(existing.course_fee);
+  const amountPaid = Number(existing.amount_paid);
+  const outstanding = round2(currentFee - amountPaid);
+  if (outstanding <= 0) {
+    throw new AppError(
+      'CONFLICT',
+      'This registration has no outstanding balance to discount.',
+      409,
+    );
+  }
+
+  const preview = await couponsService.previewCoupon(code, context.batchId, {
+    participantId: context.participantId,
+    registrationId,
+  });
+  if (!preview.valid || preview.couponId === null || preview.discountType === null) {
+    throw new AppError('VALIDATION_ERROR', preview.reason ?? 'This code is not valid.', 400);
+  }
+
+  // The discount comes off what they are actually being charged now, not the
+  // original list price — an early-bird or partner-code price is already
+  // reflected in course_fee.
+  const couponFee = couponsService.computeCouponFee(
+    currentFee,
+    preview.discountType,
+    preview.discountValue!,
+  );
+  // Never below what has already been paid; a coupon reduces a balance, it
+  // never creates a credit. Same cap as redeemCommissionCreditSystem.
+  const discountApplied = Math.min(round2(currentFee - couponFee), outstanding);
+  if (discountApplied <= 0) {
+    throw new AppError(
+      'VALIDATION_ERROR',
+      'This code would not reduce the amount you owe.',
+      400,
+    );
+  }
+
+  const originalFee =
+    existing.original_fee !== null ? Number(existing.original_fee) : currentFee;
+  const newDiscountAmount = round2(Number(existing.discount_amount) + discountApplied);
+  const newCourseFee = round2(originalFee - newDiscountAmount);
+  const statusBefore = existing.payment_status;
+
+  const updated = await paymentsRepository.updatePaymentDiscountSystem(registrationId, {
+    course_fee: newCourseFee,
+    original_fee: originalFee,
+    discount_amount: newDiscountAmount,
+    discount_reason: `Coupon code ${preview.code}`,
+    discount_granted_by: actor.staffId,
+    discount_granted_at: new Date().toISOString(),
+  });
+
+  if (updated.payment_status === 'Paid' && statusBefore !== 'Paid') {
+    // A coupon that clears the balance without any cash having been received
+    // takes the zero-fee path — no "we received your payment of GHS 0.00".
+    if (Number(updated.amount_paid) <= 0) {
+      await runZeroFeeEnrollmentSideEffects(registrationId);
+    } else {
+      await runPaidTransitionSideEffects(registrationId, Number(updated.amount_paid));
+    }
+  }
+
+  try {
+    await rebalanceInstallmentsForDiscount(registrationId, newCourseFee);
+  } catch (err) {
+    console.error('[coupon installment rebalance]', err);
+  }
+
+  // Recorded only once the fee change has landed, and deliberately not
+  // swallowed — the same ordering and reasoning as the commission-credit
+  // path above.
+  await couponsService.recordCouponRedemptionSystem({
+    couponId: preview.couponId,
+    registrationId,
+    participantId: context.participantId,
+    discountAmountApplied: discountApplied,
+    stage: 'post_registration',
+    appliedByStaffId: actor.staffId,
+  });
+
+  const payment = toPayment(updated);
+  return {
+    registrationId,
+    amountPaid: payment.amountPaid,
+    balance: payment.balance,
+    paymentStatus: payment.paymentStatus,
+    registrationStatus: payment.paymentStatus === 'Paid' ? 'Confirmed' : 'Registered',
+    verifiedBy: `Coupon code ${preview.code}`,
+    discountApplied,
+    couponCode: preview.code!,
+  };
+}
+
+// Staff-facing wrapper — same roles as applyDiscount. Unlike applyDiscount
+// there is no admin-only rule for zeroing the balance: the discount is capped
+// by the coupon's own terms rather than being a free-form amount, so finance
+// cannot waive more than the campaign allows.
+export async function applyCouponAsStaff(registrationId: string, code: string) {
+  const staffUser = await usersService.requireRole(['finance', 'admin']);
+  return applyCouponToRegistrationSystem(registrationId, code, { staffId: staffUser.id });
 }
 
 // --- Payment submissions (founder-requested 2026-08-01) ---

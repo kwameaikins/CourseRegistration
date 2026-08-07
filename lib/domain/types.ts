@@ -1,8 +1,15 @@
-export type StaffRole =
-  | 'admin'
-  | 'finance'
-  | 'marketing'
-  | 'management';
+// The staff role list, declared once. The Zod schemas (modules/users/types.ts),
+// the runtime parser (lib/domain/parsers.ts), the route/nav tables
+// (lib/auth/roles.ts) and the role picker on /users all derive from this
+// tuple, so adding or removing a role is one edit here plus whatever the
+// compiler then demands.
+//
+// The database holds the only other copy, in the staff_users_role_check
+// constraint (supabase/migrations/202607270034_tutor_portal.sql) — the two
+// must be changed together.
+export const STAFF_ROLES = ['admin', 'finance', 'marketing', 'management'] as const;
+
+export type StaffRole = (typeof STAFF_ROLES)[number];
 
 export type Gender = 'Male' | 'Female';
 

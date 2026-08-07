@@ -137,6 +137,10 @@ export const PORTAL_STYLES = `${BRAND_TOKENS}
 .portal-app .fig-grid .val.balance { color: var(--warning); }
 .portal-app .join-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
 .portal-app .pay-block { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--line); padding-top: 16px; }
+.portal-app .coupon-row { display: flex; gap: 8px; align-items: center; }
+.portal-app .coupon-row input { flex: 1; min-width: 0; height: 38px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 13.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+.portal-app .coupon-row input:disabled { opacity: 0.6; }
+.portal-app .coupon-row .btn { flex-shrink: 0; }
 .portal-app .confirming-note { background: var(--success-bg); color: var(--success); padding: 12px; border-radius: 8px; font-size: 13px; }
 .portal-app .plan-box { background: var(--surface-2); border-radius: 8px; padding: 12px; }
 .portal-app .plan-box-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-muted); margin: 0 0 6px; }

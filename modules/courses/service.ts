@@ -9,6 +9,7 @@ import { seedDefaultTemplatesForCourse } from '@/modules/communications/default-
 // (founder decision, 2026-07-24), the other being registrations'
 // deleteRegistration.
 import * as waitlistService from '@/modules/waitlist/service';
+import * as usersService from '@/modules/users/service';
 import { createZoomMeeting, isZoomMeetingCreateConfigured } from '@/lib/zoom/client';
 import type {
   Batch,
@@ -67,12 +68,25 @@ function toBatch(row: BatchRow): Batch {
   };
 }
 
+// Defence in depth. The /api/courses and /api/batches routes already call
+// requireRole, but these functions are also reached from the Admin Assistant
+// tool registry, and the repository runs on the service-role client — so a
+// caller that skipped the route layer would otherwise face no check at all.
+//
+// Reads are open to every staff role, matching /api/courses GET and the many
+// screens (registrations, attendance, certificates, corporate, messaging,
+// feedback) that populate course and batch pickers for non-admin roles.
+const COURSE_READ_ROLES = ['admin', 'finance', 'marketing', 'management'] as const;
+const COURSE_WRITE_ROLES = ['admin'] as const;
+
 export async function getCourses(): Promise<Course[]> {
+  await usersService.requireRole([...COURSE_READ_ROLES]);
   const rows = await coursesRepository.selectCourses();
   return rows.map(toCourse);
 }
 
 export async function createCourse(input: CourseInput): Promise<Course> {
+  await usersService.requireRole([...COURSE_WRITE_ROLES]);
   // One persistent "classroom" Zoom meeting per Course (system review,
   // 2026-07-22) — every Batch inherits it, rather than each cohort getting
   // its own meeting. A Zoom failure must never block creating the course;
@@ -123,6 +137,7 @@ export async function createCourse(input: CourseInput): Promise<Course> {
 }
 
 export async function updateCourse(courseId: string, changes: CourseUpdate): Promise<Course> {
+  await usersService.requireRole([...COURSE_WRITE_ROLES]);
   const row = await coursesRepository.updateCourseById(courseId, {
     ...(changes.courseName !== undefined && { course_name: changes.courseName }),
     ...(changes.certificateHours !== undefined && {
@@ -139,6 +154,7 @@ export async function updateCourse(courseId: string, changes: CourseUpdate): Pro
 }
 
 export async function getBatches(courseId?: string): Promise<Batch[]> {
+  await usersService.requireRole([...COURSE_READ_ROLES]);
   const rows = await coursesRepository.selectBatches(courseId);
   return rows.map(toBatch);
 }
@@ -150,6 +166,7 @@ export async function getBatches(courseId?: string): Promise<Batch[]> {
 // now on the course's first Batch and save it back onto the Course, so
 // every later Batch of the same course reuses that same meeting.
 export async function createBatch(input: BatchInput): Promise<Batch> {
+  await usersService.requireRole([...COURSE_WRITE_ROLES]);
   const course = await coursesRepository.selectCourseByIdSystem(input.courseId);
   let zoomLink = course?.zoom_link ?? null;
   let zoomMeetingId = course?.zoom_meeting_id ?? null;
@@ -192,6 +209,13 @@ export async function createBatch(input: BatchInput): Promise<Batch> {
   return toBatch(row);
 }
 
+// Deliberately NOT role-gated here, unlike the other Batch writes above.
+// modules/corporate/service.ts calls it when an allocation is cancelled, to
+// return unfilled seats to public availability — a path open to finance as
+// well as admin (STAFF_ROLES_MANAGE). That call must go through the real
+// updateBatch rather than adjustBatchCapacityInternal so the waitlist-notify
+// side effect fires, so an ['admin'] gate here would break it. The
+// admin-only boundary for direct edits lives on PATCH /api/batches/[id].
 export async function updateBatch(batchId: string, changes: BatchUpdate): Promise<Batch> {
   const row = await coursesRepository.updateBatchById(batchId, {
     ...(changes.capacity !== undefined && { capacity: changes.capacity }),

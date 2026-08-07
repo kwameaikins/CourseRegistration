@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import type { StaffRole } from '@/lib/domain/types';
+import { STAFF_ROLES, type StaffRole } from '@/lib/domain/types';
 
 export interface StaffUser {
   id: string;
@@ -15,12 +15,12 @@ export interface StaffUser {
 export const staffUserInputSchema = z.object({
   email: z.email(),
   fullName: z.string().trim().min(2),
-  role: z.enum(['admin', 'finance', 'marketing', 'management']),
+  role: z.enum(STAFF_ROLES),
 });
 
 export const staffUserUpdateSchema = z.object({
   fullName: z.string().trim().min(2).optional(),
-  role: z.enum(['admin', 'finance', 'marketing', 'management']).optional(),
+  role: z.enum(STAFF_ROLES).optional(),
   isActive: z.boolean().optional(),
 });
 
