@@ -5,6 +5,18 @@ import type { Database } from '@/lib/supabase/database.types';
 
 type StaffUserRow = Database['public']['Tables']['staff_users']['Row'];
 
+const APP_URL = () => process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com';
+
+// Where Supabase Auth sends someone after they click an invitation or
+// password-reset link. Passing this explicitly matters: without it Supabase
+// falls back to the project's Site URL, which is how staff invitations came
+// to point at 127.0.0.1 and left invited accounts with no way to sign in.
+// The callback recognises the invite/recovery type and forwards to
+// /auth/set-password on its own; `next` is belt and braces.
+function authRedirectUrl(): string {
+  return `${APP_URL()}/auth/callback?next=%2Fauth%2Fset-password`;
+}
+
 // Reads the requesting user's own staff_users row via the session client
 // (permitted by the self_read_staff_users RLS policy for every role).
 export async function selectCurrentStaffUser(): Promise<StaffUserRow | null> {
@@ -44,8 +56,10 @@ export async function insertStaffUserWithAuthAccount(input: {
 }): Promise<StaffUserRow> {
   const supabase = createSupabaseServiceRoleClient();
 
-  const { data: invited, error: inviteError } =
-    await supabase.auth.admin.inviteUserByEmail(input.email);
+  const { data: invited, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
+    input.email,
+    { redirectTo: authRedirectUrl() },
+  );
   if (inviteError) throw inviteError;
 
   const { data, error } = await supabase
@@ -66,6 +80,44 @@ export async function insertStaffUserWithAuthAccount(input: {
     throw error;
   }
   return data;
+}
+
+export async function selectStaffUserById(staffUserId: string): Promise<StaffUserRow | null> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('staff_users')
+    .select('*')
+    .eq('id', staffUserId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+// Re-issues a password-setup link for a staff account that already exists.
+//
+// Uses 'recovery' rather than 'invite': the Auth user was created when the
+// account was added, and Supabase rejects a second invite for an existing
+// address. Recovery also covers both cases an admin actually faces — an
+// invitation that never arrived, and a staff member who has forgotten their
+// password — with one action.
+//
+// generateLink only mints the URL, it sends nothing. The email goes out via
+// Resend, the app's own provider, rather than Supabase's built-in SMTP, which
+// is rate limited to a couple of messages per hour by default.
+export async function generateStaffPasswordSetupLink(email: string): Promise<string> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase.auth.admin.generateLink({
+    type: 'recovery',
+    email,
+    options: { redirectTo: authRedirectUrl() },
+  });
+  if (error) throw error;
+
+  const link = data.properties?.action_link;
+  if (!link) {
+    throw new Error('Supabase returned no action link for the password reset.');
+  }
+  return link;
 }
 
 export async function updateStaffUserById(

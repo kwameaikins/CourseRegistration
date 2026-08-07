@@ -16,7 +16,11 @@ export default async function RootPage() {
 
   const staffUser = await usersService.getCurrentStaffUser();
   if (!staffUser) {
-    redirect('/login?error=inactive');
+    // This is the landing point straight after a successful sign-in, so it is
+    // where a staff member with no staff_users row actually ends up — tell
+    // them that rather than claiming their account is deactivated.
+    const status = await usersService.getStaffAccountStatus();
+    redirect(`/login?error=${status === 'no-account' ? 'no-account' : 'inactive'}`);
   }
   redirect(DEFAULT_ROUTE_BY_ROLE[staffUser.role]);
 }

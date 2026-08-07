@@ -1,3 +1,4 @@
+import { STAFF_ROLES } from '@/lib/domain/types';
 import type {
   EmailType,
   Gender,
@@ -18,7 +19,7 @@ function parseMember<T extends string>(
 }
 
 export const parseStaffRole = (value: string): StaffRole =>
-  parseMember(value, ['admin', 'finance', 'marketing', 'management'], 'staff role');
+  parseMember(value, STAFF_ROLES, 'staff role');
 
 export const parseRegistrationStatus = (value: string): RegistrationStatus =>
   parseMember(

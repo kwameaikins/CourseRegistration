@@ -18,8 +18,12 @@ const zoomClientMock = {
 const waitlistServiceMock = {
   notifyNextIfSeatAvailable: vi.fn(),
 };
+// Course and Batch writes gate on requireRole; mocking the users service
+// keeps these tests off lib/supabase (and out of a request scope).
+const usersServiceMock = { requireRole: vi.fn() };
 
 vi.mock('@/modules/courses/repository', () => coursesRepositoryMock);
+vi.mock('@/modules/users/service', () => usersServiceMock);
 vi.mock('@/modules/communications/default-templates', () => ({
   seedDefaultTemplatesForCourse: (...args: unknown[]) => seedDefaultTemplatesForCourseMock(...args),
 }));
@@ -30,6 +34,7 @@ const {
   createCourse,
   createBatch,
   updateBatch,
+  getBatches,
   getSeatsRemaining,
   adjustBatchCapacityInternal,
   offerNextWaitlistSeat,
@@ -53,6 +58,7 @@ function courseRow(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  usersServiceMock.requireRole.mockResolvedValue({ id: 'staff-1', role: 'admin' });
   seedDefaultTemplatesForCourseMock.mockResolvedValue(1);
   zoomClientMock.isZoomMeetingCreateConfigured.mockReturnValue(true);
   coursesRepositoryMock.insertCourse.mockResolvedValue(courseRow());
@@ -492,5 +498,73 @@ describe('updateBatch — capacity write-through and waitlist notification', () 
     waitlistServiceMock.notifyNextIfSeatAvailable.mockRejectedValue(new Error('resend down'));
     const batch = await updateBatch('batch-1', { cohortLabel: 'AUG-2026' });
     expect(batch.id).toBe('batch-1');
+  });
+});
+
+describe('authorization — Course and Batch entry points', () => {
+  // The courses repository runs on the service-role client, so RLS does not
+  // backstop these. The routes gate too; this is the second layer, and it is
+  // the only one the Admin Assistant tool registry passes through.
+  const ALL_STAFF = ['admin', 'finance', 'marketing', 'management'];
+
+  it('opens batch reads to every staff role, matching the pickers that use them', async () => {
+    coursesRepositoryMock.selectBatches.mockResolvedValue([]);
+    await getBatches();
+    expect(usersServiceMock.requireRole).toHaveBeenCalledWith(ALL_STAFF);
+  });
+
+  it('restricts course creation to admin', async () => {
+    zoomClientMock.isZoomMeetingCreateConfigured.mockReturnValue(false);
+    await createCourse({ courseCode: 'AI05', courseName: 'AI Reporting' } as never);
+    expect(usersServiceMock.requireRole).toHaveBeenCalledWith(['admin']);
+  });
+
+  it('restricts batch creation to admin', async () => {
+    zoomClientMock.isZoomMeetingCreateConfigured.mockReturnValue(false);
+    coursesRepositoryMock.selectCourseByIdSystem.mockResolvedValue(courseRow());
+    coursesRepositoryMock.insertBatch.mockResolvedValue({
+      id: 'batch-1',
+      course_id: 'course-1',
+      cohort_label: 'Aug 2026',
+      start_date: '2026-08-01',
+      end_date: '2026-08-30',
+      course_fee: 1000,
+      capacity: null,
+      is_active: true,
+      zoom_link: null,
+      zoom_meeting_id: null,
+      resources_link: null,
+      created_at: '2026-07-01T00:00:00Z',
+    });
+    await createBatch({ courseId: 'course-1', cohortLabel: 'Aug 2026' } as never);
+    expect(usersServiceMock.requireRole).toHaveBeenCalledWith(['admin']);
+  });
+
+  // updateBatch is intentionally left ungated in the service: corporate calls
+  // it when cancelling an allocation (a finance-permitted action) and needs
+  // the waitlist-notify side effect. An ['admin'] gate here would break that.
+  it('leaves updateBatch ungated so the corporate cancellation path still works', async () => {
+    coursesRepositoryMock.selectBatchByIdSystem.mockResolvedValue({
+      id: 'batch-1',
+      capacity: 10,
+    });
+    coursesRepositoryMock.updateBatchById.mockResolvedValue({
+      id: 'batch-1',
+      course_id: 'course-1',
+      cohort_label: 'Aug 2026',
+      start_date: '2026-08-01',
+      end_date: '2026-08-30',
+      course_fee: 1000,
+      capacity: 12,
+      is_active: true,
+      zoom_link: null,
+      zoom_meeting_id: null,
+      resources_link: null,
+      created_at: '2026-07-01T00:00:00Z',
+    });
+    coursesRepositoryMock.countRegistrationsByBatchIdsSystem.mockResolvedValue(new Map());
+
+    await updateBatch('batch-1', { capacity: 12 });
+    expect(usersServiceMock.requireRole).not.toHaveBeenCalled();
   });
 });

@@ -12,6 +12,7 @@ import { generateCertificatePdf } from '@/lib/certificates/pdf';
 import { sendTransactionalEmail } from '@/lib/resend/client';
 import { AppError } from '@/lib/errors';
 import * as certificatesRepository from '@/modules/certificates/repository';
+import * as usersService from '@/modules/users/service';
 import {
   CERT_PREFIX,
   type BatchIssueCandidate,
@@ -26,6 +27,18 @@ import type { Database } from '@/lib/supabase/database.types';
 type CertificateRow = Database['public']['Tables']['certificates']['Row'];
 
 const APP_URL = () => process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com';
+
+// Matches ROLE_ROUTES['/certificates'] (lib/auth/roles.ts). Enforced here as
+// well as at the route layer because these repository calls run on the
+// service-role client and so are not backstopped by RLS.
+//
+// Deliberately NOT applied to the entry points that legitimately run without
+// a staff session: verifyCertificate (public /verify page),
+// getCertificatePdf (emailed download link), issueCertificateIfEligible
+// (public feedback submission), renameExistingCertificates (student portal)
+// and getBatchIssueContext (also read by the tutor portal via
+// modules/tutors). Those keep the boundary appropriate to their own caller.
+const CERTIFICATE_STAFF_ROLES = ['admin'] as const;
 
 // The one eligibility rule, shared by auto-issue and the batch screen.
 //
@@ -153,6 +166,7 @@ Anyone can confirm its authenticity at:<br/><a href="${verifyUrlFor(row.certific
 // just loading the row from an id instead of having it in hand already.
 // Zero risk to those existing paths (pure addition).
 export async function resendCertificateEmail(certificateId: string): Promise<boolean> {
+  await usersService.requireRole([...CERTIFICATE_STAFF_ROLES]);
   const row = await certificatesRepository.selectCertificateById(certificateId);
   if (!row) {
     throw new AppError('NOT_FOUND', 'Certificate not found.', 404);
@@ -222,6 +236,7 @@ export async function listCertificates(
   limit = 200,
   range: { dateFrom?: string; dateTo?: string } = {},
 ): Promise<CertificateView[]> {
+  await usersService.requireRole([...CERTIFICATE_STAFF_ROLES]);
   const rows = await certificatesRepository.selectCertificates(limit, range);
   return rows.map(toView);
 }
@@ -230,6 +245,7 @@ export async function issueManual(
   input: ManualIssueInput,
   issuedByStaffId: string,
 ): Promise<CertificateView> {
+  await usersService.requireRole([...CERTIFICATE_STAFF_ROLES]);
   const row = await insertWithNumberRetry(
     {
       recipient_name: input.recipientName,
@@ -298,6 +314,7 @@ export async function issueForBatch(
   input: BatchIssueInput,
   issuedByStaffId: string,
 ): Promise<BatchIssueResult> {
+  await usersService.requireRole([...CERTIFICATE_STAFF_ROLES]);
   const context = await certificatesRepository.selectBatchIssueContext(input.batchId);
   if (!context) {
     throw new AppError('NOT_FOUND', 'Batch not found.', 404);
@@ -372,6 +389,7 @@ export async function revokeCertificate(
   certificateId: string,
   reason: string,
 ): Promise<void> {
+  await usersService.requireRole([...CERTIFICATE_STAFF_ROLES]);
   const row = await certificatesRepository.selectCertificateById(certificateId);
   if (!row) throw new AppError('NOT_FOUND', 'Certificate not found.', 404);
   await certificatesRepository.updateCertificate(certificateId, {

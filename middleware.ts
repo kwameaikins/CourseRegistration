@@ -46,9 +46,20 @@ export async function middleware(request: NextRequest) {
     .from('staff_users')
     .select('role, is_active')
     .eq('user_id', user.id)
-    .single();
+    .maybeSingle();
 
-  if (!staffUser?.is_active || !isStaffRole(staffUser.role)) {
+  // No staff_users row at all is a different problem from a deactivated
+  // account, and needs a different remedy. It usually means this Auth
+  // identity was never granted staff access — most often a Google sign-in
+  // that created a second Auth user instead of linking to the invited one
+  // (manual linking is disabled, supabase/config.toml). Reporting that as
+  // "inactive" sends the person to an administrator who can see a perfectly
+  // active row for them and has nothing to fix.
+  if (!staffUser) {
+    return NextResponse.redirect(new URL('/login?error=no-account', request.url));
+  }
+
+  if (!staffUser.is_active || !isStaffRole(staffUser.role)) {
     return NextResponse.redirect(new URL('/login?error=inactive', request.url));
   }
 
@@ -81,5 +92,6 @@ export const config = {
     '/follow-up/:path*',
     '/corporate/:path*',
     '/editorial/:path*',
+    '/coupons/:path*',
   ],
 };

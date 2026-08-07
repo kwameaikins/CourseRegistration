@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 import { apiFetch } from '@/components/api-client';
+import { STAFF_ROLES } from '@/lib/domain/types';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,8 +45,6 @@ interface ParticipantRow {
   deleted_at: string | null;
 }
 
-const ROLES = ['admin', 'finance', 'marketing', 'management'] as const;
-
 export default function StaffUserManagementPage() {
   const [users, setUsers] = useState<StaffUser[]>([]);
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
@@ -55,6 +54,8 @@ export default function StaffUserManagementPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newUser, setNewUser] = useState({ fullName: '', email: '', role: 'finance' });
   const [saving, setSaving] = useState(false);
+
+  const [sendingLinkTo, setSendingLinkTo] = useState<string | null>(null);
 
   const [deactivationTarget, setDeactivationTarget] = useState<StaffUser | null>(null);
   const [deletionTarget, setDeletionTarget] = useState<ParticipantRow | null>(null);
@@ -105,6 +106,18 @@ export default function StaffUserManagementPage() {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to create account.');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSendPasswordLink(user: StaffUser) {
+    setSendingLinkTo(user.id);
+    try {
+      await apiFetch(`/api/users/${user.id}/password-link`, { method: 'POST' });
+      flashStatus(`Password link sent to ${user.email}.`);
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to send password link.');
+    } finally {
+      setSendingLinkTo(null);
     }
   }
 
@@ -237,7 +250,7 @@ export default function StaffUserManagementPage() {
                   value={newUser.role}
                   onChange={(event) => setNewUser({ ...newUser, role: event.target.value })}
                 >
-                  {ROLES.map((role) => (
+                  {STAFF_ROLES.map((role) => (
                     <option key={role} value={role}>
                       {role}
                     </option>
@@ -259,6 +272,7 @@ export default function StaffUserManagementPage() {
             <TableHead>Email</TableHead>
             <TableHead>Role</TableHead>
             <TableHead>Active</TableHead>
+            <TableHead className="text-right">Sign-in</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -275,10 +289,25 @@ export default function StaffUserManagementPage() {
                   onCheckedChange={(checked) => handleToggleActive(user, checked)}
                 />
               </TableCell>
+              <TableCell className="text-right">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!user.isActive || sendingLinkTo === user.id}
+                  onClick={() => handleSendPasswordLink(user)}
+                >
+                  {sendingLinkTo === user.id ? 'Sending…' : 'Send password link'}
+                </Button>
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
       </Table>
+      <p className="text-sm text-muted-foreground">
+        Use <strong>Send password link</strong> when someone cannot sign in — it emails them a
+        fresh single-use link to set their password. New accounts receive one automatically when
+        they are created.
+      </p>
 
       <Card>
         <CardHeader>
