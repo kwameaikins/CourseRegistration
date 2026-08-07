@@ -613,15 +613,25 @@ function toRegistrationListRow(
   };
 }
 
-// Payment Status filter and search apply after the join because they live
-// on joined tables (payments/participants) — shared by both the paginated
-// list and the (unpaginated) CSV export.
+// Search applies after the join because it lives on a joined table
+// (participants) — shared by both the paginated list and the (unpaginated)
+// CSV export.
+//
+// paymentStatus is now ALSO narrowed in the repository, before ordering and
+// paging, so the page window is filled with matching rows instead of being
+// filtered down after the fact. This pass is kept as the row-level guarantee
+// that what is returned matches what was asked for; it must therefore
+// understand every value the filter schema accepts — 'outstanding' is not a
+// payment_status any row can hold, so comparing it with === matches nothing
+// and empties the screen.
 function applyPostJoinFilters(
   rows: RegistrationListRow[],
   filters: Pick<RegistrationListFilters, 'paymentStatus' | 'search'>,
 ): RegistrationListRow[] {
   let result = rows;
-  if (filters.paymentStatus) {
+  if (filters.paymentStatus === 'outstanding') {
+    result = result.filter((row) => row.paymentStatus !== 'Paid');
+  } else if (filters.paymentStatus) {
     result = result.filter((row) => row.paymentStatus === filters.paymentStatus);
   }
   if (filters.search) {

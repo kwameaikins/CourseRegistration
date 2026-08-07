@@ -1138,6 +1138,47 @@ describe('listRegistrations — role-based field shaping (T-RLS-03)', () => {
     });
   });
 
+  // The Payments screen asks for paymentStatus 'outstanding'. No row's
+  // payment_status ever equals that string, so a plain === comparison in the
+  // post-join pass matches nothing and the screen reads "No outstanding
+  // payments" while balances are in fact owed.
+  describe('paymentStatus filtering', () => {
+    beforeEach(() => {
+      usersServiceMock.requireRole.mockResolvedValue({ id: 's-1', fullName: 'Jane', role: 'admin' });
+      registrationsRepositoryMock.selectRegistrationList.mockResolvedValue({
+        rows: [
+          listRow({ payment: { ...listRow().payment, payment_status: 'Unpaid' } }),
+          listRow({ payment: { ...listRow().payment, payment_status: 'Part Payment' } }),
+          listRow({ payment: { ...listRow().payment, payment_status: 'Paid' } }),
+        ],
+        total: 3,
+      });
+    });
+
+    it("'outstanding' keeps every row that is not fully Paid", async () => {
+      const { registrations } = await listRegistrations({
+        page: 1,
+        limit: 50,
+        paymentStatus: 'outstanding',
+      });
+      expect(registrations.map((row) => row.paymentStatus)).toEqual(['Unpaid', 'Part Payment']);
+    });
+
+    it('a concrete status still matches only itself', async () => {
+      const { registrations } = await listRegistrations({
+        page: 1,
+        limit: 50,
+        paymentStatus: 'Unpaid',
+      });
+      expect(registrations.map((row) => row.paymentStatus)).toEqual(['Unpaid']);
+    });
+
+    it('no filter returns everything', async () => {
+      const { registrations } = await listRegistrations({ page: 1, limit: 50 });
+      expect(registrations).toHaveLength(3);
+    });
+  });
+
   it('admin and finance see payment audit fields, including payment_notes', async () => {
     for (const role of ['admin', 'finance'] as const) {
       usersServiceMock.requireRole.mockResolvedValue({ id: 's-1', fullName: 'Jane', role });

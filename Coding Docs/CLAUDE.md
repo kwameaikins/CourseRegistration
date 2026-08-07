@@ -746,15 +746,24 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     pushed everything registered before 2026-08-04T10:37 out of reach. Exactly
     8 of 35 outstanding rows remained visible, with nothing on screen
     indicating the rest existed.
-    `paymentStatus` was ALREADY in registrationListFiltersSchema and had never
-    been applied by the repository — `?paymentStatus=Unpaid` parsed fine and
-    silently returned everything. Now both `selectRegistrationList` and
+    `paymentStatus` was ALREADY in registrationListFiltersSchema and WAS being
+    applied — but only in the service's post-join pass (`applyPostJoinFilters`),
+    which runs on a page that has already been cut. That is the whole defect:
+    filtering after the slice can only ever filter what survived it. Now both
+    `selectRegistrationList` and
     `selectAllRegistrationsForExport` narrow the registration id set from
     `payments` BEFORE ordering/ranging, the enum gained 'outstanding' (anything
     not fully Paid, what a collections screen actually wants), the screen asks
     the server for it, Export CSV inherits the same filter, and a truncation
     warning shows whenever `total > rows.length` so a partial view can never
     look complete again. Verified against production: 8 of 35 → 35 of 35.
+    FOLLOW-UP (same day, caught in production): adding 'outstanding' to the
+    enum without teaching `applyPostJoinFilters` about it made the screen read
+    "No outstanding payments" — that pass compares with ===, and no row's
+    payment_status is ever the string 'outstanding', so it filtered everything
+    out. Both layers must understand every value the enum accepts; covered now
+    by tests in registrations-service.test.ts. The same bug silently emptied
+    the "outstanding" CSV export, which shares that function.
     Not fixed here (still latent): every other consumer of this list read has
     the same 200-row ceiling with no pagination UI. Worth revisiting once any
     single filtered view can exceed 200 rows.

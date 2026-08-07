@@ -118,10 +118,15 @@ export const registrationListFiltersSchema = z.object({
     .enum(['Registered', 'Confirmed', 'Attended', 'Cancelled'])
     .optional(),
   // Payment status lives on `payments`, which the list read joins AFTER
-  // slicing the page — so the repository has to narrow the id set up front
-  // (it does; before 2026-08-06 this filter parsed but was never applied, so
-  // ?paymentStatus=Unpaid silently returned everything). 'outstanding' covers
-  // anything not fully Paid, which is what a collections screen actually wants.
+  // slicing the page. It used to be applied only in the service's post-join
+  // pass, which filters a page that has already been cut — so on 2026-08-06
+  // the 267 free ESG2 sign-ups filled the newest-200 window and left 8 of 35
+  // outstanding balances visible. The repository now narrows the id set up
+  // front and the post-join pass is the row-level guarantee.
+  //
+  // Any value added here must be handled in BOTH places — applyPostJoinFilters
+  // compares with === and 'outstanding' matches no real payment_status, so
+  // missing it there empties the screen instead of widening it.
   paymentStatus: z.enum(['outstanding', 'Unpaid', 'Part Payment', 'Paid']).optional(),
   leadSource: z
     .enum(['WhatsApp', 'Facebook', 'LinkedIn', 'Referral', 'Website', 'Other'])
