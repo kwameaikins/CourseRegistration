@@ -98,6 +98,26 @@ describe('catalog list shape', () => {
     const [result] = await getCatalogApiCourses();
     expect(result.summary).toBeNull();
   });
+
+  // heroImage is stored relative so the portal's own pages can use it directly,
+  // but knowsia.com renders on another origin: a relative path there would
+  // resolve against knowsia.com and 404. Absolutising is this layer's job.
+  it('absolutises heroImage against the app URL', async () => {
+    publicCatalogMock.getPublicCourseCatalog.mockResolvedValue([
+      course({
+        content: { tagline: 'Build faster finance workflows with AI.', heroImage: '/programmes/ai05.webp' },
+      }),
+    ]);
+    const [result] = await getCatalogApiCourses();
+    expect(result.heroImage).toBe('https://reg.knowsia.com/programmes/ai05.webp');
+  });
+
+  // A programme with no artwork is the expected state, not a missing value.
+  it('returns heroImage: null when the course has no poster', async () => {
+    publicCatalogMock.getPublicCourseCatalog.mockResolvedValue([course()]);
+    const [result] = await getCatalogApiCourses();
+    expect(result.heroImage).toBeNull();
+  });
 });
 
 describe('catalog filtering', () => {
@@ -195,7 +215,7 @@ describe('leak surface', () => {
     const [result] = await getCatalogApiCourses();
     expect(Object.keys(result).sort()).toEqual([
       'certificateHours', 'courseCode', 'courseName', 'cpdCredit',
-      'currency', 'isFreeProgramme', 'sessions', 'summary',
+      'currency', 'heroImage', 'isFreeProgramme', 'sessions', 'summary',
     ]);
   });
 });

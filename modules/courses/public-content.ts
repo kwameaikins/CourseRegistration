@@ -47,6 +47,22 @@ export interface CoursePublicContent {
   // The brief's H2 — a one-sentence promise. Also used as the page's meta
   // description and link-preview text.
   tagline: string;
+  /**
+   * Programme poster, as a path under /public — e.g. '/programmes/erm1.webp'.
+   *
+   * Relative here on purpose: the portal's own pages can use it directly, and
+   * catalog-api.ts absolutises it for knowsia.com the same way registerUrl is
+   * built. A consumer on another origin must never have to join these itself.
+   *
+   * The posters are 3:4 portrait with the course title set INTO the artwork.
+   * Consumers therefore crop to the top band (icon + colour, above the title)
+   * for list cards and show the full image only where it stands alone —
+   * otherwise the title appears twice, once as pixels and once as a heading.
+   *
+   * null is a supported, expected state, not a missing value: a programme
+   * without artwork renders exactly as it did before posters existed.
+   */
+  heroImage: string | null;
   overview: string[];
   // Condensed audience line for the catalogue card.
   idealFor: string;
@@ -74,6 +90,7 @@ const AI_FINANCE: CoursePublicContent = {
   briefSlug: 'ai-powered-financial-reporting-analysis-modelling-automation',
   tagline:
     'Build faster, more accurate and reusable finance workflows with AI.',
+  heroImage: null,
   overview: [
     'Learn how to apply artificial intelligence directly within financial reporting, data analysis, financial modelling, and automation workflows — while preserving professional judgement, proper review, and responsible data handling.',
     'Accounting and finance professionals are under increasing pressure to prepare reports faster, analyse larger datasets, produce stronger management commentary, and build reliable financial models — often with limited time and resources.',
@@ -243,6 +260,7 @@ export const COURSE_PUBLIC_CONTENT: Record<string, CoursePublicContent> = {
     briefSlug: 'esg-sustainability-reporting-training',
     tagline:
       'Move from ESG awareness to practical policy, reporting and decision-making.',
+    heroImage: null,
     overview: [
       'Build the practical skills required to develop sustainability policies, prepare ESG and sustainability reports, and integrate ESG considerations into finance and investment decisions using recognised global standards and frameworks.',
       'Sustainability and ESG considerations are increasingly shaping corporate strategy, risk management, reporting, finance, and investment decisions.',
@@ -393,6 +411,7 @@ export const COURSE_PUBLIC_CONTENT: Record<string, CoursePublicContent> = {
     briefSlug: '',
     tagline:
       'A clear introduction to ESG, sustainability reporting and the changing expectations facing organisations and professionals.',
+    heroImage: null,
     overview: [
       'Get a clear introduction to ESG, sustainability reporting and the changing expectations facing organisations and professionals.',
       'This introductory webinar will help you understand why sustainability reporting matters and how to begin preparing for emerging requirements.',
@@ -436,6 +455,7 @@ export const COURSE_PUBLIC_CONTENT: Record<string, CoursePublicContent> = {
   ERM1: {
     briefSlug: 'enterprise-risk-management-risk-based-auditing',
     tagline: 'Turn organisational risks into focused, practical audit priorities.',
+    heroImage: null,
     overview: [
       'Every organisation faces strategic, operational, financial and compliance risks capable of quietly derailing its objectives. Internal audit is at its most valuable when it is pointed squarely at those risks — and at its least valuable when it works through a plan inherited from last year.',
       'This one-day intensive teaches you to make that connection deliberately. You will learn to identify and categorise the risks that genuinely threaten organisational objectives, apply both qualitative and quantitative assessment techniques, and weigh likelihood against impact well enough to prioritise what management should address first.',

@@ -404,6 +404,19 @@ function knowsia_render_card( $course ) {
 	$seats      = knowsia_seats_label( $next );
 
 	echo '<article class="kn-card">';
+
+	// Poster, cropped by CSS to the top band (icon + colour) above the title
+	// that is set into the artwork — see .kn-card__media. alt is deliberately
+	// empty: the <h3> immediately below carries the same words, and describing
+	// the image would make a screen reader announce the course name twice.
+	if ( ! empty( $course['heroImage'] ) ) {
+		printf(
+			'<a class="kn-card__media" href="%s" tabindex="-1" aria-hidden="true"><img src="%s" alt="" width="900" height="1200" loading="lazy" decoding="async" /></a>',
+			esc_url( $detail_url ),
+			esc_url( $course['heroImage'] )
+		);
+	}
+
 	printf(
 		'<h3 class="kn-card__title"><a href="%s">%s</a></h3>',
 		esc_url( $detail_url ),
@@ -469,6 +482,17 @@ function knowsia_render_detail( $code ) {
 	$content  = isset( $course['content'] ) && is_array( $course['content'] ) ? $course['content'] : array();
 
 	echo '<article class="kn-detail">';
+
+	// Full 3:4 poster here — it is the one place the artwork stands alone with
+	// room to be read, so it is NOT cropped like the catalogue card. Eager, not
+	// lazy: it is the above-the-fold image on this page.
+	if ( ! empty( $course['heroImage'] ) ) {
+		printf(
+			'<img class="kn-detail__poster" src="%s" alt="" width="900" height="1200" decoding="async" />',
+			esc_url( $course['heroImage'] )
+		);
+	}
+
 	printf( '<h1 class="kn-detail__title">%s</h1>', esc_html( $course['courseName'] ) );
 
 	if ( ! empty( $course['summary'] ) ) {
@@ -797,7 +821,10 @@ function knowsia_render_settings_page() {
 }
 
 /* -------------------------------------------------------------------------
- * STYLES  (minimal; inherits the active theme's typography and colours)
+ * STYLES  (inherits the active theme's typography; sets its own colours to
+ * match the reg.knowsia.com portal tokens in app/globals.css, so the funnel
+ * does not change palette when a visitor crosses from the catalogue to
+ * registration. Assumes a light theme, as the previous rules did.
  * ---------------------------------------------------------------------- */
 
 add_action(
@@ -808,27 +835,43 @@ add_action(
 		wp_add_inline_style(
 			'knowsia-programmes',
 			'
+			:root{
+			--kn-primary:#0f172a;--kn-primary-hover:#1e293b;--kn-on-primary:#f8fafc;
+			--kn-fg:#020817;--kn-muted-fg:#64748b;
+			--kn-border:#e2e8f0;--kn-border-strong:#cbd5e1;--kn-tint:#f1f5f9;
+			--kn-ring:#0f172a;--kn-motion:180ms ease}
 			.kn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1.5rem;margin:2rem 0}
-			.kn-card{border:1px solid rgba(0,0,0,.12);border-radius:12px;padding:1.25rem;display:flex;flex-direction:column;gap:.5rem}
+			.kn-card{border:1px solid var(--kn-border);border-radius:12px;padding:1.25rem;display:flex;flex-direction:column;gap:.5rem;transition:border-color var(--kn-motion),box-shadow var(--kn-motion),transform var(--kn-motion)}
+			.kn-card:hover{border-color:var(--kn-border-strong);box-shadow:0 4px 16px rgba(2,8,23,.08);transform:translateY(-2px)}
+			.kn-card__media{display:block;margin:-1.25rem -1.25rem 0;border-radius:11px 11px 0 0;overflow:hidden;aspect-ratio:2/1;background:var(--kn-tint)}
+			.kn-card__media img{width:100%;height:100%;object-fit:cover;object-position:top;display:block}
 			.kn-card__title{margin:0;font-size:1.15rem;line-height:1.3}
-			.kn-card__summary{margin:0;opacity:.8;font-size:.95rem}
+			.kn-card__title a{color:var(--kn-fg);text-decoration:none;transition:color var(--kn-motion)}
+			.kn-card__title a:hover{text-decoration:underline}
+			.kn-card__summary{margin:0;color:var(--kn-muted-fg);font-size:.95rem}
 			.kn-card__dates{margin:0;font-weight:600}
-			.kn-card__seats{margin:0;font-size:.9rem;opacity:.75}
-			.kn-card__seats.is-full{opacity:1;font-weight:600}
-			.kn-card__more{margin:0;font-size:.85rem;opacity:.7}
-			.kn-price__was{opacity:.55;margin-right:.35rem}
-			.kn-price__note{display:block;font-size:.8rem;opacity:.75}
+			.kn-card__seats{margin:0;font-size:.9rem;color:var(--kn-muted-fg)}
+			.kn-card__seats.is-full{color:var(--kn-fg);font-weight:600}
+			.kn-card__more{margin:0;font-size:.85rem;color:var(--kn-muted-fg)}
+			.kn-price__was{color:var(--kn-muted-fg);margin-right:.35rem}
+			.kn-price__note{display:block;font-size:.8rem;color:var(--kn-muted-fg)}
 			.kn-price--free{font-weight:700}
-			.kn-btn{display:inline-block;padding:.6rem 1rem;border-radius:8px;text-decoration:none;text-align:center;margin-top:.25rem}
-			.kn-btn--primary{background:#0f5132;color:#fff}
-			.kn-btn--ghost{border:1px solid rgba(0,0,0,.2)}
+			.kn-btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:.6rem 1.25rem;border-radius:8px;text-decoration:none;text-align:center;margin-top:.25rem;cursor:pointer;transition:background-color var(--kn-motion),border-color var(--kn-motion),color var(--kn-motion)}
+			.kn-btn--primary{background:var(--kn-primary);color:var(--kn-on-primary)}
+			.kn-btn--primary:hover{background:var(--kn-primary-hover);color:var(--kn-on-primary)}
+			.kn-btn--ghost{border:1px solid var(--kn-border-strong);color:var(--kn-fg)}
+			.kn-btn--ghost:hover{border-color:var(--kn-primary);background:var(--kn-tint)}
+			.kn-btn:focus-visible,.kn-card__title a:focus-visible,.kn-faq>summary:focus-visible{outline:2px solid var(--kn-ring);outline-offset:2px}
+			.kn-detail__poster{display:block;width:100%;max-width:340px;height:auto;aspect-ratio:3/4;object-fit:contain;border-radius:12px;background:var(--kn-tint);margin:0 0 1.5rem}
 			.kn-sessions{display:grid;gap:1rem;margin:1rem 0}
-			.kn-session{border:1px solid rgba(0,0,0,.12);border-radius:10px;padding:1rem}
+			.kn-session{border:1px solid var(--kn-border);border-radius:10px;padding:1rem}
 			.kn-session__dates{margin:0 0 .25rem}
-			.kn-session__tutor,.kn-session__seats{margin:.25rem 0;font-size:.9rem;opacity:.8}
+			.kn-session__tutor,.kn-session__seats{margin:.25rem 0;font-size:.9rem;color:var(--kn-muted-fg)}
 			.kn-faq{margin:.5rem 0}
-			.kn-empty{padding:2rem;text-align:center;opacity:.85}
+			.kn-faq>summary{cursor:pointer;padding:.35rem 0}
+			.kn-empty{padding:2rem;text-align:center;color:var(--kn-muted-fg)}
 			@media (max-width:480px){.kn-grid{grid-template-columns:1fr}}
+			@media (prefers-reduced-motion:reduce){.kn-card,.kn-btn,.kn-card__title a{transition:none}.kn-card:hover{transform:none}}
 			'
 		);
 	}

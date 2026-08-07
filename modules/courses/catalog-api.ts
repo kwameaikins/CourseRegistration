@@ -62,6 +62,19 @@ export interface CatalogApiCourse {
    * consumer must handle that rather than assuming a string.
    */
   summary: string | null;
+  /**
+   * Absolute URL of the programme poster, or null when there is none.
+   *
+   * Absolute for exactly the reason registerUrl is: the consumer renders on a
+   * different origin, and a relative '/programmes/erm1.webp' would resolve
+   * against knowsia.com and 404. Built here so no consumer has to know where
+   * this app hosts its images.
+   *
+   * The artwork is 3:4 portrait with the course title inside it. Consumers
+   * showing this next to courseName should crop to the top ~37% (a 2:1 band of
+   * icon and colour) so the title is not rendered twice.
+   */
+  heroImage: string | null;
   certificateHours: number;
   cpdCredit: string;
   currency: string;
@@ -98,6 +111,7 @@ function toCourse(course: PublicCatalogCourse): CatalogApiCourse {
     courseCode: course.courseCode,
     courseName: course.courseName,
     summary: course.content?.tagline ?? null,
+    heroImage: course.content?.heroImage ? `${appUrl()}${course.content.heroImage}` : null,
     certificateHours: course.certificateHours,
     cpdCredit: course.cpdCredit,
     currency: CURRENCY,

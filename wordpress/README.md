@@ -111,9 +111,29 @@ programme disappears instead of lingering from the fallback cache.
 nothing rather than "0 seats left". If you edit the templates, preserve that distinction; it is
 the easiest field here to get wrong.
 
-**Styling.** The plugin ships minimal CSS and inherits the theme's fonts and colours. The one
-hardcoded value is the primary button colour (`#0f5132`) — change it in the `wp_add_inline_style`
-block near the bottom of the plugin to match the brand.
+**Styling.** The plugin inherits the theme's fonts but sets its own colours, from a `:root`
+token block at the top of the `wp_add_inline_style` section. The values mirror the portal's
+tokens in `app/globals.css` (primary `#0f172a`, muted text `#64748b`, borders `#e2e8f0`) so the
+funnel does not change palette when a visitor crosses from the catalogue to registration.
+Retheming means editing those five custom properties, not hunting hex values through the rules.
+Light-theme colours are assumed, as they were before.
+
+**Programme posters.** `heroImage` on the catalogue API is an absolute URL, or `null` when a
+programme has no artwork — currently all of them, so the plugin renders exactly as it did
+before posters existed. To add one:
+
+1. Drop a 3:4 WebP in this app's `public/programmes/` (e.g. `erm1.webp`; 600×800 is plenty).
+2. Set `heroImage: '/programmes/erm1.webp'` on that course in
+   `modules/courses/public-content.ts`, then deploy.
+
+The path is stored relative and absolutised in `catalog-api.ts`, for the same reason
+`registerUrl` is — WordPress is on another origin and must not join URLs itself.
+
+The artwork has the course title set *into* the image. Catalogue cards therefore crop to the
+top 37% (a 2:1 band of icon and colour, above the title) via `.kn-card__media`, so the title is
+not rendered twice — once as pixels, once as the `<h3>`. Detail pages show the full poster. That
+crop assumes every poster keeps the same composition: icon circle top-centre, colour panel,
+white title band starting around 42% down. A poster laid out differently will crop wrong.
 
 ### Canonicalisation
 
