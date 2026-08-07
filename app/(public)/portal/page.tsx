@@ -602,6 +602,83 @@ export default function PortalDashboardPage() {
     }, PAYMENT_POLL_INTERVAL_MS);
   }
 
+  // The coupon field and the Pay/checkout states, shared by the course card in
+  // "My Courses" and the "Payments & Receipts" panel. Until 2026-08-07 this
+  // lived only on the course card, so a participant who went to Payments &
+  // Receipts to settle a balance found the amount they owed and no way to pay
+  // it — the reported "there is no Pay button".
+  //
+  // A plain function returning JSX rather than a nested component: an inner
+  // component would be redefined every render and remount on each keystroke,
+  // losing focus in the coupon input.
+  function renderPayControls(reg: DashboardRegistration) {
+    if (!dashboard) return null;
+    return (
+      <>
+        <div className="coupon-row">
+          <input
+            aria-label="Discount code"
+            placeholder="Discount code"
+            value={couponInput[reg.registrationId] ?? ''}
+            disabled={applyingCouponFor === reg.registrationId}
+            onChange={(event) =>
+              setCouponInput((cur) => ({
+                ...cur,
+                [reg.registrationId]: event.target.value.toUpperCase(),
+              }))
+            }
+          />
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            disabled={
+              applyingCouponFor === reg.registrationId ||
+              !(couponInput[reg.registrationId] ?? '').trim()
+            }
+            onClick={() => void applyCoupon(reg.registrationId)}
+          >
+            {applyingCouponFor === reg.registrationId ? 'Applying…' : 'Apply'}
+          </button>
+        </div>
+        {couponError[reg.registrationId] && (
+          <p role="alert" className="plan-confirm-error">
+            {couponError[reg.registrationId]}
+          </p>
+        )}
+        {couponSuccess[reg.registrationId] && (
+          <p className="panel-sub" style={{ color: '#1a7f4b' }}>
+            {couponSuccess[reg.registrationId]}
+          </p>
+        )}
+
+        {confirmingRegistrationId === reg.registrationId ? (
+          <p className="confirming-note">
+            Payment received — confirming now, this will update automatically.
+          </p>
+        ) : payingRegistrationId === reg.registrationId ? (
+          <PaystackCheckout
+            registrationId={reg.registrationId}
+            participantEmail={dashboard.email}
+            amountGhs={reg.balance}
+            onCompleted={() => handlePaymentCompleted(reg.registrationId)}
+          />
+        ) : (
+          <button
+            type="button"
+            className="btn btn-primary"
+            style={{ width: '100%', justifyContent: 'center' }}
+            onClick={() => setPayingRegistrationId(reg.registrationId)}
+          >
+            <svg className="icon" style={{ width: 15, height: 15 }}>
+              <use href="#i-card" />
+            </svg>
+            Pay {formatGhs(reg.balance)} now — Card or Mobile Money
+          </button>
+        )}
+      </>
+    );
+  }
+
   if (loading) {
     return (
       <main className="portal-loading">
@@ -792,10 +869,28 @@ export default function PortalDashboardPage() {
                     <span className="num tnum">{certificatesEarned}</span>
                     <span className="lbl">Certificate{certificatesEarned === 1 ? '' : 's'} earned</span>
                   </div>
-                  <div className={`stat-tile${totalBalance > 0 ? ' warn' : ''}`}>
+                  {/* Clickable when something is owed (2026-08-07) — the tile
+                      was previously a dead number, leaving the most common
+                      landing spot with no route to paying. */}
+                  <div
+                    className={`stat-tile${totalBalance > 0 ? ' warn tile-action' : ''}`}
+                    role={totalBalance > 0 ? 'button' : undefined}
+                    tabIndex={totalBalance > 0 ? 0 : undefined}
+                    onClick={totalBalance > 0 ? () => setActivePanel('payments') : undefined}
+                    onKeyDown={
+                      totalBalance > 0
+                        ? (event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              setActivePanel('payments');
+                            }
+                          }
+                        : undefined
+                    }
+                  >
                     <div className="icon-wrap"><svg className="icon"><use href="#i-card" /></svg></div>
                     <span className="num tnum">{formatGhs(totalBalance)}</span>
-                    <span className="lbl">Balance due</span>
+                    <span className="lbl">{totalBalance > 0 ? 'Balance due — pay now' : 'Balance due'}</span>
                   </div>
                 </div>
 
@@ -937,62 +1032,7 @@ export default function PortalDashboardPage() {
 
                       {reg.balance > 0 && (
                         <div className="pay-block">
-                          {/* Discount code (2026-08-07) — applying one here
-                              lowers the balance before checkout, so the Pay
-                              button below always charges the reduced amount. */}
-                          <div className="coupon-row">
-                            <input
-                              aria-label="Discount code"
-                              placeholder="Discount code"
-                              value={couponInput[reg.registrationId] ?? ''}
-                              disabled={applyingCouponFor === reg.registrationId}
-                              onChange={(event) =>
-                                setCouponInput((cur) => ({
-                                  ...cur,
-                                  [reg.registrationId]: event.target.value.toUpperCase(),
-                                }))
-                              }
-                            />
-                            <button
-                              type="button"
-                              className="btn btn-outline btn-sm"
-                              disabled={
-                                applyingCouponFor === reg.registrationId ||
-                                !(couponInput[reg.registrationId] ?? '').trim()
-                              }
-                              onClick={() => void applyCoupon(reg.registrationId)}
-                            >
-                              {applyingCouponFor === reg.registrationId ? 'Applying…' : 'Apply'}
-                            </button>
-                          </div>
-                          {couponError[reg.registrationId] && (
-                            <p role="alert" className="plan-confirm-error">
-                              {couponError[reg.registrationId]}
-                            </p>
-                          )}
-                          {couponSuccess[reg.registrationId] && (
-                            <p className="panel-sub" style={{ color: '#1a7f4b' }}>
-                              {couponSuccess[reg.registrationId]}
-                            </p>
-                          )}
-
-                          {confirmingRegistrationId === reg.registrationId ? (
-                            <p className="confirming-note">
-                              Payment received — confirming now, this will update automatically.
-                            </p>
-                          ) : payingRegistrationId === reg.registrationId ? (
-                            <PaystackCheckout
-                              registrationId={reg.registrationId}
-                              participantEmail={dashboard.email}
-                              amountGhs={reg.balance}
-                              onCompleted={() => handlePaymentCompleted(reg.registrationId)}
-                            />
-                          ) : (
-                            <button type="button" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setPayingRegistrationId(reg.registrationId)}>
-                              <svg className="icon" style={{ width: 15, height: 15 }}><use href="#i-card" /></svg>
-                              Pay {formatGhs(reg.balance)} now — Card or Mobile Money
-                            </button>
-                          )}
+                          {renderPayControls(reg)}
 
                           {reg.installments.length > 0 ? (
                             <div className="plan-box">
@@ -1255,6 +1295,32 @@ export default function PortalDashboardPage() {
                 <p className="eyebrow">Payments &amp; Receipts</p>
                 <h2 className="panel-title">Payment history</h2>
                 <p className="panel-sub">One receipt per course, generated fresh each time so it always reflects your latest payment.</p>
+
+                {/* Outstanding balances first (2026-08-07). This panel used to
+                    show only history, so someone who came here to settle a
+                    balance saw what they owed and had no way to pay it — the
+                    Pay button existed solely on the My Courses card. */}
+                {payableRegistrations.filter((reg) => reg.balance > 0).length > 0 && (
+                  <div className="due-list">
+                    <h3 className="panel-title" style={{ fontSize: 16 }}>Outstanding</h3>
+                    {payableRegistrations
+                      .filter((reg) => reg.balance > 0)
+                      .map((reg) => (
+                        <div key={reg.registrationId} className="due-card">
+                          <div className="due-head">
+                            <div>
+                              <strong>{reg.courseName}</strong>
+                              <span className="meta">{reg.cohortLabel}</span>
+                            </div>
+                            <span className="val tnum balance">{formatGhs(reg.balance)}</span>
+                          </div>
+                          <div className="pay-block" style={{ borderTop: 'none', paddingTop: 0 }}>
+                            {renderPayControls(reg)}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
 
                 {payableRegistrations.length === 0 ? (
                   <p className="empty-note">No payments to show yet.</p>

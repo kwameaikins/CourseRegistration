@@ -137,6 +137,15 @@ export const PORTAL_STYLES = `${BRAND_TOKENS}
 .portal-app .fig-grid .val.balance { color: var(--warning); }
 .portal-app .join-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
 .portal-app .pay-block { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--line); padding-top: 16px; }
+.portal-app .stat-tile.tile-action { cursor: pointer; }
+.portal-app .stat-tile.tile-action:hover { border-color: var(--warning); }
+.portal-app .stat-tile.tile-action:focus-visible { outline: 2px solid var(--warning); outline-offset: 2px; }
+.portal-app .due-list { display: flex; flex-direction: column; gap: 12px; margin: 16px 0 24px; }
+.portal-app .due-card { border: 1px solid var(--line); border-radius: 10px; padding: 14px; background: var(--surface-2); }
+.portal-app .due-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+.portal-app .due-head .meta { display: block; font-size: 12px; color: var(--ink-muted); margin-top: 2px; }
+.portal-app .due-head .val { font-size: 17px; font-weight: 700; }
+.portal-app .due-head .val.balance { color: var(--warning); }
 .portal-app .coupon-row { display: flex; gap: 8px; align-items: center; }
 .portal-app .coupon-row input { flex: 1; min-width: 0; height: 38px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: 13.5px; text-transform: uppercase; letter-spacing: 0.04em; }
 .portal-app .coupon-row input:disabled { opacity: 0.6; }
