@@ -5,6 +5,12 @@ import { useEffect, useState } from 'react';
 import { apiFetch } from '@/components/api-client';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  appendDateRange,
+  DateRangeFilter,
+  EMPTY_DATE_RANGE,
+  type DateRange,
+} from '@/components/ui/date-range-filter';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
@@ -41,10 +47,22 @@ export default function SalesPipelinePage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [stageFilter, setStageFilter] = useState<string>('All');
+  const [dateRange, setDateRange] = useState<DateRange>(EMPTY_DATE_RANGE);
+
+  // The range goes to the server for both the list AND the summary tiles, so
+  // the headline numbers always describe the same set of rows as the table
+  // below them.
+  function withRange(path: string): string {
+    const params = appendDateRange(new URLSearchParams(), dateRange);
+    const query = params.toString();
+    return query ? `${path}?${query}` : path;
+  }
 
   async function loadOpportunities() {
     try {
-      const result = await apiFetch<{ opportunities: OpportunityRow[] }>('/api/opportunities');
+      const result = await apiFetch<{ opportunities: OpportunityRow[] }>(
+        withRange('/api/opportunities'),
+      );
       setRows(result.opportunities);
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to load opportunities.');
@@ -53,7 +71,7 @@ export default function SalesPipelinePage() {
 
   async function loadSummary() {
     try {
-      const result = await apiFetch<PipelineSummary>('/api/opportunities/summary');
+      const result = await apiFetch<PipelineSummary>(withRange('/api/opportunities/summary'));
       setSummary(result);
     } catch {
       setSummary(null);
@@ -63,7 +81,8 @@ export default function SalesPipelinePage() {
   useEffect(() => {
     void loadOpportunities();
     void loadSummary();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange]);
 
   async function updateOpportunity(id: string, changes: Record<string, unknown>) {
     try {
@@ -105,6 +124,8 @@ export default function SalesPipelinePage() {
           ))}
         </select>
       </div>
+
+      <DateRangeFilter value={dateRange} onChange={setDateRange} label="Created" />
 
       {errorMessage && (
         <p role="alert" className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">

@@ -8,6 +8,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '@/components/api-client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  appendDateRange,
+  DateRangeFilter,
+  EMPTY_DATE_RANGE,
+  type DateRange,
+} from '@/components/ui/date-range-filter';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -82,6 +88,12 @@ interface SubmissionRow {
 export default function PaymentTrackingPage() {
   const [rows, setRows] = useState<RegistrationRow[]>([]);
   const [showSettled, setShowSettled] = useState(false);
+  // Server-side count of everything matching the current filter, so the screen
+  // can say when it is showing less than all of it instead of quietly lying.
+  const [totalMatching, setTotalMatching] = useState(0);
+  // Filters registrations by registration date, applied server-side for the
+  // same reason the payment status filter is — see the reload comment below.
+  const [dateRange, setDateRange] = useState<DateRange>(EMPTY_DATE_RANGE);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, DraftPayment>>({});
   const [confirmTarget, setConfirmTarget] = useState<RegistrationRow | null>(null);
@@ -106,16 +118,26 @@ export default function PaymentTrackingPage() {
   const [reviewSaving, setReviewSaving] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
 
+  // The outstanding filter has to be applied by the SERVER, not by
+  // visibleRows below. This screen loads one page of registrations
+  // newest-first; filtering after that only filters what the page happened to
+  // include. On 2026-08-06 the 267 free ESG2 sign-ups (all Paid at GHS 0)
+  // filled the whole window and pushed 27 of the 35 outstanding balances past
+  // it — the screen showed 8 of 35 and gave no sign anything was missing.
   const reload = useCallback(async () => {
     try {
-      const result = await apiFetch<{ registrations: RegistrationRow[] }>(
-        '/api/registrations?limit=200',
+      const query = new URLSearchParams({ limit: '200' });
+      if (!showSettled) query.set('paymentStatus', 'outstanding');
+      appendDateRange(query, dateRange);
+      const result = await apiFetch<{ registrations: RegistrationRow[]; total: number }>(
+        `/api/registrations?${query.toString()}`,
       );
       setRows(result.registrations);
+      setTotalMatching(result.total ?? result.registrations.length);
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to load payments.');
     }
-  }, []);
+  }, [showSettled, dateRange]);
 
   useEffect(() => {
     void reload();
@@ -193,6 +215,21 @@ export default function PaymentTrackingPage() {
       ? collectible
       : collectible.filter((row) => row.paymentStatus !== 'Paid');
   }, [rows, showSettled]);
+
+  // rows.length is what the server sent for this filter; totalMatching is how
+  // many exist. A gap means the 200-row page cut some off.
+  const hiddenByPaging = Math.max(0, totalMatching - rows.length);
+
+  // The CSV must carry the SAME filters as the screen — an export that
+  // silently widens the selection is how a partial view becomes a wrong
+  // decision. This is also the escape hatch offered when paging truncates.
+  const exportHref = useMemo(() => {
+    const query = new URLSearchParams();
+    if (!showSettled) query.set('paymentStatus', 'outstanding');
+    appendDateRange(query, dateRange);
+    const suffix = query.toString();
+    return suffix ? `/api/registrations/export?${suffix}` : '/api/registrations/export';
+  }, [showSettled, dateRange]);
 
   function draftFor(row: RegistrationRow): DraftPayment {
     return (
@@ -336,11 +373,12 @@ export default function PaymentTrackingPage() {
         <div className="flex items-center gap-3">
           {view === 'tracking' ? (
             <>
+              <DateRangeFilter value={dateRange} onChange={setDateRange} label="Registered" />
               <Button variant="outline" onClick={() => setShowSettled((value) => !value)}>
                 {showSettled ? 'Show outstanding only' : 'Show all (incl. Paid)'}
               </Button>
               <Button variant="outline" asChild>
-                <a href="/api/registrations/export" download>
+                <a href={exportHref} download>
                   Export CSV
                 </a>
               </Button>
@@ -545,6 +583,14 @@ export default function PaymentTrackingPage() {
 
       {visibleRows.length === 0 && (
         <p className="text-muted-foreground">No outstanding payments. 🎉</p>
+      )}
+
+      {hiddenByPaging > 0 && (
+        <p className="text-amber-600 font-medium">
+          Showing {visibleRows.length} of {totalMatching} matching registrations —{' '}
+          {hiddenByPaging} more are not loaded. Narrow by course, cohort or date, or use
+          Export CSV to get the full list.
+        </p>
       )}
         </>
       )}

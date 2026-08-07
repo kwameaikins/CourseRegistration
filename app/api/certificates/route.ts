@@ -1,13 +1,17 @@
+import { parseDateRange } from '@/lib/date-range';
 import { AppError, handleRouteError, successResponse } from '@/lib/errors';
 import * as certificatesService from '@/modules/certificates/service';
 import * as usersService from '@/modules/users/service';
 import { manualIssueSchema } from '@/modules/certificates/types';
 
 // GET /api/certificates — the registry (admin + management read).
-export async function GET() {
+// Optional dateFrom / dateTo filter on issue date, applied in the query
+// because the registry read is capped.
+export async function GET(request: Request) {
   try {
     await usersService.requireRole(['admin', 'management']);
-    const certificates = await certificatesService.listCertificates();
+    const range = parseDateRange(new URL(request.url).searchParams);
+    const certificates = await certificatesService.listCertificates(200, range);
     return successResponse({ certificates });
   } catch (err) {
     return handleRouteError(err);

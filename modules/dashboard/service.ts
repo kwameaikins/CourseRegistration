@@ -54,14 +54,34 @@ export interface DashboardSummary {
     amountInvoiced: number;
     amountSettled: number;
   };
+  // Echoed back so the page can label the tiles for the window actually
+  // applied rather than hard-coding "this month".
+  appliedRange: { dateFrom: string | null; dateTo: string | null };
 }
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-export async function getDashboardSummary(): Promise<DashboardSummary> {
+export interface DashboardDateRange {
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+// Inclusive of both bounds: dateTo is a calendar day, so it must cover that
+// whole day rather than stopping at its midnight boundary.
+function withinRange(registeredAt: string, range: DashboardDateRange): boolean {
+  const day = registeredAt.slice(0, 10);
+  if (range.dateFrom && day < range.dateFrom) return false;
+  if (range.dateTo && day > range.dateTo) return false;
+  return true;
+}
+
+export async function getDashboardSummary(
+  range: DashboardDateRange = {},
+): Promise<DashboardSummary> {
   await usersService.requireRole(['admin', 'management']);
+  const hasRange = Boolean(range.dateFrom || range.dateTo);
 
   const [batches, leadPipeline, salesPipeline, corporateSummary] = await Promise.all([
     dashboardRepository.selectDashboardData(),
@@ -70,7 +90,21 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
     corporateService.getCorporateSummary(),
   ]);
 
-  const courses = batches.map((batch) => {
+  // The range filters REGISTRATIONS, not batches: a cohort that started
+  // outside the window can still have taken registrations inside it, and
+  // dropping the batch would lose that money from every figure below. A batch
+  // left with no registrations in range is dropped from the per-course table
+  // instead, so the table shows only cohorts with activity in the window.
+  const rangedBatches = hasRange
+    ? batches
+        .map((batch) => ({
+          ...batch,
+          registrations: batch.registrations.filter((r) => withinRange(r.registeredAt, range)),
+        }))
+        .filter((batch) => batch.registrations.length > 0)
+    : batches;
+
+  const courses = rangedBatches.map((batch) => {
     const total = batch.registrations.length;
     const paid = batch.registrations.filter((r) => r.paymentStatus === 'Paid').length;
     const part = batch.registrations.filter(
@@ -104,19 +138,23 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   // against a zero fee (see 202608030048), so including them in the money and
   // conversion figures would inflate every conversion rate while contributing
   // no revenue.
-  const allRegistrations = batches.flatMap((batch) => batch.registrations);
-  const revenueRegistrations = batches
+  const allRegistrations = rangedBatches.flatMap((batch) => batch.registrations);
+  const revenueRegistrations = rangedBatches
     .filter((batch) => !batch.isFree)
     .flatMap((batch) => batch.registrations);
+
+  // With no explicit range the headline tiles keep their original
+  // "this month" meaning; with one, they report the chosen window instead —
+  // the tile labels change to match (see the dashboard page).
   const monthStart = new Date();
   monthStart.setUTCDate(1);
   monthStart.setUTCHours(0, 0, 0, 0);
-  const registrationsThisMonth = allRegistrations.filter(
-    (r) => new Date(r.registeredAt) >= monthStart,
-  );
-  const revenueRegistrationsThisMonth = revenueRegistrations.filter(
-    (r) => new Date(r.registeredAt) >= monthStart,
-  );
+  const registrationsInPeriod = hasRange
+    ? allRegistrations
+    : allRegistrations.filter((r) => new Date(r.registeredAt) >= monthStart);
+  const revenueRegistrationsInPeriod = hasRange
+    ? revenueRegistrations
+    : revenueRegistrations.filter((r) => new Date(r.registeredAt) >= monthStart);
 
   const leadSourceMap = new Map<string, { count: number; paid: number }>();
   for (const registration of revenueRegistrations) {
@@ -129,17 +167,20 @@ export async function getDashboardSummary(): Promise<DashboardSummary> {
   return {
     courses,
     aggregate: {
-      registrationsThisMonth: registrationsThisMonth.length,
-      // "Revenue this month" is approximated as amounts received against
-      // registrations created this month — payment_date granularity per
-      // payment event is a Phase 2 refinement.
+      registrationsThisMonth: registrationsInPeriod.length,
+      // Revenue is approximated as amounts received against registrations
+      // CREATED in the period — payment_date granularity per payment event is
+      // a Phase 2 refinement. Worth knowing when reading a narrow range: a
+      // payment collected inside the window against an older registration is
+      // not counted here.
       revenueReceivedThisMonth: round2(
-        revenueRegistrationsThisMonth.reduce((sum, r) => sum + r.amountPaid, 0),
+        revenueRegistrationsInPeriod.reduce((sum, r) => sum + r.amountPaid, 0),
       ),
       totalOutstandingBalance: round2(
         revenueRegistrations.reduce((sum, r) => sum + (r.courseFee - r.amountPaid), 0),
       ),
     },
+    appliedRange: { dateFrom: range.dateFrom ?? null, dateTo: range.dateTo ?? null },
     leadSources: [...leadSourceMap.entries()]
       .map(([source, entry]) => ({
         source,

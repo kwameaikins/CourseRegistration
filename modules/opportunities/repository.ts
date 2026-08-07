@@ -1,3 +1,4 @@
+import { timestampBounds } from '@/lib/date-range';
 import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import type { Database } from '@/lib/supabase/database.types';
 import type { CreateOpportunityInput } from '@/modules/opportunities/types';
@@ -25,12 +26,19 @@ export async function insertOpportunity(input: CreateOpportunityInput): Promise<
   return data;
 }
 
-export async function selectOpportunities(): Promise<OpportunityRow[]> {
+export async function selectOpportunities(
+  range: { dateFrom?: string; dateTo?: string } = {},
+): Promise<OpportunityRow[]> {
   const supabase = createSupabaseServiceRoleClient();
-  const { data, error } = await supabase
-    .from('opportunities')
-    .select('*')
-    .order('created_at', { ascending: false });
+  let query = supabase.from('opportunities').select('*');
+  // This read is currently uncapped, so a browser-side filter would work
+  // today — done in the query anyway so it keeps working when a cap is added,
+  // and so the list and summary paths share one definition of the range.
+  const bounds = timestampBounds(range);
+  if (bounds.gte) query = query.gte('created_at', bounds.gte);
+  if (bounds.lte) query = query.lte('created_at', bounds.lte);
+
+  const { data, error } = await query.order('created_at', { ascending: false });
 
   if (error) throw error;
   return data ?? [];

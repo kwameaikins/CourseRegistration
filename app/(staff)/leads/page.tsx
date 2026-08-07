@@ -5,6 +5,12 @@ import { useEffect, useState } from 'react';
 import { apiFetch } from '@/components/api-client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  appendDateRange,
+  DateRangeFilter,
+  EMPTY_DATE_RANGE,
+  type DateRange,
+} from '@/components/ui/date-range-filter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -54,6 +60,7 @@ export default function LeadsPage() {
   const [sourceFilter, setSourceFilter] = useState('');
   const [assigneeFilter, setAssigneeFilter] = useState('');
   const [search, setSearch] = useState('');
+  const [dateRange, setDateRange] = useState<DateRange>(EMPTY_DATE_RANGE);
 
   // Only one row's note editor is open at a time (mirrors how
   // viewingLeadId already gates the detail dialog).
@@ -67,6 +74,10 @@ export default function LeadsPage() {
     if (assigneeFilter) params.set('assignedTo', assigneeFilter);
     if (search.trim()) params.set('search', search.trim());
     if (dueOnly) params.set('dueForFollowUp', 'true');
+    // Sent to the server rather than filtered here: selectLeads is capped at
+    // 500 rows, so a browser-side date filter could only ever search the
+    // newest 500 leads and an older range would look empty.
+    appendDateRange(params, dateRange);
     const query = params.toString();
     return query ? `/api/leads?${query}` : '/api/leads';
   }
@@ -92,7 +103,7 @@ export default function LeadsPage() {
   useEffect(() => {
     void loadLeads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, sourceFilter, assigneeFilter, search, dueOnly]);
+  }, [statusFilter, sourceFilter, assigneeFilter, search, dueOnly, dateRange]);
 
   useEffect(() => {
     void loadSummary();
@@ -212,6 +223,7 @@ export default function LeadsPage() {
 
       <Card>
         <CardContent className="flex flex-wrap items-end gap-3 pt-6">
+          <DateRangeFilter value={dateRange} onChange={setDateRange} label="Created" />
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Search</label>
             <Input

@@ -117,7 +117,12 @@ export const registrationListFiltersSchema = z.object({
   registrationStatus: z
     .enum(['Registered', 'Confirmed', 'Attended', 'Cancelled'])
     .optional(),
-  paymentStatus: z.enum(['Unpaid', 'Part Payment', 'Paid']).optional(),
+  // Payment status lives on `payments`, which the list read joins AFTER
+  // slicing the page — so the repository has to narrow the id set up front
+  // (it does; before 2026-08-06 this filter parsed but was never applied, so
+  // ?paymentStatus=Unpaid silently returned everything). 'outstanding' covers
+  // anything not fully Paid, which is what a collections screen actually wants.
+  paymentStatus: z.enum(['outstanding', 'Unpaid', 'Part Payment', 'Paid']).optional(),
   leadSource: z
     .enum(['WhatsApp', 'Facebook', 'LinkedIn', 'Referral', 'Website', 'Other'])
     .optional(),

@@ -114,35 +114,77 @@ export async function selectBatchesForAttendanceSync(dateIso: string): Promise<
     .map((batch) => ({ id: batch.id, zoom_meeting_id: batch.zoom_meeting_id! }));
 }
 
-// email (lowercased) -> registration_id for every non-deleted participant
-// registered on this Batch.
-export async function selectRegistrationEmailMap(
+export interface RegistrationMatchIndex {
+  // Zoom registrant id -> registration_id. Exact, and the only key that
+  // survives a participant typing whatever they like into the name box.
+  byRegistrantId: Map<string, string>;
+  // Registered email (lowercased) -> registration_id.
+  byEmail: Map<string, string>;
+  // Everyone on the roster, for the display-name fallback in the service.
+  roster: Array<{ registrationId: string; name: string }>;
+}
+
+// Every key the attendance sync can match a Zoom participant row on, for one
+// Batch. Excludes soft-deleted participants.
+export async function selectRegistrationMatchIndex(
   batchId: string,
-): Promise<Map<string, string>> {
+): Promise<RegistrationMatchIndex> {
   const supabase = createSupabaseServiceRoleClient();
+  const empty: RegistrationMatchIndex = {
+    byRegistrantId: new Map(),
+    byEmail: new Map(),
+    roster: [],
+  };
+
   const { data: registrations, error } = await supabase
     .from('registrations')
     .select('id, participant_id')
     .eq('batch_id', batchId);
   if (error) throw error;
-  if (!registrations || registrations.length === 0) return new Map();
+  if (!registrations || registrations.length === 0) return empty;
 
-  const { data: participants, error: participantsError } = await supabase
-    .from('participants')
-    .select('id, email, deleted_at')
-    .in('id', registrations.map((r) => r.participant_id));
+  const registrationIds = registrations.map((r) => r.id);
+  const [
+    { data: participants, error: participantsError },
+    { data: registrants, error: registrantsError },
+  ] = await Promise.all([
+    supabase
+      .from('participants')
+      .select('id, email, first_name, middle_name, surname, full_name, deleted_at')
+      .in('id', registrations.map((r) => r.participant_id)),
+    supabase
+      .from('zoom_registrants')
+      .select('registration_id, zoom_registrant_id')
+      .in('registration_id', registrationIds),
+  ]);
   if (participantsError) throw participantsError;
+  if (registrantsError) throw registrantsError;
 
   const registrationByParticipant = new Map(
     registrations.map((r) => [r.participant_id, r.id]),
   );
-  const map = new Map<string, string>();
+  const index: RegistrationMatchIndex = {
+    byRegistrantId: new Map(
+      (registrants ?? []).map((r) => [r.zoom_registrant_id, r.registration_id]),
+    ),
+    byEmail: new Map(),
+    roster: [],
+  };
   for (const participant of participants ?? []) {
     if (participant.deleted_at) continue;
     const registrationId = registrationByParticipant.get(participant.id);
-    if (registrationId) map.set(participant.email.toLowerCase(), registrationId);
+    if (!registrationId) continue;
+    index.byEmail.set(participant.email.toLowerCase(), registrationId);
+    index.roster.push({
+      registrationId,
+      name:
+        [participant.first_name, participant.middle_name, participant.surname]
+          .filter(Boolean)
+          .join(' ')
+          .trim() || (participant.full_name ?? ''),
+    });
   }
-  return map;
+  return index;
 }
 
 export async function upsertAttendance(row: {
@@ -151,12 +193,32 @@ export async function upsertAttendance(row: {
   join_time: string | null;
   leave_time: string | null;
   duration_minutes: number;
+  session_minutes?: number | null;
+  source?: 'zoom_sync' | 'zoom_name_match';
 }): Promise<void> {
   const supabase = createSupabaseServiceRoleClient();
   const { error } = await supabase
     .from('attendance')
     .upsert(row, { onConflict: 'registration_id,session_date' });
   if (error) throw error;
+}
+
+// Backfill support: a Batch by id regardless of the sync's date window, so a
+// session that was missed while the sync was broken can still be recovered
+// (selectBatchesForAttendanceSync only ever looks at batches still in
+// progress, which silently makes past sessions unrecoverable).
+export async function selectBatchForBackfill(
+  batchId: string,
+): Promise<{ id: string; zoom_meeting_id: string; start_date: string; end_date: string } | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('batches')
+    .select('id, zoom_meeting_id, start_date, end_date')
+    .eq('id', batchId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data || !data.zoom_meeting_id) return null;
+  return { ...data, zoom_meeting_id: data.zoom_meeting_id };
 }
 
 // Shared shaping logic for both the staff (RLS) and system (service-role,
@@ -317,11 +379,16 @@ export async function selectParticipantInfoForRegistrations(
 // never a direct tutor write). Marks source = 'manual_correction' so it's
 // distinguishable from cron-written rows.
 //
-// Certificate eligibility and the attendance-percent calculation
-// (modules/certificates/repository.ts) count *row existence* per
-// registration/session_date, not duration_minutes — so marking someone
-// absent must delete the row, not zero its duration (a zeroed row would
-// still count as attended).
+// Certificate eligibility counts one row per registration/session_date, so
+// marking someone absent must DELETE the row, not zero its duration (a zeroed
+// row would still count as attended).
+//
+// duration_minutes: 1 is a marker, not a measurement — this path has no real
+// duration to record. Since 2026-08-06 measured rows must clear
+// MIN_ATTENDANCE_RATIO of the session to count, which a 1-minute row never
+// would; certificates/repository.ts therefore exempts source =
+// 'manual_correction' from that test. session_minutes is left null for the
+// same reason: there is nothing here to take a percentage of.
 export async function applyManualAttendanceCorrection(row: {
   registration_id: string;
   session_date: string;
@@ -342,6 +409,7 @@ export async function applyManualAttendanceCorrection(row: {
       registration_id: row.registration_id,
       session_date: row.session_date,
       duration_minutes: 1,
+      session_minutes: null,
       join_time: null,
       leave_time: null,
       source: 'manual_correction',

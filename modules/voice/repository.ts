@@ -1,6 +1,7 @@
 // Data access for the voice module. Candidate queries and call_log writes run
 // on the service-role client (cron/webhook contexts, same posture as
 // communications); the staff review read runs on the RLS-enforced client.
+import { timestampBounds } from '@/lib/date-range';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import type { Database } from '@/lib/supabase/database.types';
@@ -524,13 +525,19 @@ export async function insertInboundCallLog(row: {
 }
 
 // Staff review read (RLS enforces admin/finance/management).
-export async function selectRecentCalls(limit: number): Promise<
-  Array<CallLogRow & { participant_name: string | null }>
-> {
+export async function selectRecentCalls(
+  limit: number,
+  range: { dateFrom?: string; dateTo?: string } = {},
+): Promise<Array<CallLogRow & { participant_name: string | null }>> {
   const supabase = await createSupabaseServerClient();
-  const { data: rows, error } = await supabase
-    .from('call_log')
-    .select('*')
+  let query = supabase.from('call_log').select('*');
+  // In the query, not after it: this read is capped at `limit`, so filtering
+  // in the browser would only ever search the most recent page of calls.
+  const bounds = timestampBounds(range);
+  if (bounds.gte) query = query.gte('created_at', bounds.gte);
+  if (bounds.lte) query = query.lte('created_at', bounds.lte);
+
+  const { data: rows, error } = await query
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) throw error;

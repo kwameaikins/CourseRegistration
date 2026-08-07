@@ -48,6 +48,7 @@ export type Database = {
           leave_time: string | null
           registration_id: string
           session_date: string
+          session_minutes: number | null
           source: string
         }
         Insert: {
@@ -58,6 +59,7 @@ export type Database = {
           leave_time?: string | null
           registration_id: string
           session_date: string
+          session_minutes?: number | null
           source?: string
         }
         Update: {
@@ -68,6 +70,7 @@ export type Database = {
           leave_time?: string | null
           registration_id?: string
           session_date?: string
+          session_minutes?: number | null
           source?: string
         }
         Relationships: [

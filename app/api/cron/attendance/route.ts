@@ -13,6 +13,17 @@ export async function GET(request: Request) {
 
   try {
     const summary = await attendanceService.runAttendanceSync();
+    // A per-batch failure is collected into summary.errors rather than thrown,
+    // so without this the job reports 200/OK while writing nothing — which is
+    // exactly how a missing Zoom scope went unnoticed from 2026-07-19 to
+    // 2026-08-06. Surface it to Sentry with the same weight as a crash.
+    if (summary.errors.length > 0) {
+      const err = new Error(
+        `Attendance sync completed with ${summary.errors.length} batch error(s): ${summary.errors.join(' | ')}`,
+      );
+      captureToSentry(err, { job: 'cron_attendance', outcome: 'partial_failure' });
+      console.error('[cron attendance]', err.message);
+    }
     return successResponse(summary);
   } catch (err) {
     captureToSentry(err, { job: 'cron_attendance' });

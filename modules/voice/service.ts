@@ -361,8 +361,11 @@ export async function lookupCustomerForAgent(identifier: string): Promise<string
 }
 
 // Staff review (RLS enforces admin/finance/management).
-export async function getRecentCalls(limit = 100): Promise<CallLogView[]> {
-  const rows = await voiceRepository.selectRecentCalls(limit);
+export async function getRecentCalls(
+  limit = 100,
+  range: { dateFrom?: string; dateTo?: string } = {},
+): Promise<CallLogView[]> {
+  const rows = await voiceRepository.selectRecentCalls(limit, range);
   return rows.map((row) => ({
     id: row.id,
     registrationId: row.registration_id,

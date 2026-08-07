@@ -3,6 +3,8 @@
 // requireRole guards the admin paths; the row UUID / certificate number are
 // the public access tokens). The registry list read runs on the
 // RLS-enforced server client.
+import { timestampBounds } from '@/lib/date-range';
+import { meetsAttendanceThreshold } from '@/lib/attendance-constants';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import type { Database } from '@/lib/supabase/database.types';
@@ -10,11 +12,20 @@ import type { Database } from '@/lib/supabase/database.types';
 type CertificateRow = Database['public']['Tables']['certificates']['Row'];
 type CertificateInsert = Database['public']['Tables']['certificates']['Insert'];
 
-export async function selectCertificates(limit: number): Promise<CertificateRow[]> {
+export async function selectCertificates(
+  limit: number,
+  range: { dateFrom?: string; dateTo?: string } = {},
+): Promise<CertificateRow[]> {
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase
-    .from('certificates')
-    .select('*')
+  let query = supabase.from('certificates').select('*');
+  // Filtered in the query rather than after it: the registry read is capped at
+  // `limit`, so a browser-side date filter would only ever search the newest
+  // page of certificates.
+  const bounds = timestampBounds(range);
+  if (bounds.gte) query = query.gte('created_at', bounds.gte);
+  if (bounds.lte) query = query.lte('created_at', bounds.lte);
+
+  const { data, error } = await query
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) throw error;
@@ -217,7 +228,7 @@ export async function selectBatchIssueContext(batchId: string): Promise<{
     supabase.from('feedback').select('registration_id').in('registration_id', registrationIds),
     supabase
       .from('attendance')
-      .select('registration_id, session_date')
+      .select('registration_id, session_date, duration_minutes, session_minutes, source')
       .in('registration_id', registrationIds),
     supabase
       .from('certificates')
@@ -236,8 +247,24 @@ export async function selectBatchIssueContext(batchId: string): Promise<{
       .filter((id): id is string => !!id),
   );
   const sessionDates = new Set((attendanceRows ?? []).map((row) => row.session_date));
+  // An attendance row records that someone joined; it does not by itself mean
+  // they attended. Only a row clearing MIN_ATTENDANCE_RATIO of the session
+  // counts here (founder-approved 2026-08-06), so a two-minute appearance no
+  // longer earns the same credit as sitting through the whole session. The row
+  // itself is kept either way — it is a real observation, and the Attendance
+  // screen still shows it.
   const attendedByRegistration = new Map<string, number>();
   for (const row of attendanceRows ?? []) {
+    // A manual correction is an admin's explicit ruling on whether someone
+    // attended, so it is never re-judged against the measured threshold — it
+    // carries duration_minutes: 1 as a marker, not as an observation, and
+    // thresholding it would silently overturn every approved correction.
+    if (
+      row.source !== 'manual_correction' &&
+      !meetsAttendanceThreshold(row.duration_minutes, row.session_minutes)
+    ) {
+      continue;
+    }
     attendedByRegistration.set(
       row.registration_id,
       (attendedByRegistration.get(row.registration_id) ?? 0) + 1,

@@ -1,3 +1,4 @@
+import { timestampBounds } from '@/lib/date-range';
 import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import type { Database } from '@/lib/supabase/database.types';
 import type {
@@ -57,6 +58,12 @@ export async function selectLeads(filters: ListLeadsFilters = {}): Promise<LeadR
       `full_name.ilike.${term},email.ilike.${term},company.ilike.${term}`,
     );
   }
+  // Applied here rather than in the browser precisely because of the
+  // LEADS_QUERY_LIMIT cap below: filtering after the cap would only ever
+  // search the newest 500 leads, so an older date range would look empty.
+  const bounds = timestampBounds(filters);
+  if (bounds.gte) query = query.gte('created_at', bounds.gte);
+  if (bounds.lte) query = query.lte('created_at', bounds.lte);
 
   const { data, error } = await query
     .order('created_at', { ascending: false })

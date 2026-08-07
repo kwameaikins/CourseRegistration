@@ -41,6 +41,12 @@ const APP_URL = () => process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.co
 // Attendance comes from the Zoom sync (modules/attendance). totalSessions is
 // 0 until that sync has run at least once for the batch, which correctly
 // holds certificates back rather than issuing them early.
+//
+// attendedSessions counts only sessions where the participant was present for
+// at least MIN_ATTENDANCE_RATIO of the session (founder-approved 2026-08-06).
+// Before that the test was row existence, so a two-minute appearance on a
+// 175-minute session earned the same credit as the full session — see
+// certificates/repository.ts.
 function isCertificateEligible(
   candidate: { paid: boolean; feedbackSubmitted: boolean; attendedSessions: number },
   batchIsFree: boolean,
@@ -212,8 +218,11 @@ export async function issueCertificateIfEligible(
   return toView(row);
 }
 
-export async function listCertificates(limit = 200): Promise<CertificateView[]> {
-  const rows = await certificatesRepository.selectCertificates(limit);
+export async function listCertificates(
+  limit = 200,
+  range: { dateFrom?: string; dateTo?: string } = {},
+): Promise<CertificateView[]> {
+  const rows = await certificatesRepository.selectCertificates(limit, range);
   return rows.map(toView);
 }
 

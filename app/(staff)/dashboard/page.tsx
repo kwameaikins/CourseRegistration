@@ -6,6 +6,7 @@ import * as dashboardService from '@/modules/dashboard/service';
 import * as usersService from '@/modules/users/service';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatDate, formatGhs } from '@/lib/utils';
+import { DashboardDateRangeForm } from './date-range-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,12 +17,35 @@ function conversionColor(rate: number): string {
   return 'text-red-600';
 }
 
-export default async function ManagementDashboardPage() {
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+function readDate(value: string | string[] | undefined): string {
+  const first = Array.isArray(value) ? value[0] : value;
+  return first && ISO_DATE.test(first) ? first : '';
+}
+
+export default async function ManagementDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const dateFrom = readDate(params.dateFrom);
+  const dateTo = readDate(params.dateTo);
+
   const [summary, staffUser] = await Promise.all([
-    dashboardService.getDashboardSummary(),
+    dashboardService.getDashboardSummary({
+      dateFrom: dateFrom || undefined,
+      dateTo: dateTo || undefined,
+    }),
     usersService.getCurrentStaffUser(),
   ]);
   const isAdmin = staffUser?.role === 'admin';
+  const hasRange = Boolean(dateFrom || dateTo);
+  // Tiles report the chosen window when there is one, "this month" otherwise.
+  const periodLabel = hasRange
+    ? `${dateFrom ? formatDate(dateFrom) : 'the beginning'} – ${dateTo ? formatDate(dateTo) : 'today'}`
+    : 'This Month';
 
   return (
     <div className="space-y-6">
@@ -30,11 +54,22 @@ export default async function ManagementDashboardPage() {
         <p className="text-sm text-muted-foreground">Last updated: just now</p>
       </div>
 
+      <div className="space-y-2">
+        <DashboardDateRangeForm value={{ dateFrom, dateTo }} />
+        {hasRange && (
+          <p className="text-sm text-muted-foreground">
+            Filtering by registration date: <strong>{periodLabel}</strong>. Cohorts with no
+            registrations in this window are hidden. Total Outstanding is a live balance and
+            is never date-filtered.
+          </p>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Registrations This Month
+              Registrations — {periodLabel}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -44,7 +79,7 @@ export default async function ManagementDashboardPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Revenue Received This Month
+              Revenue Received — {periodLabel}
             </CardTitle>
           </CardHeader>
           <CardContent>

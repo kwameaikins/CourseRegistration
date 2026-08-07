@@ -34,8 +34,10 @@ export async function createOpportunity(input: CreateOpportunityInput): Promise<
   return toOpportunity(row);
 }
 
-export async function listOpportunities(): Promise<Opportunity[]> {
-  const rows = await opportunitiesRepository.selectOpportunities();
+export async function listOpportunities(
+  range: { dateFrom?: string; dateTo?: string } = {},
+): Promise<Opportunity[]> {
+  const rows = await opportunitiesRepository.selectOpportunities(range);
   return rows.map(toOpportunity);
 }
 
@@ -72,8 +74,10 @@ export async function markWonByRegistrationId(registrationId: string): Promise<v
   await opportunitiesRepository.updateOpportunity(existing.id, { stage: 'Won' });
 }
 
-export async function getPipelineSummary(): Promise<PipelineSummary> {
-  const rows = await opportunitiesRepository.selectOpportunities();
+export async function getPipelineSummary(
+  range: { dateFrom?: string; dateTo?: string } = {},
+): Promise<PipelineSummary> {
+  const rows = await opportunitiesRepository.selectOpportunities(range);
 
   const byStage: Record<string, number> = {};
   let openValue = 0;

@@ -13,6 +13,8 @@ export async function GET(request: Request) {
       assignedTo: searchParams.get('assignedTo') ?? undefined,
       search: searchParams.get('search') ?? undefined,
       dueForFollowUp: searchParams.get('dueForFollowUp') === 'true' ? true : undefined,
+      dateFrom: searchParams.get('dateFrom') ?? undefined,
+      dateTo: searchParams.get('dateTo') ?? undefined,
     });
     if (!parsed.success) {
       throw new AppError('VALIDATION_ERROR', 'Invalid lead filters.', 400);

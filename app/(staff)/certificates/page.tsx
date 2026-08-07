@@ -8,6 +8,12 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { apiFetch } from '@/components/api-client';
 import { Button } from '@/components/ui/button';
+import {
+  appendDateRange,
+  DateRangeFilter,
+  EMPTY_DATE_RANGE,
+  type DateRange,
+} from '@/components/ui/date-range-filter';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
@@ -74,11 +80,18 @@ export default function CertificatesPage() {
   const [showManualForm, setShowManualForm] = useState(false);
   const [manualForm, setManualForm] = useState(EMPTY_MANUAL_FORM);
   const [savingManual, setSavingManual] = useState(false);
+  const [dateRange, setDateRange] = useState<DateRange>(EMPTY_DATE_RANGE);
 
+  // Server-side: the registry read is capped, so filtering dates in the
+  // browser would only ever search the newest page of certificates.
   const reloadRegistry = useCallback(async () => {
-    const data = await apiFetch<{ certificates: Certificate[] }>('/api/certificates');
+    const params = appendDateRange(new URLSearchParams(), dateRange);
+    const query = params.toString();
+    const data = await apiFetch<{ certificates: Certificate[] }>(
+      query ? `/api/certificates?${query}` : '/api/certificates',
+    );
     setCertificates(data.certificates);
-  }, []);
+  }, [dateRange]);
 
   useEffect(() => {
     (async () => {
@@ -461,6 +474,7 @@ export default function CertificatesPage() {
       {/* Registry */}
       <section className="space-y-3">
         <h2 className="font-semibold">Registry ({certificates.length})</h2>
+        <DateRangeFilter value={dateRange} onChange={setDateRange} label="Issued" />
         <div className="overflow-x-auto rounded-lg border">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-left">

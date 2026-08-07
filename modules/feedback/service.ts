@@ -103,8 +103,22 @@ export async function runFeedbackRequestDispatch(
   for (const batch of batches) {
     summary.batchesEvaluated += 1;
     try {
-      const registrationIds =
-        await feedbackRepository.selectPaidRegistrationIdsForBatch(batch.id);
+      // Who can this email honestly promise a certificate to? Exactly the
+      // condition isCertificateEligible applies (certificates/service.ts): on a
+      // paid Batch payment is the gate and attendance is irrelevant; on a free
+      // Batch every registration auto-settles to Paid, so attendance is the
+      // gate instead. Targeting paid registrations on a free Batch mailed the
+      // certificate-for-feedback promise to people who never joined —
+      // 185 of the 267 on ESG2 (2026-08-06).
+      //
+      // Deliberately NOT gated on attendance for paid batches: attendance can
+      // legitimately be empty there (the Zoom sync only started writing rows
+      // on 2026-08-06), and suppressing those requests would lose real
+      // feedback for no benefit — a paid participant earns their certificate
+      // whether or not the sync saw them.
+      const registrationIds = batch.is_free
+        ? await feedbackRepository.selectAttendedRegistrationIdsForBatch(batch.id)
+        : await feedbackRepository.selectPaidRegistrationIdsForBatch(batch.id);
       for (const registrationId of registrationIds) {
         const outcome = await communicationsService.sendEmailOnce(
           registrationId,
@@ -122,6 +136,62 @@ export async function runFeedbackRequestDispatch(
     }
   }
   return summary;
+}
+
+export interface AttendeeFeedbackDispatchResult {
+  batchId: string;
+  dryRun: boolean;
+  attendedRegistrations: number;
+  emailsSent: number;
+  skipped: number;
+  errors: string[];
+}
+
+// Sends the post-course thank-you / feedback request to the people who
+// actually attended, rather than everyone who registered.
+//
+// runFeedbackRequestDispatch above targets PAID registrations of batches that
+// ended yesterday. On a free Batch every registration settles to Paid the
+// moment it is created, so that dispatch mails everyone who ever filled in the
+// form — including people who never joined. The template promises "your
+// certificate will be sent once your feedback is received", which since the
+// attendance-rate rule (2026-08-06) is a promise the system cannot keep for a
+// non-attendee.
+//
+// Manual trigger, and idempotent: sendEmailOnce's email_log dedup means anyone
+// already mailed by the nightly dispatch is skipped rather than mailed twice.
+export async function runFeedbackRequestForAttendees(params: {
+  batchId: string;
+  dryRun?: boolean;
+}): Promise<AttendeeFeedbackDispatchResult> {
+  const dryRun = params.dryRun ?? true;
+  const registrationIds = await feedbackRepository.selectAttendedRegistrationIdsForBatch(
+    params.batchId,
+  );
+  const result: AttendeeFeedbackDispatchResult = {
+    batchId: params.batchId,
+    dryRun,
+    attendedRegistrations: registrationIds.length,
+    emailsSent: 0,
+    skipped: 0,
+    errors: [],
+  };
+  if (dryRun) return result;
+
+  for (const registrationId of registrationIds) {
+    try {
+      const outcome = await communicationsService.sendEmailOnce(
+        registrationId,
+        'post_training_thankyou',
+      );
+      if (outcome === 'sent') result.emailsSent += 1;
+      else if (outcome === 'failed') result.errors.push(`${registrationId}: send failed`);
+      else result.skipped += 1;
+    } catch (err) {
+      result.errors.push(`${registrationId}: ${String(err)}`);
+    }
+  }
+  return result;
 }
 
 // Staff review (RLS enforces admin/management).

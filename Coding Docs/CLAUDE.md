@@ -631,9 +631,184 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     delegates to partnersService" — its mock was never updated when the
     2026-08-02 auto-provisioning guard landed, so it had been failing since).
 
+  Attendance sync never recorded anything (2026-08-06) — founder asked for an
+    attendance assessment of two delivered sessions (IA02 "Global Internal Audit
+    Standards" 2026-07-25, ESG2 "Understanding ESG" 2026-08-06). Neither had
+    attendance. Investigation found `attendance` and `zoom_registrants` EMPTY
+    account-wide — the feature had never written a row since shipping
+    2026-07-19. Three independent causes, all now fixed:
+    (1) The Server-to-Server OAuth app was never granted
+    `report:read:list_meeting_participants:admin`, so every
+    getPastMeetingParticipants call failed 400/4711. The error landed in
+    runAttendanceSync's per-batch `summary.errors` and the cron still returned
+    200, so nothing ever surfaced. `lib/zoom/client.ts` now treats a 4711 as
+    "try the next source" and falls back to the Dashboard API
+    (`/metrics/meetings/{uuid}/participants`), whose scope the app already
+    holds — so the sync works today without waiting on a Zoom console change,
+    and upgrades itself automatically if the report scope is later granted.
+    (2) A numeric meeting ID resolves to the LATEST instance only. These classes
+    open the room several times a day (host setup, test run, post-class
+    reconnects), so the sync was reading a one-person reconnect instead of the
+    class — on 2026-08-06 that was 1 participant instead of 286. New
+    `listMeetingInstancesOn`/`getMeetingParticipantsOn` enumerate every sitting
+    on the date (past-instances endpoint, else account cloud-recordings, else
+    the bare numeric id) and aggregate across them.
+    (3) Matching was email-only, but nobody was ever registered with Zoom
+    (`zoom_registrants` empty), so participants joined on a SHARED link and Zoom
+    reports a self-typed display name with no email — 1 of 286 ESG attendees and
+    1 of 12 IA02 attendees carried one. Match order is now registrant id →
+    registered email → display name. Name matching is deliberately strict (2+
+    shared tokens after stripping honorifics, AND exactly one roster candidate)
+    because on a free Batch an attendance row is what makes a certificate
+    issuable; single-token and ambiguous names stay unmatched for staff to
+    adjudicate rather than being guessed into the record. A looser tier
+    (`minSharedTokens: 1` — one shared token of 4+ characters, still requiring
+    exactly one roster candidate) is available on the BACKFILL only, never the
+    nightly sync: founder-approved 2026-08-06 for ESG2, where strict matching
+    reached 90 of 267 registrants and the alternative was 177 people with no
+    route to a certificate. The tradeoff was stated and accepted — some of
+    those rows are wrong, and they feed a certificate gate. The ambiguity rule
+    (two equally plausible candidates ⇒ no match) is absolute at BOTH levels;
+    only the token threshold moves. Inferred rows are
+    written as `source = 'zoom_name_match'` (migration `202608060050`) so a
+    roster shows exactly how each row was established.
+    Also: the cron now reports a non-empty `summary.errors` to Sentry instead of
+    a silent 200, and `POST /api/cron/attendance/backfill` (CRON_SECRET-gated,
+    dry-run by DEFAULT, deliberately not in vercel.json's cron list) recovers a
+    Batch whose window has closed — selectBatchesForAttendanceSync only ever
+    looks at batches still in progress, which had made past sessions
+    permanently unrecoverable.
+    Downstream impact of the outage: ESG2 is a FREE batch, and
+    isCertificateEligible swaps the payment gate for `attendedSessions > 0` on
+    free batches — so all 267 ESG registrants were ineligible for certificates
+    until this was backfilled. IA02 is paid and was unaffected.
+
+  Attendance rate threshold (2026-08-06) — founder: "at least 40% meeting
+    session rate", revised the same day to 30%. Certificate eligibility on a
+    free Batch tested `attendedSessions > 0`, i.e. row EXISTENCE, so a
+    two-minute appearance on a 175-minute session earned the same credit as the
+    whole session (the ESG2 backfill produced 11 rows under 15 minutes, one of
+    them 0). attendedSessions now counts only rows clearing
+    `MIN_ATTENDANCE_RATIO` (0.3) of the session. The ratio is applied at READ
+    time and never baked into a stored row, so changing it re-scores all
+    existing attendance on the next read — no migration, no backfill.
+    The rule needed a denominator that did not exist: duration_minutes is the
+    PARTICIPANT's time and batches has start_time but no end_time, so migration
+    `202608060051` adds `attendance.session_minutes`, written by the sync as the
+    LONGEST SINGLE SITTING that day — not first-join-to-last-leave, which on
+    2026-08-06 would have been ~14 hours (morning host check + class +
+    post-class reconnect) against a real class of 175 minutes.
+    Threshold + percentage live in `lib/attendance-constants.ts`, shared by the
+    sync and certificates so they can never drift.
+    Two deliberate exemptions: (a) rows with a null session_minutes (written
+    before the denominator existed) count as attended rather than being
+    retroactively failed; (b) `source = 'manual_correction'` is never
+    re-judged — it carries duration_minutes: 1 as a MARKER, not a measurement,
+    so thresholding it would have silently overturned every admin-approved
+    attendance correction. That was a live regression introduced by this change
+    and caught before it shipped.
+    Effect on the backfilled data at 30%: IA02 369-min session, threshold 111
+    min, all 8 rows pass. ESG2 175-min session, threshold 53 min, 82 of 119 pass
+    and 37 fall below (at 40% it was 76/43).
+    Attendance rows are KEPT either way — they are real observations,
+    still shown on the Attendance screen with attendanceRatePercent and
+    meetsThreshold so staff can see why someone counts as absent.
+
+  Feedback request targets attendees on a free Batch (2026-08-06) — founder:
+    "send the feedback notice to all attended participants."
+    `runFeedbackRequestDispatch` targeted PAID registrations of batches that
+    ended yesterday. On a free Batch every registration auto-settles to Paid
+    (202608030048), so that would have mailed all 267 ESG2 registrants at 07:00
+    the next morning — and the post_training_thankyou template promises "your
+    certificate of participation will be sent to you once your feedback is
+    received", which after the attendance-rate rule the system cannot honour
+    for the 185 who did not attend.
+    The dispatch now mirrors `isCertificateEligible` exactly: free Batch →
+    attendees (`selectAttendedRegistrationIdsForBatch`), paid Batch → Paid
+    registrations, unchanged. Deliberately NOT attendance-gated on paid
+    batches: attendance can legitimately be empty there (the Zoom sync only
+    began writing rows 2026-08-06) and a paid participant earns a certificate
+    whether or not the sync saw them — gating it would lose real feedback for
+    no benefit.
+    `POST /api/cron/feedback/attendees` (CRON_SECRET-gated, dry-run by DEFAULT,
+    not in vercel.json) is the manual trigger for a Batch whose window has
+    already passed. Sent 2026-08-06: IA02 1 new + 7 already-mailed skips
+    (email_log dedup), ESG2 82 — 91 delivered, 0 failures.
+
+  Payments screen hid 27 of 35 outstanding balances (2026-08-06) — founder:
+    "only 8 shows at the payment but we have about 35 unpaid." Not a payment
+    bug; a paging bug. The screen loaded `/api/registrations?limit=200`
+    (page 1, `registered_at` DESC) and applied the outstanding filter in
+    `visibleRows` CLIENT-side. Payment status lives on `payments`, which the
+    list read joins AFTER slicing the page, so the filter could only ever
+    filter rows that survived the slice. The 267 free ESG2 sign-ups on
+    2026-08-04 — all auto-Paid at GHS 0 — filled the entire 200-row window and
+    pushed everything registered before 2026-08-04T10:37 out of reach. Exactly
+    8 of 35 outstanding rows remained visible, with nothing on screen
+    indicating the rest existed.
+    `paymentStatus` was ALREADY in registrationListFiltersSchema and had never
+    been applied by the repository — `?paymentStatus=Unpaid` parsed fine and
+    silently returned everything. Now both `selectRegistrationList` and
+    `selectAllRegistrationsForExport` narrow the registration id set from
+    `payments` BEFORE ordering/ranging, the enum gained 'outstanding' (anything
+    not fully Paid, what a collections screen actually wants), the screen asks
+    the server for it, Export CSV inherits the same filter, and a truncation
+    warning shows whenever `total > rows.length` so a partial view can never
+    look complete again. Verified against production: 8 of 35 → 35 of 35.
+    Not fixed here (still latent): every other consumer of this list read has
+    the same 200-row ceiling with no pagination UI. Worth revisiting once any
+    single filtered view can exceed 200 rows.
+
+  Date-range filters across the staff screens (2026-08-06) — founder: "include
+    a date range filter ... on all relevant tabs even including the dashboard."
+    Shared `components/ui/date-range-filter.tsx` (from/to inputs, Last 7 days /
+    Last 30 days / This month presets, clear, inverted-range warning) plus
+    `lib/date-range.ts` (`parseDateRange` for routes, `timestampBounds` for
+    repositories). Wired to: dashboard, payments, registrations, leads, sales,
+    certificates, calls.
+    EVERY one filters SERVER-side, which is the whole point rather than a
+    detail: these list reads are capped (registrations 200/page, leads 500,
+    certificates and call_log by `limit`), so a browser-side date filter would
+    only ever search the rows that survived the cap — the same defect that made
+    the Payments screen show 8 of 35 outstanding balances. Date filtering was
+    therefore added to `selectLeads`, `selectCertificates`,
+    `selectOpportunities` and `selectRecentCalls`, and their routes now parse
+    the range through the shared helper (a malformed date is a 400, never a
+    silent "no filter").
+    `timestampBounds` extends dateTo to 23:59:59.999 of that day. Not cosmetic:
+    verified against production, a single-day filter for 2026-08-06 returns 92
+    registrations with the inclusive bound and 0 with a naive midnight bound.
+    Dashboard specifics: the range filters REGISTRATIONS, not batches — a
+    cohort that started outside the window can still have taken registrations
+    inside it, so filtering by batch would lose that money from every figure.
+    Batches left with no in-range registrations drop out of the per-course
+    table. Tiles keep their "this month" meaning when no range is set and
+    relabel to the chosen window when one is; the range lives in the URL
+    (`/dashboard?dateFrom=&dateTo=`) so it survives refresh and can be shared.
+    Total Outstanding is a live balance and is deliberately never date-filtered.
+    Known limitation, unchanged: dashboard revenue is still amounts received
+    against registrations CREATED in the window, so a payment collected inside
+    a narrow window against an older registration is not counted (payment_date
+    granularity remains the Phase 2 refinement).
+    Not wired (deliberately): attendance and course-feedback are batch-scoped —
+    you pick a course and cohort, and a date range on top would filter within a
+    single session. Campaigns, partners, corporate left alone for now.
+    Also fixed in passing: four repository files were briefly re-encoded by a
+    PowerShell `Set-Content` (BOM + cp1252 mojibake on every em-dash) and
+    repaired; if a bulk edit ever mangles non-ASCII again, reverse the
+    UTF-8→cp1252→UTF-8 double encoding rather than hand-fixing characters.
+
 Open decisions (founder):
   - AI05 ("...Reporting and Modeling") vs AI02 ("...Reporting and
     Analysis") are near-duplicate courses — pick a canonical one.
+  - Grant the Zoom app `report:read:list_meeting_participants:admin`. Not
+    required any more (Dashboard fallback covers it) but the report API is the
+    only one that returns participant emails, which is what makes matching
+    exact rather than inferred.
+  - Zoom meeting registration: `ensureZoomRegistration` has produced zero
+    `zoom_registrants` rows despite the app holding `meeting:write:registrant`.
+    Until personal join links actually issue, every session will depend on
+    display-name inference.
   - Exposed legacy Supabase service_role key still needs rotation.
   - .env holds Paystack LIVE keys; Week 2 gate wants a TEST-mode
     end-to-end run first — get test keys or accept a deliberate small

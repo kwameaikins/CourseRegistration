@@ -8,6 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { apiFetch } from '@/components/api-client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { DateRangeFilter } from '@/components/ui/date-range-filter';
 import { Input } from '@/components/ui/input';
 import {
   Table,
@@ -217,17 +218,10 @@ export default function RegistrationListPage() {
             </option>
           ))}
         </select>
-        <Input
-          type="date"
-          className="h-9 w-40"
-          value={filters.dateFrom}
-          onChange={(event) => setFilters({ ...filters, dateFrom: event.target.value })}
-        />
-        <Input
-          type="date"
-          className="h-9 w-40"
-          value={filters.dateTo}
-          onChange={(event) => setFilters({ ...filters, dateTo: event.target.value })}
+        <DateRangeFilter
+          label="Registered"
+          value={{ dateFrom: filters.dateFrom, dateTo: filters.dateTo }}
+          onChange={(range) => setFilters({ ...filters, ...range })}
         />
         <Input
           placeholder="Search name / email / phone"

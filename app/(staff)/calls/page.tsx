@@ -6,6 +6,12 @@
 import { useEffect, useState } from 'react';
 
 import { apiFetch } from '@/components/api-client';
+import {
+  appendDateRange,
+  DateRangeFilter,
+  EMPTY_DATE_RANGE,
+  type DateRange,
+} from '@/components/ui/date-range-filter';
 
 interface CallRow {
   id: string;
@@ -35,11 +41,18 @@ export default function CallsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [dateRange, setDateRange] = useState<DateRange>(EMPTY_DATE_RANGE);
 
+  // Server-side: the call log read is capped at 100 rows, so a browser-side
+  // date filter would only ever search the most recent 100 calls.
   useEffect(() => {
     (async () => {
       try {
-        const data = await apiFetch<{ calls: CallRow[] }>('/api/calls');
+        const params = appendDateRange(new URLSearchParams(), dateRange);
+        const query = params.toString();
+        const data = await apiFetch<{ calls: CallRow[] }>(
+          query ? `/api/calls?${query}` : '/api/calls',
+        );
         setCalls(data.calls);
       } catch (err) {
         setErrorMessage(err instanceof Error ? err.message : 'Failed to load calls.');
@@ -47,7 +60,7 @@ export default function CallsPage() {
         setLoaded(true);
       }
     })();
-  }, []);
+  }, [dateRange]);
 
   const followups = calls.filter((call) => call.needsHumanFollowup);
 
@@ -60,6 +73,8 @@ export default function CallsPage() {
           and the inbound line. Calls are dialed between 10:00 and 17:00.
         </p>
       </div>
+
+      <DateRangeFilter value={dateRange} onChange={setDateRange} label="Call date" />
 
       {errorMessage && (
         <p role="alert" className="text-sm text-destructive">

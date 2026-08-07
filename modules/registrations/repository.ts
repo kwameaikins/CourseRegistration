@@ -115,6 +115,24 @@ export async function selectRegistrationList(filters: RegistrationListFilters): 
     if (batchIdFilter.length === 0) return { rows: [], total: 0 };
   }
 
+  // Payment status is on `payments`, not `registrations`, and the join below
+  // happens AFTER the page slice — so this has to narrow the id set BEFORE
+  // ordering and ranging, or the filter would only ever apply to whatever
+  // survived the slice (which is exactly how 27 of 35 outstanding balances
+  // became invisible on the Payments screen — see registrationListFiltersSchema).
+  let paymentRegistrationIds: string[] | null = null;
+  if (filters.paymentStatus) {
+    let paymentQuery = supabase.from('payments').select('registration_id');
+    paymentQuery =
+      filters.paymentStatus === 'outstanding'
+        ? paymentQuery.neq('payment_status', 'Paid')
+        : paymentQuery.eq('payment_status', filters.paymentStatus);
+    const { data: matchingPayments, error: paymentFilterError } = await paymentQuery;
+    if (paymentFilterError) throw paymentFilterError;
+    paymentRegistrationIds = (matchingPayments ?? []).map((row) => row.registration_id);
+    if (paymentRegistrationIds.length === 0) return { rows: [], total: 0 };
+  }
+
   let query = supabase
     .from('registrations')
     .select('*', { count: 'exact' })
@@ -122,6 +140,7 @@ export async function selectRegistrationList(filters: RegistrationListFilters): 
 
   if (filters.batchId) query = query.eq('batch_id', filters.batchId);
   else if (batchIdFilter) query = query.in('batch_id', batchIdFilter);
+  if (paymentRegistrationIds) query = query.in('id', paymentRegistrationIds);
   if (filters.registrationStatus) {
     query = query.eq('registration_status', filters.registrationStatus);
   }
@@ -237,6 +256,22 @@ export async function selectAllRegistrationsForExport(
     if (batchIdFilter.length === 0) return { rows: [] };
   }
 
+  // Same pre-narrowing as the paged list above, so an "outstanding only" CSV
+  // export matches what the screen shows rather than silently exporting
+  // everything.
+  let paymentRegistrationIds: string[] | null = null;
+  if (filters.paymentStatus) {
+    let paymentQuery = supabase.from('payments').select('registration_id');
+    paymentQuery =
+      filters.paymentStatus === 'outstanding'
+        ? paymentQuery.neq('payment_status', 'Paid')
+        : paymentQuery.eq('payment_status', filters.paymentStatus);
+    const { data: matchingPayments, error: paymentFilterError } = await paymentQuery;
+    if (paymentFilterError) throw paymentFilterError;
+    paymentRegistrationIds = (matchingPayments ?? []).map((row) => row.registration_id);
+    if (paymentRegistrationIds.length === 0) return { rows: [] };
+  }
+
   let query = supabase
     .from('registrations')
     .select('*')
@@ -244,6 +279,7 @@ export async function selectAllRegistrationsForExport(
 
   if (filters.batchId) query = query.eq('batch_id', filters.batchId);
   else if (batchIdFilter) query = query.in('batch_id', batchIdFilter);
+  if (paymentRegistrationIds) query = query.in('id', paymentRegistrationIds);
   if (filters.registrationStatus) {
     query = query.eq('registration_status', filters.registrationStatus);
   }

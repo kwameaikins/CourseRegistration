@@ -10,9 +10,11 @@
 //     carries the exact email we registered).
 import {
   addMeetingRegistrant,
-  getPastMeetingParticipants,
+  getMeetingParticipantsOn,
   isZoomConfigured,
+  type ZoomParticipantRecord,
 } from '@/lib/zoom/client';
+import { attendanceRatePercent, meetsAttendanceThreshold } from '@/lib/attendance-constants';
 import { AppError } from '@/lib/errors';
 import * as attendanceRepository from '@/modules/attendance/repository';
 import * as communicationsService from '@/modules/communications/service';
@@ -31,7 +33,77 @@ export interface AttendanceSyncSummary {
   batchesEvaluated: number;
   rowsUpserted: number;
   unmatchedParticipants: number;
+  // How each written row was established, so a caller can see at a glance
+  // whether the exact keys are working or the sync is leaning on inference.
+  matchedByRegistrant: number;
+  matchedByEmail: number;
+  matchedByName: number;
   errors: string[];
+}
+
+// Honorifics and post-nominals people add to a Zoom display name but not to a
+// registration form (or the reverse). Stripping them keeps "Isaac Adjin
+// Bonney, CA" and "Isaac Adjin Bonney" on two shared tokens rather than one.
+const NAME_NOISE = new Set([
+  'mr', 'mrs', 'ms', 'miss', 'dr', 'prof', 'rev', 'sir', 'madam', 'hon',
+  'jr', 'jnr', 'sr', 'snr', 'ii', 'iii', 'ca', 'esq', 'phd', 'mba',
+]);
+
+export function nameTokens(value: string): string[] {
+  return (value ?? '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^a-z\s]/g, ' ')
+    .split(/\s+/)
+    .filter((token) => token.length > 1 && !NAME_NOISE.has(token));
+}
+
+// A single shared token is only ever considered when it is long enough to be
+// discriminating — matching "Nana" or "Kofi" against a 267-person roster is
+// noise, matching "Owusu-Anane" is not.
+const MIN_DISTINCTIVE_TOKEN_LENGTH = 4;
+
+export interface DisplayNameMatchOptions {
+  // 2 (default): a Zoom name must share two tokens with exactly one roster
+  //   entry. Safe enough to run unattended, and what the nightly sync uses.
+  // 1: one distinctive shared token is enough, still requiring exactly one
+  //   candidate. Recovers materially more of a shared-link session, at the
+  //   cost of some rows being wrong — founder-approved 2026-08-06 for the
+  //   ESG2 backfill, where the alternative was 177 of 267 registrants having
+  //   no route to a certificate. Opt-in per call; never the sync's default.
+  minSharedTokens?: 1 | 2;
+}
+
+// Display-name fallback for participants who joined on a shared link, where
+// Zoom reports a self-typed name and no email.
+//
+// The ambiguity rule is absolute at BOTH strictness levels: if two roster
+// entries are equally plausible, the answer is null. Picking one arbitrarily
+// would silently attribute a session to the wrong person, and on a free Batch
+// an attendance row is what makes a certificate issuable.
+export function matchByDisplayName(
+  displayName: string,
+  roster: Array<{ registrationId: string; name: string }>,
+  options: DisplayNameMatchOptions = {},
+): string | null {
+  const minSharedTokens = options.minSharedTokens ?? 2;
+  const zoomTokens = new Set(nameTokens(displayName));
+  if (zoomTokens.size === 0) return null;
+
+  const strict = roster.filter(
+    (entry) => nameTokens(entry.name).filter((token) => zoomTokens.has(token)).length >= 2,
+  );
+  if (strict.length === 1) return strict[0].registrationId;
+  // More than one two-token candidate is genuine ambiguity — never fall
+  // through to the looser tier, which could only be more ambiguous.
+  if (strict.length > 1 || minSharedTokens === 2) return null;
+
+  const loose = roster.filter((entry) =>
+    nameTokens(entry.name).some(
+      (token) => token.length >= MIN_DISTINCTIVE_TOKEN_LENGTH && zoomTokens.has(token),
+    ),
+  );
+  return loose.length === 1 ? loose[0].registrationId : null;
 }
 
 export async function ensureZoomRegistration(
@@ -89,6 +161,158 @@ export async function reregisterForZoomAfterTransfer(
   return ensureZoomRegistration(registrationId);
 }
 
+interface AggregatedAttendance {
+  registrationId: string;
+  sessionDate: string;
+  joinTime: string;
+  leaveTime: string;
+  durationSeconds: number;
+  sessionMinutes: number | null;
+  source: 'zoom_sync' | 'zoom_name_match';
+}
+
+// How long the session itself ran, for the attendance-rate rule's denominator.
+//
+// The LONGEST single sitting, not the span from the first join to the last
+// leave of the day: the room typically opens for a host check in the morning
+// and again for stragglers afterwards, so on 2026-08-06 the full-day span was
+// ~14 hours against an actual class of 175 minutes. Taking the longest sitting
+// picks out the class and ignores the bookends.
+export function sessionMinutesFrom(records: ZoomParticipantRecord[]): number | null {
+  const spans = new Map<string, { first: string; last: string }>();
+  for (const record of records) {
+    if (!record.joinTime || !record.leaveTime) continue;
+    const span = spans.get(record.instanceId);
+    if (!span) {
+      spans.set(record.instanceId, { first: record.joinTime, last: record.leaveTime });
+      continue;
+    }
+    if (record.joinTime < span.first) span.first = record.joinTime;
+    if (record.leaveTime > span.last) span.last = record.leaveTime;
+  }
+
+  let longest = 0;
+  for (const span of spans.values()) {
+    const from = Date.parse(span.first);
+    const to = Date.parse(span.last);
+    if (!Number.isFinite(from) || !Number.isFinite(to)) continue;
+    longest = Math.max(longest, Math.round((to - from) / 60000));
+  }
+  return longest > 0 ? longest : null;
+}
+
+export interface BatchSyncOutcome {
+  aggregated: AggregatedAttendance[];
+  unmatched: Array<{ name: string; email: string; minutes: number }>;
+  matchedByRegistrant: number;
+  matchedByEmail: number;
+  matchedByName: number;
+}
+
+// Pulls one Batch's Zoom participants for one date and resolves them to
+// Registrations. Pure of writes so both the nightly sync and the backfill —
+// and a dry run of either — share exactly one matching implementation.
+export async function resolveBatchAttendance(
+  batchId: string,
+  zoomMeetingId: string,
+  dateIso: string,
+  matchOptions: DisplayNameMatchOptions = {},
+): Promise<BatchSyncOutcome> {
+  const [participants, index] = await Promise.all([
+    getMeetingParticipantsOn(zoomMeetingId, dateIso),
+    attendanceRepository.selectRegistrationMatchIndex(batchId),
+  ]);
+
+  const outcome: BatchSyncOutcome = {
+    aggregated: [],
+    unmatched: [],
+    matchedByRegistrant: 0,
+    matchedByEmail: 0,
+    matchedByName: 0,
+  };
+
+  const sessionMinutes = sessionMinutesFrom(participants);
+
+  // One participant can appear several times (drop and rejoin, or a second
+  // sitting of the same meeting on the same day) — aggregate per registration
+  // per session date.
+  const aggregated = new Map<string, AggregatedAttendance>();
+  for (const record of participants) {
+    // Most exact key first: a personal registrant link needs no matching at
+    // all. Then the registered email. Only then the self-typed display name.
+    let registrationId = record.registrantId
+      ? index.byRegistrantId.get(record.registrantId)
+      : undefined;
+    let source: AggregatedAttendance['source'] = 'zoom_sync';
+    if (registrationId) {
+      outcome.matchedByRegistrant += 1;
+    } else {
+      if (record.email) registrationId = index.byEmail.get(record.email);
+      if (registrationId) {
+        outcome.matchedByEmail += 1;
+      } else {
+        const named = matchByDisplayName(record.name, index.roster, matchOptions);
+        if (named) {
+          registrationId = named;
+          source = 'zoom_name_match';
+          outcome.matchedByName += 1;
+        }
+      }
+    }
+
+    if (!registrationId) {
+      outcome.unmatched.push({
+        name: record.name,
+        email: record.email,
+        minutes: Math.round(record.durationSeconds / 60),
+      });
+      continue;
+    }
+
+    const sessionDate = record.joinTime.slice(0, 10) || dateIso;
+    const key = `${registrationId}:${sessionDate}`;
+    const entry = aggregated.get(key);
+    if (entry) {
+      entry.durationSeconds += record.durationSeconds;
+      if (record.joinTime && record.joinTime < entry.joinTime) entry.joinTime = record.joinTime;
+      if (record.leaveTime > entry.leaveTime) entry.leaveTime = record.leaveTime;
+      // An observed match anywhere in the person's join records outranks an
+      // inferred one — don't let a later name-matched rejoin downgrade it.
+      if (source === 'zoom_sync') entry.source = 'zoom_sync';
+    } else {
+      aggregated.set(key, {
+        registrationId,
+        sessionDate,
+        joinTime: record.joinTime,
+        leaveTime: record.leaveTime,
+        durationSeconds: record.durationSeconds,
+        sessionMinutes,
+        source,
+      });
+    }
+  }
+
+  outcome.aggregated = [...aggregated.values()];
+  return outcome;
+}
+
+async function writeAggregated(entries: AggregatedAttendance[]): Promise<number> {
+  let written = 0;
+  for (const entry of entries) {
+    await attendanceRepository.upsertAttendance({
+      registration_id: entry.registrationId,
+      session_date: entry.sessionDate,
+      join_time: entry.joinTime || null,
+      leave_time: entry.leaveTime || null,
+      duration_minutes: Math.round(entry.durationSeconds / 60),
+      session_minutes: entry.sessionMinutes,
+      source: entry.source,
+    });
+    written += 1;
+  }
+  return written;
+}
+
 export async function runAttendanceSync(now = new Date()): Promise<AttendanceSyncSummary> {
   const dateIso = now.toISOString().slice(0, 10);
   const summary: AttendanceSyncSummary = {
@@ -96,70 +320,117 @@ export async function runAttendanceSync(now = new Date()): Promise<AttendanceSyn
     batchesEvaluated: 0,
     rowsUpserted: 0,
     unmatchedParticipants: 0,
+    matchedByRegistrant: 0,
+    matchedByEmail: 0,
+    matchedByName: 0,
     errors: [],
   };
-  if (!isZoomConfigured()) return summary;
+  if (!isZoomConfigured()) {
+    summary.errors.push('Zoom is not configured — no attendance was synced.');
+    return summary;
+  }
 
   const batches = await attendanceRepository.selectBatchesForAttendanceSync(dateIso);
   for (const batch of batches) {
     summary.batchesEvaluated += 1;
     try {
-      const [participants, emailMap] = await Promise.all([
-        getPastMeetingParticipants(batch.zoom_meeting_id),
-        attendanceRepository.selectRegistrationEmailMap(batch.id),
-      ]);
-
-      // One participant can appear several times (drop and rejoin) —
-      // aggregate per registration per session date.
-      const aggregated = new Map<
-        string,
-        {
-          registrationId: string;
-          sessionDate: string;
-          joinTime: string;
-          leaveTime: string;
-          durationSeconds: number;
-        }
-      >();
-      for (const record of participants) {
-        const registrationId = emailMap.get(record.email);
-        if (!registrationId) {
-          summary.unmatchedParticipants += 1;
-          continue;
-        }
-        const sessionDate = record.joinTime.slice(0, 10) || dateIso;
-        const key = `${registrationId}:${sessionDate}`;
-        const entry = aggregated.get(key);
-        if (entry) {
-          entry.durationSeconds += record.durationSeconds;
-          if (record.joinTime < entry.joinTime) entry.joinTime = record.joinTime;
-          if (record.leaveTime > entry.leaveTime) entry.leaveTime = record.leaveTime;
-        } else {
-          aggregated.set(key, {
-            registrationId,
-            sessionDate,
-            joinTime: record.joinTime,
-            leaveTime: record.leaveTime,
-            durationSeconds: record.durationSeconds,
-          });
-        }
-      }
-
-      for (const entry of aggregated.values()) {
-        await attendanceRepository.upsertAttendance({
-          registration_id: entry.registrationId,
-          session_date: entry.sessionDate,
-          join_time: entry.joinTime || null,
-          leave_time: entry.leaveTime || null,
-          duration_minutes: Math.round(entry.durationSeconds / 60),
-        });
-        summary.rowsUpserted += 1;
-      }
+      const outcome = await resolveBatchAttendance(batch.id, batch.zoom_meeting_id, dateIso);
+      summary.rowsUpserted += await writeAggregated(outcome.aggregated);
+      summary.unmatchedParticipants += outcome.unmatched.length;
+      summary.matchedByRegistrant += outcome.matchedByRegistrant;
+      summary.matchedByEmail += outcome.matchedByEmail;
+      summary.matchedByName += outcome.matchedByName;
     } catch (err) {
       summary.errors.push(`${batch.id}: ${String(err)}`);
     }
   }
   return summary;
+}
+
+export interface AttendanceBackfillResult extends AttendanceSyncSummary {
+  batchId: string;
+  dates: string[];
+  dryRun: boolean;
+  // Zoom attendees that resolved to nobody on the roster — the review list.
+  unmatched: Array<{ date: string; name: string; email: string; minutes: number }>;
+}
+
+// Recovers a Batch whose sessions ran while the sync was failing.
+//
+// runAttendanceSync deliberately only looks at batches still in progress
+// (selectBatchesForAttendanceSync), so once a Batch's window closes its
+// sessions can never be picked up again. This is the explicit, admin-driven
+// way back in: one named Batch, named dates, and a dry run by default so the
+// matching can be reviewed before anything is written.
+export async function runAttendanceBackfill(params: {
+  batchId: string;
+  dates?: string[];
+  dryRun?: boolean;
+  minSharedTokens?: 1 | 2;
+}): Promise<AttendanceBackfillResult> {
+  const dryRun = params.dryRun ?? true;
+  const matchOptions: DisplayNameMatchOptions = { minSharedTokens: params.minSharedTokens ?? 2 };
+  const batch = await attendanceRepository.selectBatchForBackfill(params.batchId);
+  if (!batch) {
+    throw new AppError(
+      'NOT_FOUND',
+      'Batch not found, or it has no Zoom meeting id to sync attendance from.',
+      404,
+    );
+  }
+  const dates = params.dates?.length
+    ? params.dates
+    : datesBetween(batch.start_date, batch.end_date);
+
+  const result: AttendanceBackfillResult = {
+    batchId: batch.id,
+    dates,
+    dryRun,
+    date: dates[dates.length - 1] ?? '',
+    batchesEvaluated: 1,
+    rowsUpserted: 0,
+    unmatchedParticipants: 0,
+    matchedByRegistrant: 0,
+    matchedByEmail: 0,
+    matchedByName: 0,
+    unmatched: [],
+    errors: [],
+  };
+  if (!isZoomConfigured()) {
+    result.errors.push('Zoom is not configured — nothing to backfill from.');
+    return result;
+  }
+
+  for (const dateIso of dates) {
+    try {
+      const outcome = await resolveBatchAttendance(
+        batch.id,
+        batch.zoom_meeting_id,
+        dateIso,
+        matchOptions,
+      );
+      result.matchedByRegistrant += outcome.matchedByRegistrant;
+      result.matchedByEmail += outcome.matchedByEmail;
+      result.matchedByName += outcome.matchedByName;
+      result.unmatchedParticipants += outcome.unmatched.length;
+      result.unmatched.push(...outcome.unmatched.map((u) => ({ date: dateIso, ...u })));
+      result.rowsUpserted += dryRun
+        ? outcome.aggregated.length
+        : await writeAggregated(outcome.aggregated);
+    } catch (err) {
+      result.errors.push(`${batch.id} ${dateIso}: ${String(err)}`);
+    }
+  }
+  return result;
+}
+
+function datesBetween(startDate: string, endDate: string): string[] {
+  const dates: string[] = [];
+  const end = Date.parse(endDate);
+  for (let day = Date.parse(startDate); day <= end; day += 24 * 60 * 60 * 1000) {
+    dates.push(new Date(day).toISOString().slice(0, 10));
+  }
+  return dates;
 }
 
 function toAttendanceEntry(row: {
@@ -170,6 +441,7 @@ function toAttendanceEntry(row: {
   join_time: string | null;
   leave_time: string | null;
   duration_minutes: number;
+  session_minutes?: number | null;
 }) {
   return {
     registrationId: row.registration_id,
@@ -179,6 +451,11 @@ function toAttendanceEntry(row: {
     joinTime: row.join_time,
     leaveTime: row.leave_time,
     durationMinutes: row.duration_minutes,
+    sessionMinutes: row.session_minutes ?? null,
+    // Shown alongside the raw minutes so staff can see WHY someone counts as
+    // absent for certificates despite having an attendance row.
+    attendanceRatePercent: attendanceRatePercent(row.duration_minutes, row.session_minutes),
+    meetsThreshold: meetsAttendanceThreshold(row.duration_minutes, row.session_minutes),
   };
 }
 

@@ -98,6 +98,17 @@ export const listLeadsFiltersSchema = z.object({
   // string here, since z.coerce.boolean() would treat the literal string
   // "false" as truthy (any non-empty string coerces to true in JS).
   dueForFollowUp: z.boolean().optional(),
+  // Filters on created_at. Applied in the repository query, not in the
+  // browser, because selectLeads is capped at LEADS_QUERY_LIMIT — a
+  // browser-side filter would only ever search the newest 500 leads.
+  dateFrom: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  dateTo: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
 });
 
 export type ListLeadsFilters = z.infer<typeof listLeadsFiltersSchema>;

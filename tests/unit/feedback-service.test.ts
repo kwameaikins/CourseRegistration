@@ -5,6 +5,7 @@ const repositoryMock = {
   insertFeedback: vi.fn(),
   selectBatchesEndedOn: vi.fn(),
   selectPaidRegistrationIdsForBatch: vi.fn(),
+  selectAttendedRegistrationIdsForBatch: vi.fn(),
   selectFeedbackForBatch: vi.fn(),
   countPaidRegistrationsForBatch: vi.fn(),
 };
@@ -23,6 +24,7 @@ vi.mock('@/modules/certificates/service', () => certificatesServiceMock);
 const {
   feedbackRequestDateFor,
   runFeedbackRequestDispatch,
+  runFeedbackRequestForAttendees,
   submitFeedback,
 } = await import('@/modules/feedback/service');
 const { feedbackSubmissionSchema } = await import('@/modules/feedback/types');
@@ -55,9 +57,48 @@ describe('feedback request timing', () => {
   });
 });
 
+describe('runFeedbackRequestForAttendees', () => {
+  beforeEach(() => {
+    repositoryMock.selectAttendedRegistrationIdsForBatch.mockResolvedValue(['reg-1', 'reg-2']);
+  });
+
+  it('defaults to a dry run and sends nothing', async () => {
+    const result = await runFeedbackRequestForAttendees({ batchId: 'batch-1' });
+    expect(result.dryRun).toBe(true);
+    expect(result.attendedRegistrations).toBe(2);
+    expect(result.emailsSent).toBe(0);
+    expect(sendEmailOnceMock).not.toHaveBeenCalled();
+  });
+
+  it('targets attendees, never the full paid roster', async () => {
+    sendEmailOnceMock.mockResolvedValue('sent');
+    const result = await runFeedbackRequestForAttendees({ batchId: 'batch-1', dryRun: false });
+    expect(repositoryMock.selectPaidRegistrationIdsForBatch).not.toHaveBeenCalled();
+    expect(result.emailsSent).toBe(2);
+    expect(sendEmailOnceMock).toHaveBeenCalledWith('reg-1', 'post_training_thankyou');
+    expect(sendEmailOnceMock).toHaveBeenCalledWith('reg-2', 'post_training_thankyou');
+  });
+
+  it('counts an already-mailed registration as skipped, not sent', async () => {
+    sendEmailOnceMock.mockResolvedValueOnce('sent').mockResolvedValueOnce('skipped');
+    const result = await runFeedbackRequestForAttendees({ batchId: 'batch-1', dryRun: false });
+    expect(result.emailsSent).toBe(1);
+    expect(result.skipped).toBe(1);
+  });
+
+  it('one failure never stops the rest of the send', async () => {
+    sendEmailOnceMock
+      .mockRejectedValueOnce(new Error('resend exploded'))
+      .mockResolvedValueOnce('sent');
+    const result = await runFeedbackRequestForAttendees({ batchId: 'batch-1', dryRun: false });
+    expect(result.errors).toHaveLength(1);
+    expect(result.emailsSent).toBe(1);
+  });
+});
+
 describe('runFeedbackRequestDispatch', () => {
   it('sends the post_training_thankyou email to every Paid registration', async () => {
-    repositoryMock.selectBatchesEndedOn.mockResolvedValue([{ id: 'batch-1' }]);
+    repositoryMock.selectBatchesEndedOn.mockResolvedValue([{ id: 'batch-1', is_free: false }]);
     repositoryMock.selectPaidRegistrationIdsForBatch.mockResolvedValue(['reg-1', 'reg-2']);
 
     const summary = await runFeedbackRequestDispatch(new Date('2026-07-20T07:00:00Z'));
@@ -69,8 +110,35 @@ describe('runFeedbackRequestDispatch', () => {
     expect(summary.errors).toEqual([]);
   });
 
+  // On a free Batch every registration auto-settles to Paid, so paid-targeting
+  // would mail the certificate-for-feedback promise to people who never joined.
+  it('targets ATTENDEES on a free Batch, not the paid roster', async () => {
+    repositoryMock.selectBatchesEndedOn.mockResolvedValue([{ id: 'batch-free', is_free: true }]);
+    repositoryMock.selectAttendedRegistrationIdsForBatch.mockResolvedValue(['reg-attended']);
+
+    const summary = await runFeedbackRequestDispatch(new Date('2026-07-20T07:00:00Z'));
+
+    expect(repositoryMock.selectAttendedRegistrationIdsForBatch).toHaveBeenCalledWith('batch-free');
+    expect(repositoryMock.selectPaidRegistrationIdsForBatch).not.toHaveBeenCalled();
+    expect(sendEmailOnceMock).toHaveBeenCalledWith('reg-attended', 'post_training_thankyou');
+    expect(summary.emailsSent).toBe(1);
+  });
+
+  // Attendance can legitimately be empty on a paid Batch; a paid participant
+  // earns their certificate whether or not the Zoom sync saw them.
+  it('never gates a paid Batch on attendance', async () => {
+    repositoryMock.selectBatchesEndedOn.mockResolvedValue([{ id: 'batch-paid', is_free: false }]);
+    repositoryMock.selectPaidRegistrationIdsForBatch.mockResolvedValue(['reg-1']);
+    repositoryMock.selectAttendedRegistrationIdsForBatch.mockResolvedValue([]);
+
+    const summary = await runFeedbackRequestDispatch(new Date('2026-07-20T07:00:00Z'));
+
+    expect(repositoryMock.selectAttendedRegistrationIdsForBatch).not.toHaveBeenCalled();
+    expect(summary.emailsSent).toBe(1);
+  });
+
   it('counts dedup skips instead of re-sending (cron re-run safety)', async () => {
-    repositoryMock.selectBatchesEndedOn.mockResolvedValue([{ id: 'batch-1' }]);
+    repositoryMock.selectBatchesEndedOn.mockResolvedValue([{ id: 'batch-1', is_free: false }]);
     repositoryMock.selectPaidRegistrationIdsForBatch.mockResolvedValue(['reg-1']);
     sendEmailOnceMock.mockResolvedValue('skipped_duplicate');
 

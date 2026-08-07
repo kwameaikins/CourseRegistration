@@ -2,6 +2,7 @@
 // service-role client by design (same posture as communications): the
 // unguessable Registration UUID is the access token, and feedback has no
 // anon RLS policies. Staff reads run on the RLS-enforced server client.
+import { meetsAttendanceThreshold } from '@/lib/attendance-constants';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import type { Database } from '@/lib/supabase/database.types';
@@ -83,11 +84,11 @@ export async function insertFeedback(row: {
 // targets these the following morning.
 export async function selectBatchesEndedOn(
   dateIso: string,
-): Promise<Array<{ id: string }>> {
+): Promise<Array<{ id: string; is_free: boolean }>> {
   const supabase = createSupabaseServiceRoleClient();
   const { data, error } = await supabase
     .from('batches')
-    .select('id')
+    .select('id, is_free')
     .eq('is_active', true)
     .eq('end_date', dateIso);
   if (error) throw error;
@@ -114,6 +115,42 @@ export async function selectPaidRegistrationIdsForBatch(
   return (payments ?? [])
     .filter((payment) => payment.payment_status === 'Paid')
     .map((payment) => payment.registration_id);
+}
+
+// Registrations on this Batch whose attendance clears MIN_ATTENDANCE_RATIO —
+// i.e. the people the post-course thank-you can honestly promise a certificate
+// to (2026-08-06). The blanket dispatch keys off payment instead, which on a
+// free Batch means everyone who ever filled in the form.
+//
+// A manual correction is an admin's explicit ruling and is never re-judged
+// against the measured threshold — same exemption as certificate eligibility.
+export async function selectAttendedRegistrationIdsForBatch(
+  batchId: string,
+): Promise<string[]> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data: registrations, error } = await supabase
+    .from('registrations')
+    .select('id')
+    .eq('batch_id', batchId);
+  if (error) throw error;
+  if (!registrations || registrations.length === 0) return [];
+
+  const { data: attendance, error: attendanceError } = await supabase
+    .from('attendance')
+    .select('registration_id, duration_minutes, session_minutes, source')
+    .in('registration_id', registrations.map((r) => r.id));
+  if (attendanceError) throw attendanceError;
+
+  const attended = new Set<string>();
+  for (const row of attendance ?? []) {
+    if (
+      row.source === 'manual_correction' ||
+      meetsAttendanceThreshold(row.duration_minutes, row.session_minutes)
+    ) {
+      attended.add(row.registration_id);
+    }
+  }
+  return [...attended];
 }
 
 // Staff review read (RLS enforces admin/management on feedback). Participant
