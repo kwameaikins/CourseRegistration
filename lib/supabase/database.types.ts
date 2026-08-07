@@ -1752,6 +1752,163 @@ export type Database = {
           },
         ]
       }
+      coupons: {
+        Row: {
+          id: string
+          code: string
+          description: string | null
+          discount_type: string
+          discount_value: number
+          applies_to_course_id: string | null
+          max_uses: number | null
+          uses_count: number
+          one_per_participant: boolean
+          starts_at: string | null
+          expires_at: string | null
+          is_active: boolean
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          code: string
+          description?: string | null
+          discount_type: string
+          discount_value: number
+          applies_to_course_id?: string | null
+          max_uses?: number | null
+          uses_count?: number
+          one_per_participant?: boolean
+          starts_at?: string | null
+          expires_at?: string | null
+          is_active?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          code?: string
+          description?: string | null
+          discount_type?: string
+          discount_value?: number
+          applies_to_course_id?: string | null
+          max_uses?: number | null
+          uses_count?: number
+          one_per_participant?: boolean
+          starts_at?: string | null
+          expires_at?: string | null
+          is_active?: boolean
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coupons_applies_to_course_id_fkey"
+            columns: ["applies_to_course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coupons_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coupon_redemptions: {
+        Row: {
+          id: string
+          coupon_id: string
+          registration_id: string
+          participant_id: string
+          discount_amount_applied: number
+          applied_at_stage: string
+          applied_by_staff_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          coupon_id: string
+          registration_id: string
+          participant_id: string
+          discount_amount_applied?: number
+          applied_at_stage: string
+          applied_by_staff_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          coupon_id?: string
+          registration_id?: string
+          participant_id?: string
+          discount_amount_applied?: number
+          applied_at_stage?: string
+          applied_by_staff_id?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coupon_redemptions_coupon_id_fkey"
+            columns: ["coupon_id"]
+            isOneToOne: false
+            referencedRelation: "coupons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coupon_redemptions_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: true
+            referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coupon_redemptions_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "participants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coupon_redemptions_applied_by_staff_id_fkey"
+            columns: ["applied_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coupon_attempt_log: {
+        Row: {
+          id: string
+          participant_id: string
+          attempted_at: string
+        }
+        Insert: {
+          id?: string
+          participant_id: string
+          attempted_at?: string
+        }
+        Update: {
+          id?: string
+          participant_id?: string
+          attempted_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coupon_attempt_log_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "participants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       partner_link_clicks: {
         Row: {
           id: string

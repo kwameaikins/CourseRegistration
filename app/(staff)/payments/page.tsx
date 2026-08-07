@@ -104,6 +104,13 @@ export default function PaymentTrackingPage() {
   const [discountReason, setDiscountReason] = useState('');
   const [discountError, setDiscountError] = useState<string | null>(null);
   const [savingDiscount, setSavingDiscount] = useState(false);
+  // Coupon application (2026-08-07) — unlike the free-form discount above,
+  // the amount comes from the coupon's own terms and the reduction is
+  // recorded against the campaign.
+  const [couponTarget, setCouponTarget] = useState<RegistrationRow | null>(null);
+  const [couponCode, setCouponCode] = useState('');
+  const [couponError, setCouponError] = useState<string | null>(null);
+  const [savingCoupon, setSavingCoupon] = useState(false);
 
   const [view, setView] = useState<'tracking' | 'submissions'>('tracking');
   const [submissions, setSubmissions] = useState<SubmissionRow[]>([]);
@@ -366,6 +373,30 @@ export default function PaymentTrackingPage() {
     }
   }
 
+  function openCouponDialog(row: RegistrationRow) {
+    setCouponTarget(row);
+    setCouponCode('');
+    setCouponError(null);
+  }
+
+  async function saveCoupon() {
+    if (!couponTarget || couponCode.trim().length < 3) return;
+    setSavingCoupon(true);
+    setCouponError(null);
+    try {
+      await apiFetch(`/api/payments/${couponTarget.id}/coupon`, {
+        method: 'POST',
+        body: JSON.stringify({ code: couponCode.trim() }),
+      });
+      setCouponTarget(null);
+      await reload();
+    } catch (err) {
+      setCouponError(err instanceof Error ? err.message : 'Failed to apply coupon.');
+    } finally {
+      setSavingCoupon(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -565,14 +596,24 @@ export default function PaymentTrackingPage() {
                     <p className="text-xs text-muted-foreground">
                       Verified by: {row.verifiedBy ?? 'Auto-filled on save'}
                     </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs"
-                      onClick={() => openDiscountDialog(row)}
-                    >
-                      Apply discount
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => openDiscountDialog(row)}
+                      >
+                        Apply discount
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => openCouponDialog(row)}
+                      >
+                        Apply coupon
+                      </Button>
+                    </div>
                   </div>
                 </TableCell>
               </TableRow>
@@ -708,6 +749,50 @@ export default function PaymentTrackingPage() {
               }
             >
               {savingDiscount ? 'Saving…' : 'Apply discount'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={couponTarget !== null} onOpenChange={(open) => !open && setCouponTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Apply coupon</DialogTitle>
+            <DialogDescription>
+              {couponTarget
+                ? `Apply a coupon code for ${couponTarget.fullName}. Current fee: ${formatGhs(couponTarget.courseFee)}, outstanding: ${formatGhs(couponTarget.balance)}.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {couponTarget && (
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="couponCode">Coupon code</Label>
+                <Input
+                  id="couponCode"
+                  placeholder="NEWYEAR25"
+                  value={couponCode}
+                  onChange={(event) => setCouponCode(event.target.value.toUpperCase())}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                The discount comes from the coupon&apos;s own terms and is capped at the
+                outstanding balance. The reduction is recorded against the campaign, and the
+                coupon&apos;s usage allowance is consumed.
+              </p>
+              {couponError && (
+                <p role="alert" className="text-sm text-destructive">
+                  {couponError}
+                </p>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCouponTarget(null)}>
+              Cancel
+            </Button>
+            <Button onClick={saveCoupon} disabled={savingCoupon || couponCode.trim().length < 3}>
+              {savingCoupon ? 'Applying…' : 'Apply coupon'}
             </Button>
           </DialogFooter>
         </DialogContent>

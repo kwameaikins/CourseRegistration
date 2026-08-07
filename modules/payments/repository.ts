@@ -159,6 +159,21 @@ export async function selectPaymentSummaryByTransactionIdSystem(
   return { registrationId: data.registration_id, paymentStatus: data.payment_status };
 }
 
+// The batch and participant behind a registration — needed to validate a
+// coupon (course scope) and to attribute its redemption.
+export async function selectRegistrationContextSystem(
+  registrationId: string,
+): Promise<{ batchId: string; participantId: string } | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('registrations')
+    .select('batch_id, participant_id')
+    .eq('id', registrationId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? { batchId: data.batch_id, participantId: data.participant_id } : null;
+}
+
 export async function selectPaymentByRegistrationIdSystem(
   registrationId: string,
 ): Promise<PaymentRow | null> {
