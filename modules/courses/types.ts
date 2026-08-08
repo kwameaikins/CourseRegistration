@@ -35,6 +35,12 @@ export interface Batch {
   startDate: string;
   startTime: string;
   endDate: string;
+  // Class schedule (2026-08-08). Null on batches created before it existed —
+  // those keep the Course's always-open classroom. Set together, they earn
+  // the batch its own Zoom meeting that opens 15 minutes before each session.
+  // meetingDays uses Zoom's encoding: 1 = Sunday ... 7 = Saturday.
+  endTime: string | null;
+  meetingDays: number[] | null;
   zoomLink: string | null;
   // Numeric Zoom meeting ID (registration-required meeting) — enables
   // personal join links and attendance sync when set.
@@ -147,6 +153,18 @@ export const batchInputSchema = z
     startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     startTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
     endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    // Class schedule (2026-08-08). Both optional: a batch without them still
+    // works exactly as before, inheriting the Course's always-open classroom.
+    // Supplying BOTH is what earns a time-boxed Zoom meeting that only opens
+    // 15 minutes before each session — see createBatchClassroomMeeting.
+    endTime: z
+      .string()
+      .regex(/^\d{2}:\d{2}(:\d{2})?$/)
+      .nullable()
+      .optional(),
+    // Zoom's weekly_days encoding, stored and sent verbatim: 1 = Sunday ...
+    // 7 = Saturday.
+    meetingDays: z.array(z.number().int().min(1).max(7)).min(1).max(7).nullable().optional(),
     whatsappGroupLink: httpsUrl,
     resourcesLink: httpsUrl,
     facilitatorName: z.string().trim().min(2),
@@ -165,6 +183,20 @@ export const batchInputSchema = z
     message: 'Start Date must be on or before End Date',
     path: ['startDate'],
   })
+  .refine(
+    (batch) => !batch.endTime || batch.endTime > batch.startTime,
+    { message: 'End Time must be after Start Time', path: ['endTime'] },
+  )
+  // Half a schedule is worse than none: an end time with no meeting days (or
+  // the reverse) cannot produce a Zoom recurrence, and silently falling back
+  // would leave staff believing they had set a join window when they had not.
+  .refine(
+    (batch) => Boolean(batch.endTime) === Boolean(batch.meetingDays?.length),
+    {
+      message: 'Set both the class End Time and the days the cohort meets, or neither',
+      path: ['meetingDays'],
+    },
+  )
   .refine(
     (batch) => {
       const cutoff = batch.discountCutoffDate ?? null;

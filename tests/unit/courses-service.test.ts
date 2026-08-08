@@ -13,6 +13,7 @@ const coursesRepositoryMock = {
 const seedDefaultTemplatesForCourseMock = vi.fn();
 const zoomClientMock = {
   createZoomMeeting: vi.fn(),
+  createBatchClassroomMeeting: vi.fn(),
   isZoomMeetingCreateConfigured: vi.fn(),
 };
 const waitlistServiceMock = {
@@ -169,6 +170,71 @@ describe('createBatch — inherits the parent Course\'s Zoom meeting', () => {
       discountedFee: null,
     };
   }
+
+  // Time-boxed classroom (founder-flagged 2026-08-08). A batch that records
+  // when it actually meets gets its OWN fixed-time meeting instead of the
+  // course's shared type 3 room, which Zoom leaves joinable at any hour.
+  it('creates a per-batch classroom when the batch records a full schedule', async () => {
+    coursesRepositoryMock.selectCourseByIdSystem.mockResolvedValue(
+      courseRow({ zoom_link: 'https://zoom.us/j/shared', zoom_meeting_id: 'shared-id' }),
+    );
+    zoomClientMock.createBatchClassroomMeeting.mockResolvedValue({
+      meetingId: 'batch-meeting-id',
+      joinUrl: 'https://zoom.us/j/batch-meeting',
+    });
+    coursesRepositoryMock.insertBatch.mockResolvedValue(batchRow());
+
+    await createBatch({ ...validBatchInput(), endTime: '12:00', meetingDays: [1, 7] });
+
+    expect(zoomClientMock.createBatchClassroomMeeting).toHaveBeenCalledWith(
+      expect.objectContaining({ endTime: '12:00', meetingDays: [1, 7] }),
+    );
+    // The batch's own room wins over the inherited one.
+    expect(coursesRepositoryMock.insertBatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        zoom_link: 'https://zoom.us/j/batch-meeting',
+        zoom_meeting_id: 'batch-meeting-id',
+        end_time: '12:00',
+        meeting_days: [1, 7],
+      }),
+    );
+    expect(zoomClientMock.createZoomMeeting).not.toHaveBeenCalled();
+  });
+
+  // An always-open room is a smaller problem than a recurrence that ends
+  // mid-course and locks students out of their own classes.
+  it('falls back to the shared course room when the classroom create fails', async () => {
+    coursesRepositoryMock.selectCourseByIdSystem.mockResolvedValue(
+      courseRow({ zoom_link: 'https://zoom.us/j/shared', zoom_meeting_id: 'shared-id' }),
+    );
+    zoomClientMock.createBatchClassroomMeeting.mockRejectedValue(
+      new Error('above Zoom 50-occurrence limit'),
+    );
+    coursesRepositoryMock.insertBatch.mockResolvedValue(batchRow());
+
+    await createBatch({ ...validBatchInput(), endTime: '12:00', meetingDays: [2, 3, 4, 5, 6] });
+
+    expect(coursesRepositoryMock.insertBatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        zoom_link: 'https://zoom.us/j/shared',
+        zoom_meeting_id: 'shared-id',
+      }),
+    );
+  });
+
+  it('leaves a batch with no recorded schedule on the shared course room', async () => {
+    coursesRepositoryMock.selectCourseByIdSystem.mockResolvedValue(
+      courseRow({ zoom_link: 'https://zoom.us/j/shared', zoom_meeting_id: 'shared-id' }),
+    );
+    coursesRepositoryMock.insertBatch.mockResolvedValue(batchRow());
+
+    await createBatch(validBatchInput());
+
+    expect(zoomClientMock.createBatchClassroomMeeting).not.toHaveBeenCalled();
+    expect(coursesRepositoryMock.insertBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ end_time: null, meeting_days: null }),
+    );
+  });
 
   it("copies the course's zoom_link/zoom_meeting_id onto the new batch", async () => {
     coursesRepositoryMock.selectCourseByIdSystem.mockResolvedValue(
