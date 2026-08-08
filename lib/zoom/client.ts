@@ -192,6 +192,134 @@ export async function createZoomMeeting(
   return { meetingId: String(data.id), joinUrl: data.join_url };
 }
 
+// Ghana. UTC+0 year-round with no DST, which is why passing no timezone at
+// all has been numerically harmless so far — but once a meeting carries a
+// real start_time, the timezone stops being cosmetic and decides when the
+// join window actually opens. Matches live_sessions.timezone's default.
+export const GHANA_TIMEZONE = 'Africa/Accra';
+
+// Zoom will not create an unbounded recurring series. The documented range
+// for end_times is 1-365 but the practical account limit is 50 occurrences,
+// and a series that hits the cap silently ENDS EARLY — which for a
+// join-before-host meeting means students locked out of the back half of
+// their own course. Callers check this and fall back rather than risk it.
+export const ZOOM_MAX_RECURRENCE_OCCURRENCES = 50;
+
+// How early participants may join each session.
+const JOIN_BEFORE_HOST_MINUTES = 15;
+
+// Counts the class days between two dates, which is the occurrence count
+// Zoom will generate for a weekly recurrence. Pure and exported so the
+// occurrence cap above can be checked without calling Zoom.
+export function countRecurrenceOccurrences(
+  startDate: string,
+  endDate: string,
+  meetingDays: number[],
+): number {
+  if (meetingDays.length === 0 || endDate < startDate) return 0;
+  const days = new Set(meetingDays);
+  let count = 0;
+  const cursor = new Date(`${startDate}T00:00:00Z`);
+  const last = new Date(`${endDate}T00:00:00Z`);
+  while (cursor.getTime() <= last.getTime()) {
+    // Zoom's weekly_days encoding is 1 = Sunday ... 7 = Saturday, and
+    // getUTCDay() returns 0 = Sunday, hence the +1.
+    if (days.has(cursor.getUTCDay() + 1)) count += 1;
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return count;
+}
+
+function minutesBetween(startTime: string, endTime: string): number {
+  const [sh, sm] = startTime.split(':').map(Number);
+  const [eh, em] = endTime.split(':').map(Number);
+  return eh * 60 + em - (sh * 60 + sm);
+}
+
+// A classroom that is only open around class time (founder-flagged
+// 2026-08-08).
+//
+// The difference from createZoomMeeting above is the meeting TYPE, and it is
+// the whole point. Type 3 (recurring, no fixed time) has no start_time, so
+// Zoom's jbh_time has nothing to measure from and stays 0 — the room is open
+// at any hour, forever. Type 8 (recurring, FIXED time) gives every occurrence
+// a real start, so `jbh_time: 15` means exactly what it says: participants
+// can join from 15 minutes before class and not otherwise.
+//
+// join_before_host stays TRUE deliberately. It is not a hole here — with a
+// fixed schedule it is what lets class start without someone having to
+// remember to host, which is the behaviour this business actually relies on.
+// Turning it off would need a host present for every session.
+//
+// Scoped per BATCH rather than per Course, unavoidably: cohorts of the same
+// course run on different dates, and a fixed-time meeting can only carry one
+// schedule.
+export async function createBatchClassroomMeeting(params: {
+  topic: string;
+  startDate: string;
+  startTime: string;
+  endTime: string;
+  endDate: string;
+  meetingDays: number[];
+}): Promise<{ meetingId: string; joinUrl: string }> {
+  const hostEmail = process.env.ZOOM_HOST_EMAIL;
+  if (!hostEmail) {
+    throw new Error('ZOOM_HOST_EMAIL is not configured.');
+  }
+
+  const duration = minutesBetween(params.startTime, params.endTime);
+  if (duration <= 0) {
+    throw new Error('Batch end time must be after its start time.');
+  }
+
+  const occurrences = countRecurrenceOccurrences(
+    params.startDate,
+    params.endDate,
+    params.meetingDays,
+  );
+  if (occurrences === 0) {
+    throw new Error('This batch has no class days between its start and end dates.');
+  }
+  if (occurrences > ZOOM_MAX_RECURRENCE_OCCURRENCES) {
+    throw new Error(
+      `This batch needs ${occurrences} sessions, above Zoom's ${ZOOM_MAX_RECURRENCE_OCCURRENCES}-occurrence limit for a recurring meeting.`,
+    );
+  }
+
+  // No trailing Z: paired with `timezone`, Zoom reads this as a LOCAL time in
+  // that zone. With a Z it would be parsed as UTC, which happens to agree for
+  // Ghana today but would silently be wrong for any other zone.
+  const startTimeLocal = `${params.startDate}T${params.startTime.slice(0, 5)}:00`;
+
+  const data = await zoomFetch<{ id: number; join_url: string }>(
+    `/users/${encodeURIComponent(hostEmail)}/meetings`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        topic: params.topic,
+        type: 8,
+        start_time: startTimeLocal,
+        duration,
+        timezone: GHANA_TIMEZONE,
+        recurrence: {
+          type: 2, // weekly
+          repeat_interval: 1,
+          weekly_days: params.meetingDays.join(','),
+          end_date_time: `${params.endDate}T23:59:00Z`,
+        },
+        settings: {
+          approval_type: 0,
+          registration_type: 1,
+          waiting_room: false,
+          join_before_host: true,
+          jbh_time: JOIN_BEFORE_HOST_MINUTES,
+        },
+      }),
+    },
+  );
+  return { meetingId: String(data.id), joinUrl: data.join_url };
+}
+
 export interface ZoomParticipantRecord {
   email: string;
   name: string;

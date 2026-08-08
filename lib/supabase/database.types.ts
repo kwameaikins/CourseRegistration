@@ -431,12 +431,14 @@ export type Database = {
           discount_cutoff_date: string | null
           discounted_fee: number | null
           end_date: string
+          end_time: string | null
           facilitator_name: string
           facilitator_staff_id: string | null
           facilitator_tutor_id: string | null
           id: string
           is_active: boolean
           is_free: boolean
+          meeting_days: number[] | null
           payment_reminder_enabled: boolean
           resources_link: string | null
           sms_enabled: boolean
@@ -460,12 +462,14 @@ export type Database = {
           discount_cutoff_date?: string | null
           discounted_fee?: number | null
           end_date: string
+          end_time?: string | null
           facilitator_name: string
           facilitator_staff_id?: string | null
           facilitator_tutor_id?: string | null
           id?: string
           is_active?: boolean
           is_free?: boolean
+          meeting_days?: number[] | null
           payment_reminder_enabled?: boolean
           resources_link?: string | null
           sms_enabled?: boolean
@@ -489,12 +493,14 @@ export type Database = {
           discount_cutoff_date?: string | null
           discounted_fee?: number | null
           end_date?: string
+          end_time?: string | null
           facilitator_name?: string
           facilitator_staff_id?: string | null
           facilitator_tutor_id?: string | null
           id?: string
           is_active?: boolean
           is_free?: boolean
+          meeting_days?: number[] | null
           payment_reminder_enabled?: boolean
           resources_link?: string | null
           sms_enabled?: boolean

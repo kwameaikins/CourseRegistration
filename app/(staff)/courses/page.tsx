@@ -48,6 +48,10 @@ interface Batch {
   startDate: string;
   startTime: string;
   endDate: string;
+  // Null on batches created before the class schedule existed (2026-08-08).
+  // meetingDays uses Zoom's encoding: 1 = Sunday ... 7 = Saturday.
+  endTime: string | null;
+  meetingDays: number[] | null;
   whatsappGroupLink: string | null;
   resourcesLink: string | null;
   facilitatorName: string;
@@ -71,6 +75,18 @@ interface WaitlistEntry {
   createdAt: string;
 }
 
+// Zoom's weekly_days encoding, used verbatim end to end so nothing has to
+// translate between two day-numbering schemes: 1 = Sunday ... 7 = Saturday.
+const WEEKDAYS = [
+  { value: 1, label: 'Sun' },
+  { value: 2, label: 'Mon' },
+  { value: 3, label: 'Tue' },
+  { value: 4, label: 'Wed' },
+  { value: 5, label: 'Thu' },
+  { value: 6, label: 'Fri' },
+  { value: 7, label: 'Sat' },
+];
+
 const EMPTY_BATCH_FORM = {
   cohortLabel: '',
   capacity: '',
@@ -79,6 +95,8 @@ const EMPTY_BATCH_FORM = {
   startDate: '',
   startTime: '09:00',
   endDate: '',
+  endTime: '',
+  meetingDays: [] as number[],
   whatsappGroupLink: '',
   resourcesLink: '',
   facilitatorName: '',
@@ -218,6 +236,10 @@ export default function CourseControlPanelPage() {
           startDate: batchForm.startDate,
           startTime: batchForm.startTime,
           endDate: batchForm.endDate,
+          // Sent only as a complete pair — the server rejects half a
+          // schedule rather than silently building no join window.
+          endTime: batchForm.endTime || null,
+          meetingDays: batchForm.meetingDays.length > 0 ? batchForm.meetingDays : null,
           whatsappGroupLink: batchForm.whatsappGroupLink || null,
           resourcesLink: batchForm.resourcesLink || null,
           facilitatorName: batchForm.facilitatorName,
@@ -263,6 +285,12 @@ export default function CourseControlPanelPage() {
       startDate: batch.startDate,
       startTime: batch.startTime,
       endDate: batch.endDate,
+      // Carried through unchanged and deliberately not editable here. The
+      // Zoom room is built from this schedule at batch CREATION only, so
+      // letting staff edit it afterwards would leave the recorded schedule
+      // and the actual join window disagreeing with no warning.
+      endTime: batch.endTime ?? '',
+      meetingDays: batch.meetingDays ?? [],
       whatsappGroupLink: batch.whatsappGroupLink ?? '',
       resourcesLink: batch.resourcesLink ?? '',
       facilitatorName: batch.facilitatorName,
@@ -1017,6 +1045,54 @@ export default function CourseControlPanelPage() {
                           setBatchForm({ ...batchForm, startTime: event.target.value })
                         }
                       />
+                    </div>
+                    {/* Class schedule (2026-08-08). Filling BOTH of these
+                        gives the cohort its own Zoom room that only opens 15
+                        minutes before each session. Leaving both blank keeps
+                        the old behaviour: the Course's shared room, joinable
+                        at any time. */}
+                    <div className="space-y-2">
+                      <Label htmlFor="endTime">End Time</Label>
+                      <Input
+                        id="endTime"
+                        type="time"
+                        value={batchForm.endTime}
+                        onChange={(event) =>
+                          setBatchForm({ ...batchForm, endTime: event.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Days this cohort meets</Label>
+                      <div className="flex flex-wrap gap-3">
+                        {WEEKDAYS.map((day) => (
+                          <label
+                            key={day.value}
+                            className="flex items-center gap-1.5 text-sm font-normal"
+                          >
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4"
+                              checked={batchForm.meetingDays.includes(day.value)}
+                              onChange={(event) =>
+                                setBatchForm({
+                                  ...batchForm,
+                                  meetingDays: event.target.checked
+                                    ? [...batchForm.meetingDays, day.value].sort((a, b) => a - b)
+                                    : batchForm.meetingDays.filter((d) => d !== day.value),
+                                })
+                              }
+                            />
+                            {day.label}
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Set an End Time and at least one day to give this cohort its own Zoom
+                        room, open from 15 minutes before each session and closed the rest of
+                        the time (Ghana time). Leave both blank to keep using the course&apos;s
+                        shared room, which is joinable at any hour.
+                      </p>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="facilitatorName">Facilitator Name</Label>

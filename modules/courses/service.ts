@@ -10,7 +10,11 @@ import { seedDefaultTemplatesForCourse } from '@/modules/communications/default-
 // deleteRegistration.
 import * as waitlistService from '@/modules/waitlist/service';
 import * as usersService from '@/modules/users/service';
-import { createZoomMeeting, isZoomMeetingCreateConfigured } from '@/lib/zoom/client';
+import {
+  createBatchClassroomMeeting,
+  createZoomMeeting,
+  isZoomMeetingCreateConfigured,
+} from '@/lib/zoom/client';
 import type {
   Batch,
   BatchInput,
@@ -50,6 +54,8 @@ function toBatch(row: BatchRow): Batch {
     startDate: row.start_date,
     startTime: row.start_time,
     endDate: row.end_date,
+    endTime: row.end_time,
+    meetingDays: row.meeting_days,
     zoomLink: row.zoom_link,
     zoomMeetingId: row.zoom_meeting_id,
     whatsappGroupLink: row.whatsapp_group_link,
@@ -171,7 +177,39 @@ export async function createBatch(input: BatchInput): Promise<Batch> {
   let zoomLink = course?.zoom_link ?? null;
   let zoomMeetingId = course?.zoom_meeting_id ?? null;
 
-  if (!zoomLink && !zoomMeetingId && course && isZoomMeetingCreateConfigured()) {
+  // A batch that records its full schedule gets its OWN classroom, open only
+  // from 15 minutes before each session (founder-flagged 2026-08-08). The
+  // inherited Course meeting is type 3 — recurring with no fixed time — which
+  // Zoom leaves joinable at any hour forever, because jbh_time has no
+  // start_time to count back from.
+  //
+  // Per-batch rather than per-course is forced: a fixed-time meeting carries
+  // one schedule, and cohorts of the same course run on different dates.
+  //
+  // Falls back to the shared Course meeting on any failure — including a
+  // course too long for Zoom's 50-occurrence recurrence cap. An always-open
+  // room is a smaller problem than a series that ends mid-course and locks
+  // students out of their own classes.
+  let usedBatchClassroom = false;
+  if (input.endTime && input.meetingDays?.length && course && isZoomMeetingCreateConfigured()) {
+    try {
+      const meeting = await createBatchClassroomMeeting({
+        topic: `${course.course_name} — ${input.cohortLabel}`,
+        startDate: input.startDate,
+        startTime: input.startTime,
+        endTime: input.endTime,
+        endDate: input.endDate,
+        meetingDays: input.meetingDays,
+      });
+      zoomLink = meeting.joinUrl;
+      zoomMeetingId = meeting.meetingId;
+      usedBatchClassroom = true;
+    } catch (err) {
+      console.error('[batch classroom zoom meeting create]', err);
+    }
+  }
+
+  if (!usedBatchClassroom && !zoomLink && !zoomMeetingId && course && isZoomMeetingCreateConfigured()) {
     try {
       const meeting = await createZoomMeeting(course.course_name);
       zoomLink = meeting.joinUrl;
@@ -369,6 +407,8 @@ function toBatchInsert(input: BatchInput): Database['public']['Tables']['batches
     start_date: input.startDate,
     start_time: input.startTime,
     end_date: input.endDate,
+    end_time: input.endTime ?? null,
+    meeting_days: input.meetingDays ?? null,
     whatsapp_group_link: input.whatsappGroupLink ?? null,
     resources_link: input.resourcesLink ?? null,
     facilitator_name: input.facilitatorName,
