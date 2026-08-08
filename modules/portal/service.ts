@@ -38,6 +38,11 @@ import type {
   StudentAssignment,
   SubmitAssignmentInput,
 } from '@/modules/assignments/types';
+// Permitted cross-module call (2026-08-08) — access-grants owns the rule for
+// whether an unsettled registration may still see its joining details; the
+// portal only asks. Same posture as every other cross-module call here.
+import * as accessGrantsService from '@/modules/access-grants/service';
+import type { AccessState } from '@/modules/access-grants/types';
 import type { ParsedUpload } from '@/lib/uploads';
 // Permitted cross-module call (2026-08-02) — an existing student can
 // self-serve "Refer & Earn" from their own portal login instead of the
@@ -256,6 +261,16 @@ export async function updateName(
   }
 }
 
+// True once the last day of the batch has passed. Inclusive of end_date
+// itself, so the final session still shows its Join button all day.
+//
+// Ghana is UTC+0 year-round, so the UTC date is the local date — the same
+// assumption BR-17 rests on. Exported for direct unit testing.
+export function hasCourseEnded(endDate: string | null | undefined, now = new Date()): boolean {
+  if (!endDate) return false;
+  return endDate < now.toISOString().slice(0, 10);
+}
+
 export async function getPortalDashboard(sessionId: string | undefined): Promise<PortalDashboard> {
   const { participantId } = await requirePortalSession(sessionId);
   const [data, auth] = await Promise.all([
@@ -281,6 +296,19 @@ export async function getPortalDashboard(sessionId: string | undefined): Promise
     ),
   );
 
+  // Access gate (2026-08-08) — a settled balance OR a live time-boxed grant.
+  // Batched into one pair of queries for the whole dashboard, unlike the
+  // per-registration installment fetch above, because EVERY registration
+  // needs this rather than the rare few on a payment plan.
+  const accessStates = await accessGrantsService
+    .getAccessStatesSystem(data.registrations.map((row) => row.registration.id))
+    .catch((err) => {
+      // Fail closed: a lookup failure hides the join link rather than
+      // exposing it. The rest of the dashboard still renders.
+      console.error('[portal dashboard access states]', err);
+      return new Map<string, AccessState>();
+    });
+
   return {
     fullName: data.participant.full_name,
     // Fallback for participants created before first_name/surname were
@@ -301,17 +329,30 @@ export async function getPortalDashboard(sessionId: string | undefined): Promise
       startTime: row.batch?.start_time ?? '',
       endDate: row.batch?.end_date ?? '',
       facilitatorName: row.batch?.facilitator_name ?? '',
-      // Zoom link is only ever shown once payment is Paid — an Unpaid or
-      // Part Payment registrant must not see the shared classroom link
-      // (system review, 2026-07-22). Once Paid, personal join link
+      // Zoom link is only ever shown to someone with access — an Unpaid
+      // registrant with no grant must not see the shared classroom link
+      // (system review, 2026-07-22). With access, the personal join link
       // (individually registered on Zoom) takes priority over the course's
       // shared classroom link.
+      //
+      // Read from the grant's date rather than from registration_status,
+      // which a grant also sets: this way an expiry that the nightly sweep
+      // failed to process still closes the link the moment the day rolls
+      // over. Fails closed if the lookup above threw.
+      //
+      // Also hidden once the course is over (founder-flagged 2026-08-08) —
+      // a finished cohort has no class to join, and leaving a live-looking
+      // Join button on the card invites people into an empty meeting. The
+      // Zoom registrant itself is revoked separately, two days after
+      // end_date, by runPostCourseZoomRevocation; this is the visible half.
       zoomLink:
-        row.payment?.payment_status === 'Paid'
+        accessStates.get(row.registration.id)?.hasAccess && !hasCourseEnded(row.batch?.end_date)
           ? (row.zoomRegistrant?.join_url ?? row.batch?.zoom_link ?? null)
           : null,
-      resourcesLink:
-        row.payment?.payment_status === 'Paid' ? (row.batch?.resources_link ?? null) : null,
+      resourcesLink: accessStates.get(row.registration.id)?.hasAccess
+        ? (row.batch?.resources_link ?? null)
+        : null,
+      accessExpiresOn: accessStates.get(row.registration.id)?.until ?? null,
       // Free event / webinar: nothing was ever owed, so the portal hides the
       // fee, balance, receipt, installment-plan and payment-proof surfaces
       // rather than showing a row of zeros the participant has to interpret.

@@ -16,6 +16,11 @@ import * as partnersService from '@/modules/partners/service';
 // Same posture as partners above: coupons owns code validation and the
 // redemption record, this module owns the fee mutation.
 import * as couponsService from '@/modules/coupons/service';
+// Same posture again (2026-08-08): access-grants owns whether a part payment
+// earns a time-boxed seat and for how long; this module owns the money and
+// only reports that a payment landed. The dependency is deliberately one-way
+// — access-grants never imports payments.
+import * as accessGrantsService from '@/modules/access-grants/service';
 import type {
   Installment,
   Payment,
@@ -103,6 +108,23 @@ export async function runPaidTransitionSideEffects(
     console.error('[payment_confirmation sms]', err);
   }
   await runSettledEnrollmentSideEffects(registrationId);
+}
+
+// A payment landed but did not settle the balance. Since 2026-08-08 that is
+// no longer a dead end: once enough of the fee is in, access-grants opens a
+// time-boxed seat so the student can actually start attending while they
+// finish paying. The threshold, the window and the once-only rule all live
+// there — this is purely the trigger.
+//
+// Non-blocking and side-effect-only, same posture as every other function in
+// this section: the payment write has already committed, and a grant failing
+// must never fail the payment.
+export async function runPartPaymentSideEffects(registrationId: string): Promise<void> {
+  try {
+    await accessGrantsService.autoGrantOnPartPaymentSystem(registrationId);
+  } catch (err) {
+    console.error('[part payment auto access grant]', err);
+  }
 }
 
 // A Registration that owes nothing from the moment it is created: a free
@@ -200,6 +222,8 @@ export async function applyPaymentUpdate(
     } else {
       await runPaidTransitionSideEffects(registrationId, Number(updated.amount_paid));
     }
+  } else if (updated.payment_status === 'Part Payment') {
+    await runPartPaymentSideEffects(registrationId);
   }
 
   // Keep any payment-plan schedule in sync with the new total — never lets

@@ -56,6 +56,10 @@ interface DashboardRegistration {
   endDate: string;
   facilitatorName: string;
   zoomLink: string | null;
+  // Inclusive last day of a time-boxed access grant (part payment or credit),
+  // null when access is permanent or absent. Shown next to the Join button so
+  // the deadline is never a surprise.
+  accessExpiresOn: string | null;
   // Free event / webinar — nothing was ever owed, so every payment surface
   // for this registration is hidden rather than shown at zero.
   isFree: boolean;
@@ -970,6 +974,18 @@ export default function PortalDashboardPage() {
                       ) : (
                         <p className="empty-note" style={{ marginTop: 14, marginBottom: 0 }}>
                           Your Zoom link will appear here once available.
+                        </p>
+                      )}
+
+                      {/* Time-boxed access: say the deadline out loud rather
+                          than letting the Join button quietly disappear one
+                          morning. */}
+                      {reg.accessExpiresOn && (
+                        <p className="empty-note" style={{ marginTop: 10, marginBottom: 0 }}>
+                          Your access runs to {formatDate(reg.accessExpiresOn)}
+                          {reg.balance > 0
+                            ? ` — ${formatGhs(reg.balance)} still outstanding. Settle the balance to keep it open.`
+                            : '.'}
                         </p>
                       )}
 

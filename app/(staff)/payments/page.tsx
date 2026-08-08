@@ -53,6 +53,28 @@ interface RegistrationRow {
 
 const PAYMENT_METHODS = ['Bank Transfer', 'MTN MoMo', 'Paystack Card', 'Cash', 'Other'];
 
+// Mirrors DEFAULT_ACCESS_GRANT_DAYS in modules/access-grants/types. Repeated
+// rather than imported because that module pulls in server-only Supabase
+// clients through its service; the server re-derives the real default when
+// `days` is omitted, so this is only the prefill.
+const DEFAULT_ACCESS_DAYS = 5;
+
+const ACCESS_REASON_LABELS: Record<string, string> = {
+  part_payment: 'Part payment made',
+  credit: 'Attending on credit',
+  goodwill: 'Goodwill',
+};
+
+interface AccessGrantRow {
+  id: string;
+  reason: 'part_payment' | 'credit' | 'goodwill';
+  expiresOn: string;
+  note: string;
+  grantedByName: string | null;
+  grantedAt: string;
+  revokedAt: string | null;
+}
+
 function statusBadge(status: RegistrationRow['paymentStatus']) {
   // Colour reinforces the status text, never replaces it (Document 8).
   if (status === 'Paid') return <Badge className="bg-emerald-600">Paid</Badge>;
@@ -111,6 +133,19 @@ export default function PaymentTrackingPage() {
   const [couponCode, setCouponCode] = useState('');
   const [couponError, setCouponError] = useState<string | null>(null);
   const [savingCoupon, setSavingCoupon] = useState(false);
+  // Time-boxed access (2026-08-08) — lets a part payer or a credit student
+  // into class without touching the ledger. Unlike discount and coupon above,
+  // this changes nothing about what is owed.
+  const [accessTarget, setAccessTarget] = useState<RegistrationRow | null>(null);
+  const [accessGrants, setAccessGrants] = useState<AccessGrantRow[]>([]);
+  const [loadingAccess, setLoadingAccess] = useState(false);
+  const [accessReason, setAccessReason] = useState<'part_payment' | 'credit' | 'goodwill'>(
+    'part_payment',
+  );
+  const [accessDays, setAccessDays] = useState(String(DEFAULT_ACCESS_DAYS));
+  const [accessNote, setAccessNote] = useState('');
+  const [accessError, setAccessError] = useState<string | null>(null);
+  const [savingAccess, setSavingAccess] = useState(false);
 
   const [view, setView] = useState<'tracking' | 'submissions'>('tracking');
   const [submissions, setSubmissions] = useState<SubmissionRow[]>([]);
@@ -397,6 +432,81 @@ export default function PaymentTrackingPage() {
     }
   }
 
+  async function openAccessDialog(row: RegistrationRow) {
+    setAccessTarget(row);
+    setAccessReason(row.paymentStatus === 'Part Payment' ? 'part_payment' : 'credit');
+    setAccessDays(String(DEFAULT_ACCESS_DAYS));
+    setAccessNote('');
+    setAccessError(null);
+    setAccessGrants([]);
+    setLoadingAccess(true);
+    try {
+      const result = await apiFetch<{ grants: AccessGrantRow[] }>(
+        `/api/payments/${row.id}/access`,
+      );
+      setAccessGrants(result.grants);
+    } catch (err) {
+      setAccessError(err instanceof Error ? err.message : 'Failed to load access history.');
+    } finally {
+      setLoadingAccess(false);
+    }
+  }
+
+  // The live grant, if any — drives whether this dialog reads as "grant" or
+  // "extend", and whether withdrawing is offered at all.
+  const activeGrant = useMemo(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    return (
+      accessGrants
+        .filter((grant) => grant.revokedAt === null && grant.expiresOn >= today)
+        .sort((a, b) => (a.expiresOn < b.expiresOn ? 1 : -1))[0] ?? null
+    );
+  }, [accessGrants]);
+
+  async function saveAccess() {
+    if (!accessTarget || accessNote.trim().length < 3) return;
+    const days = Number(accessDays);
+    if (!Number.isInteger(days) || days < 1) {
+      setAccessError('Enter a whole number of days.');
+      return;
+    }
+    setSavingAccess(true);
+    setAccessError(null);
+    try {
+      await apiFetch(`/api/payments/${accessTarget.id}/access`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: accessReason, days, note: accessNote.trim() }),
+      });
+      setAccessTarget(null);
+      await reload();
+    } catch (err) {
+      setAccessError(err instanceof Error ? err.message : 'Failed to grant access.');
+    } finally {
+      setSavingAccess(false);
+    }
+  }
+
+  async function revokeAccess() {
+    if (!accessTarget || accessNote.trim().length < 3) {
+      setAccessError('Give a reason before withdrawing access.');
+      return;
+    }
+    setSavingAccess(true);
+    setAccessError(null);
+    try {
+      await apiFetch(`/api/payments/${accessTarget.id}/access`, {
+        method: 'DELETE',
+        body: JSON.stringify({ note: accessNote.trim() }),
+      });
+      setAccessTarget(null);
+      await reload();
+    } catch (err) {
+      setAccessError(err instanceof Error ? err.message : 'Failed to withdraw access.');
+    } finally {
+      setSavingAccess(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -613,6 +723,19 @@ export default function PaymentTrackingPage() {
                       >
                         Apply coupon
                       </Button>
+                      {/* Free events need no grant (everyone is already in),
+                          and a settled balance already carries permanent
+                          access — offering it there would only confuse. */}
+                      {!row.isFree && row.paymentStatus !== 'Paid' && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs"
+                          onClick={() => void openAccessDialog(row)}
+                        >
+                          Course access
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </TableCell>
@@ -793,6 +916,126 @@ export default function PaymentTrackingPage() {
             </Button>
             <Button onClick={saveCoupon} disabled={savingCoupon || couponCode.trim().length < 3}>
               {savingCoupon ? 'Applying…' : 'Apply coupon'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={accessTarget !== null} onOpenChange={(open) => !open && setAccessTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{activeGrant ? 'Extend course access' : 'Grant course access'}</DialogTitle>
+            <DialogDescription>
+              {accessTarget
+                ? `Let ${accessTarget.fullName} attend while ${formatGhs(accessTarget.balance)} is still outstanding. This does not change what they owe — reminders keep going out and the certificate stays blocked until the balance is settled.`
+                : ''}
+            </DialogDescription>
+          </DialogHeader>
+          {accessTarget && (
+            <div className="space-y-3">
+              {loadingAccess ? (
+                <p className="text-sm text-muted-foreground">Loading access history…</p>
+              ) : (
+                activeGrant && (
+                  <div className="rounded-md bg-muted/30 p-3 text-sm">
+                    <p>
+                      Access currently runs to <strong>{activeGrant.expiresOn}</strong> (
+                      {ACCESS_REASON_LABELS[activeGrant.reason]}).
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Granted {activeGrant.grantedAt.slice(0, 10)} by{' '}
+                      {activeGrant.grantedByName ?? 'the system, automatically'}. Extending adds
+                      days from today, not from the current end date.
+                    </p>
+                  </div>
+                )
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="accessReason">Reason</Label>
+                <select
+                  id="accessReason"
+                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                  value={accessReason}
+                  onChange={(event) =>
+                    setAccessReason(event.target.value as typeof accessReason)
+                  }
+                >
+                  {Object.entries(ACCESS_REASON_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="accessDays">Days of access from today</Label>
+                <Input
+                  id="accessDays"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={accessDays}
+                  onChange={(event) => setAccessDays(event.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="accessNote">Note (required, for the audit trail)</Label>
+                <Input
+                  id="accessNote"
+                  placeholder="e.g. Paid 60%, settling the rest on payday"
+                  value={accessNote}
+                  onChange={(event) => setAccessNote(event.target.value)}
+                />
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                Finance can grant up to 21 days in total per registration; beyond that an admin
+                has to approve it. When access ends, the seat and the personal Zoom join link are
+                withdrawn automatically.
+              </p>
+
+              {accessGrants.length > 0 && (
+                <details className="text-xs text-muted-foreground">
+                  <summary className="cursor-pointer">
+                    Full history ({accessGrants.length})
+                  </summary>
+                  <ul className="mt-2 space-y-1">
+                    {accessGrants.map((grant) => (
+                      <li key={grant.id}>
+                        {grant.grantedAt.slice(0, 10)} → {grant.expiresOn} ·{' '}
+                        {ACCESS_REASON_LABELS[grant.reason]} ·{' '}
+                        {grant.grantedByName ?? 'system'}
+                        {grant.revokedAt ? ' · withdrawn' : ''} — {grant.note}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+
+              {accessError && (
+                <p role="alert" className="text-sm text-destructive">
+                  {accessError}
+                </p>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAccessTarget(null)}>
+              Cancel
+            </Button>
+            {activeGrant && (
+              <Button variant="destructive" onClick={revokeAccess} disabled={savingAccess}>
+                {savingAccess ? 'Working…' : 'Withdraw access'}
+              </Button>
+            )}
+            <Button
+              onClick={saveAccess}
+              disabled={savingAccess || accessNote.trim().length < 3 || accessDays === ''}
+            >
+              {savingAccess ? 'Saving…' : activeGrant ? 'Extend access' : 'Grant access'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -101,6 +101,12 @@ export async function processWebhookEvent(payload: unknown): Promise<WebhookOutc
     } catch (err) {
       console.error('[paystack webhook portal login token]', err);
     }
+  } else if (updated.payment_status === 'Part Payment') {
+    // Self-serve part payment (2026-08-08): a student who pays half online
+    // should not have to wait for finance to open the door by hand. Already
+    // non-blocking internally — Paystack must never retry the whole event
+    // over a grant.
+    await paymentsService.runPartPaymentSideEffects(registrationId);
   }
 
   // Keep any payment-plan schedule in sync — non-blocking, same posture as

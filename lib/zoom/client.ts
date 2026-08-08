@@ -126,6 +126,41 @@ export async function addMeetingRegistrant(params: {
   return { registrantId: data.registrant_id, joinUrl: data.join_url };
 }
 
+// Revokes a registrant's personal join link (access-grant expiry sweep,
+// 2026-08-08). Zoom's registrant-status endpoint answers 204 with an empty
+// body, so it cannot go through zoomFetch's response.json().
+//
+// 'deny' rather than DELETE /registrants/{id} deliberately: denying
+// invalidates the join link while leaving the registrant on the meeting, so
+// re-approving them after they pay is one call — and the person's prior
+// attendance records stay attributable. A deleted registrant would have to be
+// re-registered from scratch, minting a different join URL.
+export async function denyMeetingRegistrant(params: {
+  meetingId: string;
+  registrantId: string;
+  email: string;
+}): Promise<void> {
+  const token = await getAccessToken();
+  const path = `/meetings/${encodeURIComponent(params.meetingId)}/registrants/status`;
+  const response = await fetch(`${ZOOM_API_BASE}${path}`, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      action: 'deny',
+      registrants: [{ id: params.registrantId, email: params.email }],
+    }),
+  });
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(
+      `Zoom API PUT ${path} failed ${response.status}: ${body.slice(0, 300)}`,
+    );
+  }
+}
+
 // Creates one persistent "classroom" meeting for a Course (system review,
 // 2026-07-22) — type 3 (recurring, no fixed time) so the same meeting ID/
 // link stays valid indefinitely and every Batch of the Course can reuse it,

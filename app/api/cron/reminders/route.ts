@@ -4,6 +4,7 @@ import * as feedbackService from '@/modules/feedback/service';
 import * as voiceService from '@/modules/voice/service';
 import * as leadsService from '@/modules/leads/service';
 import * as partnersService from '@/modules/partners/service';
+import * as accessGrantsService from '@/modules/access-grants/service';
 
 // GET /api/cron/reminders — F1.07 (E03–E06), triggered daily at 07:00 UTC by
 // Vercel Cron (BR-17). Also dispatches post-course feedback requests for
@@ -41,6 +42,14 @@ export async function GET(request: Request) {
     // approved once qualifies_at has passed. Bundled here for the same
     // Vercel Hobby two-cron-job cap reason as everything else above.
     const partnerCommissions = await partnersService.runCommissionQualificationDispatch();
+    // Time-boxed access (2026-08-08) — warns before a grant lapses, then
+    // withdraws the seat and kills the personal Zoom join link once it has.
+    // Note this is NOT what enforces expiry: the portal gates re-derive
+    // access from the grant's date on every read, so a missed run costs a
+    // stale roster entry and a live Zoom link, never a leaked classroom link.
+    // Bundled here for the same Vercel Hobby two-cron-job cap reason as
+    // everything else above.
+    const accessSweep = await accessGrantsService.runAccessSweep();
     return successResponse({
       ...summary,
       installments,
@@ -50,6 +59,7 @@ export async function GET(request: Request) {
       classReminders,
       upsell,
       partnerCommissions,
+      accessSweep,
     });
   } catch (err) {
     // A failed cron run affects many participants at once — must be visible

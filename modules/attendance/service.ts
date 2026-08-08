@@ -10,6 +10,7 @@
 //     carries the exact email we registered).
 import {
   addMeetingRegistrant,
+  denyMeetingRegistrant,
   getMeetingParticipantsOn,
   isZoomConfigured,
   type ZoomParticipantRecord,
@@ -19,6 +20,92 @@ import { AppError } from '@/lib/errors';
 import * as attendanceRepository from '@/modules/attendance/repository';
 import * as communicationsService from '@/modules/communications/service';
 import * as usersService from '@/modules/users/service';
+
+// How long after a Batch's end_date its Zoom registrants are revoked.
+//
+// Not 1 day. selectBatchesForAttendanceSync still syncs a batch through
+// end_date + 1 so the final session's Zoom report is captured, and that sync
+// matches participants on zoom_registrants.zoom_registrant_id. Revoking on
+// day 1 would delete the match index before the last attendance run of the
+// course had used it. Day 2 is the first safe morning.
+const POST_COURSE_REVOCATION_GRACE_DAYS = 2;
+
+export interface PostCourseRevocationSummary {
+  batchesEvaluated: number;
+  batchesClosed: number;
+  registrantsRevoked: number;
+  errors: string[];
+}
+
+// Closes the classroom once a course is over (founder-flagged 2026-08-08).
+//
+// Classroom meetings are Zoom type 3 (recurring, no fixed time) created with
+// join_before_host: true and waiting_room: false, so a personal registrant
+// link keeps working indefinitely — anyone still holding one from their
+// confirmation email can open the meeting themselves months later, with no
+// host present. Hiding the link in the portal does not help, because by then
+// the link is in their inbox. This denies the registrant on Zoom's side,
+// which is what actually stops it.
+//
+// The zoom_registrants rows are deliberately KEPT (unlike the access-grant
+// expiry sweep, which deletes them so a later grant can re-register cleanly).
+// A finished course is never re-opened, and the rows remain the audit trail
+// linking a Zoom registrant to a registration for any later attendance query.
+//
+// Idempotent via batches.zoom_access_revoked_at: each batch is closed once,
+// and the timestamp records when.
+export async function runPostCourseZoomRevocation(
+  now: Date = new Date(),
+): Promise<PostCourseRevocationSummary> {
+  const summary: PostCourseRevocationSummary = {
+    batchesEvaluated: 0,
+    batchesClosed: 0,
+    registrantsRevoked: 0,
+    errors: [],
+  };
+  if (!isZoomConfigured()) return summary;
+
+  const cutoffIso = new Date(
+    now.getTime() - POST_COURSE_REVOCATION_GRACE_DAYS * 24 * 60 * 60 * 1000,
+  )
+    .toISOString()
+    .slice(0, 10);
+  const batches = await attendanceRepository.selectBatchesPendingZoomRevocation(cutoffIso);
+
+  for (const batch of batches) {
+    summary.batchesEvaluated += 1;
+    try {
+      const registrants = await attendanceRepository.selectZoomRegistrantsForBatch(batch.id);
+      let revokedHere = 0;
+      for (const registrant of registrants) {
+        try {
+          await denyMeetingRegistrant({
+            meetingId: batch.zoom_meeting_id,
+            registrantId: registrant.zoomRegistrantId,
+            email: registrant.email,
+          });
+          revokedHere += 1;
+        } catch (err) {
+          // One bad registrant (already removed on Zoom's side, say) must not
+          // strand the rest of the cohort's links as live.
+          summary.errors.push(`${batch.id}/${registrant.registrationId}: ${String(err)}`);
+        }
+      }
+
+      // Only mark the batch closed if nothing failed — otherwise tomorrow's
+      // run would skip it and leave those registrants permanently live.
+      if (revokedHere === registrants.length) {
+        await attendanceRepository.markBatchZoomRevoked(batch.id);
+        summary.batchesClosed += 1;
+      }
+      summary.registrantsRevoked += revokedHere;
+    } catch (err) {
+      summary.errors.push(`${batch.id}: ${String(err)}`);
+    }
+  }
+
+  return summary;
+}
 
 export type ZoomRegistrationOutcome =
   | 'registered'

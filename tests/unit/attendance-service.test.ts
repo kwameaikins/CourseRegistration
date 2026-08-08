@@ -13,6 +13,9 @@ const attendanceRepositoryMock = {
   selectBatchesForAttendanceSync: vi.fn(),
   selectBatchForBackfill: vi.fn(),
   upsertAttendance: vi.fn(),
+  selectBatchesPendingZoomRevocation: vi.fn(),
+  selectZoomRegistrantsForBatch: vi.fn(),
+  markBatchZoomRevoked: vi.fn(),
 };
 const usersServiceMock = {
   requireRole: vi.fn(),
@@ -21,6 +24,7 @@ const zoomClientMock = {
   addMeetingRegistrant: vi.fn(),
   getMeetingParticipantsOn: vi.fn(),
   isZoomConfigured: vi.fn(() => false),
+  denyMeetingRegistrant: vi.fn(),
 };
 
 vi.mock('@/modules/attendance/repository', () => attendanceRepositoryMock);
@@ -39,6 +43,7 @@ const {
   resolveBatchAttendance,
   runAttendanceBackfill,
   runAttendanceSync,
+  runPostCourseZoomRevocation,
   sessionMinutesFrom,
 } = await import('@/modules/attendance/service');
 const { meetsAttendanceThreshold, MIN_ATTENDANCE_RATIO } = await import(
@@ -538,6 +543,69 @@ describe('runAttendanceBackfill', () => {
     await expect(runAttendanceBackfill({ batchId: 'batch-x' })).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
+  });
+});
+
+// Founder-flagged 2026-08-08: classroom meetings are Zoom type 3 with
+// join_before_host on, so a personal registrant link keeps working forever
+// unless the registrant is explicitly denied.
+describe('runPostCourseZoomRevocation', () => {
+  beforeEach(() => {
+    zoomClientMock.isZoomConfigured.mockReturnValue(true);
+    attendanceRepositoryMock.selectBatchesPendingZoomRevocation.mockResolvedValue([
+      { id: 'batch-1', zoom_meeting_id: '89951984118' },
+    ]);
+    attendanceRepositoryMock.selectZoomRegistrantsForBatch.mockResolvedValue([
+      { registrationId: 'reg-1', zoomRegistrantId: 'zr-1', email: 'ama@example.com' },
+      { registrationId: 'reg-2', zoomRegistrantId: 'zr-2', email: 'kofi@example.com' },
+    ]);
+    zoomClientMock.denyMeetingRegistrant.mockResolvedValue(undefined);
+    attendanceRepositoryMock.markBatchZoomRevoked.mockResolvedValue(undefined);
+  });
+
+  it('denies every registrant of a finished batch and marks it closed', async () => {
+    const summary = await runPostCourseZoomRevocation(new Date('2026-08-10T21:00:00Z'));
+
+    expect(summary.registrantsRevoked).toBe(2);
+    expect(summary.batchesClosed).toBe(1);
+    expect(zoomClientMock.denyMeetingRegistrant).toHaveBeenCalledWith({
+      meetingId: '89951984118',
+      registrantId: 'zr-1',
+      email: 'ama@example.com',
+    });
+    expect(attendanceRepositoryMock.markBatchZoomRevoked).toHaveBeenCalledWith('batch-1');
+  });
+
+  // The two-day grace exists because selectBatchesForAttendanceSync still
+  // syncs through end_date + 1 and matches on the very registrant records
+  // this revokes.
+  it('asks only for batches that ended at least two days ago', async () => {
+    await runPostCourseZoomRevocation(new Date('2026-08-10T21:00:00Z'));
+    expect(attendanceRepositoryMock.selectBatchesPendingZoomRevocation).toHaveBeenCalledWith(
+      '2026-08-08',
+    );
+  });
+
+  // Marking the batch closed after a partial failure would strand the
+  // remaining registrants live forever, since tomorrow's run would skip it.
+  it('leaves the batch open when a registrant fails to revoke', async () => {
+    zoomClientMock.denyMeetingRegistrant
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('Zoom 404'));
+
+    const summary = await runPostCourseZoomRevocation(new Date('2026-08-10T21:00:00Z'));
+
+    expect(summary.registrantsRevoked).toBe(1);
+    expect(summary.batchesClosed).toBe(0);
+    expect(summary.errors).toHaveLength(1);
+    expect(attendanceRepositoryMock.markBatchZoomRevoked).not.toHaveBeenCalled();
+  });
+
+  it('does nothing at all when Zoom is not configured', async () => {
+    zoomClientMock.isZoomConfigured.mockReturnValue(false);
+    const summary = await runPostCourseZoomRevocation();
+    expect(summary.batchesEvaluated).toBe(0);
+    expect(attendanceRepositoryMock.selectBatchesPendingZoomRevocation).not.toHaveBeenCalled();
   });
 });
 
