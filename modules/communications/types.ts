@@ -22,6 +22,9 @@ export const ALL_EMAIL_TYPES: readonly EmailType[] = [
   'upsell',
   'installment_reminder',
   'free_welcome',
+  'access_granted',
+  'access_expiring',
+  'access_expired',
 ] as const;
 
 export const templateUpsertSchema = z.object({
@@ -63,6 +66,9 @@ export const PHASE_1_EMAIL_TYPES: readonly EmailType[] = [
   'upsell',
   'whatsapp_invite',
   'free_welcome',
+  'access_granted',
+  'access_expiring',
+  'access_expired',
 ] as const;
 
 // Which Batch automation toggle gates each email type (BR-10).
@@ -83,6 +89,12 @@ export const EMAIL_TYPE_TOGGLE: Partial<
   reminder_3: 'payment_reminder_enabled',
   reminder_4: 'payment_reminder_enabled',
   installment_reminder: 'payment_reminder_enabled',
+  // access_granted is deliberately absent: like payment_confirmation it is
+  // transactional (it carries the joining details for a seat that has just
+  // opened), so it must not be suppressed by the payment-reminder toggle.
+  // The two that chase the balance do follow it.
+  access_expiring: 'payment_reminder_enabled',
+  access_expired: 'payment_reminder_enabled',
   class_reminder_24h: 'class_reminder_enabled',
   class_reminder_2h: 'class_reminder_enabled',
   zoom_link: 'class_reminder_enabled',

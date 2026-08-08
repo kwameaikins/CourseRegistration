@@ -98,6 +98,10 @@ export async function sendEmailOnce(
     // UUID is the access token) — meant for the post_training_thankyou
     // template, dispatched the morning after the Batch end_date.
     feedback_link: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com'}/feedback/${registrationId}`,
+    // Student portal sign-in (2026-08-08) — the one link that is always
+    // correct whatever state the registration is in, so a template can lead
+    // with it instead of embedding a {{zoom_link}} that may still be empty.
+    portal_link: `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com'}/portal`,
     ...extraPlaceholders,
   };
 

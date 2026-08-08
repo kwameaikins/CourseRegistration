@@ -114,6 +114,88 @@ export async function selectBatchesForAttendanceSync(dateIso: string): Promise<
     .map((batch) => ({ id: batch.id, zoom_meeting_id: batch.zoom_meeting_id! }));
 }
 
+// --- Post-course classroom closure (2026-08-08) ---
+
+// Finished batches whose Zoom registrants have not been revoked yet.
+//
+// `beforeDateIso` is deliberately NOT "yesterday": selectBatchesForAttendanceSync
+// above still syncs a batch through end_date + 1 day so the final session's
+// report is captured, and that sync matches participants on
+// zoom_registrants.zoom_registrant_id. Revoking any earlier would pull the
+// match index out from under the last attendance run of the course.
+export async function selectBatchesPendingZoomRevocation(
+  beforeDateIso: string,
+): Promise<Array<{ id: string; zoom_meeting_id: string }>> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('batches')
+    .select('id, zoom_meeting_id')
+    .not('zoom_meeting_id', 'is', null)
+    .is('zoom_access_revoked_at', null)
+    .lt('end_date', beforeDateIso);
+  if (error) throw error;
+  return (data ?? []).map((batch) => ({
+    id: batch.id,
+    zoom_meeting_id: batch.zoom_meeting_id!,
+  }));
+}
+
+// Registrant id + the email Zoom keys them by, for every registration in one
+// batch that actually has a personal link to revoke.
+export async function selectZoomRegistrantsForBatch(
+  batchId: string,
+): Promise<Array<{ registrationId: string; zoomRegistrantId: string; email: string }>> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data: registrations, error } = await supabase
+    .from('registrations')
+    .select('id, participant_id')
+    .eq('batch_id', batchId);
+  if (error) throw error;
+  if (!registrations || registrations.length === 0) return [];
+
+  const registrationIds = registrations.map((row) => row.id);
+  const [{ data: registrants, error: registrantsError }, { data: participants, error: participantsError }] =
+    await Promise.all([
+      supabase
+        .from('zoom_registrants')
+        .select('registration_id, zoom_registrant_id')
+        .in('registration_id', registrationIds),
+      supabase
+        .from('participants')
+        .select('id, email')
+        .in('id', [...new Set(registrations.map((row) => row.participant_id))]),
+    ]);
+  if (registrantsError) throw registrantsError;
+  if (participantsError) throw participantsError;
+
+  const emailByParticipant = new Map((participants ?? []).map((row) => [row.id, row.email]));
+  const participantByRegistration = new Map(
+    registrations.map((row) => [row.id, row.participant_id]),
+  );
+
+  return (registrants ?? []).flatMap((registrant) => {
+    const participantId = participantByRegistration.get(registrant.registration_id);
+    const email = participantId ? emailByParticipant.get(participantId) : undefined;
+    if (!email) return [];
+    return [
+      {
+        registrationId: registrant.registration_id,
+        zoomRegistrantId: registrant.zoom_registrant_id,
+        email,
+      },
+    ];
+  });
+}
+
+export async function markBatchZoomRevoked(batchId: string): Promise<void> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase
+    .from('batches')
+    .update({ zoom_access_revoked_at: new Date().toISOString() })
+    .eq('id', batchId);
+  if (error) throw error;
+}
+
 export interface RegistrationMatchIndex {
   // Zoom registrant id -> registration_id. Exact, and the only key that
   // survives a participant typing whatever they like into the name box.

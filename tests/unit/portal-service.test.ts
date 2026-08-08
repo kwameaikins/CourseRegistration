@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const repositoryMock = {
   selectParticipantByIdentifier: vi.fn(),
@@ -36,7 +36,16 @@ const resendClientMock = {
 const feedbackServiceMock = {
   submitFeedback: vi.fn(),
 };
+// Access gate (2026-08-08). The dashboard no longer reads payment_status
+// directly for link visibility — access-grants decides, from a settled
+// balance OR a live time-boxed grant. The default implementation in the
+// global beforeEach mirrors "settled balance", so every pre-existing
+// assertion below keeps testing exactly what it always did.
+const accessGrantsServiceMock = {
+  getAccessStatesSystem: vi.fn(),
+};
 
+vi.mock('@/modules/access-grants/service', () => accessGrantsServiceMock);
 vi.mock('@/modules/portal/repository', () => repositoryMock);
 vi.mock('@/modules/payments/repository', () => paymentsRepositoryMock);
 vi.mock('@/modules/certificates/service', () => certificatesServiceMock);
@@ -58,6 +67,7 @@ const {
   getReceiptDataForStaff,
   getStudentStatusForStaff,
   getOtherCourses,
+  hasCourseEnded,
   requestPinReset,
   resetPin,
   submitPortalFeedback,
@@ -86,6 +96,32 @@ function authRow(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Mirrors the real rule for the settled-balance half of the gate: a Paid
+  // registration has permanent access. Tests covering the grant half
+  // override this.
+  accessGrantsServiceMock.getAccessStatesSystem.mockImplementation(
+    async (registrationIds: string[]) => {
+      const data = (await repositoryMock.selectPortalDashboardData()) as {
+        registrations?: Array<{
+          registration: { id: string };
+          payment?: { payment_status?: string } | null;
+        }>;
+      } | null;
+      return new Map(
+        registrationIds.map((id) => {
+          const row = data?.registrations?.find((entry) => entry.registration.id === id);
+          return [
+            id,
+            {
+              hasAccess: row?.payment?.payment_status === 'Paid',
+              until: null,
+              reason: null,
+            },
+          ];
+        }),
+      );
+    },
+  );
   repositoryMock.selectParticipantByIdentifier.mockResolvedValue(PARTICIPANT);
   repositoryMock.selectParticipantAuth.mockResolvedValue(authRow());
   repositoryMock.selectRegistrationIdsForParticipant.mockResolvedValue(['reg-1', 'reg-2']);
@@ -332,6 +368,26 @@ describe('backfillParticipantAuth', () => {
 // System review, 2026-07-22 — the Zoom join link must only ever be shown
 // once payment_status is Paid, regardless of whether a personal registrant
 // link or the batch's shared classroom link would otherwise be available.
+describe('hasCourseEnded', () => {
+  const now = new Date('2026-08-10T14:00:00Z');
+
+  it('is false on the final day, so the last session keeps its Join button', () => {
+    expect(hasCourseEnded('2026-08-10', now)).toBe(false);
+  });
+
+  it('is true the day after the course ends', () => {
+    expect(hasCourseEnded('2026-08-09', now)).toBe(true);
+  });
+
+  it('is false while the course is still running', () => {
+    expect(hasCourseEnded('2026-08-20', now)).toBe(false);
+  });
+
+  it('treats a missing end date as not ended rather than hiding the link', () => {
+    expect(hasCourseEnded(null, now)).toBe(false);
+  });
+});
+
 describe('getPortalDashboard — Zoom link visibility gate', () => {
   function dashboardRow(overrides: Record<string, unknown> = {}) {
     return {
@@ -366,10 +422,21 @@ describe('getPortalDashboard — Zoom link visibility gate', () => {
   }
 
   beforeEach(() => {
+    // Frozen mid-course (the fixture batch runs 01–05 Aug 2026). Without
+    // this the suite silently changed meaning on 06 Aug 2026, when the
+    // course-ended gate added on 2026-08-08 started hiding the link in every
+    // "shows the link" case below — these assertions are about the ACCESS
+    // gate, so the calendar must not participate.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-03T09:00:00Z'));
     repositoryMock.selectPortalDashboardData.mockResolvedValue({
       participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
       registrations: [dashboardRow()],
     });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('hides the shared classroom link for an Unpaid registration even with no registrant record', async () => {
@@ -457,6 +524,119 @@ describe('getPortalDashboard — Zoom link visibility gate', () => {
     });
     const dashboard = await getPortalDashboard('session-1');
     expect(dashboard.registrations[0].resourcesLink).toBe('https://drive.google.com/folder/xyz');
+  });
+
+  // Time-boxed access (2026-08-08) — the second way to pass this gate.
+  it('shows the links to a Part Payment registration that holds a live access grant', async () => {
+    accessGrantsServiceMock.getAccessStatesSystem.mockResolvedValue(
+      new Map([['reg-1', { hasAccess: true, until: '2026-08-13', reason: 'part_payment' }]]),
+    );
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [
+        dashboardRow({
+          payment: {
+            payment_status: 'Part Payment',
+            course_fee: '1200.00',
+            original_fee: null,
+            amount_paid: '600.00',
+            balance: '600.00',
+          },
+          zoomRegistrant: { join_url: 'https://zoom.us/j/personal-link' },
+        }),
+      ],
+    });
+
+    const dashboard = await getPortalDashboard('session-1');
+    expect(dashboard.registrations[0].zoomLink).toBe('https://zoom.us/j/personal-link');
+    expect(dashboard.registrations[0].resourcesLink).toBe('https://drive.google.com/folder/xyz');
+    // Surfaced so the portal can warn instead of going dark without notice.
+    expect(dashboard.registrations[0].accessExpiresOn).toBe('2026-08-13');
+  });
+
+  it('hides the links again once the grant has lapsed', async () => {
+    accessGrantsServiceMock.getAccessStatesSystem.mockResolvedValue(
+      new Map([['reg-1', { hasAccess: false, until: null, reason: null }]]),
+    );
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [
+        dashboardRow({
+          payment: {
+            payment_status: 'Part Payment',
+            course_fee: '1200.00',
+            original_fee: null,
+            amount_paid: '600.00',
+            balance: '600.00',
+          },
+          zoomRegistrant: { join_url: 'https://zoom.us/j/personal-link' },
+        }),
+      ],
+    });
+
+    const dashboard = await getPortalDashboard('session-1');
+    expect(dashboard.registrations[0].zoomLink).toBeNull();
+    expect(dashboard.registrations[0].accessExpiresOn).toBeNull();
+  });
+
+  // Founder-flagged 2026-08-08 — a finished cohort has no class to join, so
+  // the Join button must not sit there looking live.
+  it('hides the Zoom link once the course has ended, even for a Paid registration', async () => {
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [
+        dashboardRow({
+          batch: {
+            cohort_label: 'JUL-2026',
+            start_date: '2020-01-01',
+            start_time: '09:00',
+            end_date: '2020-01-05',
+            facilitator_name: 'Mr. Asante',
+            zoom_link: 'https://zoom.us/j/shared-classroom',
+            resources_link: 'https://drive.google.com/folder/xyz',
+          },
+          payment: {
+            payment_status: 'Paid',
+            course_fee: '1200.00',
+            original_fee: null,
+            amount_paid: '1200.00',
+            balance: '0.00',
+          },
+          zoomRegistrant: { join_url: 'https://zoom.us/j/personal-link' },
+        }),
+      ],
+    });
+
+    const dashboard = await getPortalDashboard('session-1');
+    expect(dashboard.registrations[0].zoomLink).toBeNull();
+    // Course materials deliberately survive the course ending — they are
+    // what the student paid for, not a live session.
+    expect(dashboard.registrations[0].resourcesLink).toBe('https://drive.google.com/folder/xyz');
+  });
+
+  // The gate must fail CLOSED: a lookup blowing up cannot be allowed to
+  // expose a classroom link to someone who has not paid.
+  it('hides the links when the access lookup fails', async () => {
+    accessGrantsServiceMock.getAccessStatesSystem.mockRejectedValue(new Error('db down'));
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [
+        dashboardRow({
+          payment: {
+            payment_status: 'Paid',
+            course_fee: '1200.00',
+            original_fee: null,
+            amount_paid: '1200.00',
+            balance: '0.00',
+          },
+          zoomRegistrant: { join_url: 'https://zoom.us/j/personal-link' },
+        }),
+      ],
+    });
+
+    const dashboard = await getPortalDashboard('session-1');
+    expect(dashboard.registrations[0].zoomLink).toBeNull();
+    expect(dashboard.registrations[0].resourcesLink).toBeNull();
   });
 });
 

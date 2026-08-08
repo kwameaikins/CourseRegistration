@@ -47,15 +47,24 @@ export interface PortalDashboardRegistration {
   startTime: string;
   endDate: string;
   facilitatorName: string;
-  // Null until payment_status is Paid (system review, 2026-07-22) — an
-  // unpaid registrant must never see the classroom link. Once Paid: the
+  // Null until this registration has access (system review, 2026-07-22) — an
+  // unpaid registrant must never see the classroom link. With access: the
   // personal join link when this participant has been individually
   // registered on Zoom, else the course's shared classroom link, else null
   // (Zoom not set up yet).
+  //
+  // "Has access" stopped meaning "payment_status is Paid" on 2026-08-08:
+  // a settled balance still qualifies, and so does a live access grant
+  // (part payment or credit — see modules/access-grants).
   zoomLink: string | null;
-  // Same Paid-only visibility gate as zoomLink (founder-approved 2026-07-28
-  // — course materials, same posture as the join link).
+  // Same access gate as zoomLink (founder-approved 2026-07-28 — course
+  // materials, same posture as the join link).
   resourcesLink: string | null;
+  // Inclusive last day of a time-boxed grant, so the portal can say "your
+  // access runs to 13 Aug — GHS 400 still outstanding" instead of silently
+  // going dark on them. Null when access is permanent (balance settled) or
+  // absent altogether.
+  accessExpiresOn: string | null;
   // Free event / webinar: nothing was ever owed. The portal hides the fee,
   // balance, receipt, installment-plan and payment-proof surfaces for these
   // instead of rendering a row of zeros.

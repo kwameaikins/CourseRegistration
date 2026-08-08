@@ -446,6 +446,7 @@ export type Database = {
           welcome_email_enabled: boolean
           whatsapp_enabled: boolean
           whatsapp_group_link: string | null
+          zoom_access_revoked_at: string | null
           zoom_link: string | null
           zoom_meeting_id: string | null
         }
@@ -474,6 +475,7 @@ export type Database = {
           welcome_email_enabled?: boolean
           whatsapp_enabled?: boolean
           whatsapp_group_link?: string | null
+          zoom_access_revoked_at?: string | null
           zoom_link?: string | null
           zoom_meeting_id?: string | null
         }
@@ -502,6 +504,7 @@ export type Database = {
           welcome_email_enabled?: boolean
           whatsapp_enabled?: boolean
           whatsapp_group_link?: string | null
+          zoom_access_revoked_at?: string | null
           zoom_link?: string | null
           zoom_meeting_id?: string | null
         }
@@ -3189,6 +3192,67 @@ export type Database = {
             columns: ["source_id"]
             isOneToOne: false
             referencedRelation: "news_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      registration_access_grants: {
+        Row: {
+          created_at: string
+          expires_on: string
+          granted_at: string
+          granted_by: string | null
+          id: string
+          note: string
+          reason: string
+          registration_id: string
+          revoked_at: string | null
+          revoked_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_on: string
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          note: string
+          reason: string
+          registration_id: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_on?: string
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          note?: string
+          reason?: string
+          registration_id?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registration_access_grants_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registration_access_grants_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registration_access_grants_revoked_by_fkey"
+            columns: ["revoked_by"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
             referencedColumns: ["id"]
           },
         ]

@@ -5,6 +5,10 @@
 // participant session access — the portal has no Supabase Auth identity to
 // evaluate RLS against in the first place).
 import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
+// Permitted cross-module call (2026-08-08) — access-grants owns the single
+// rule for "may this unsettled registration still attend", so this file no
+// longer reads the payments table directly.
+import * as accessGrantsService from '@/modules/access-grants/service';
 
 // How long before a session's scheduled start the portal's Join button
 // activates; it stays active through the session's scheduled end (Document
@@ -39,9 +43,15 @@ export async function selectNextClassForParticipant(
 ): Promise<NextClassForParticipant | null> {
   const supabase = createSupabaseServiceRoleClient();
 
-  // Eligibility gate (Document 14, Section 7): only Confirmed + Paid
-  // registrations ever see a class, matching the existing Zoom-link
-  // visibility rule already enforced elsewhere in the portal.
+  // Eligibility gate (Document 14, Section 7): only Confirmed registrations
+  // with access ever see a class, matching the Zoom-link visibility rule
+  // enforced elsewhere in the portal.
+  //
+  // Access stopped meaning "payment_status is Paid" on 2026-08-08 — a live
+  // time-boxed grant (part payment or credit) also qualifies. The
+  // registration_status filter stays: a grant sets 'Confirmed' too, so this
+  // still excludes Cancelled seats, and access-grants' own date check below
+  // is what actually decides.
   const { data: registrations, error: registrationsError } = await supabase
     .from('registrations')
     .select('id, batch_id')
@@ -51,15 +61,10 @@ export async function selectNextClassForParticipant(
   if (!registrations || registrations.length === 0) return null;
 
   const registrationIds = registrations.map((row) => row.id);
-  const { data: payments, error: paymentsError } = await supabase
-    .from('payments')
-    .select('registration_id')
-    .in('registration_id', registrationIds)
-    .eq('payment_status', 'Paid');
-  if (paymentsError) throw paymentsError;
-
-  const paidRegistrationIds = new Set((payments ?? []).map((row) => row.registration_id));
-  const eligibleRegistrations = registrations.filter((row) => paidRegistrationIds.has(row.id));
+  const accessStates = await accessGrantsService.getAccessStatesSystem(registrationIds);
+  const eligibleRegistrations = registrations.filter(
+    (row) => accessStates.get(row.id)?.hasAccess === true,
+  );
   if (eligibleRegistrations.length === 0) return null;
 
   // "Next" means the soonest session that hasn't ended yet — filtering on

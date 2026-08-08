@@ -74,4 +74,11 @@ export type EmailType =
   // body, so staff can author webinar joining instructions per Course without
   // any risk of the paid template's fee line or payment instructions leaking
   // into a free event.
-  | 'free_welcome';
+  | 'free_welcome'
+  // Time-boxed access for an unsettled balance (2026-08-08). access_granted
+  // is transactional like payment_confirmation — it carries the joining
+  // details — while the other two chase the balance and follow the
+  // payment-reminder toggle. See modules/access-grants.
+  | 'access_granted'
+  | 'access_expiring'
+  | 'access_expired';
