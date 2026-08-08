@@ -270,6 +270,12 @@ export default function CertificatesPage() {
 
         {candidates.length > 0 && (
           <>
+            {/* The CPD credit field that used to fill the other two columns
+                was removed on 2026-08-08: the certificate prints CPD hours
+                from `hours` now, so an input for it implied an effect it no
+                longer had. batchForm.cpdCredit is still prefilled from the
+                course and still submitted, so the value keeps being recorded
+                on the certificate row. */}
             <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="hours">Hours of learning</Label>
@@ -281,16 +287,10 @@ export default function CertificatesPage() {
                   value={batchForm.hours}
                   onChange={(event) => setBatchForm({ ...batchForm, hours: event.target.value })}
                 />
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="cpd">CPD credit</Label>
-                <Input
-                  id="cpd"
-                  value={batchForm.cpdCredit}
-                  onChange={(event) =>
-                    setBatchForm({ ...batchForm, cpdCredit: event.target.value })
-                  }
-                />
+                <p className="text-xs text-muted-foreground">
+                  Printed on the certificate twice: as the hours of structured learning, and as
+                  the CPD hours.
+                </p>
               </div>
             </div>
             <div className="space-y-2">
@@ -426,14 +426,9 @@ export default function CertificatesPage() {
                 onChange={(e) => setManualForm({ ...manualForm, hours: e.target.value })}
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="m-cpd">CPD credit</Label>
-              <Input
-                id="m-cpd"
-                value={manualForm.cpdCredit}
-                onChange={(e) => setManualForm({ ...manualForm, cpdCredit: e.target.value })}
-              />
-            </div>
+            {/* CPD credit input removed 2026-08-08, same reason as the batch
+                form above. manualForm.cpdCredit keeps its 'TBD' default and
+                is still submitted. */}
             <div className="space-y-2">
               <Label htmlFor="m-date">Issue date</Label>
               <Input

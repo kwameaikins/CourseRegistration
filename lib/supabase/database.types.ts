@@ -770,6 +770,7 @@ export type Database = {
           cpd_credit: string
           created_at: string
           description: string
+          facilitator_name: string | null
           hours: number
           id: string
           issued_by: string | null
@@ -786,6 +787,7 @@ export type Database = {
           cpd_credit?: string
           created_at?: string
           description?: string
+          facilitator_name?: string | null
           hours?: number
           id?: string
           issued_by?: string | null
@@ -802,6 +804,7 @@ export type Database = {
           cpd_credit?: string
           created_at?: string
           description?: string
+          facilitator_name?: string | null
           hours?: number
           id?: string
           issued_by?: string | null

@@ -29,9 +29,42 @@ export interface CertificatePdfData {
   courseTitle: string;
   description: string;
   hours: number;
-  cpdCredit: string;
+  // No cpdCredit: the certificate stopped printing courses.cpd_credit on
+  // 2026-08-08 and states CPD hours from `hours` instead. The column is
+  // still written on the certificates row and still served by the public
+  // catalog API — it is just not on the printed certificate any more.
   issuedDate: string; // YYYY-MM-DD
   verifyUrl: string;
+  // Who facilitated the cohort (2026-08-08). Optional: certificates issued
+  // before this existed have none recorded, and the batch's CURRENT
+  // facilitator is not evidence of who taught that cohort — so they render
+  // without the attribution line rather than asserting something unverified.
+  facilitatorName?: string | null;
+}
+
+// Where the course title sits, which depends on whether an attribution line
+// follows it. The 16pt shift is taken from the gap ABOVE the title, never
+// from below — see the drawing code for why the description must not move.
+export const COURSE_TITLE_TOP = 372;
+export const COURSE_TITLE_TOP_WITH_FACILITATOR = 356;
+export const FACILITATOR_LINE_TOP = 380;
+export const DESCRIPTION_TOP = 400;
+
+// The attribution line, or null when there is nothing worth printing.
+//
+// Pure and exported so the "no facilitator recorded" cases can be asserted
+// directly. They were originally tested by comparing rendered PDF byte
+// lengths, which turned out to vary by a byte between otherwise identical
+// renders and produced an intermittent failure roughly one run in four.
+//
+// A blank or whitespace-only facilitator_name must yield null, not an empty
+// attribution: batches.facilitator_name is free text, and a dangling
+// "Facilitated by" with nothing after it would be worse than omitting it.
+export function facilitatorAttribution(
+  facilitatorName: string | null | undefined,
+): string | null {
+  const trimmed = facilitatorName?.trim();
+  return trimmed ? `Facilitated by ${trimmed}` : null;
 }
 
 function formatDate(iso: string): string {
@@ -128,9 +161,32 @@ export async function generateCertificatePdf(
   page.drawText(postText, { x: cursorX, y: y(318), size: lineSize, font: helvetica, color: INK });
 
   // Course title — navy.
-  drawCentered(data.courseTitle, 372, 20, bold, NAVY);
+  //
+  // Sits 16pt higher than it did before 2026-08-08 to open room for the
+  // facilitator attribution below it. The space is taken from the generous
+  // gap above the title (the completion line at 318 still clears it by
+  // ~24pt), deliberately NOT from below: pushing the description down would
+  // erode its clearance to the Issued/CPD row at 452, and that row cannot
+  // move because the signature images begin at 457. This way a full 3-line
+  // description keeps exactly the ~9pt clearance it had before.
+  const attribution = facilitatorAttribution(data.facilitatorName);
+  drawCentered(
+    data.courseTitle,
+    attribution ? COURSE_TITLE_TOP_WITH_FACILITATOR : COURSE_TITLE_TOP,
+    20,
+    bold,
+    NAVY,
+  );
 
-  // Description, wrapped and centered (up to 3 lines).
+  // Facilitator attribution — italic navy, directly under the course title so
+  // it reads as part of the certification statement rather than as filing
+  // metadata down in the Issued/CPD row.
+  if (attribution) {
+    drawCentered(attribution, FACILITATOR_LINE_TOP, 11, italic, NAVY);
+  }
+
+  // Description, wrapped and centered (up to 3 lines). Position unchanged by
+  // the attribution above — see the course title comment.
   const descriptionLines = wrapText(
     data.description,
     width - 240,
@@ -138,7 +194,7 @@ export async function generateCertificatePdf(
     (t, s) => helvetica.widthOfTextAtSize(t, s),
   ).slice(0, 3);
   descriptionLines.forEach((line, index) => {
-    drawCentered(line, 400 + index * 15, 10.5, helvetica, GREY);
+    drawCentered(line, DESCRIPTION_TOP + index * 15, 10.5, helvetica, GREY);
   });
 
   // Issued date + CPD credit row.
@@ -149,7 +205,15 @@ export async function generateCertificatePdf(
     font: helvetica,
     color: INK,
   });
-  page.drawText(`CPD Credit:  ${data.cpdCredit}`, {
+  // CPD hours, taken from the same `hours` the completion line above states
+  // (founder request 2026-08-08). This replaced a free-text "CPD Credit"
+  // line fed by courses.cpd_credit, which defaulted to the literal string
+  // 'TBD' and so printed "CPD Credit: TBD" on any course where nobody had
+  // filled it in. The hours are always present and always correct.
+  //
+  // courses.cpd_credit itself is untouched — the public course catalog API
+  // still publishes it to the marketing site.
+  page.drawText(`CPD Hours:  ${data.hours}`, {
     x: 372,
     y: y(452),
     size: 12,
