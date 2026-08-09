@@ -4,7 +4,6 @@
 // the public access tokens). The registry list read runs on the
 // RLS-enforced server client.
 import { timestampBounds } from '@/lib/date-range';
-import { meetsAttendanceThreshold } from '@/lib/attendance-constants';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import type { Database } from '@/lib/supabase/database.types';
@@ -251,24 +250,20 @@ export async function selectBatchIssueContext(batchId: string): Promise<{
       .filter((id): id is string => !!id),
   );
   const sessionDates = new Set((attendanceRows ?? []).map((row) => row.session_date));
-  // An attendance row records that someone joined; it does not by itself mean
-  // they attended. Only a row clearing MIN_ATTENDANCE_RATIO of the session
-  // counts here (founder-approved 2026-08-06), so a two-minute appearance no
-  // longer earns the same credit as sitting through the whole session. The row
-  // itself is kept either way — it is a real observation, and the Attendance
-  // screen still shows it.
+  // Turning up at all counts (founder decision 2026-08-08, reversing the
+  // MIN_ATTENDANCE_RATIO gate introduced 2026-08-06).
+  //
+  // On the ESG2 webinar that rule turned out to be doing real damage: of 267
+  // registrations, 119 joined the session but only 82 cleared 30% of its 175
+  // minutes. The other 37 were never even sent the feedback request, so they
+  // could never earn a certificate no matter what they did afterwards — and
+  // nothing told them why.
+  //
+  // MIN_ATTENDANCE_RATIO is NOT deleted: it is still the honest measure of how
+  // much of a session someone actually sat through, and stays on the roster
+  // and in reporting. It simply no longer decides who gets a certificate.
   const attendedByRegistration = new Map<string, number>();
   for (const row of attendanceRows ?? []) {
-    // A manual correction is an admin's explicit ruling on whether someone
-    // attended, so it is never re-judged against the measured threshold — it
-    // carries duration_minutes: 1 as a marker, not as an observation, and
-    // thresholding it would silently overturn every approved correction.
-    if (
-      row.source !== 'manual_correction' &&
-      !meetsAttendanceThreshold(row.duration_minutes, row.session_minutes)
-    ) {
-      continue;
-    }
     attendedByRegistration.set(
       row.registration_id,
       (attendedByRegistration.get(row.registration_id) ?? 0) + 1,
