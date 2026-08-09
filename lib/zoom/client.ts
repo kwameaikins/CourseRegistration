@@ -185,11 +185,43 @@ export async function createZoomMeeting(
           registration_type: 1,
           waiting_room: false,
           join_before_host: true,
+          // See createBatchClassroomMeeting for why cloud rather than local.
+          auto_recording: 'cloud',
         },
       }),
     },
   );
   return { meetingId: String(data.id), joinUrl: data.join_url };
+}
+
+// Turns on cloud recording for a meeting that already exists.
+//
+// Every classroom meeting created before 2026-08-08 was created without
+// auto_recording, so none of them record and none has a transcript. Changing
+// the creators only helps meetings made from now on — these are the cohorts
+// currently running, so they need patching in place.
+//
+// PATCH /meetings/{id} answers 204 with an empty body, so it cannot go
+// through zoomFetch's response.json().
+export async function enableCloudRecording(meetingId: string): Promise<void> {
+  const token = await getAccessToken();
+  const path = `/meetings/${encodeURIComponent(meetingId)}`;
+  const response = await fetch(`${ZOOM_API_BASE}${path}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    // settings is merged by Zoom, not replaced — sending only this key
+    // leaves join_before_host, jbh_time and the registration settings alone.
+    body: JSON.stringify({ settings: { auto_recording: 'cloud' } }),
+  });
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(
+      `Zoom API PATCH ${path} failed ${response.status}: ${body.slice(0, 300)}`,
+    );
+  }
 }
 
 // Ghana. UTC+0 year-round with no DST, which is why passing no timezone at
@@ -313,6 +345,11 @@ export async function createBatchClassroomMeeting(params: {
           waiting_room: false,
           join_before_host: true,
           jbh_time: JOIN_BEFORE_HOST_MINUTES,
+          // Cloud, not local (founder direction 2026-08-08). Only a cloud
+          // recording produces a transcript Zoom's API can serve back, which
+          // is what the post-session recap agent reads. A local recording
+          // lives on the host's machine and is invisible to this app.
+          auto_recording: 'cloud',
         },
       }),
     },

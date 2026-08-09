@@ -1,9 +1,11 @@
 import { AppError } from '@/lib/errors';
+import { enableCloudRecording, isZoomConfigured } from '@/lib/zoom/client';
 import * as r2Client from '@/lib/r2/client';
 import { learningResourceKey } from '@/lib/r2/keys';
 import type { ParsedUpload } from '@/lib/uploads';
 import type { Database } from '@/lib/supabase/database.types';
 import * as liveSessionsRepository from '@/modules/live-sessions/repository';
+import { defaultSessionTitle, generateSchedule } from '@/modules/live-sessions/schedule';
 import * as usersService from '@/modules/users/service';
 import type {
   LiveSession,
@@ -12,6 +14,129 @@ import type {
   LiveSessionUpdate,
   SessionMaterial,
 } from '@/modules/live-sessions/types';
+
+// --- Generated schedules (founder direction 2026-08-08) ---
+//
+// A cohort's sessions are derived from its batch, not typed in one at a
+// time. See modules/live-sessions/schedule.ts for why, and for the calendar
+// arithmetic itself.
+
+export interface ScheduleSyncResult {
+  batchId: string;
+  generated: number;
+  created: number;
+  skipped: 'no_schedule' | null;
+}
+
+// Brings a batch's generated sessions in line with its schedule. Safe to call
+// repeatedly: the unique (batch_id, starts_at) constraint added in
+// 202608080058 absorbs sessions that already exist, so a schedule edit adds
+// what is new and leaves any title, agenda or tutor a human has since set
+// completely alone.
+//
+// Never throws for a batch that simply has no schedule — batches created
+// before end_time and meeting_days existed are a normal state, and this is
+// called opportunistically from batch creation.
+export async function syncGeneratedSessionsForBatchSystem(
+  batchId: string,
+): Promise<ScheduleSyncResult> {
+  const batch = await liveSessionsRepository.selectBatchScheduleSystem(batchId);
+  if (!batch) return { batchId, generated: 0, created: 0, skipped: 'no_schedule' };
+
+  const sessions = generateSchedule({
+    startDate: batch.startDate,
+    endDate: batch.endDate,
+    startTime: batch.startTime,
+    endTime: batch.endTime,
+    meetingDays: batch.meetingDays,
+  });
+  if (sessions.length === 0) {
+    return { batchId, generated: 0, created: 0, skipped: 'no_schedule' };
+  }
+
+  const created = await liveSessionsRepository.upsertGeneratedSessionsSystem(
+    sessions.map((session) => ({
+      batch_id: batchId,
+      title: defaultSessionTitle(batch.courseName, session.sessionNumber),
+      starts_at: session.startsAt,
+      ends_at: session.endsAt,
+      timezone: 'Africa/Accra',
+      // The batch's classroom meeting. Since 202608080056 a scheduled batch
+      // gets its own type 8 recurring meeting whose occurrences line up with
+      // exactly these sessions, so one meeting id serves them all.
+      zoom_meeting_id: batch.zoomMeetingId,
+      status: 'scheduled',
+    })),
+  );
+
+  return { batchId, generated: sessions.length, created, skipped: null };
+}
+
+// Backfill across every batch — the one-off that gives the five cohorts with
+// no sessions a schedule, and with it a working "Next Class" card.
+export async function backfillGeneratedSessions(): Promise<{
+  batchesEvaluated: number;
+  batchesScheduled: number;
+  sessionsCreated: number;
+  errors: string[];
+}> {
+  await usersService.requireRole(['admin']);
+  const batchIds = await liveSessionsRepository.selectBatchIdsSystem();
+  const summary = {
+    batchesEvaluated: 0,
+    batchesScheduled: 0,
+    sessionsCreated: 0,
+    errors: [] as string[],
+  };
+
+  for (const batchId of batchIds) {
+    summary.batchesEvaluated += 1;
+    try {
+      const result = await syncGeneratedSessionsForBatchSystem(batchId);
+      if (result.created > 0) {
+        summary.batchesScheduled += 1;
+        summary.sessionsCreated += result.created;
+      }
+    } catch (err) {
+      summary.errors.push(`${batchId}: ${String(err)}`);
+    }
+  }
+  return summary;
+}
+
+// Turns on cloud recording for every classroom meeting that already exists
+// (founder direction 2026-08-08).
+//
+// Changing the two meeting creators only affects meetings made from now on.
+// The rooms currently teaching cohorts were all created without
+// auto_recording, so without this they would never record and the recap
+// agent would have nothing to read for any course now running.
+//
+// Idempotent: setting auto_recording on a meeting that already has it is a
+// no-op at Zoom's end, so this can be re-run freely.
+export async function enableCloudRecordingOnExistingMeetings(): Promise<{
+  meetingsEvaluated: number;
+  meetingsUpdated: number;
+  errors: string[];
+}> {
+  await usersService.requireRole(['admin']);
+  const summary = { meetingsEvaluated: 0, meetingsUpdated: 0, errors: [] as string[] };
+  if (!isZoomConfigured()) return summary;
+
+  const meetingIds = await liveSessionsRepository.selectAllZoomMeetingIdsSystem();
+  for (const meetingId of meetingIds) {
+    summary.meetingsEvaluated += 1;
+    try {
+      await enableCloudRecording(meetingId);
+      summary.meetingsUpdated += 1;
+    } catch (err) {
+      // One meeting failing (deleted at Zoom's end, or an account without
+      // cloud recording) must not stop the rest being updated.
+      summary.errors.push(`${meetingId}: ${String(err)}`);
+    }
+  }
+  return summary;
+}
 
 const STATUS_TRANSITIONS: Record<LiveSessionStatus, LiveSessionStatus[]> = {
   draft: ['scheduled', 'cancelled'],

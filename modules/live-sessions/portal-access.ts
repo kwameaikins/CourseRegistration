@@ -88,13 +88,31 @@ export async function selectNextClassForParticipant(
     .filter((row) => row.batch_id === session.batch_id)
     .map((row) => row.id);
 
+  // The join link comes from zoom_registrants — the participant's personal
+  // link, minted by ensureZoomRegistration when their seat opened.
+  //
+  // This used to read live_session_registrants, a table that never received a
+  // single row before it was dropped in 202608080058. So this card's Join
+  // button resolved to null for every participant, always: even the one
+  // cohort that had sessions could never join from it. Reading the table that
+  // actually holds join links is what makes the card work at all.
   const { data: registrant, error: registrantError } = await supabase
-    .from('live_session_registrants')
+    .from('zoom_registrants')
     .select('join_url')
-    .eq('live_session_id', session.id)
     .in('registration_id', eligibleRegistrationIdsForBatch)
+    .limit(1)
     .maybeSingle();
   if (registrantError) throw registrantError;
+
+  // Falls back to the batch's shared classroom link, matching what the
+  // portal's course card does — a cohort whose Zoom registration has not run
+  // yet still gets a way in during the window.
+  const { data: batch, error: batchError } = await supabase
+    .from('batches')
+    .select('zoom_link')
+    .eq('id', session.batch_id)
+    .maybeSingle();
+  if (batchError) throw batchError;
 
   const withinJoinWindow = isWithinJoinWindow(new Date(), session.starts_at, session.ends_at);
 
@@ -102,6 +120,8 @@ export async function selectNextClassForParticipant(
     title: session.title,
     startsAt: session.starts_at,
     endsAt: session.ends_at,
-    joinUrl: withinJoinWindow ? (registrant?.join_url ?? null) : null,
+    joinUrl: withinJoinWindow
+      ? (registrant?.join_url ?? batch?.zoom_link ?? null)
+      : null,
   };
 }

@@ -9,6 +9,10 @@ import { seedDefaultTemplatesForCourse } from '@/modules/communications/default-
 // (founder decision, 2026-07-24), the other being registrations'
 // deleteRegistration.
 import * as waitlistService from '@/modules/waitlist/service';
+// Permitted cross-module call (2026-08-08) — live-sessions owns the rule for
+// what sessions a schedule implies; courses owns the schedule itself and
+// only asks for them to be generated.
+import * as liveSessionsService from '@/modules/live-sessions/service';
 import * as usersService from '@/modules/users/service';
 import {
   createBatchClassroomMeeting,
@@ -242,6 +246,18 @@ export async function createBatch(input: BatchInput): Promise<Batch> {
     } catch (err) {
       console.error('[free batch template seed]', err);
     }
+  }
+
+  // Generate the cohort's sessions from the schedule it just stated
+  // (2026-08-08). Sessions used to be created one at a time by hand, which
+  // is why five of six batches had none and their students never saw a
+  // "Next Class" card. Non-blocking and idempotent: the batch is already
+  // committed, and syncGeneratedSessionsForBatchSystem can be re-run at any
+  // time to pick up a schedule edit.
+  try {
+    await liveSessionsService.syncGeneratedSessionsForBatchSystem(row.id);
+  } catch (err) {
+    console.error('[batch session generation]', err);
   }
 
   return toBatch(row);

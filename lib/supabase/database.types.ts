@@ -306,6 +306,7 @@ export type Database = {
           id: string
           join_time: string | null
           leave_time: string | null
+          live_session_id: string | null
           registration_id: string
           session_date: string
           session_minutes: number | null
@@ -317,6 +318,7 @@ export type Database = {
           id?: string
           join_time?: string | null
           leave_time?: string | null
+          live_session_id?: string | null
           registration_id: string
           session_date: string
           session_minutes?: number | null
@@ -328,12 +330,20 @@ export type Database = {
           id?: string
           join_time?: string | null
           leave_time?: string | null
+          live_session_id?: string | null
           registration_id?: string
           session_date?: string
           session_minutes?: number | null
           source?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "attendance_live_session_id_fkey"
+            columns: ["live_session_id"]
+            isOneToOne: false
+            referencedRelation: "live_sessions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "attendance_registration_id_fkey"
             columns: ["registration_id"]
@@ -1803,70 +1813,6 @@ export type Database = {
           },
         ]
       }
-      live_session_attendance: {
-        Row: {
-          created_at: string
-          duration_minutes: number
-          id: string
-          join_time: string | null
-          leave_time: string | null
-          live_session_id: string
-          registration_id: string
-          reviewed_at: string | null
-          reviewed_by: string | null
-          source: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          duration_minutes?: number
-          id?: string
-          join_time?: string | null
-          leave_time?: string | null
-          live_session_id: string
-          registration_id: string
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          source?: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          duration_minutes?: number
-          id?: string
-          join_time?: string | null
-          leave_time?: string | null
-          live_session_id?: string
-          registration_id?: string
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          source?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "live_session_attendance_live_session_id_fkey"
-            columns: ["live_session_id"]
-            isOneToOne: false
-            referencedRelation: "live_sessions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "live_session_attendance_registration_id_fkey"
-            columns: ["registration_id"]
-            isOneToOne: false
-            referencedRelation: "registrations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "live_session_attendance_reviewed_by_fkey"
-            columns: ["reviewed_by"]
-            isOneToOne: false
-            referencedRelation: "staff_users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       live_session_audit_log: {
         Row: {
           actor_staff_id: string | null
@@ -1908,48 +1854,6 @@ export type Database = {
             columns: ["live_session_id"]
             isOneToOne: false
             referencedRelation: "live_sessions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      live_session_registrants: {
-        Row: {
-          created_at: string
-          id: string
-          join_url: string
-          live_session_id: string
-          registration_id: string
-          zoom_registrant_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          join_url: string
-          live_session_id: string
-          registration_id: string
-          zoom_registrant_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          join_url?: string
-          live_session_id?: string
-          registration_id?: string
-          zoom_registrant_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "live_session_registrants_live_session_id_fkey"
-            columns: ["live_session_id"]
-            isOneToOne: false
-            referencedRelation: "live_sessions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "live_session_registrants_registration_id_fkey"
-            columns: ["registration_id"]
-            isOneToOne: false
-            referencedRelation: "registrations"
             referencedColumns: ["id"]
           },
         ]
