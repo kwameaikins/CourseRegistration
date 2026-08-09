@@ -8,6 +8,7 @@ import { AppError } from '@/lib/errors';
 import * as feedbackRepository from '@/modules/feedback/repository';
 import * as communicationsService from '@/modules/communications/service';
 import * as certificatesService from '@/modules/certificates/service';
+import * as usersService from '@/modules/users/service';
 import type {
   BatchFeedbackSummary,
   FeedbackDispatchSummary,
@@ -192,6 +193,21 @@ export async function runFeedbackRequestForAttendees(params: {
     }
   }
   return result;
+}
+
+// Staff-triggered variant of the dispatch above (2026-08-09).
+//
+// The existing trigger is POST /api/cron/feedback/attendees, authenticated
+// with CRON_SECRET — which is marked sensitive in Vercel and therefore
+// cannot be read back out, so in practice nobody could run it without
+// already knowing the value. An admin sitting in the app should not need a
+// shared secret to send a batch its feedback request.
+export async function runFeedbackRequestForAttendeesAsStaff(params: {
+  batchId: string;
+  dryRun?: boolean;
+}): Promise<AttendeeFeedbackDispatchResult> {
+  await usersService.requireRole(['admin']);
+  return runFeedbackRequestForAttendees(params);
 }
 
 // Staff review (RLS enforces admin/management).

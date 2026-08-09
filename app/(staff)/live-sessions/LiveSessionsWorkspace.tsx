@@ -94,6 +94,12 @@ export function LiveSessionsWorkspace({
   canManage: boolean;
 }) {
   const batchesByCourse = useMemo(() => groupBatchesByCourse(batches), [batches]);
+  // Admin maintenance actions (2026-08-09). Both previously had no trigger
+  // reachable from the app: the feedback dispatch sat behind CRON_SECRET,
+  // which Vercel will not disclose, and cloud recording had no route at all.
+  const [opsBatchId, setOpsBatchId] = useState('');
+  const [opsBusy, setOpsBusy] = useState(false);
+  const [opsMessage, setOpsMessage] = useState<string | null>(null);
   const [liveSessions, setLiveSessions] = useState(initialLiveSessions);
   const [tutors, setTutors] = useState<TutorOption[]>([]);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -161,6 +167,53 @@ export function LiveSessionsWorkspace({
   function showStatus(message: string) {
     setStatusMessage(message);
     setErrorMessage(null);
+  }
+
+  async function runFeedbackDispatch(dryRun: boolean) {
+    if (!opsBatchId) return;
+    setOpsBusy(true);
+    setOpsMessage(null);
+    try {
+      const result = await apiFetch<{
+        attendedRegistrations: number;
+        emailsSent: number;
+        skipped: number;
+        errors: string[];
+      }>('/api/feedback/attendees', {
+        method: 'POST',
+        body: JSON.stringify({ batchId: opsBatchId, dryRun }),
+      });
+      setOpsMessage(
+        dryRun
+          ? `Preview: ${result.attendedRegistrations} attendee(s) would be considered. Nothing was sent.`
+          : `Sent ${result.emailsSent}, skipped ${result.skipped} already emailed, of ${result.attendedRegistrations} attendee(s).` +
+            (result.errors.length > 0 ? ` ${result.errors.length} error(s).` : ''),
+      );
+    } catch (err) {
+      setOpsMessage(err instanceof Error ? err.message : 'Failed to run the feedback dispatch.');
+    } finally {
+      setOpsBusy(false);
+    }
+  }
+
+  async function runEnableCloudRecording() {
+    setOpsBusy(true);
+    setOpsMessage(null);
+    try {
+      const result = await apiFetch<{
+        meetingsEvaluated: number;
+        meetingsUpdated: number;
+        errors: string[];
+      }>('/api/live-sessions/enable-cloud-recording', { method: 'POST' });
+      setOpsMessage(
+        `Cloud recording enabled on ${result.meetingsUpdated} of ${result.meetingsEvaluated} meeting(s).` +
+          (result.errors.length > 0 ? ` ${result.errors.length} failed — check the logs.` : ''),
+      );
+    } catch (err) {
+      setOpsMessage(err instanceof Error ? err.message : 'Failed to enable cloud recording.');
+    } finally {
+      setOpsBusy(false);
+    }
   }
 
   function reloadMaterials() {
@@ -418,6 +471,83 @@ export function LiveSessionsWorkspace({
               </div>
               <div className="md:col-span-2"><Button disabled={saving} type="submit">Schedule session</Button></div>
             </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {canManage && (
+        <Card>
+          <CardHeader><CardTitle>Batch operations</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="opsBatch">Batch</Label>
+              <select
+                id="opsBatch"
+                className="flex h-10 w-full max-w-md rounded-md border border-input bg-background px-3 text-sm"
+                value={opsBatchId}
+                onChange={(event) => setOpsBatchId(event.target.value)}
+              >
+                <option value="">Select a course and cohort…</option>
+                {batchesByCourse.map((group) => (
+                  <optgroup key={group.courseName} label={group.courseName}>
+                    {group.batches.map((batch) => (
+                      <option key={batch.id} value={batch.id}>
+                        {batch.cohortLabel} ({formatDate(batch.startDate)})
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+
+            <div className="rounded-md border p-3 space-y-2">
+              <p className="text-sm font-medium">Feedback request to attendees</p>
+              <p className="text-xs text-muted-foreground">
+                Emails everyone who joined any session and has not already been asked. Feedback
+                is what unlocks their certificate. Anyone already emailed is skipped
+                automatically, so this is safe to run more than once.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!opsBatchId || opsBusy}
+                  onClick={() => void runFeedbackDispatch(true)}
+                >
+                  Preview (sends nothing)
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={!opsBatchId || opsBusy}
+                  onClick={() => void runFeedbackDispatch(false)}
+                >
+                  {opsBusy ? 'Working…' : 'Send for real'}
+                </Button>
+              </div>
+            </div>
+
+            <div className="rounded-md border p-3 space-y-2">
+              <p className="text-sm font-medium">Enable cloud recording on all meetings</p>
+              <p className="text-xs text-muted-foreground">
+                Meetings created before 8 August 2026 were made without recording, so they
+                produce no transcript. This switches it on for every existing classroom and
+                leaves all other meeting settings untouched. Safe to re-run.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={opsBusy}
+                onClick={() => void runEnableCloudRecording()}
+              >
+                {opsBusy ? 'Working…' : 'Enable cloud recording'}
+              </Button>
+            </div>
+
+            {opsMessage && (
+              <p className="text-sm" role="status">
+                {opsMessage}
+              </p>
+            )}
           </CardContent>
         </Card>
       )}
