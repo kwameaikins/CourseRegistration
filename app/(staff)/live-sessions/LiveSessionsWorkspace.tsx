@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { apiFetch } from '@/components/api-client';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,31 @@ import { formatDate } from '@/lib/utils';
 import { UPLOAD_ACCEPT_ATTRIBUTE, UPLOAD_TYPES_HINT } from '@/lib/upload-constants';
 import type { LiveSession, LiveSessionStatus } from '@/modules/live-sessions/types';
 
-type BatchOption = { id: string; cohortLabel: string; startDate: string };
+type BatchOption = {
+  id: string;
+  cohortLabel: string;
+  startDate: string;
+  courseCode: string;
+  courseName: string;
+};
+
+// Batches grouped under their course, newest cohort first within each. A flat
+// list labelled by cohort alone is ambiguous the moment two courses share a
+// cohort label — which is the normal case, since labels are month-based.
+function groupBatchesByCourse(batches: BatchOption[]) {
+  const byCourse = new Map<string, BatchOption[]>();
+  for (const batch of batches) {
+    const list = byCourse.get(batch.courseName) ?? [];
+    list.push(batch);
+    byCourse.set(batch.courseName, list);
+  }
+  return [...byCourse.entries()]
+    .map(([courseName, list]) => ({
+      courseName,
+      batches: [...list].sort((a, b) => (a.startDate < b.startDate ? 1 : -1)),
+    }))
+    .sort((a, b) => a.courseName.localeCompare(b.courseName));
+}
 type TutorOption = { id: string; fullName: string };
 // A material is either a shared link or an uploaded file (2026-08-04).
 type MaterialOption = {
@@ -69,6 +93,7 @@ export function LiveSessionsWorkspace({
   batches: BatchOption[];
   canManage: boolean;
 }) {
+  const batchesByCourse = useMemo(() => groupBatchesByCourse(batches), [batches]);
   const [liveSessions, setLiveSessions] = useState(initialLiveSessions);
   const [tutors, setTutors] = useState<TutorOption[]>([]);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -353,7 +378,15 @@ export function LiveSessionsWorkspace({
                 <Label htmlFor="batch">Batch</Label>
                 <select id="batch" required className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.batchId} onChange={(event) => setForm({ ...form, batchId: event.target.value })}>
                   <option value="">Select a batch</option>
-                  {batches.map((batch) => <option key={batch.id} value={batch.id}>{batch.cohortLabel} ({formatDate(batch.startDate)})</option>)}
+                  {batchesByCourse.map((group) => (
+                    <optgroup key={group.courseName} label={group.courseName}>
+                      {group.batches.map((batch) => (
+                        <option key={batch.id} value={batch.id}>
+                          {batch.cohortLabel} ({formatDate(batch.startDate)})
+                        </option>
+                      ))}
+                    </optgroup>
+                  ))}
                 </select>
               </div>
               <div className="space-y-2">
@@ -400,13 +433,21 @@ export function LiveSessionsWorkspace({
               value={materialsBatchId}
               onChange={(event) => setMaterialsBatchId(event.target.value)}
             >
-              <option value="">Select a batch…</option>
-              {batches.map((batch) => (
-                <option key={batch.id} value={batch.id}>
-                  {batch.cohortLabel} ({formatDate(batch.startDate)})
-                </option>
+              <option value="">Select a course and cohort…</option>
+              {batchesByCourse.map((group) => (
+                <optgroup key={group.courseName} label={group.courseName}>
+                  {group.batches.map((batch) => (
+                    <option key={batch.id} value={batch.id}>
+                      {batch.cohortLabel} ({formatDate(batch.startDate)})
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
+            <p className="text-xs text-muted-foreground">
+              Resources can be added to any course, whether or not it has scheduled live
+              sessions. Students see them in their portal under the course.
+            </p>
           </div>
 
           {canManage && materialsBatchId && (

@@ -2,7 +2,6 @@
 // service-role client by design (same posture as communications): the
 // unguessable Registration UUID is the access token, and feedback has no
 // anon RLS policies. Staff reads run on the RLS-enforced server client.
-import { meetsAttendanceThreshold } from '@/lib/attendance-constants';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import type { Database } from '@/lib/supabase/database.types';
@@ -141,15 +140,14 @@ export async function selectAttendedRegistrationIdsForBatch(
     .in('registration_id', registrations.map((r) => r.id));
   if (attendanceError) throw attendanceError;
 
-  const attended = new Set<string>();
-  for (const row of attendance ?? []) {
-    if (
-      row.source === 'manual_correction' ||
-      meetsAttendanceThreshold(row.duration_minutes, row.session_minutes)
-    ) {
-      attended.add(row.registration_id);
-    }
-  }
+  // Everyone who joined, however briefly (founder decision 2026-08-08).
+  //
+  // This used to filter on MIN_ATTENDANCE_RATIO, which meant someone who
+  // dropped after 20 minutes of a 175-minute session was never asked for
+  // feedback — and since feedback gates the certificate, never told why they
+  // could not have one. On ESG2 that silently excluded 37 of the 119 people
+  // who actually turned up.
+  const attended = new Set((attendance ?? []).map((row) => row.registration_id));
   return [...attended];
 }
 

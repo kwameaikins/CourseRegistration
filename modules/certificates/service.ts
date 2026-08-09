@@ -55,11 +55,16 @@ const CERTIFICATE_STAFF_ROLES = ['admin'] as const;
 // 0 until that sync has run at least once for the batch, which correctly
 // holds certificates back rather than issuing them early.
 //
-// attendedSessions counts only sessions where the participant was present for
-// at least MIN_ATTENDANCE_RATIO of the session (founder-approved 2026-08-06).
-// Before that the test was row existence, so a two-minute appearance on a
-// 175-minute session earned the same credit as the full session — see
-// certificates/repository.ts.
+// attendedSessions counts every session the participant joined, however
+// briefly (founder decision 2026-08-08). It was briefly thresholded on
+// MIN_ATTENDANCE_RATIO — see certificates/repository.ts for why that was
+// reversed. The threshold still exists and is still reported; it just no
+// longer decides who gets a certificate.
+//
+// Attendance therefore only proves the person turned up at all. The real
+// gate on a free event is feedback, and feedback is only ever requested from
+// attendees — so the two conditions reinforce each other rather than
+// duplicating.
 function isCertificateEligible(
   candidate: { paid: boolean; feedbackSubmitted: boolean; attendedSessions: number },
   batchIsFree: boolean,

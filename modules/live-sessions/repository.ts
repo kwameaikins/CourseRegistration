@@ -29,6 +29,93 @@ export async function selectLiveSessionById(id: string): Promise<LiveSessionRow 
   return data;
 }
 
+// --- Generated schedules (2026-08-08) ---
+//
+// Service-role throughout: generation runs from batch create/update (a staff
+// session) but also from a backfill over every existing batch, where there is
+// no session at all. Authorization is the caller's — createBatch is already
+// role-gated, and the backfill is admin-only in the service.
+
+export async function selectBatchScheduleSystem(batchId: string): Promise<{
+  startDate: string;
+  endDate: string;
+  startTime: string;
+  endTime: string | null;
+  meetingDays: number[] | null;
+  courseName: string;
+  zoomMeetingId: string | null;
+} | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data: batch, error } = await supabase
+    .from('batches')
+    .select('course_id, start_date, end_date, start_time, end_time, meeting_days, zoom_meeting_id')
+    .eq('id', batchId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!batch) return null;
+
+  const { data: course, error: courseError } = await supabase
+    .from('courses')
+    .select('course_name')
+    .eq('id', batch.course_id)
+    .maybeSingle();
+  if (courseError) throw courseError;
+
+  return {
+    startDate: batch.start_date,
+    endDate: batch.end_date,
+    startTime: batch.start_time,
+    endTime: batch.end_time,
+    meetingDays: batch.meeting_days,
+    courseName: course?.course_name ?? 'Course',
+    zoomMeetingId: batch.zoom_meeting_id,
+  };
+}
+
+// Idempotent by (batch_id, starts_at) — the unique constraint added in
+// 202608080058 is what makes re-generation safe. `ignoreDuplicates` means a
+// re-run after a schedule edit adds the new sessions and leaves the existing
+// ones (and any title, agenda or tutor a human has since set) untouched.
+export async function upsertGeneratedSessionsSystem(
+  rows: LiveSessionInsert[],
+): Promise<number> {
+  if (rows.length === 0) return 0;
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('live_sessions')
+    .upsert(rows, { onConflict: 'batch_id,starts_at', ignoreDuplicates: true })
+    .select('id');
+  if (error) throw error;
+  return data?.length ?? 0;
+}
+
+// Every distinct classroom meeting in use, across both places one can live:
+// courses.zoom_meeting_id (the shared type 3 room every batch inherits) and
+// batches.zoom_meeting_id (a batch's own type 8 room since 202608080056).
+export async function selectAllZoomMeetingIdsSystem(): Promise<string[]> {
+  const supabase = createSupabaseServiceRoleClient();
+  const [{ data: courses, error }, { data: batches, error: batchError }] = await Promise.all([
+    supabase.from('courses').select('zoom_meeting_id').not('zoom_meeting_id', 'is', null),
+    supabase.from('batches').select('zoom_meeting_id').not('zoom_meeting_id', 'is', null),
+  ]);
+  if (error) throw error;
+  if (batchError) throw batchError;
+  return [
+    ...new Set(
+      [...(courses ?? []), ...(batches ?? [])]
+        .map((row) => row.zoom_meeting_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+}
+
+export async function selectBatchIdsSystem(): Promise<string[]> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase.from('batches').select('id');
+  if (error) throw error;
+  return (data ?? []).map((row) => row.id);
+}
+
 export async function insertLiveSession(input: LiveSessionInsert): Promise<LiveSessionRow> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
