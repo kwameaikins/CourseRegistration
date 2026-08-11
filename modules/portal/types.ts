@@ -69,6 +69,12 @@ export interface PortalDashboardRegistration {
   // balance, receipt, installment-plan and payment-proof surfaces for these
   // instead of rendering a row of zeros.
   isFree: boolean;
+  // Written off as uncollectible (2026-08-09) — the balance is still real and
+  // still shown, but we have stopped asking for it, so every payment surface
+  // (Pay Now, installment plan, payment-proof upload, credit redemption) is
+  // hidden. A registrant who never paid and never attended should not be
+  // looking at a live Pay Now button for a course that ended months ago.
+  writtenOff: boolean;
   paymentStatus: string;
   courseFee: number;
   // Equal to courseFee when no staff discount has ever been granted;

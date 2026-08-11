@@ -57,7 +57,7 @@ app/ -> modules/live-sessions/service.ts -> repository.ts -> lib/supabase
 1. Admin publishes a session created from a batch template.
 2. Eligible learners are registered with Zoom and receive a stored personal join reference.
 3. Knowsia sends approved reminders at configurable defaults: three days, 24 hours, one hour, and 15 minutes before start.
-4. The student portal activates Join only inside the configured window and explains unavailable access.
+4. The student portal shows Join for the whole of an upcoming or in-progress session and explains unavailable access. Founder direction 2026-08-11 (after a live class where the link never appeared): the link disappears only once the session's duration has ended — there is no pre-start window any more — with a 60-minute grace after the scheduled end so a class that overruns keeps its link.
 5. Zoom participation data is synced after the class, matched to registered learners, and placed under review.
 6. Tutor/admin reviews exceptions, then locks the attendance outcome used by completion and certificate eligibility.
 
@@ -109,6 +109,6 @@ The first foundation slice is implemented in the application source: `live_sessi
 ## 11. Decisions to Confirm Before Build
 
 1. Use one Zoom meeting per LiveSession (recommended) or a recurring batch meeting during the transition.
-2. Set the default join window, attendance threshold, reminder schedule, and recording retention period.
+2. Set the attendance threshold, reminder schedule, and recording retention period. (Join window settled 2026-08-11 — no pre-start gate, link live until scheduled end + 60 minutes; see Section 5, step 4.)
 3. Decide whether technical-support requests become a dedicated support module or remain a communications workflow initially.
 4. Confirm the first course/batch to pilot before enabling the model globally.

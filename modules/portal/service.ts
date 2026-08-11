@@ -345,9 +345,21 @@ export async function getPortalDashboard(sessionId: string | undefined): Promise
       // Join button on the card invites people into an empty meeting. The
       // Zoom registrant itself is revoked separately, two days after
       // end_date, by runPostCourseZoomRevocation; this is the visible half.
+      //
+      // The Course's own classroom is the last fallback (founder-flagged
+      // 2026-08-11). createBatch COPIES the course's zoom_link onto the batch
+      // at creation and nothing ever back-fills it, so a batch created before
+      // its course had a meeting stays permanently linkless — the AI02
+      // AUG-2026 cohort showed no link on 2026-08-10 for exactly this reason,
+      // while its course carried a perfectly good meeting all along. Reading
+      // through to the course makes the inheritance that createBatch already
+      // intends actually hold, for every such batch, without a data patch.
       zoomLink:
         accessStates.get(row.registration.id)?.hasAccess && !hasCourseEnded(row.batch?.end_date)
-          ? (row.zoomRegistrant?.join_url ?? row.batch?.zoom_link ?? null)
+          ? (row.zoomRegistrant?.join_url ??
+            row.batch?.zoom_link ??
+            row.course?.zoom_link ??
+            null)
           : null,
       resourcesLink: accessStates.get(row.registration.id)?.hasAccess
         ? (row.batch?.resources_link ?? null)
@@ -357,6 +369,7 @@ export async function getPortalDashboard(sessionId: string | undefined): Promise
       // fee, balance, receipt, installment-plan and payment-proof surfaces
       // rather than showing a row of zeros the participant has to interpret.
       isFree: row.batch?.is_free ?? false,
+      writtenOff: row.registration.registration_status === 'Lapsed',
       paymentStatus: row.payment?.payment_status ?? 'Unpaid',
       courseFee: Number(row.payment?.course_fee ?? 0),
       originalFee: Number(row.payment?.original_fee ?? row.payment?.course_fee ?? 0),
@@ -391,6 +404,26 @@ export async function getPortalDashboard(sessionId: string | undefined): Promise
 // client-supplied registrationId blindly) using the same dashboard read
 // already used to render the portal, then delegates the money logic to
 // paymentsService.
+// Hiding the button is not enough — the endpoints behind it have to refuse
+// too (2026-08-09). A written-off registration is one we have stopped
+// pursuing, so the portal must not let the participant take on a payment
+// obligation against it: no installment plan, no payment-proof submission, no
+// coupon application.
+//
+// Paystack's own Pay Now is deliberately NOT gated: it is initialised
+// client-side and reconciled by the webhook, and if real money genuinely
+// arrives it must be recorded. That lands as the Lapsed + Paid anomaly BR-06
+// already describes, which staff resolve with reinstateRegistration.
+function assertNotWrittenOff(registrationStatus: string): void {
+  if (registrationStatus === 'Lapsed') {
+    throw new AppError(
+      'VALIDATION_ERROR',
+      'This registration has been closed and its balance is no longer being collected. Please contact us if you would like to take this course.',
+      400,
+    );
+  }
+}
+
 export async function setUpInstallmentPlan(
   sessionId: string | undefined,
   input: PortalSetUpInstallmentPlanInput,
@@ -401,6 +434,7 @@ export async function setUpInstallmentPlan(
   if (!match || !match.batch || !match.payment) {
     throw new AppError('NOT_FOUND', 'Registration not found.', 404);
   }
+  assertNotWrittenOff(match.registration.registration_status);
 
   await paymentsService.setUpTwoInstallmentPlan(input.registrationId, {
     courseFee: Number(match.payment.course_fee),
@@ -423,6 +457,7 @@ export async function submitPaymentProof(
   if (!match) {
     throw new AppError('NOT_FOUND', 'Registration not found.', 404);
   }
+  assertNotWrittenOff(match.registration.registration_status);
 
   return paymentsService.submitPaymentProofSystem(input, slip);
 }
@@ -499,10 +534,11 @@ export async function applyCouponForSession(
   const { participantId } = await requirePortalSession(sessionId);
 
   const data = await portalRepository.selectPortalDashboardData(participantId);
-  const owns = data.registrations.some((row) => row.registration.id === input.registrationId);
-  if (!owns) {
+  const owned = data.registrations.find((row) => row.registration.id === input.registrationId);
+  if (!owned) {
     throw new AppError('NOT_FOUND', 'Registration not found.', 404);
   }
+  assertNotWrittenOff(owned.registration.registration_status);
 
   await couponsService.assertAttemptAllowed(participantId);
 

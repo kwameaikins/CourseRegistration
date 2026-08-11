@@ -502,6 +502,69 @@ describe('getPortalDashboard — Zoom link visibility gate', () => {
     expect(dashboard.registrations[0].zoomLink).toBe('https://zoom.us/j/shared-classroom');
   });
 
+  // The AI02 AUG-2026 cohort (2026-08-10) had a null batch zoom_link while
+  // its course carried a valid classroom meeting the whole time — createBatch
+  // copies the course link once at creation and never back-fills it, so a
+  // batch created before its course had a meeting shows nothing forever.
+  it('falls back to the Course classroom link when the batch has none', async () => {
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [
+        dashboardRow({
+          batch: {
+            cohort_label: 'AUG-2026',
+            start_date: '2026-08-01',
+            start_time: '17:30',
+            end_date: '2026-08-05',
+            facilitator_name: 'Mr. Asante',
+            zoom_link: null,
+            resources_link: null,
+          },
+          course: {
+            course_name: 'ICAG Level 1 Prep',
+            course_code: 'ICAG-L1',
+            zoom_link: 'https://zoom.us/j/course-classroom',
+          },
+          payment: {
+            payment_status: 'Paid',
+            course_fee: '1200.00',
+            original_fee: null,
+            amount_paid: '1200.00',
+            balance: '0.00',
+          },
+        }),
+      ],
+    });
+    const dashboard = await getPortalDashboard('session-1');
+    expect(dashboard.registrations[0].zoomLink).toBe('https://zoom.us/j/course-classroom');
+  });
+
+  it('still hides the Course classroom link without access', async () => {
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [
+        dashboardRow({
+          batch: {
+            cohort_label: 'AUG-2026',
+            start_date: '2026-08-01',
+            start_time: '17:30',
+            end_date: '2026-08-05',
+            facilitator_name: 'Mr. Asante',
+            zoom_link: null,
+            resources_link: null,
+          },
+          course: {
+            course_name: 'ICAG Level 1 Prep',
+            course_code: 'ICAG-L1',
+            zoom_link: 'https://zoom.us/j/course-classroom',
+          },
+        }),
+      ],
+    });
+    const dashboard = await getPortalDashboard('session-1');
+    expect(dashboard.registrations[0].zoomLink).toBeNull();
+  });
+
   it('hides the course resources link for an Unpaid registration (same gate as Zoom, 2026-07-28)', async () => {
     const dashboard = await getPortalDashboard('session-1');
     expect(dashboard.registrations[0].resourcesLink).toBeNull();

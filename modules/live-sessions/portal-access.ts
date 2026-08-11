@@ -10,31 +10,39 @@ import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 // longer reads the payments table directly.
 import * as accessGrantsService from '@/modules/access-grants/service';
 
-// How long before a session's scheduled start the portal's Join button
-// activates; it stays active through the session's scheduled end (Document
-// 14, Section 5, step 4 — "activates Join only inside the configured
-// window and explains unavailable access otherwise"). 15 minutes matches
-// the closest-to-start reminder in the default cadence (Section 5, step 3).
-// Document 14, Section 11, #2 lists the exact default as still pending
-// founder confirmation — treat this as a placeholder until that's decided.
-const JOIN_WINDOW_BEFORE_MS = 15 * 60 * 1000;
+// The Join button used to activate only 15 minutes before the scheduled
+// start (Document 14, Section 5, step 4). That gate cost a real class its
+// link: on 2026-08-10 the link never appeared while the session was running,
+// because a start_time that is even slightly out — or a session generated
+// from batch hours that don't match when the cohort actually meets — keeps
+// the pre-start window shut through the whole class.
+//
+// Founder direction 2026-08-11: the link disappears only after the course
+// duration has ended, never before. So there is no lower bound any more —
+// selectNextClassForParticipant already narrows to the soonest session that
+// has not ended, and that session's link is live from the moment it becomes
+// the next class.
+//
+// Grace after the scheduled end, so a class that overruns doesn't lose its
+// link mid-session — the same failure in the other direction. Applied both
+// here and to the query that picks the session, so an overrunning class
+// stays the "next class" for this long rather than being replaced by
+// tomorrow's the second the clock passes ends_at.
+export const JOIN_WINDOW_AFTER_MS = 60 * 60 * 1000;
 
 // Extracted as its own pure function so the gate itself is directly unit-
 // testable, independent of the Supabase orchestration around it.
-export function isWithinJoinWindow(now: Date, startsAt: string, endsAt: string): boolean {
-  const windowOpensAt = new Date(startsAt).getTime() - JOIN_WINDOW_BEFORE_MS;
-  const windowClosesAt = new Date(endsAt).getTime();
-  const nowMs = now.getTime();
-  return nowMs >= windowOpensAt && nowMs <= windowClosesAt;
+export function isJoinLinkLive(now: Date, endsAt: string): boolean {
+  return now.getTime() <= new Date(endsAt).getTime() + JOIN_WINDOW_AFTER_MS;
 }
 
 export interface NextClassForParticipant {
   title: string;
   startsAt: string;
   endsAt: string;
-  // Null outside the join window, or when no personal registrant link has
-  // been created yet — the caller renders "opens N minutes before start"
-  // rather than a dead/premature link (never expose a join URL early).
+  // Null only once the session's duration is over (plus the overrun grace),
+  // or when no join link exists for this cohort at all — the caller renders
+  // an explanation rather than a dead link.
   joinUrl: string | null;
 }
 
@@ -70,13 +78,18 @@ export async function selectNextClassForParticipant(
   // "Next" means the soonest session that hasn't ended yet — filtering on
   // starts_at instead of ends_at would drop an in-progress class from view
   // the moment it started, hiding Join for the entire live session.
+  //
+  // "Hasn't ended" carries the overrun grace, so a class still running past
+  // its scheduled end remains the next class instead of jumping to the
+  // following one while people are still in the room.
+  const now = new Date();
   const batchIds = eligibleRegistrations.map((row) => row.batch_id);
   const { data: sessions, error: sessionsError } = await supabase
     .from('live_sessions')
     .select('id, batch_id, title, starts_at, ends_at')
     .in('batch_id', batchIds)
     .in('status', ['scheduled', 'ready', 'live'])
-    .gte('ends_at', new Date().toISOString())
+    .gte('ends_at', new Date(now.getTime() - JOIN_WINDOW_AFTER_MS).toISOString())
     .order('starts_at', { ascending: true })
     .limit(1);
   if (sessionsError) throw sessionsError;
@@ -104,24 +117,24 @@ export async function selectNextClassForParticipant(
     .maybeSingle();
   if (registrantError) throw registrantError;
 
-  // Falls back to the batch's shared classroom link, matching what the
-  // portal's course card does — a cohort whose Zoom registration has not run
-  // yet still gets a way in during the window.
+  // Falls back to the batch's shared classroom link, then to the Course's,
+  // matching what the portal's course card does — a cohort whose Zoom
+  // registration has not run yet still gets a way in, and so does a batch
+  // created before its course had a meeting (createBatch copies the course
+  // link once at creation and never back-fills it).
   const { data: batch, error: batchError } = await supabase
     .from('batches')
-    .select('zoom_link')
+    .select('zoom_link, courses(zoom_link)')
     .eq('id', session.batch_id)
     .maybeSingle();
   if (batchError) throw batchError;
-
-  const withinJoinWindow = isWithinJoinWindow(new Date(), session.starts_at, session.ends_at);
 
   return {
     title: session.title,
     startsAt: session.starts_at,
     endsAt: session.ends_at,
-    joinUrl: withinJoinWindow
-      ? (registrant?.join_url ?? batch?.zoom_link ?? null)
+    joinUrl: isJoinLinkLive(now, session.ends_at)
+      ? (registrant?.join_url ?? batch?.zoom_link ?? batch?.courses?.zoom_link ?? null)
       : null,
   };
 }

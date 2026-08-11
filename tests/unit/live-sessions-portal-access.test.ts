@@ -1,33 +1,31 @@
 import { describe, expect, it } from 'vitest';
 
-import { isWithinJoinWindow } from '@/modules/live-sessions/portal-access';
+import { isJoinLinkLive } from '@/modules/live-sessions/portal-access';
 
-const STARTS_AT = '2026-08-10T09:00:00.000Z';
 const ENDS_AT = '2026-08-10T12:00:00.000Z';
 
-describe('isWithinJoinWindow (Document 14, Section 5, step 4)', () => {
-  it('is false more than 15 minutes before the session starts', () => {
-    const now = new Date('2026-08-10T08:30:00.000Z');
-    expect(isWithinJoinWindow(now, STARTS_AT, ENDS_AT)).toBe(false);
+describe('isJoinLinkLive (founder direction 2026-08-11)', () => {
+  it('is live well before the session starts — no pre-start window any more', () => {
+    const now = new Date('2026-08-09T18:00:00.000Z');
+    expect(isJoinLinkLive(now, ENDS_AT)).toBe(true);
   });
 
-  it('opens exactly 15 minutes before the scheduled start', () => {
-    const now = new Date('2026-08-10T08:45:00.000Z');
-    expect(isWithinJoinWindow(now, STARTS_AT, ENDS_AT)).toBe(true);
-  });
-
-  it('stays open while the session is in progress', () => {
+  it('is live while the session is in progress', () => {
     const now = new Date('2026-08-10T10:30:00.000Z');
-    expect(isWithinJoinWindow(now, STARTS_AT, ENDS_AT)).toBe(true);
+    expect(isJoinLinkLive(now, ENDS_AT)).toBe(true);
   });
 
-  it('stays open at the exact scheduled end', () => {
-    const now = new Date(ENDS_AT);
-    expect(isWithinJoinWindow(now, STARTS_AT, ENDS_AT)).toBe(true);
+  it('is live at the exact scheduled end', () => {
+    expect(isJoinLinkLive(new Date(ENDS_AT), ENDS_AT)).toBe(true);
   });
 
-  it('closes after the scheduled end', () => {
-    const now = new Date('2026-08-10T12:00:01.000Z');
-    expect(isWithinJoinWindow(now, STARTS_AT, ENDS_AT)).toBe(false);
+  it('stays live for a class that overruns its scheduled end', () => {
+    const now = new Date('2026-08-10T12:45:00.000Z');
+    expect(isJoinLinkLive(now, ENDS_AT)).toBe(true);
+  });
+
+  it('closes once the scheduled duration and its overrun grace are past', () => {
+    const now = new Date('2026-08-10T13:00:01.000Z');
+    expect(isJoinLinkLive(now, ENDS_AT)).toBe(false);
   });
 });

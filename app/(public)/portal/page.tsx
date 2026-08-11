@@ -45,6 +45,16 @@ import {
 const PAYMENT_POLL_INTERVAL_MS = 3000;
 const PAYMENT_POLL_TIMEOUT_MS = 60000;
 
+// The one question every payment surface on this page asks: is there anything
+// here for this person to pay? A written-off registration keeps its real
+// balance on display — hiding it would be its own kind of lie — but answers
+// zero here, which is what withdraws Pay Now, the coupon field, the payment
+// plan, the proof-of-payment form and the credit-redemption dropdown together.
+// Declared once so a new payment surface cannot quietly miss the rule.
+function amountPayable(reg: DashboardRegistration): number {
+  return reg.writtenOff ? 0 : reg.balance;
+}
+
 interface DashboardRegistration {
   registrationId: string;
   courseName: string;
@@ -63,6 +73,11 @@ interface DashboardRegistration {
   // Free event / webinar — nothing was ever owed, so every payment surface
   // for this registration is hidden rather than shown at zero.
   isFree: boolean;
+  // Written off as uncollectible (2026-08-09). Distinct from isFree: money WAS
+  // owed, and the figures still say so — we have simply stopped asking for it,
+  // so every action that would take a payment is withdrawn. See amountPayable
+  // below for the single predicate the whole page uses.
+  writtenOff: boolean;
   paymentStatus: string;
   courseFee: number;
   originalFee: number;
@@ -396,7 +411,7 @@ export default function PortalDashboardPage() {
   useEffect(() => {
     if (activePanel !== 'courses' || !dashboard) return;
     dashboard.registrations.forEach((reg) => {
-      if (reg.balance > 0 && !submissionsByRegistration[reg.registrationId]) {
+      if (amountPayable(reg) > 0 && !submissionsByRegistration[reg.registrationId]) {
         fetchSubmissions(reg.registrationId);
       }
     });
@@ -693,6 +708,12 @@ export default function PortalDashboardPage() {
 
   if (!dashboard) return null;
 
+  // Two different totals, deliberately. The dashboard tile is a call to
+  // action ("Balance due — pay now"), so it counts only what is actually
+  // payable; a written-off balance belongs in neither the number nor the
+  // prompt. The Payments table's footer below is a column sum and stays a
+  // true sum of the balances printed above it, or it would not add up.
+  const totalPayable = dashboard.registrations.reduce((sum, r) => sum + amountPayable(r), 0);
   const totalBalance = dashboard.registrations.reduce((sum, r) => sum + r.balance, 0);
   // Free events never had a fee, so they are left out of Payments & Receipts
   // entirely — a row of zeros there reads as a failed payment. A participant
@@ -842,7 +863,7 @@ export default function PortalDashboardPage() {
                       </a>
                     ) : (
                       <span className="btn btn-onaccent" aria-disabled>
-                        <svg className="icon"><use href="#i-play" /></svg>Opens 15 min before start
+                        <svg className="icon"><use href="#i-play" /></svg>Join link coming soon
                       </span>
                     )}
                   </div>
@@ -877,12 +898,12 @@ export default function PortalDashboardPage() {
                       was previously a dead number, leaving the most common
                       landing spot with no route to paying. */}
                   <div
-                    className={`stat-tile${totalBalance > 0 ? ' warn tile-action' : ''}`}
-                    role={totalBalance > 0 ? 'button' : undefined}
-                    tabIndex={totalBalance > 0 ? 0 : undefined}
-                    onClick={totalBalance > 0 ? () => setActivePanel('payments') : undefined}
+                    className={`stat-tile${totalPayable > 0 ? ' warn tile-action' : ''}`}
+                    role={totalPayable > 0 ? 'button' : undefined}
+                    tabIndex={totalPayable > 0 ? 0 : undefined}
+                    onClick={totalPayable > 0 ? () => setActivePanel('payments') : undefined}
                     onKeyDown={
-                      totalBalance > 0
+                      totalPayable > 0
                         ? (event) => {
                             if (event.key === 'Enter' || event.key === ' ') {
                               event.preventDefault();
@@ -893,8 +914,8 @@ export default function PortalDashboardPage() {
                     }
                   >
                     <div className="icon-wrap"><svg className="icon"><use href="#i-card" /></svg></div>
-                    <span className="num tnum">{formatGhs(totalBalance)}</span>
-                    <span className="lbl">{totalBalance > 0 ? 'Balance due — pay now' : 'Balance due'}</span>
+                    <span className="num tnum">{formatGhs(totalPayable)}</span>
+                    <span className="lbl">{totalPayable > 0 ? 'Balance due — pay now' : 'Balance due'}</span>
                   </div>
                 </div>
 
@@ -983,7 +1004,7 @@ export default function PortalDashboardPage() {
                       {reg.accessExpiresOn && (
                         <p className="empty-note" style={{ marginTop: 10, marginBottom: 0 }}>
                           Your access runs to {formatDate(reg.accessExpiresOn)}
-                          {reg.balance > 0
+                          {amountPayable(reg) > 0
                             ? ` — ${formatGhs(reg.balance)} still outstanding. Settle the balance to keep it open.`
                             : '.'}
                         </p>
@@ -1046,7 +1067,15 @@ export default function PortalDashboardPage() {
                         )}
                       </div>
 
-                      {reg.balance > 0 && (
+                      {reg.writtenOff && (
+                        <p className="empty-note" style={{ marginTop: 12, marginBottom: 0 }}>
+                          This registration has been closed and the outstanding balance is no
+                          longer being collected. You are welcome to join a future cohort — see
+                          &ldquo;Explore other courses&rdquo; below.
+                        </p>
+                      )}
+
+                      {amountPayable(reg) > 0 && (
                         <div className="pay-block">
                           {renderPayControls(reg)}
 
@@ -1316,11 +1345,11 @@ export default function PortalDashboardPage() {
                     show only history, so someone who came here to settle a
                     balance saw what they owed and had no way to pay it — the
                     Pay button existed solely on the My Courses card. */}
-                {payableRegistrations.filter((reg) => reg.balance > 0).length > 0 && (
+                {payableRegistrations.filter((reg) => amountPayable(reg) > 0).length > 0 && (
                   <div className="due-list">
                     <h3 className="panel-title" style={{ fontSize: 16 }}>Outstanding</h3>
                     {payableRegistrations
-                      .filter((reg) => reg.balance > 0)
+                      .filter((reg) => amountPayable(reg) > 0)
                       .map((reg) => (
                         <div key={reg.registrationId} className="due-card">
                           <div className="due-head">
@@ -1353,7 +1382,17 @@ export default function PortalDashboardPage() {
                             <td className="num tnum">{formatGhs(reg.courseFee)}</td>
                             <td className="num tnum">{formatGhs(reg.amountPaid)}</td>
                             <td className="num tnum">{formatGhs(reg.balance)}</td>
-                            <td>{paymentPill(reg.paymentStatus)}</td>
+                            {/* A written-off row still prints its real balance
+                                — so say why it is not in the Outstanding list
+                                above, rather than leaving an unexplained
+                                number next to an Unpaid pill. */}
+                            <td>
+                              {reg.writtenOff ? (
+                                <span className="pill pill-neutral">Closed — not collected</span>
+                              ) : (
+                                paymentPill(reg.paymentStatus)
+                              )}
+                            </td>
                             <td>
                               {reg.amountPaid > 0 && (
                                 <a className="btn btn-ghost btn-sm" href={`/api/portal/receipt/${reg.registrationId}`} target="_blank" rel="noreferrer">
@@ -1580,7 +1619,7 @@ export default function PortalDashboardPage() {
                             >
                               <option value="">Select a course with an outstanding balance</option>
                               {dashboard.registrations
-                                .filter((reg) => reg.balance > 0)
+                                .filter((reg) => amountPayable(reg) > 0)
                                 .map((reg) => (
                                   <option key={reg.registrationId} value={reg.registrationId}>
                                     {reg.courseName} — {reg.cohortLabel} ({formatGhs(reg.balance)} owed)
