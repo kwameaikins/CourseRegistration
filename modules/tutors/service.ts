@@ -335,15 +335,21 @@ export async function getTutorPortalDashboard(
     tutorsRepository.selectCoursesByIdsSystem(courseIds),
     tutorsRepository.selectRegisteredCountsForBatchesSystem(batchRows.map((row) => row.id)),
   ]);
-  const courseNameById = new Map(courses.map((row) => [row.id, row.course_name]));
+  const courseById = new Map(courses.map((row) => [row.id, row]));
 
   const batches: TutorPortalBatch[] = batchRows.map((row) => ({
     batchId: row.id,
-    courseName: courseNameById.get(row.course_id) ?? '',
+    courseName: courseById.get(row.course_id)?.course_name ?? '',
     cohortLabel: row.cohort_label,
     startDate: row.start_date,
     endDate: row.end_date,
-    zoomLink: row.zoom_link,
+    // Falls back to the Course's classroom meeting, exactly as the student
+    // portal does (2026-08-11). createBatch copies the course's zoom_link
+    // onto the batch once at creation and never back-fills it, so a batch
+    // created before its course had a meeting left the TUTOR with no link
+    // either — and the tutor is who starts the class. Same null batch link
+    // that hid the AI02 AUG-2026 cohort's Join button from its students.
+    zoomLink: row.zoom_link ?? courseById.get(row.course_id)?.zoom_link ?? null,
     registeredCount: registeredCounts.get(row.id) ?? 0,
   }));
 

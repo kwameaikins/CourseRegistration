@@ -425,6 +425,43 @@ describe('getTutorPortalDashboard', () => {
     expect(dashboard.liveSessions).toHaveLength(1);
     expect(tutorsRepositoryMock.selectLiveSessionsForTutorSystem).toHaveBeenCalledWith('tutor-1', ['batch-1']);
   });
+
+  // The tutor is who starts the class, so a batch with no zoom_link of its
+  // own left nobody with a way in — the AI02 AUG-2026 case (2026-08-11).
+  it('falls back to the Course classroom link when the batch has none', async () => {
+    tutorsRepositoryMock.selectTutorSession.mockResolvedValue({
+      tutor_id: 'tutor-1',
+      expires_at: '2099-01-01T00:00:00Z',
+      revoked_at: null,
+    });
+    tutorsRepositoryMock.selectTutorByIdSystem.mockResolvedValue(tutorRow());
+    tutorsRepositoryMock.selectTutorAuth.mockResolvedValue(tutorAuthRow());
+    tutorsRepositoryMock.selectBatchesForTutorSystem.mockResolvedValue([
+      {
+        id: 'batch-1',
+        course_id: 'course-1',
+        cohort_label: 'AUG-2026',
+        start_date: '2026-08-10',
+        end_date: '2026-08-14',
+        zoom_link: null,
+      },
+    ]);
+    tutorsRepositoryMock.selectCoursesByIdsSystem.mockResolvedValue([
+      {
+        id: 'course-1',
+        course_name: 'ICAG Level 1 Prep',
+        zoom_link: 'https://zoom.us/j/course-classroom',
+      },
+    ]);
+    tutorsRepositoryMock.selectLiveSessionsForTutorSystem.mockResolvedValue([]);
+    tutorsRepositoryMock.selectRegisteredCountsForBatchesSystem.mockResolvedValue(
+      new Map([['batch-1', 43]]),
+    );
+
+    const dashboard = await getTutorPortalDashboard('session-1');
+
+    expect(dashboard.batches[0].zoomLink).toBe('https://zoom.us/j/course-classroom');
+  });
 });
 
 describe('batch-scoped reads reject a batch that does not belong to the calling tutor', () => {

@@ -215,14 +215,16 @@ export async function selectBatchForTutorSystem(
   return data;
 }
 
+// zoom_link is the Course's shared classroom meeting — the fallback for a
+// batch whose own zoom_link is null (see getTutorPortalDashboard).
 export async function selectCoursesByIdsSystem(
   courseIds: string[],
-): Promise<Array<{ id: string; course_name: string }>> {
+): Promise<Array<{ id: string; course_name: string; zoom_link: string | null }>> {
   if (courseIds.length === 0) return [];
   const supabase = createSupabaseServiceRoleClient();
   const { data, error } = await supabase
     .from('courses')
-    .select('id, course_name')
+    .select('id, course_name, zoom_link')
     .in('id', courseIds);
   if (error) throw error;
   return data ?? [];
