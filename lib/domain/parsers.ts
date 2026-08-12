@@ -1,4 +1,4 @@
-import { STAFF_ROLES } from '@/lib/domain/types';
+import { LEAD_SOURCES, REGISTRATION_STATUSES, STAFF_ROLES } from '@/lib/domain/types';
 import type {
   EmailType,
   Gender,
@@ -22,11 +22,7 @@ export const parseStaffRole = (value: string): StaffRole =>
   parseMember(value, STAFF_ROLES, 'staff role');
 
 export const parseRegistrationStatus = (value: string): RegistrationStatus =>
-  parseMember(
-    value,
-    ['Registered', 'Confirmed', 'Attended', 'Cancelled'],
-    'registration status',
-  );
+  parseMember(value, REGISTRATION_STATUSES, 'registration status');
 
 export const parsePaymentStatus = (value: string): PaymentStatus =>
   parseMember(value, ['Unpaid', 'Part Payment', 'Paid'], 'payment status');
@@ -60,12 +56,11 @@ export const parseEmailType = (value: string): EmailType =>
     'email type',
   );
 
+// Reads the FULL set, including 'Returning' — this parses what the database
+// gives back, so it must accept every value the CHECK constraint allows or a
+// returning student's own registration row throws on read.
 export const parseLeadSource = (value: string): LeadSource =>
-  parseMember(
-    value,
-    ['WhatsApp', 'Facebook', 'LinkedIn', 'Referral', 'Website', 'Other'],
-    'lead source',
-  );
+  parseMember(value, LEAD_SOURCES, 'lead source');
 
 export const parseGender = (value: string): Gender =>
   parseMember(value, ['Male', 'Female'], 'gender');

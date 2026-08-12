@@ -78,7 +78,7 @@ interface Registration {
   participantId: string;
   batchId: string;
   registrationStatus: 'Registered' | 'Confirmed' | 'Attended' | 'Cancelled';
-  leadSource: 'WhatsApp' | 'Facebook' | 'LinkedIn' | 'Referral' | 'Website' | 'Other';
+  leadSource: LeadSource; // derived from the LEAD_SOURCES tuple in lib/domain/types.ts
   registeredAt: string;
 }
 ```

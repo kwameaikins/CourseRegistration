@@ -210,6 +210,12 @@ export const PORTAL_STYLES = `${BRAND_TOKENS}
 .portal-app .explore-card .price .now.disc { color: var(--success); }
 .portal-app .explore-card .foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .portal-app .seats { font-size: 12px; color: var(--ink-muted); }
+/* One-click enrolment top-up (2026-08-12) — only rendered when a participant's
+   record predates a field a Registration needs, so it is a rare, small inline
+   form rather than a full re-registration. */
+.portal-app .explore-card .topup { display: flex; flex-direction: column; gap: 8px; }
+.portal-app .explore-card .topup input, .portal-app .explore-card .topup select { width: 100%; padding: 9px 11px; border-radius: 8px; border: 1px solid var(--line); background: var(--paper); color: var(--ink); font-size: 13.5px; font-family: inherit; }
+.portal-app .explore-card .topup input:focus, .portal-app .explore-card .topup select:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
 
 .portal-app .account-card, .portal-app .name-edit-form { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 22px; max-width: 480px; box-shadow: var(--shadow); }
 .portal-app .field-static { display: flex; flex-direction: column; gap: 2px; padding: 10px 0; border-bottom: 1px dashed var(--line); }

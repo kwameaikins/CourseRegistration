@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { LEAD_SOURCES } from '@/lib/domain/types';
 import type { LeadSource } from '@/lib/domain/types';
 
 // Real pipeline definition (previously only existed as a hardcoded <select>
@@ -8,10 +9,17 @@ import type { LeadSource } from '@/lib/domain/types';
 export const LEAD_STATUSES = ['New', 'Qualified', 'Follow-up', 'Enrolled', 'Lost'] as const;
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
 
-// Same literal set as lib/domain/parsers.ts's parseLeadSource — reused here
-// as a real zod enum instead of an independently-validated free string, and
-// exported so the leads UI can build its source filter dropdown from it.
-export const LEAD_SOURCE_VALUES = ['WhatsApp', 'Facebook', 'LinkedIn', 'Referral', 'Website', 'Other'] as const;
+// Re-exported from the canonical tuple in lib/domain/types.ts (2026-08-12) —
+// it used to be a fourth independent copy of the same literals. Kept as a named
+// export so the leads UI's source filter and every existing import keep working.
+//
+// This is the FULL set, 'Returning' included, and deliberately so on both
+// counts: createRegistration feeds its lead_source straight into
+// leadsService.createLead, which validates with createLeadInputSchema below, so
+// a narrower enum here would silently drop the lead row for every returning
+// student (createRegistration catches and logs that failure rather than failing
+// the registration). Staff also need to filter leads by it.
+export const LEAD_SOURCE_VALUES = LEAD_SOURCES;
 
 export interface Lead {
   id: string;

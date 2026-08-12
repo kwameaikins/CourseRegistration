@@ -27,6 +27,11 @@ import type { AgentTool } from '@/modules/agent-tools/types';
 import * as usersService from '@/modules/users/service';
 import * as voiceService from '@/modules/voice/service';
 import * as waitlistService from '@/modules/waitlist/service';
+import {
+  LEAD_SOURCES,
+  REGISTRATION_STATUSES,
+  SELF_DECLARED_LEAD_SOURCES,
+} from '@/lib/domain/types';
 import type { StaffRole } from '@/lib/domain/types';
 
 const STAFF_ALL: StaffRole[] = ['admin', 'finance', 'marketing', 'management'];
@@ -204,7 +209,10 @@ export const AGENT_TOOLS: AgentTool[] = [
       fullName: z.string().min(1),
       email: z.string().email(),
       phone: z.string().min(10),
-      leadSource: z.enum(['WhatsApp', 'Facebook', 'LinkedIn', 'Referral', 'Website', 'Other']),
+      // Self-declared — the assistant is describing an inbound inquiry, so it
+      // must not be able to label someone 'Returning' (system-assigned by the
+      // student portal's own enrolment path).
+      leadSource: z.enum(SELF_DECLARED_LEAD_SOURCES),
       jobTitle: z.string().optional(),
       company: z.string().optional(),
     }),
@@ -559,7 +567,7 @@ export const AGENT_TOOLS: AgentTool[] = [
       courseId: z.string().optional(),
       batchId: z.string().optional(),
       paymentStatus: z.enum(['Unpaid', 'Part Payment', 'Paid']).optional(),
-      registrationStatus: z.enum(['Registered', 'Confirmed', 'Attended', 'Cancelled']).optional(),
+      registrationStatus: z.enum(REGISTRATION_STATUSES).optional(),
       search: z.string().max(200).optional(),
       limit: z.number().int().min(1).max(50).optional(),
     }),
@@ -599,14 +607,16 @@ export const AGENT_TOOLS: AgentTool[] = [
       messageBody: z.string().min(1),
       audienceType: z.enum(['leads', 'registrations']).default('leads'),
       // Meaningful only when audienceType is 'leads'.
-      filterLeadSource: z.enum(['WhatsApp', 'Facebook', 'LinkedIn', 'Referral', 'Website', 'Other']).optional(),
+      // Full set — this filters leads being read back, and a re-enrolment
+      // audience is exactly the kind of slice a campaign wants to target.
+      filterLeadSource: z.enum(LEAD_SOURCES).optional(),
       filterStatus: z.string().optional(),
       filterMinScore: z.number().optional(),
       // Meaningful only when audienceType is 'registrations'.
       filterBatchId: z.string().optional(),
       filterCourseId: z.string().optional(),
       filterPaymentStatus: z.enum(['Unpaid', 'Part Payment', 'Paid']).optional(),
-      filterRegistrationStatus: z.enum(['Registered', 'Confirmed', 'Attended', 'Cancelled']).optional(),
+      filterRegistrationStatus: z.enum(REGISTRATION_STATUSES).optional(),
     }),
     trust: { kind: 'staff', roles: ['admin', 'marketing'] },
     mode: 'write-confirm',
@@ -880,7 +890,15 @@ export const AGENT_TOOLS: AgentTool[] = [
       return batches
         .map(
           (batch) =>
-            `${batch.courseName} (${batch.cohortLabel}): starts ${batch.startDate}, fee GHS ${batch.courseFee}` +
+            `${batch.courseName} (${batch.cohortLabel}): ` +
+            // Late registration (2026-08-12) means this list can now include a
+            // cohort already under way. Saying "starts <a date last week>" to a
+            // caller would sound like a mistake on our side, so an in-progress
+            // batch is described as what it is.
+            (batch.hasStarted
+              ? `already in progress since ${batch.startDate}, running until ${batch.endDate}, still open to join`
+              : `starts ${batch.startDate}`) +
+            `, fee GHS ${batch.courseFee}` +
             (batch.discountedFee !== null && batch.discountCutoffDate !== null
               ? `, early-bird GHS ${batch.discountedFee} until ${batch.discountCutoffDate}`
               : ''),

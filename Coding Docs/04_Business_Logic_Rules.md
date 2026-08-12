@@ -426,7 +426,7 @@ exist there.
 
 ---
 
-### BR-19 — Registration form only shows future, Active batches
+### BR-19 — Registration form only shows Active batches that have not yet ended
 
 **Owning aggregate:** Course+Batch, read by Registrations at form-render time.
 **Concurrency control:** Not applicable — read-only query.
@@ -436,9 +436,50 @@ select b.id, b.cohort_label, c.course_name
 from batches b
 join courses c on c.id = b.course_id
 where b.is_active = true
-  and b.start_date >= current_date
+  and b.end_date >= current_date
 order by b.start_date asc;
 ```
+
+**Late registration (founder decision, 2026-08-12).** The window used to close on
+`start_date >= current_date`, i.e. a cohort became unregisterable at midnight on its own
+first day even though it went on running for weeks. That is what happened on 2026-08-11:
+a registrant took the Enterprise Risk Management intake (future start date, visible) and
+was unable to take the AI-Powered Financial Reporting one (already begun, absent from the
+form), with no route in except a staff bulk import. The window now closes on `end_date` —
+**a course that is still teaching is a course someone can still join**, and whether joining
+part-way through is worth it is the registrant's judgement to make, not the form's.
+
+`end_date` is `NOT NULL` on `batches`, so there is no null branch to handle.
+
+Three consequences that are deliberate, not oversights:
+
+- **The gate is enforced in two places and both moved together.** The form's query is only
+  the visible half; `createRegistration` re-checks the same condition server-side, which is
+  why a deep link with a known `batchId` was rejected too. A change to one without the other
+  produces either a listed-but-unregisterable batch or an invisible-but-registerable one.
+  `transferRegistration`'s destination check is the same rule and moved with them.
+- **The public course catalogue shares the window.** Otherwise `/courses` tells a visitor an
+  intake is gone while `/register` still accepts them onto it.
+- **Closing an intake early is `is_active = false` (BR-01), not the date.** The date window
+  answers "is this cohort still running"; the flag answers "do we want more people in it".
+  Conflating them is what made the old rule unable to express "started, but still open".
+
+The registrant is told what they are joining rather than being enrolled silently: a started
+intake is labelled *in progress* in the form's dropdown and, once selected, states its start
+and end dates and that earlier sessions have been missed.
+
+**Downstream behaviour that is unchanged and worth knowing.** A late registrant gets the
+normal welcome email, whose `.ics` attachment carries a start date now in the past — harmless,
+and preferable to suppressing the invitation. Early-bird pricing needs no special case: a
+started batch's `discount_cutoff_date` has necessarily passed, so `effectiveCourseFee` already
+returns the full fee. A started batch that is full still routes to the waitlist as normal.
+
+**Known gap, deliberately not changed here:** the voice module's `payment_followup` and
+`bank_transfer_chase` call targeting still filters on `start_date >= current_date`
+(`modules/voice/repository.ts`). An unpaid late registrant therefore receives no payment-chase
+call, because their cohort has already begun. That is a call-policy question ("do we phone
+people about a course already under way"), not a registration-window one, and needs its own
+founder decision before it moves.
 
 ---
 
@@ -456,6 +497,11 @@ order by b.start_date asc;
 | EC-09 | *(Added 2026-07-18 — founder-approved scope addition)* WhatsApp notifications alongside email, via the Meta WhatsApp Business Cloud API | Key moments only: `welcome` (doubles as payment instructions), `reminder_1`–`reminder_4`, `payment_confirmation`. Mirrors the email engine exactly: `whatsapp_log` with `unique(registration_id, message_type)` enforces send-once (BR-07 analog); gates (batch active, per-batch `whatsapp_enabled` toggle, payment-reminder toggle for reminders, participant not soft-deleted, usable phone) are checked BEFORE the reservation. Message bodies are pre-approved Meta templates (`course_registration_welcome`, `course_payment_reminder`, `course_payment_confirmation`) — see migration `202607180002_whatsapp.sql` header. When `WHATSAPP_ACCESS_TOKEN`/`WHATSAPP_PHONE_NUMBER_ID` are unset, all sends skip gracefully without reserving. **Budget note:** business-initiated template messages are billed per message by Meta (~$0.01–0.05 in Ghana) — an approved deviation from the strict $0/month constraint. |
 | EC-08 | *(Added Week 1 build — flagged for founder confirmation)* The Management role needs `GET /api/dashboard/summary` (F1.08) but has no row-level RLS access to `registrations`/`payments` (F1.09 gives Management aggregates only, never row data) | The dashboard repository computes aggregates on the service-role client after the service layer verifies the session role is `admin` or `management`. Management never receives row-level data — only the computed figures — which matches the F1.09 access matrix exactly. |
 | EC-10 | *(Added 2026-07-18 after live BR-06 verification)* A `BEFORE UPDATE` trigger derives `payment_status`, while a downstream trigger needs to react to that derived value | The downstream `trg_sync_registration_status` listens to the source columns (`amount_paid`, `course_fee`) and compares `old.payment_status` with `new.payment_status` inside the function. PostgreSQL's `UPDATE OF` trigger list is based on the original `SET` clause, not columns changed by another trigger. Migration `202607180003_fix_registration_confirmation_trigger.sql` captures the repair reproducibly. |
+| EC-11 | *(Added 2026-08-09, BR-35–BR-41)* A participant pays via Paystack against a Registration that has already been written off | Recorded normally — real money must never be discarded. BR-06's guard clause means the trigger leaves the status at `'Lapsed'`, producing a visible Lapsed + Paid anomaly (the same shape BR-06 already documents for Cancelled + Paid). Resolution is `reinstateRegistration`, which restores `'Confirmed'` since the fee is now settled. The portal's *other* payment paths (installment plan, payment-proof submission, coupon) refuse a lapsed Registration outright — only Paystack, which is client-initiated and webhook-reconciled, can reach this state. |
+| EC-12 | *(Added 2026-08-09, BR-38)* A Registration is written off, then the Batch's `end_date` is edited forward, or the Batch is reactivated | The sweep re-reads `end_date` live and skips anything with `lapsed_at` set, so nothing is re-processed and nothing is silently reopened. A Registration that should be back in play needs an explicit `reinstateRegistration` — the same "a person decides" posture as the part-payment exclusion. |
+| EC-13 | *(Added 2026-08-09, BR-38)* A part-paid no-show is never closed by the sweep and so accumulates in receivables indefinitely | Accepted and deliberate (founder decision, 2026-08-09). The manual write-off action is what closes these, case by case, after a human has decided between refund, credit and chase. This makes `lapseRegistration` load-bearing rather than a convenience — without it, this population has no ending. |
+| EC-14 | *(Added 2026-08-12, BR-19)* A Participant registers for a Batch that is already part-way through its run | Permitted since 2026-08-12 — this is the late-registration window, not an edge case to be blocked. They join at the current point in the course, having missed the sessions already delivered; the form says so before they submit. Certificate eligibility is unaffected in its own terms but harder to earn in practice on a free Batch, where it depends on attendance rows clearing `MIN_ATTENDANCE_RATIO` and only the remaining sessions can produce any. |
+| EC-15 | *(Added 2026-08-12, BR-19)* A Batch's `end_date` is edited backwards to a past date while it is still listed on the public form | The window is re-read live on every form render and re-checked in `createRegistration`, so the Batch disappears and further registrations are refused from that moment — no cached list and no stored "is open" flag to go stale. Registrations already taken are untouched, exactly as EC-04 leaves `start_date` edits alone. |
 
 ---
 
@@ -536,3 +582,121 @@ See Document 15 for the full workflow and acceptance criteria.
   read-only in v1 — there is no tutor-facing attendance write path.
 
 See Document 16 for the full workflow and acceptance criteria.
+
+## 8. Written-off Registrations (2026-08-09)
+
+Founder direction: an unpaid no-show must stop counting against receivables and must stop
+sitting on the participant's own account. Until this, `registration_status` had no terminal
+state that anything ever wrote — only `Registered -> Confirmed` existed — so such a
+registration stayed open forever.
+
+- **BR-35:** `'Lapsed'` is a distinct registration status meaning *written off as
+  uncollectible*, deliberately not a second meaning for `'Cancelled'`. `'Cancelled'` is the
+  participant's or an admin's decision to withdraw; `'Lapsed'` is ours to stop collecting.
+  Keeping them separate is what makes "who abandoned us after registering" answerable as a
+  query — that population is a re-marketing audience and a lead-quality signal, and the
+  cancelled population is the opposite.
+- **BR-36:** Writing off **never** touches `amount_paid`. Zeroing a balance by inventing a
+  payment would put money into the revenue figures that never arrived. The balance stays on
+  the row as a fact; the status is what makes it non-collectible. A fully-paid Registration
+  therefore cannot be written off at all — there is nothing to collect.
+- **BR-37:** Every write-off carries `lapsed_at`, `lapsed_by` and `lapsed_reason`, enforced by
+  `registrations_lapsed_audit_check` (a `'Lapsed'` row must have `lapsed_at`; a non-`'Lapsed'`
+  row must not). `lapsed_by` is NULL exactly when the automatic sweep did it rather than a
+  person. `lapsed_at IS NULL` is also the sweep's idempotency key.
+- **BR-38:** The automatic sweep writes off a Registration **15 days after its Batch's
+  `end_date`** when `amount_paid = 0` **and** no attendance row exists. Part-payers are
+  deliberately excluded (founder decision, 2026-08-09): real money changed hands, so a refund/
+  credit/chase decision belongs to a person, not a cron job — they stay in receivables until
+  written off by hand. Free batches are excluded outright (their payments settle to `'Paid'` at
+  GHS 0, so nobody on one can be a debtor). Attendance is tested as row *existence*, not against
+  `MIN_ATTENDANCE_RATIO` — anyone the Zoom sync saw at all is a person for staff to judge.
+- **BR-39:** A write-off is silent — no email, SMS, WhatsApp or call goes to the participant.
+  Telling someone "we have written off the course you did not attend" is a collections letter
+  nobody asked for, and the whole point is that the balance is not being pursued.
+- **BR-40:** Every figure that means "money we expect" or "someone to chase" excludes lapsed
+  rows: the dashboard's `expectedRevenue`/`outstandingBalance`, the Payments screen's
+  `'outstanding'` filter and its CSV export, the payment-reminder query, all three voice-call
+  money/no-show queries, and the batch capacity count (so a written-off seat is a freed seat).
+  The participant's portal withdraws every surface that would take a payment — Pay Now, the
+  coupon field, the installment plan, the payment-proof upload and the credit-redemption
+  dropdown — while still displaying the real balance, marked "Closed — not collected".
+- **BR-41:** A write-off is reversible. `reinstateRegistration` restores `'Confirmed'` if the
+  fee is settled and `'Registered'` otherwise, clearing the whole audit triple. This is the
+  resolution path for the Lapsed + Paid anomaly BR-06 describes — Paystack's own Pay Now is
+  deliberately **not** gated on lapse, because if real money arrives it must be recorded.
+
+Written off manually via `POST /api/registrations/[id]/lapse` (admin + finance — a receivable
+is finance's call, so the write runs service-role with the service layer as the authorization
+boundary, since only `admin` holds an RLS UPDATE policy on `registrations`). Reinstated via
+`DELETE` on the same route. The sweep runs inside the 07:00 cron; `POST
+/api/cron/registrations/auto-lapse` is a manual trigger that is **dry-run by default**,
+because the first real run closes out the entire historic backlog in one pass.
+
+---
+
+## 6. Re-enrolment by an existing Participant (BR-42, BR-43) — added 2026-08-12
+
+Founder direction: *"those with an already existing account should not go through the same
+process of registering, since their information is already captured — they only have to enrol
+on to the course they're interested in."*
+
+The gap was real. The student portal's "Explore Courses" panel ended in a plain link to
+`/register`, so somebody already signed in — whose `participants` row already holds their
+first name, middle name, surname, gender, email, phone, job title, company and a timestamped
+data-processing consent — was dropped into the blank public form to type all of it again.
+
+- **BR-42:** A Participant with a portal session may enrol onto any Batch that BR-19 says is
+  open, without re-entering anything already on their record. `POST /api/portal/enrol` takes a
+  `batchId` (and optionally a coupon code); **who** is enrolling comes from the session cookie
+  and never from the request body, so the endpoint cannot register anyone but its caller.
+
+  It does **not** write a Registration itself. `portalService.enrolInBatch` rebuilds the
+  registration input from the stored record and delegates to the same
+  `registrationsService.createRegistration` the public form posts to. Registrations therefore
+  remains the sole owner of BR-01/BR-02/BR-03/BR-15/BR-19, the capacity/waitlist branch,
+  coupon and partner attribution, the welcome and payment emails, lead capture and the sales
+  opportunity — there is no second implementation to drift out of step. A full Batch returns
+  `outcome: 'waitlisted'` exactly as the public form does.
+
+  **BR-15 is satisfied from the stored consent, not a fresh checkbox** (founder decision,
+  2026-08-12): consent is to the processing of their personal data, given once and recorded in
+  `participants.consent_at`, not a per-course question. It is still *enforced* — a record
+  carrying `consent_given = false` is refused and sent to the full form, rather than being
+  waved through on an assumption.
+
+  Fields are topped up, never re-collected: `gender`, `jobTitle` and `company` may be supplied
+  in the request, but are used **only** where the participant's own record has a gap (legacy
+  imports, mostly). Anything still missing comes back as `MISSING_PROFILE_FIELDS` naming just
+  those fields, and the portal reveals inputs for them alone.
+
+- **BR-43:** A re-enrolment records `lead_source = 'Returning'`, a value that is
+  **system-assigned and never self-declared**.
+
+  A Lead Source answers "which marketing channel brought this person to us", and that question
+  has no honest answer for someone who already has an account. Carrying their original source
+  forward re-credits that channel on every future course they take, permanently overstating it
+  in the dashboard, the leads filters and campaign audience building. `'Other'` is the
+  genuine-unknown bucket, and burying known returning students in it destroys the ability to
+  count repeat enrolments at all — for a training business, close to the most valuable number
+  there is. This is the same reasoning that produced `'Lapsed'` rather than a second meaning
+  for `'Cancelled'` three days earlier: once two distinct facts share a value they can never be
+  separated again except by string-matching free text.
+
+  The public form does not offer `'Returning'` and `POST /api/registrations` rejects it, via
+  `publicRegistrationInputSchema` — an anonymous visitor claiming it would corrupt the one
+  figure the value exists to make countable. The same restriction applies to the staff bulk
+  import, the corporate employee-add and the assistant's `propose_create_lead`. Reads are the
+  opposite: `parseLeadSource`, the registration and lead list filters and the leads UI dropdown
+  all take the **full** set, because they are handling values coming back out of the database.
+  `LEAD_SOURCES` / `SELF_DECLARED_LEAD_SOURCES` in `lib/domain/types.ts` are the one place that
+  distinction is expressed; the enum used to be repeated in eight places.
+
+  Schema: `registrations_lead_source_check` and `waitlist_entries_lead_source_check` both gain
+  the value in `202608120060_returning_lead_source.sql`. The waitlist constraint is not
+  optional — a returning student enrolling onto a **full** Batch takes createRegistration's
+  waitlist branch, which forwards the same `lead_source`, so leaving it alone would turn
+  "enrol me" into a constraint violation for precisely the Batches most in demand.
+  `leads.lead_source` has no CHECK and needs no migration, but its application-side enum gains
+  the value in the same commit — otherwise `createLead` silently rejects every returning
+  student's lead row, a failure `createRegistration` logs rather than raises.

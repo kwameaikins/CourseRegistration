@@ -75,6 +75,11 @@ export interface PublicBatchOption {
   courseName: string;
   cohortLabel: string;
   startDate: string;
+  // Late registration (2026-08-12): the window runs to endDate, so a listed
+  // batch may already be under way. hasStarted is derived at read time from
+  // startDate, never stored — it changes meaning every midnight.
+  endDate: string;
+  hasStarted: boolean;
   courseFee: number;
   isFree: boolean;
   capacity: number | null;

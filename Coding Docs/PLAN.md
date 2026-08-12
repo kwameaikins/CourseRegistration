@@ -298,8 +298,9 @@ named pilot batch is approved.
       workflow (including the Cancel/Reschedule actions with a mandatory reason, and the
       Control Centre UI for both), tutor assignment, staff scheduling Control Centre, and
       tutor read model (My Courses) are implemented. The student portal's "Next Class" card
-      is live, gated on Confirmed+Paid eligibility and a join window (15 minutes before start
-      through session end — placeholder default, not yet founder-confirmed per the item above).
+      is live, gated on Confirmed+Paid eligibility. The join window is settled (2026-08-11):
+      no pre-start gate at all — the link is live for the whole of the soonest session that
+      has not ended, and disappears 60 minutes after its scheduled end.
       Migrations `202607250025/026/027` applied to production 2026-07-26; batch schedule
       generator and session-level Zoom adapter remain pending.
 - [ ] L2 Student and Tutor workspaces: tutor host view, roster, materials, and Ghana-time calendar download (Next Class card and protected Join action are done, above)

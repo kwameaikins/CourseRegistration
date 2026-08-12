@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import { AppError, handleRouteError, successResponse } from '@/lib/errors';
 import * as registrationsService from '@/modules/registrations/service';
 import {
-  registrationInputSchema,
+  publicRegistrationInputSchema,
   registrationListFiltersSchema,
 } from '@/modules/registrations/types';
 import { REFERRAL_CODE_COOKIE } from '@/modules/partners/types';
@@ -17,7 +17,10 @@ export async function POST(request: Request) {
       throw new AppError('VALIDATION_ERROR', 'Request body must be valid JSON.', 400);
     }
 
-    const parsed = registrationInputSchema.safeParse(body);
+    // Public schema, not the internal one: it refuses leadSource 'Returning',
+    // which only the portal's authenticated enrolment path may assign
+    // (2026-08-12). Everything else about the two is identical.
+    const parsed = publicRegistrationInputSchema.safeParse(body);
     if (!parsed.success) {
       const consentIssue = parsed.error.issues.find((issue) =>
         issue.path.includes('consentGiven'),

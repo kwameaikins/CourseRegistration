@@ -240,9 +240,10 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     live_session_attendance for later), status workflow including admin
     Cancel/Reschedule with a mandatory reason, the staff scheduling Control
     Centre, the tutor read model on My Courses, and a student portal "Next
-    Class" card (Confirmed+Paid eligibility, a join-window gate — 15
-    minutes before start through session end, a placeholder default still
-    pending founder confirmation). Migrations `202607250025/026/027` not
+    Class" card (Confirmed+Paid eligibility; join-window gate settled
+    2026-08-11 — no pre-start restriction, the link is live for the whole
+    of the soonest session that has not ended and disappears 60 minutes
+    after its scheduled end). Migrations `202607250025/026/027` not
     yet applied to production; batch schedule generator and session-level
     Zoom adapter remain pending — see PLAN.md's Live Learning Operations
     section for the full L1–L5 roadmap and open founder decisions.
@@ -268,8 +269,8 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     scoped to `company_id`; it can never mark a payment Paid (BR-12 — no
     staff identity exists for that write). Staff screens live at
     `/corporate`; the dashboard gained a Corporate summary card. Migration
-    `202607260032_corporate_registration.sql` — pending production
-    application (run `npx supabase db push` when ready).
+    `202607260032_corporate_registration.sql` — applied to production and
+    verified present in `supabase migration list` 2026-08-12.
 
   Student portal gap-closing (2026-07-26) — closed five best-practice gaps
     identified in an audit: on-demand payment receipt PDF (lib/portal/
@@ -284,8 +285,8 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     202607260033, same RLS-enabled-zero-policies posture as
     portal_login_tokens) — resetting also clears any lockout, so it is
     also the only self-service recovery path for a locked-out account.
-    Migration 202607260033 pending production application (run
-    `npx supabase db push` when ready).
+    Migration 202607260033 applied to production and verified present in
+    `supabase migration list` 2026-08-12.
 
   Registration 360° view — "View" action on the Registrations list
     opens a detail dialog aggregating payment, every message channel,
@@ -316,8 +317,8 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     a working Zoom join link — the gap the old page had), Roster,
     Attendance (read-only), Certificate Eligibility (read-only), Account.
     See `Coding Docs/16_Tutor_Operations.md` and BR-31 through BR-34.
-    Migration `202607270034_tutor_portal.sql` pending production
-    application (run `npx supabase db push` when ready) — includes a
+    Migration `202607270034_tutor_portal.sql` applied to production and
+    verified present in `supabase migration list` 2026-08-12 — includes a
     pre-check: if any `staff_users` row still has `role = 'tutor'`, the
     CHECK-constraint drop fails loudly rather than silently corrupting
     data; confirmed no such row exists in any committed seed/migration.
@@ -346,8 +347,8 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     substitute handover, availability/blackout dates, tutor→roster
     messaging (suspended), tutor compensation tracking (shape decided —
     full rate-based — but deferred, no payable-session rule exists yet).
-    Migrations `202607290037/038/039` pending production application (run
-    `npx supabase db push` when ready).
+    Migrations `202607290037/038/039` applied to production and verified
+    present in `supabase migration list` 2026-08-12.
 
   Registrant messaging for the Admin Assistant (2026-08-01) — closed a gap
     where the assistant could message leads one-off and in bulk but had no
@@ -366,8 +367,8 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     dashboard config (not deployable via code) — see `Coding Docs/
     07_Integration_Specifications.md` §11.3 for the exact text; until then
     ad-hoc calls dial but the assistant won't know what to say. Migrations
-    `202607290040/041` pending production application (run
-    `npx supabase db push` when ready).
+    `202607290040/041` applied to production and verified present in
+    `supabase migration list` 2026-08-12.
 
   Class reminders, upsell/cross-sell, and WhatsApp group invitation
     (2026-08-01) — closed a real production gap: class_reminder_24h/2h,
@@ -806,6 +807,180 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     PowerShell `Set-Content` (BOM + cp1252 mojibake on every em-dash) and
     repaired; if a bulk edit ever mangles non-ASCII again, reverse the
     UTF-8→cp1252→UTF-8 double encoding rather than hand-fixing characters.
+
+  Written-off registrations (2026-08-09) — founder: unpaid no-shows must stop
+    "sitting on their account" and stop adding to receivables "as if they're
+    obliged to pay". The gap was real and total: `registration_status` had
+    'Cancelled' and 'Attended' in its CHECK constraint since the foundation
+    migration, and BR-06 described an admin setting 'Cancelled' by hand, but
+    NOTHING in the codebase had ever written either value — the only transition
+    that existed was Registered -> Confirmed, fired by the payment trigger. So a
+    registrant who never paid and never attended stayed open forever: counted in
+    the dashboard's Total Outstanding (which took every registration on an active
+    batch with NO status filter at all), sat in the Payments "outstanding" queue
+    beside real debtors, occupied a seat in the capacity count, and kept a live
+    Pay Now button on their own portal for a course that ended months ago. The
+    only tool for clearing one was a hard DELETE, which destroys the very fact
+    worth keeping.
+    New 'Lapsed' status (migration `202608090059`), deliberately NOT a second
+    meaning for 'Cancelled' — "they went quiet on us" is a re-marketing audience
+    and a lead-quality signal, "they told us no" is the opposite, and merged they
+    can never be separated again except by string-matching free text. Carries
+    `lapsed_at`/`lapsed_by`/`lapsed_reason`, enforced together by a CHECK
+    (`lapsed_by` NULL means the sweep did it, not a person; `lapsed_at IS NULL`
+    is also the sweep's idempotency key).
+    `amount_paid` is NEVER touched — zeroing a balance by inventing a payment
+    would put money in the revenue figures that never arrived. The balance stays
+    on the row as a fact; the STATUS is what makes it non-collectible. A
+    fully-paid registration therefore cannot be written off at all.
+    Two paths: `POST /api/registrations/[id]/lapse` (admin + finance — a
+    receivable is finance's call, so the write is service-role with the service
+    layer as the authorization boundary, since only admin holds an RLS UPDATE
+    policy on registrations; `DELETE` on the same route reinstates), and a
+    nightly sweep in the 07:00 cron closing anything 15 days past its batch's
+    end_date with `amount_paid = 0` and zero attendance rows. Part-payers are
+    deliberately excluded (founder decision) — real money changed hands, so
+    refund/credit/chase is a human decision; they stay in receivables until
+    written off by hand, which is what makes the manual action load-bearing
+    rather than a convenience. Attendance is tested as row EXISTENCE, not against
+    MIN_ATTENDANCE_RATIO, matching the 2026-08-08 feedback decision that any
+    appearance however brief counts as turning up. Free batches are excluded
+    outright (auto-Paid at GHS 0, so nobody on one is a debtor).
+    The sweep is SILENT — no email/SMS/WhatsApp/call. "We've written off the
+    course you didn't attend" is a collections letter nobody asked for, and the
+    balance is not being pursued; that is the whole point.
+    Read side is where the receivables figure actually changes: dashboard
+    (expectedRevenue AND outstandingBalance), the Payments 'outstanding' filter
+    in BOTH the repository pre-narrow and `applyPostJoinFilters` (the 2026-08-06
+    lesson — both layers must understand every value), CSV export, the
+    payment-reminder query, all three voice money/no-show queries, and the seat
+    count. That last one is `courses/repository.ts`'s `.neq(..., 'Cancelled')`,
+    the ONE seat-affecting read phrased as a negative and so the one place a new
+    status is silently wrong rather than loudly wrong (`parseMember` throws on an
+    unknown value everywhere else).
+    Portal keeps showing the real balance — hiding it is its own kind of lie —
+    marked "Closed — not collected", but withdraws every surface that would take
+    a payment. A single `amountPayable()` helper is the one predicate the whole
+    page uses, so a new payment surface cannot quietly miss the rule. The
+    endpoints refuse too, not just the buttons (installment plan, payment-proof
+    submission, coupon). Paystack's Pay Now is deliberately NOT gated: it is
+    client-initiated and webhook-reconciled, and if real money arrives it must be
+    recorded — that lands as the Lapsed + Paid anomaly BR-06 already describes,
+    resolved with reinstate (EC-11).
+    `RegistrationStatus` was converted from a hand-written union to a
+    `REGISTRATION_STATUSES` tuple (same pattern as STAFF_ROLES) while adding the
+    value — the parser used to repeat the list, which is two copies to keep in
+    step.
+    `POST /api/cron/registrations/auto-lapse` is a CRON_SECRET-gated manual
+    trigger, DRY-RUN BY DEFAULT and not in vercel.json — the first real run closes
+    the ENTIRE historic backlog in one pass, so it should be inspected first.
+    BR-35 through BR-41 and EC-11/12/13 in Document 4. Migration
+    `202608090059_registration_lapse.sql` applied to production 2026-08-12 and
+    verified present in `supabase migration list`. The sweep is therefore now
+    live inside the 07:00 cron; `POST /api/cron/registrations/auto-lapse`
+    remains dry-run by default and out of vercel.json, and its first REAL run
+    still closes the entire historic backlog in one pass — inspect the dry-run
+    output before letting it write.
+
+  Late registration — BR-19 now closes on end_date (2026-08-12) — founder-
+    reported: a registrant took the Enterprise Risk Management intake on
+    2026-08-11 but could not take the AI-Powered Financial Reporting one,
+    because that class had already begun. Not a bug in the ordinary sense —
+    BR-19 said `start_date >= current_date` and did exactly that — but the rule
+    was wrong: a cohort became unreachable at midnight on its own first day
+    while still running for weeks afterwards, and there was no route in at all,
+    since `createRegistration` re-checks the same condition server-side (so a
+    deep link with a known batchId was refused too). The only way in was the
+    staff bulk import, which deliberately skips the gate.
+    The window is now `end_date >= current_date` in all five places that
+    expressed it, moved together on purpose: the public form's query
+    (`selectActiveFutureBatchesPublic`, renamed `selectActiveJoinableBatches
+    Public` — the old name would now be a lie), the public course catalogue
+    (`selectPublicCourseCatalogSystem`, else /courses and /register disagree
+    about what is joinable), `createRegistration`'s gate, `transferRegistration`'s
+    destination gate, and the staff transfer picker's client-side filter in
+    RegistrationDetailDialog (which must match the server or it hides what the
+    server would accept). NO migration — this is a query/predicate change only;
+    `end_date` is already NOT NULL on batches.
+    Closing an intake early remains `is_active = false` (BR-01). That separation
+    is the point: the date window says "is this cohort still running", the flag
+    says "do we want more people in it" — the old rule could not express
+    "started, but still open" because it conflated them.
+    A late joiner is told, not silently enrolled: the form labels a started
+    intake "in progress" and, on selection, names its start/end dates and says
+    earlier sessions have been missed; the portal's Explore panel reads "In
+    progress until <date>"; the voice agent's get_course_catalog says "already
+    in progress since X, running until Y, still open to join" instead of
+    "starts <a date last week>".
+    Unchanged on purpose: early-bird pricing needs no special case (a started
+    batch's discount_cutoff_date has necessarily passed, so effectiveCourseFee
+    already returns full fee); a started-and-full batch still routes to the
+    waitlist; the welcome email's .ics carries a past start date, which is
+    harmless and better than suppressing the invite.
+    KNOWN GAP, deliberately left for a founder decision: modules/voice/
+    repository.ts's payment_followup and bank_transfer_chase still filter
+    `start_date >= today`, so an unpaid late registrant gets no payment-chase
+    call. That is a call-policy question ("do we phone people about a course
+    already under way"), not a registration-window one. BR-19 rewritten, EC-14
+    and EC-15 added to Document 4.
+
+  One-click re-enrolment for existing accounts (2026-08-12) — founder: "those
+    with an already existing account should not go through the same process of
+    registering since their information is already captured, and they only have
+    to enrol on to the course they're interested in." The student portal's
+    Explore panel ended in a plain <a href="/register?batchId=">, so someone
+    already signed in was dropped into the blank public form to re-type their
+    name, gender, email, phone, job title, company, lead source and consent —
+    every one of which is already on their participants row.
+    `POST /api/portal/enrol` now takes a batchId (plus an optional coupon) and
+    nothing else; WHO is enrolling comes from the portal session cookie, never
+    the request body, so it cannot register anyone but its caller. It does not
+    write a Registration itself — `registrationsService.enrolExistingParticipant`
+    rebuilds the form input from the stored record and calls the SAME
+    createRegistration the public form posts to, so BR-01/02/03/19, the
+    capacity/waitlist branch, coupon + partner attribution, the welcome/payment
+    emails, lead capture and the sales opportunity all keep working with no
+    second implementation to drift. A full batch returns outcome 'waitlisted'
+    exactly as the public form does.
+    BR-15 is satisfied from participants.consent_given/consent_at rather than a
+    fresh checkbox (founder decision) — consent is to processing their personal
+    data, given once, not a per-course question. Still ENFORCED: a record with
+    no consent is refused and sent to the full form rather than waved through.
+    Profile fields are TOPPED UP, never re-collected: gender/jobTitle/company
+    may be supplied but are used only where the record has a gap (legacy
+    imports); anything still missing returns MISSING_PROFILE_FIELDS naming just
+    those, and the portal reveals inputs for those alone.
+    NEW LEAD SOURCE 'Returning' (migration 202608120060) — the enum had no
+    honest answer for someone who already has an account. Carrying their
+    original source forward re-credits that channel on every future course
+    (lead_source feeds the dashboard, leads filters and campaign audiences);
+    'Other' is the genuine-unknown bucket and burying repeat enrolments there
+    destroys the repeat-enrolment rate. Same reasoning as 'Lapsed' vs
+    'Cancelled' three days earlier. It is SYSTEM-ASSIGNED, never self-declared:
+    `publicRegistrationInputSchema` (new, used by POST /api/registrations)
+    rejects it, as do the bulk import, corporate employee-add and the
+    assistant's propose_create_lead; reads take the full set. Both CHECK
+    constraints moved — registrations AND waitlist_entries, the latter not
+    optional since a returning student enrolling onto a FULL batch takes the
+    waitlist branch with the same lead_source. leads.lead_source has no CHECK
+    (only status does) so no migration, but its app-side enum had to gain the
+    value or createLead silently rejects every returning student's lead row.
+    While adding it, LeadSource became a LEAD_SOURCES tuple in lib/domain/types
+    (same pattern as STAFF_ROLES/REGISTRATION_STATUSES) — the literals were
+    repeated in eight places; SELF_DECLARED_LEAD_SOURCES is the input subset.
+    ARCHITECTURE NOTE: enrolExistingParticipant lives in modules/registrations,
+    not modules/portal, because registrations/service.ts ALREADY imports
+    ensureParticipantAuth from portal/service.ts — putting it in portal and
+    importing registrations back made the two modules circular. The route
+    composes them: portal answers "who is this", registrations creates the
+    Registration. Creating a Registration is that aggregate's job anyway.
+    BR-42/BR-43 in Document 4; Document 1's glossary, Document 3's schema and
+    Document 11's example updated. Migration `202608120060_returning_lead_
+    source.sql` applied to production 2026-08-12 and verified present in
+    `supabase migration list`. Note the ordering is the safe one: the CHECK
+    constraints now ACCEPT 'Returning' while no deployed code writes it yet, so
+    the schema is ahead of the app rather than behind it. Deploying the code
+    first would have made every re-enrolment a constraint violation.
 
 Open decisions (founder):
   - AI05 ("...Reporting and Modeling") vs AI02 ("...Reporting and

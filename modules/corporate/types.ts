@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { bulkImportRowSchema } from '@/modules/registrations/types';
+import { SELF_DECLARED_LEAD_SOURCES } from '@/lib/domain/types';
 import type { PaymentStatus } from '@/lib/domain/types';
 
 export interface Company {
@@ -89,9 +90,9 @@ export type UpdateAllocationStatusInput = z.infer<typeof updateAllocationStatusI
 // an employee row needs the same fields (name/gender/email/phone/jobTitle/
 // company/amountPaid/courseFee override).
 export const addEmployeesInputSchema = z.object({
-  leadSource: z
-    .enum(['WhatsApp', 'Facebook', 'LinkedIn', 'Referral', 'Website', 'Other'])
-    .default('Other'),
+  // Self-declared: a company admin picks this for their employees, so it never
+  // offers 'Returning' (system-assigned by the student portal's own enrolment).
+  leadSource: z.enum(SELF_DECLARED_LEAD_SOURCES).default('Other'),
   paymentMethod: z.enum(['Bank Transfer', 'Cash', 'Other']).default('Bank Transfer'),
   rows: z.array(bulkImportRowSchema).min(1).max(300),
 });

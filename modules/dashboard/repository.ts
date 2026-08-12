@@ -43,10 +43,21 @@ export async function selectDashboardData(): Promise<BatchSummaryRaw[]> {
   if (coursesError) throw coursesError;
   const courseNameById = new Map(courses.map((course) => [course.id, course.course_name]));
 
+  // Written-off registrations are excluded from every dashboard figure
+  // (2026-08-09). This is the read that made Total Outstanding wrong: it took
+  // every registration on an active batch with no status filter at all, so an
+  // unpaid no-show from a cohort that finished months ago still counted as
+  // money we expected to collect.
+  //
+  // Excluded from expectedRevenue as well as outstandingBalance, not just the
+  // latter — a fee nobody will ever pay was never revenue we expected, and
+  // leaving it in the numerator would drag every conversion rate down for a
+  // debt that has been closed.
   const { data: registrations, error: registrationsError } = await supabase
     .from('registrations')
     .select('id, batch_id, lead_source, registered_at')
-    .in('batch_id', batches.map((batch) => batch.id));
+    .in('batch_id', batches.map((batch) => batch.id))
+    .is('lapsed_at', null);
   if (registrationsError) throw registrationsError;
 
   const { data: payments, error: paymentsError } = await supabase

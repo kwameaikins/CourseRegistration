@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { parseCsv } from '@/lib/csv';
+import { SELF_DECLARED_LEAD_SOURCES } from '@/lib/domain/types';
 import { effectiveCourseFee } from '@/lib/utils';
 
 interface Course {
@@ -44,7 +45,13 @@ const TARGET_FIELDS = [
 type FieldKey = (typeof TARGET_FIELDS)[number]['key'];
 type ColumnMap = Partial<Record<FieldKey, number>>;
 
-const LEAD_SOURCES = ['Other', 'WhatsApp', 'Facebook', 'LinkedIn', 'Referral', 'Website'];
+// Self-declared subset (2026-08-12): a backfilled row's source is a staff
+// member's judgement, and 'Returning' is only ever assigned by the portal's own
+// enrolment path. 'Other' stays first — it is this screen's default.
+const LEAD_SOURCES = [
+  'Other',
+  ...SELF_DECLARED_LEAD_SOURCES.filter((source) => source !== 'Other'),
+];
 const PAYMENT_METHODS = ['Cash', 'Bank Transfer', 'MTN MoMo', 'Paystack Card', 'Other'];
 
 const GUESS_PATTERNS: Record<FieldKey, RegExp> = {

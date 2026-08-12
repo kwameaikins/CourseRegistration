@@ -376,11 +376,15 @@ export async function adjustBatchCapacityInternal(batchId: string, delta: number
   });
 }
 
-// BR-19: the public registration form only lists Active batches with a
-// start date of today or later.
+// BR-19: the public registration form only lists Active batches that have not
+// yet ended. A batch already under way is still listed and still joinable
+// (late registration, founder-approved 2026-08-12) — hasStarted is what the
+// form uses to say so, so a late joiner knows what they are walking into
+// rather than being quietly enrolled into a course that began last week.
 export async function getActiveBatchesForPublicForm(): Promise<PublicBatchOption[]> {
-  const rows = await coursesRepository.selectActiveFutureBatchesPublic();
+  const rows = await coursesRepository.selectActiveJoinableBatchesPublic();
   const usage = await coursesRepository.countRegistrationsByBatchIdsSystem(rows.map((row) => row.id));
+  const todayIso = new Date().toISOString().slice(0, 10);
   return rows.map((row) => {
     const registered = usage.get(row.id) ?? 0;
     const seatsRemaining = row.capacity === null ? null : Math.max(row.capacity - registered, 0);
@@ -389,6 +393,8 @@ export async function getActiveBatchesForPublicForm(): Promise<PublicBatchOption
     courseName: row.courses?.course_name ?? '',
     cohortLabel: row.cohort_label,
     startDate: row.start_date,
+    endDate: row.end_date,
+    hasStarted: row.start_date < todayIso,
     courseFee: Number(row.course_fee),
     isFree: row.is_free,
     capacity: row.capacity,

@@ -279,10 +279,16 @@ export async function selectUnpaidRegistrationsInActiveBatches(): Promise<
   if (batches.length === 0) return [];
   const batchById = new Map(batches.map((batch) => [batch.id, batch]));
 
+  // Never chase a written-off registration (2026-08-09). Reminders are already
+  // bounded — they stop at the batch start date and email_log dedups each type
+  // to one send ever — so this mostly matters for a batch that gets reactivated
+  // or has its dates moved. Cheap insurance against the one thing this feature
+  // must never do: ask someone for money we have already stopped counting on.
   const { data: registrations, error: registrationsError } = await supabase
     .from('registrations')
     .select('id, batch_id, registered_at')
-    .in('batch_id', batches.map((batch) => batch.id));
+    .in('batch_id', batches.map((batch) => batch.id))
+    .is('lapsed_at', null);
   if (registrationsError) throw registrationsError;
   if (registrations.length === 0) return [];
 

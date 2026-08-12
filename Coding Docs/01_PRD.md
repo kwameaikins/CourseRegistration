@@ -94,7 +94,7 @@ these terms exactly as defined here. No synonyms. No abbreviations unless listed
 | **Registration** | The act of a Participant submitting the registration form for a specific Batch of a Course. A Registration links one Participant to one Batch. |
 | **Registration Status** | The current lifecycle stage of a Registration. Values: `Registered`, `Confirmed`, `Attended`, `Cancelled`. |
 | **Payment Status** | The current payment state of a Registration. Values: `Unpaid`, `Part Payment`, `Paid`. |
-| **Lead Source** | The marketing channel that brought a Participant to register. Values: `WhatsApp`, `Facebook`, `LinkedIn`, `Referral`, `Website`, `Other`. |
+| **Lead Source** | The marketing channel that brought a Participant to register. Values: `WhatsApp`, `Facebook`, `LinkedIn`, `Referral`, `Website`, `Other`, `Returning`. `Returning` (added 2026-08-12, BR-43) means the Participant already had an account and enrolled from their own portal — it is assigned by the system, never selectable on the public form, so that repeat enrolments stay countable instead of re-crediting whichever channel first found them. |
 | **Course Fee** | The full amount a Participant is required to pay to become a Confirmed Participant. Defined per Course in the Course Settings. |
 | **Amount Paid** | The total amount received from a Participant for a specific Registration. May be less than the Course Fee (Part Payment). |
 | **Balance** | The outstanding amount owed by a Participant. Calculated as: `Course Fee − Amount Paid`. |
