@@ -23,7 +23,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 
-import { apiFetch } from '@/components/api-client';
+import { ApiError, apiFetch } from '@/components/api-client';
 import { AddToLinkedInButton } from '@/components/AddToLinkedInButton';
 import { PaystackCheckout } from '@/components/PaystackCheckout';
 import { PORTAL_STYLES, PortalIcons } from '@/components/portal/portal-design-system';
@@ -155,6 +155,11 @@ interface OtherCourse {
   courseName: string;
   cohortLabel: string;
   startDate: string;
+  // Late registration (2026-08-12) — an intake already under way is still
+  // listed here and still joinable, so "Starts <past date>" alone would read
+  // as stale data rather than as an open cohort.
+  endDate: string;
+  hasStarted: boolean;
   courseFee: number;
   seatsRemaining: number | null;
   isFull: boolean;
@@ -293,6 +298,18 @@ export default function PortalDashboardPage() {
   const [assignmentError, setAssignmentError] = useState<string | null>(null);
 
   const [otherCourses, setOtherCourses] = useState<OtherCourse[]>([]);
+  // One-click enrolment (2026-08-12). enrollingBatchId doubles as the in-flight
+  // flag, so only the card being acted on shows a spinner.
+  const [enrollingBatchId, setEnrollingBatchId] = useState<string | null>(null);
+  const [enrolError, setEnrolError] = useState<Record<string, string>>({});
+  const [enrolSuccess, setEnrolSuccess] = useState<Record<string, string>>({});
+  // Revealed only when the server says this participant's record is missing a
+  // field a Registration needs — the rare legacy-import case. The common case
+  // never sees these, which is the entire point of the feature.
+  const [topUpForBatchId, setTopUpForBatchId] = useState<string | null>(null);
+  const [topUpGender, setTopUpGender] = useState('');
+  const [topUpJobTitle, setTopUpJobTitle] = useState('');
+  const [topUpCompany, setTopUpCompany] = useState('');
 
   const [referrals, setReferrals] = useState<ReferralSummary | null | 'loading'>(null);
   const [becomingAmbassador, setBecomingAmbassador] = useState(false);
@@ -433,6 +450,56 @@ export default function PortalDashboardPage() {
       setAmbassadorError(err instanceof Error ? err.message : 'Could not set you up as a partner — try again.');
     } finally {
       setBecomingAmbassador(false);
+    }
+  }
+
+  // Enrol onto another course without re-entering anything already on file
+  // (founder direction 2026-08-12). The server rebuilds the registration input
+  // from this participant's own record; the body carries the batch and, when
+  // asked for, the handful of fields their record is missing.
+  async function enrol(batchId: string) {
+    setEnrollingBatchId(batchId);
+    setEnrolError((cur) => ({ ...cur, [batchId]: '' }));
+    setEnrolSuccess((cur) => ({ ...cur, [batchId]: '' }));
+    try {
+      const result = await apiFetch<
+        | { outcome: 'registered'; message: string }
+        | { outcome: 'waitlisted'; message: string }
+      >('/api/portal/enrol', {
+        method: 'POST',
+        body: JSON.stringify({
+          batchId,
+          ...(topUpForBatchId === batchId
+            ? {
+                ...(topUpGender ? { gender: topUpGender } : {}),
+                ...(topUpJobTitle.trim() ? { jobTitle: topUpJobTitle.trim() } : {}),
+                ...(topUpCompany.trim() ? { company: topUpCompany.trim() } : {}),
+              }
+            : {}),
+        }),
+      });
+      setEnrolSuccess((cur) => ({ ...cur, [batchId]: result.message }));
+      setTopUpForBatchId(null);
+      setTopUpGender('');
+      setTopUpJobTitle('');
+      setTopUpCompany('');
+      // A successful enrolment adds a course card and removes this one from
+      // Explore (getOtherCourses excludes batches already registered), and a
+      // waitlist entry changes neither — re-read rather than patch locally,
+      // same posture as applyCoupon below.
+      loadDashboard();
+    } catch (err) {
+      // The one case worth handling specially: their record predates a field
+      // the Registration needs, so ask for just that and let them retry.
+      if (err instanceof ApiError && err.code === 'MISSING_PROFILE_FIELDS') {
+        setTopUpForBatchId(batchId);
+      }
+      setEnrolError((cur) => ({
+        ...cur,
+        [batchId]: err instanceof Error ? err.message : 'Could not enrol you — please try again.',
+      }));
+    } finally {
+      setEnrollingBatchId(null);
     }
   }
 
@@ -1691,7 +1758,12 @@ export default function PortalDashboardPage() {
                     {otherCourses.map((course) => (
                       <div key={course.batchId} className="explore-card">
                         <h4>{course.courseName}</h4>
-                        <div className="meta">{course.cohortLabel} · Starts {formatDate(course.startDate)}</div>
+                        <div className="meta">
+                          {course.cohortLabel} ·{' '}
+                          {course.hasStarted
+                            ? `In progress until ${formatDate(course.endDate)}`
+                            : `Starts ${formatDate(course.startDate)}`}
+                        </div>
                         <div className="price">
                           {course.discountedFee !== null ? (
                             <>
@@ -1703,18 +1775,69 @@ export default function PortalDashboardPage() {
                           )}
                         </div>
                         <div className="foot">
-                          {course.isFull ? (
-                            <>
-                              <span className="seats">Full</span>
-                              <a className="btn btn-outline btn-sm" href={`/register?batchId=${course.batchId}`}>Join waitlist</a>
-                            </>
-                          ) : (
-                            <>
-                              <span className="seats">{course.seatsRemaining ?? '—'} seats left</span>
-                              <a className="btn btn-primary btn-sm" href={`/register?batchId=${course.batchId}`}>Register</a>
-                            </>
-                          )}
+                          <span className="seats">
+                            {course.isFull ? 'Full' : `${course.seatsRemaining ?? '—'} seats left`}
+                          </span>
+                          {/* One click, no form (2026-08-12). This used to link
+                              to /register, which made someone who is already
+                              signed in re-type everything already on their
+                              record. A full batch still says "Join waitlist" —
+                              the server takes createRegistration's waitlist
+                              branch and returns outcome: 'waitlisted'. */}
+                          <button
+                            type="button"
+                            className={`btn btn-sm ${course.isFull ? 'btn-outline' : 'btn-primary'}`}
+                            disabled={enrollingBatchId === course.batchId}
+                            onClick={() => enrol(course.batchId)}
+                          >
+                            {enrollingBatchId === course.batchId
+                              ? 'Enrolling…'
+                              : course.isFull
+                                ? 'Join waitlist'
+                                : 'Enrol'}
+                          </button>
                         </div>
+
+                        {topUpForBatchId === course.batchId && (
+                          <div className="topup">
+                            <p className="empty-note" style={{ marginBottom: 8 }}>
+                              Your record is missing a couple of details we need. Fill in
+                              what applies and enrol again.
+                            </p>
+                            <select
+                              value={topUpGender}
+                              onChange={(event) => setTopUpGender(event.target.value)}
+                              aria-label="Gender"
+                            >
+                              <option value="">Gender</option>
+                              <option value="Male">Male</option>
+                              <option value="Female">Female</option>
+                            </select>
+                            <input
+                              value={topUpJobTitle}
+                              onChange={(event) => setTopUpJobTitle(event.target.value)}
+                              placeholder="Job title (or N/A)"
+                              aria-label="Job title"
+                            />
+                            <input
+                              value={topUpCompany}
+                              onChange={(event) => setTopUpCompany(event.target.value)}
+                              placeholder="Company (or N/A)"
+                              aria-label="Company"
+                            />
+                          </div>
+                        )}
+
+                        {enrolError[course.batchId] && (
+                          <p className="empty-note" style={{ color: '#b91c1c', marginTop: 8 }}>
+                            {enrolError[course.batchId]}
+                          </p>
+                        )}
+                        {enrolSuccess[course.batchId] && (
+                          <p className="empty-note" style={{ color: '#047857', marginTop: 8 }}>
+                            {enrolSuccess[course.batchId]}
+                          </p>
+                        )}
                       </div>
                     ))}
                   </div>

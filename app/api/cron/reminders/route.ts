@@ -5,6 +5,7 @@ import * as voiceService from '@/modules/voice/service';
 import * as leadsService from '@/modules/leads/service';
 import * as partnersService from '@/modules/partners/service';
 import * as accessGrantsService from '@/modules/access-grants/service';
+import * as registrationsService from '@/modules/registrations/service';
 
 // GET /api/cron/reminders — F1.07 (E03–E06), triggered daily at 07:00 UTC by
 // Vercel Cron (BR-17). Also dispatches post-course feedback requests for
@@ -50,6 +51,12 @@ export async function GET(request: Request) {
     // Bundled here for the same Vercel Hobby two-cron-job cap reason as
     // everything else above.
     const accessSweep = await accessGrantsService.runAccessSweep();
+    // Auto-lapse (2026-08-09) — writes off registrations that never paid and
+    // never attended, 15 days after their cohort ended, so they stop counting
+    // as receivable. Sends nothing to anyone; purely a bookkeeping close-out.
+    // Bundled here for the same Vercel Hobby two-cron-job cap reason as
+    // everything else above.
+    const autoLapse = await registrationsService.runAutoLapseSweep();
     return successResponse({
       ...summary,
       installments,
@@ -60,6 +67,7 @@ export async function GET(request: Request) {
       upsell,
       partnerCommissions,
       accessSweep,
+      autoLapse,
     });
   } catch (err) {
     // A failed cron run affects many participants at once — must be visible

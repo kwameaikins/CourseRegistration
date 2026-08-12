@@ -239,11 +239,18 @@ export async function selectPaymentFollowupRegistrations(
   if (batchesError) throw batchesError;
   if (!batches || batches.length === 0) return [];
 
+  // Written-off registrations are never called (2026-08-09). The batch filter
+  // above already makes this near-unreachable — a lapsed registration's cohort
+  // ended at least 15 days ago and this only looks at batches that have not
+  // started — but an AI voice call demanding money we have formally stopped
+  // pursuing is the single worst failure this feature has available to it, so
+  // it gets a guard of its own rather than relying on a date window.
   const { data: registrations, error } = await supabase
     .from('registrations')
     .select('id, registered_at')
     .in('batch_id', batches.map((b) => b.id))
-    .lte('registered_at', cutoffIso);
+    .lte('registered_at', cutoffIso)
+    .is('lapsed_at', null);
   if (error) throw error;
   if (!registrations || registrations.length === 0) return [];
 
@@ -273,10 +280,14 @@ export async function selectBankTransferChaseRegistrations(
   if (batchesError) throw batchesError;
   if (!batches || batches.length === 0) return [];
 
+  // Same guard as payment_followup above. Part-payers are deliberately outside
+  // the automatic sweep (founder decision 2026-08-09), so the only way one gets
+  // here is a staff write-off — and that is an explicit "stop chasing this".
   const { data: registrations, error } = await supabase
     .from('registrations')
     .select('id')
-    .in('batch_id', batches.map((b) => b.id));
+    .in('batch_id', batches.map((b) => b.id))
+    .is('lapsed_at', null);
   if (error) throw error;
   if (!registrations || registrations.length === 0) return [];
 
@@ -313,10 +324,15 @@ export async function selectNoShowRegistrations(yesterdayIso: string): Promise<s
   const batchIds = [...new Set((attendedRegs ?? []).map((r) => r.batch_id))];
   if (batchIds.length === 0) return [];
 
+  // Reachable despite the Paid filter below: BR-06's trigger only advances a
+  // 'Registered' row, so a late payment against a written-off registration
+  // leaves it Lapsed + Paid — the deliberate anomaly BR-06 documents. That row
+  // must not trigger a "we missed you yesterday" call.
   const { data: allRegs, error: allRegsError } = await supabase
     .from('registrations')
     .select('id')
-    .in('batch_id', batchIds);
+    .in('batch_id', batchIds)
+    .is('lapsed_at', null);
   if (allRegsError) throw allRegsError;
   const candidateIds = (allRegs ?? []).map((r) => r.id).filter((id) => !attendedIds.has(id));
   if (candidateIds.length === 0) return [];

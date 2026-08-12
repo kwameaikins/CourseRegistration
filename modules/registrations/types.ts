@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { LEAD_SOURCES, REGISTRATION_STATUSES, SELF_DECLARED_LEAD_SOURCES } from '@/lib/domain/types';
 import type {
   Gender,
   LeadSource,
@@ -96,7 +97,12 @@ export const registrationInputSchema = z.object({
   jobTitle: requiredProfessionalText,
   company: requiredProfessionalText,
   batchId: z.uuid(),
-  leadSource: z.enum(['WhatsApp', 'Facebook', 'LinkedIn', 'Referral', 'Website', 'Other']),
+  // Full set, so RegistrationInput can carry 'Returning' for the portal
+  // enrolment path (modules/portal/service.ts's enrolInBatch), which builds this
+  // input server-side from an authenticated participant's own stored record.
+  // The PUBLIC route does not use this schema directly — see
+  // publicRegistrationInputSchema below.
+  leadSource: z.enum(LEAD_SOURCES),
   // BR-15: consent must be literally true; z.literal rejects everything else.
   consentGiven: z.boolean(),
   // Knowsia Growth Partner Programme (2026-08-02) — an explicit code always
@@ -111,12 +117,51 @@ export const registrationInputSchema = z.object({
 
 export type RegistrationInput = z.infer<typeof registrationInputSchema>;
 
+// One-click enrolment for a Participant who already has an account (BR-42,
+// founder direction 2026-08-12: "those with an already existing account should
+// not go through the same process of registering ... they only have to enrol on
+// to the course they're interested in").
+//
+// batchId is the only field that really matters. The three profile fields exist
+// solely for the minority of records — legacy imports, mostly — whose
+// participant row predates a column a Registration needs. They are a top-up,
+// never a re-collection: the service uses one only where its own record has a
+// gap, and names anything still missing in a MISSING_PROFILE_FIELDS error so
+// the caller can ask for those alone.
+//
+// There is no participantId here on purpose. Identity comes from the portal
+// session at the route, never from the request body — otherwise this would be
+// an endpoint for registering other people.
+export const enrolExistingParticipantSchema = z.object({
+  batchId: z.uuid(),
+  // Same one-field-serves-both-systems behaviour as the public form: tried as a
+  // partner code first, then as a standalone coupon. Omitting it is the norm.
+  couponCode: z
+    .string()
+    .trim()
+    .max(30)
+    .nullish()
+    .transform((value) => (value ? value.toUpperCase() : null)),
+  gender: z.enum(['Male', 'Female']).optional(),
+  jobTitle: z.string().trim().min(1).max(150).optional(),
+  company: z.string().trim().min(1).max(150).optional(),
+});
+export type EnrolExistingParticipantInput = z.infer<typeof enrolExistingParticipantSchema>;
+
+// What POST /api/registrations accepts from an anonymous visitor (2026-08-12).
+// Identical to the above except that 'Returning' is not selectable: that value
+// is system-assigned by the portal enrolment path, where a portal session has
+// already proven who the participant is. Letting the public form claim it would
+// corrupt the one figure — repeat-enrolment rate — that the value exists to make
+// countable, and it costs nothing to close since no legitimate caller needs it.
+export const publicRegistrationInputSchema = registrationInputSchema.extend({
+  leadSource: z.enum(SELF_DECLARED_LEAD_SOURCES),
+});
+
 export const registrationListFiltersSchema = z.object({
   courseId: z.uuid().optional(),
   batchId: z.uuid().optional(),
-  registrationStatus: z
-    .enum(['Registered', 'Confirmed', 'Attended', 'Cancelled'])
-    .optional(),
+  registrationStatus: z.enum(REGISTRATION_STATUSES).optional(),
   // Payment status lives on `payments`, which the list read joins AFTER
   // slicing the page. It used to be applied only in the service's post-join
   // pass, which filters a page that has already been cut — so on 2026-08-06
@@ -128,9 +173,9 @@ export const registrationListFiltersSchema = z.object({
   // compares with === and 'outstanding' matches no real payment_status, so
   // missing it there empties the screen instead of widening it.
   paymentStatus: z.enum(['outstanding', 'Unpaid', 'Part Payment', 'Paid']).optional(),
-  leadSource: z
-    .enum(['WhatsApp', 'Facebook', 'LinkedIn', 'Referral', 'Website', 'Other'])
-    .optional(),
+  // Full set — staff filter registrations they are READING back, and
+  // 'Returning' is precisely the slice worth isolating.
+  leadSource: z.enum(LEAD_SOURCES).optional(),
   dateFrom: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
@@ -145,6 +190,35 @@ export const registrationListFiltersSchema = z.object({
 });
 
 export type RegistrationListFilters = z.infer<typeof registrationListFiltersSchema>;
+
+// Auto-lapse grace period (founder decision 2026-08-09: "15 days"), counted
+// from the Batch's END date, not its start — the course has to be over before
+// not showing up means anything.
+export const AUTO_LAPSE_GRACE_DAYS = 15;
+
+// The sentence written into lapsed_reason by the nightly sweep. lapsed_by is
+// what actually distinguishes an automatic write-off from a staff member's
+// (it is null for the sweep); this is here so the Registrations screen has
+// something readable to show.
+export const AUTO_LAPSE_REASON = `Automatically written off ${AUTO_LAPSE_GRACE_DAYS} days after the course ended: no payment received and no attendance recorded.`;
+
+// Write-off (2026-08-09) — reason is mandatory, same audit-trail convention as
+// manualDeletionRequestSchema below.
+export const lapseRegistrationSchema = z.object({
+  reason: z.string().trim().min(3).max(500),
+});
+export type LapseRegistrationInput = z.infer<typeof lapseRegistrationSchema>;
+
+export interface AutoLapseSweepSummary {
+  // The first real run closes out the entire historic backlog at once, so the
+  // manual trigger defaults to a dry run — see /api/cron/registrations/auto-lapse.
+  dryRun: boolean;
+  candidatesEvaluated: number;
+  lapsed: number;
+  skippedPartPayment: number;
+  skippedAttended: number;
+  errors: string[];
+}
 
 // Immediate hard-delete of wrongly-entered/test data (founder-approved
 // 2026-07-22) — reason is mandatory for the audit trail, same convention as
@@ -169,12 +243,19 @@ export type TransferRegistrationInput = z.infer<typeof transferRegistrationSchem
 // them — see `shapeRegistration360ForRole` for exactly which role sees what.
 export interface Registration360 {
   canDelete: boolean;
+  // Admin + finance, and only while there is a balance left to write off
+  // (2026-08-09) — computed server-side so the dialog can show the right
+  // action without guessing; lapseRegistration re-checks both itself.
+  canLapse: boolean;
   registration: {
     id: string;
     registrationStatus: RegistrationStatus;
     leadSource: LeadSource;
     notes: string | null;
     registeredAt: string;
+    lapsedAt: string | null;
+    lapsedByName: string | null;
+    lapsedReason: string | null;
   };
   participant: {
     fullName: string;
@@ -316,9 +397,9 @@ export type BulkImportRow = z.infer<typeof bulkImportRowSchema>;
 
 export const bulkImportRequestSchema = z.object({
   batchId: z.uuid(),
-  leadSource: z
-    .enum(['WhatsApp', 'Facebook', 'LinkedIn', 'Referral', 'Website', 'Other'])
-    .default('Other'),
+  // Self-declared: a staff member picks this for a backfilled row, so the same
+  // "never claim Returning on someone's behalf" rule as the public form applies.
+  leadSource: z.enum(SELF_DECLARED_LEAD_SOURCES).default('Other'),
   paymentMethod: z.enum(['Paystack Card', 'MTN MoMo', 'Bank Transfer', 'Cash', 'Other']),
   notesSuffix: z.string().trim().max(200).nullish(),
   // Staff-facing confirmation that consent was already captured on the

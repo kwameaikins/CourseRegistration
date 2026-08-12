@@ -3176,6 +3176,9 @@ export type Database = {
           company_allocation_id: string | null
           consent_given: boolean
           id: string
+          lapsed_at: string | null
+          lapsed_by: string | null
+          lapsed_reason: string | null
           lead_source: string
           notes: string | null
           participant_id: string
@@ -3188,6 +3191,9 @@ export type Database = {
           company_allocation_id?: string | null
           consent_given: boolean
           id?: string
+          lapsed_at?: string | null
+          lapsed_by?: string | null
+          lapsed_reason?: string | null
           lead_source: string
           notes?: string | null
           participant_id: string
@@ -3200,6 +3206,9 @@ export type Database = {
           company_allocation_id?: string | null
           consent_given?: boolean
           id?: string
+          lapsed_at?: string | null
+          lapsed_by?: string | null
+          lapsed_reason?: string | null
           lead_source?: string
           notes?: string | null
           participant_id?: string
@@ -3220,6 +3229,13 @@ export type Database = {
             columns: ["company_allocation_id"]
             isOneToOne: false
             referencedRelation: "company_batch_allocations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registrations_lapsed_by_fkey"
+            columns: ["lapsed_by"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
             referencedColumns: ["id"]
           },
           {

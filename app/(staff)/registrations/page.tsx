@@ -18,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { REGISTRATION_STATUSES } from '@/lib/domain/types';
 import { formatDate, formatGhs } from '@/lib/utils';
 import { RegistrationDetailDialog } from '@/app/(staff)/registrations/RegistrationDetailDialog';
 
@@ -46,7 +47,6 @@ interface Course {
   courseName: string;
 }
 
-const REGISTRATION_STATUSES = ['Registered', 'Confirmed', 'Attended', 'Cancelled'];
 const PAYMENT_STATUSES = ['Unpaid', 'Part Payment', 'Paid'];
 const LEAD_SOURCES = ['WhatsApp', 'Facebook', 'LinkedIn', 'Referral', 'Website', 'Other'];
 

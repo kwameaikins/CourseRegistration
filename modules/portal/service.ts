@@ -54,6 +54,12 @@ import * as couponsService from '@/modules/coupons/service';
 import type { ApplyCouponInput } from '@/modules/coupons/types';
 import { sendTransactionalEmail } from '@/lib/resend/client';
 import { parsePaymentStatus } from '@/lib/domain/parsers';
+// NOTE (2026-08-12): one-click enrolment deliberately does NOT live here.
+// registrations/service.ts already imports ensureParticipantAuth from this
+// file, so importing it back would make the two modules circular. It lives in
+// registrations (enrolExistingParticipant) — which is where creating a
+// Registration belongs anyway; this module's job is proving who the caller is,
+// and app/api/portal/enrol composes the two.
 import type {
   PortalChangePinInput,
   PortalDashboard,
@@ -779,6 +785,7 @@ export async function getOtherCourses(sessionId: string | undefined) {
   const batches = await coursesService.getActiveBatchesForPublicForm();
   return batches.filter((batch) => !registeredBatchIds.has(batch.batchId));
 }
+
 
 const PIN_RESET_TOKEN_DURATION_MS = 15 * 60 * 1000; // 15 minutes
 const APP_URL = () => process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com';

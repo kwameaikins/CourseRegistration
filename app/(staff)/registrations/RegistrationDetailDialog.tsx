@@ -25,12 +25,16 @@ import { formatDate, formatGhs } from '@/lib/utils';
 
 interface Registration360 {
   canDelete: boolean;
+  canLapse: boolean;
   registration: {
     id: string;
     registrationStatus: string;
     leadSource: string;
     notes: string | null;
     registeredAt: string;
+    lapsedAt: string | null;
+    lapsedByName: string | null;
+    lapsedReason: string | null;
   };
   participant: {
     fullName: string;
@@ -139,6 +143,10 @@ interface TransferBatchOption {
   id: string;
   cohortLabel: string;
   startDate: string;
+  // Late registration (2026-08-12): eligibility is judged on endDate, so this
+  // list can include a cohort already under way. Must stay in step with
+  // transferRegistration's own gate — the server rejects what this hides.
+  endDate: string;
   isActive: boolean;
 }
 
@@ -167,6 +175,11 @@ export function RegistrationDetailDialog(props: {
   const [transferSubmitting, setTransferSubmitting] = useState(false);
   const [transferError, setTransferError] = useState<string | null>(null);
   const [transferSuccess, setTransferSuccess] = useState(false);
+
+  const [confirmingLapse, setConfirmingLapse] = useState(false);
+  const [lapseReason, setLapseReason] = useState('');
+  const [lapsing, setLapsing] = useState(false);
+  const [lapseError, setLapseError] = useState<string | null>(null);
 
   function loadData() {
     setLoading(true);
@@ -218,6 +231,41 @@ export function RegistrationDetailDialog(props: {
     }
   }
 
+  // Write-off (2026-08-09) — the non-destructive counterpart to the delete
+  // below. Keeps every row; only stops the balance counting as collectible.
+  async function handleLapse() {
+    setLapsing(true);
+    setLapseError(null);
+    try {
+      await apiFetch(`/api/registrations/${props.registrationId}/lapse`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: lapseReason.trim() }),
+      });
+      setConfirmingLapse(false);
+      setLapseReason('');
+      props.onTransferred?.();
+      await loadData();
+    } catch (err) {
+      setLapseError(err instanceof Error ? err.message : 'Failed to write off registration.');
+    } finally {
+      setLapsing(false);
+    }
+  }
+
+  async function handleReinstate() {
+    setLapsing(true);
+    setLapseError(null);
+    try {
+      await apiFetch(`/api/registrations/${props.registrationId}/lapse`, { method: 'DELETE' });
+      props.onTransferred?.();
+      await loadData();
+    } catch (err) {
+      setLapseError(err instanceof Error ? err.message : 'Failed to reinstate registration.');
+    } finally {
+      setLapsing(false);
+    }
+  }
+
   async function handleOpenTransfer() {
     if (!data?.course) return;
     setTransferring(true);
@@ -235,7 +283,7 @@ export function RegistrationDetailDialog(props: {
           (batch) =>
             batch.id !== data.course!.batchId &&
             batch.isActive &&
-            batch.startDate >= todayIso,
+            batch.endDate >= todayIso,
         ),
       );
     } catch (err) {
@@ -602,6 +650,46 @@ export function RegistrationDetailDialog(props: {
               </Section>
             )}
 
+            {/* Write-off (2026-08-09). Sits above the danger zone on purpose:
+                for an unpaid no-show this is the action staff should reach for,
+                and deleting the row is almost never the right answer. */}
+            {data.registration.lapsedAt ? (
+              <Section title="Written off">
+                <p className="mb-2 text-sm text-muted-foreground">
+                  Written off on {formatDate(data.registration.lapsedAt)}
+                  {data.registration.lapsedByName
+                    ? ` by ${data.registration.lapsedByName}`
+                    : ' automatically'}
+                  . The balance is excluded from Total Outstanding and from the collections
+                  list, and the participant&apos;s portal no longer offers to take payment.
+                </p>
+                {data.registration.lapsedReason && (
+                  <p className="mb-2 text-sm text-muted-foreground">
+                    Reason: {data.registration.lapsedReason}
+                  </p>
+                )}
+                {lapseError && <p className="mb-2 text-sm text-destructive">{lapseError}</p>}
+                <Button variant="outline" size="sm" disabled={lapsing} onClick={handleReinstate}>
+                  {lapsing ? 'Reinstating…' : 'Reinstate this registration'}
+                </Button>
+              </Section>
+            ) : (
+              data.canLapse && (
+                <Section title="Write off">
+                  <p className="mb-2 text-sm text-muted-foreground">
+                    Stop treating this balance as collectible — for someone who never paid and
+                    never attended. Nothing is deleted and no email is sent; the registration
+                    simply leaves Total Outstanding, the collections list and the seat count,
+                    and can be reinstated if they resurface.
+                  </p>
+                  {lapseError && <p className="mb-2 text-sm text-destructive">{lapseError}</p>}
+                  <Button variant="outline" size="sm" onClick={() => setConfirmingLapse(true)}>
+                    Write off this balance
+                  </Button>
+                </Section>
+              )
+            )}
+
             {data.canDelete && (
               <Section title="Danger zone">
                 <p className="mb-2 text-sm text-muted-foreground">
@@ -643,6 +731,9 @@ export function RegistrationDetailDialog(props: {
                 {transferBatches.map((batch) => (
                   <option key={batch.id} value={batch.id}>
                     {batch.cohortLabel} — {formatDate(batch.startDate)}
+                    {batch.startDate < new Date().toISOString().slice(0, 10)
+                      ? ' — already started'
+                      : ''}
                   </option>
                 ))}
               </select>
@@ -674,6 +765,37 @@ export function RegistrationDetailDialog(props: {
               onClick={handleTransfer}
             >
               {transferSubmitting ? 'Transferring…' : 'Transfer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={confirmingLapse} onOpenChange={(open) => !open && setConfirmingLapse(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Write off this balance?</DialogTitle>
+            <DialogDescription>
+              The registration, payment record and history are all kept — the balance simply
+              stops counting as money we expect to collect. The participant is not notified.
+              This can be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="lapseReason">Reason (required, recorded)</Label>
+            <Input
+              id="lapseReason"
+              placeholder="e.g. Never paid, never attended, no response to follow-up"
+              value={lapseReason}
+              onChange={(event) => setLapseReason(event.target.value)}
+            />
+          </div>
+          {lapseError && <p className="text-sm text-destructive">{lapseError}</p>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmingLapse(false)}>
+              Cancel
+            </Button>
+            <Button disabled={lapseReason.trim().length < 3 || lapsing} onClick={handleLapse}>
+              {lapsing ? 'Writing off…' : 'Write off'}
             </Button>
           </DialogFooter>
         </DialogContent>

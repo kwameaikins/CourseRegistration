@@ -12,12 +12,17 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { effectiveCourseFee, formatDate, formatGhs } from '@/lib/utils';
+import { SELF_DECLARED_LEAD_SOURCES } from '@/lib/domain/types';
 
 interface BatchOption {
   batchId: string;
   courseName: string;
   cohortLabel: string;
   startDate: string;
+  // Late registration (founder-approved 2026-08-12) — a listed intake may
+  // already be running; the window now closes on endDate, not startDate.
+  endDate: string;
+  hasStarted: boolean;
   courseFee: number;
   // Free event / webinar (2026-08-03) — hides the fee line, the discount
   // preview and the checkout entirely rather than showing them at zero.
@@ -43,14 +48,11 @@ interface CodePreview {
   reason?: string;
 }
 
-const LEAD_SOURCES = [
-  'WhatsApp',
-  'Facebook',
-  'LinkedIn',
-  'Referral',
-  'Website',
-  'Other',
-] as const;
+// Derived from the canonical tuple (2026-08-12) rather than repeated here, and
+// deliberately the self-declared subset: 'Returning' is assigned by the portal's
+// own enrolment path for someone already signed in, never picked off a menu by
+// an anonymous visitor.
+const LEAD_SOURCES = SELF_DECLARED_LEAD_SOURCES;
 
 const GENDERS = ['Male', 'Female'] as const;
 
@@ -413,6 +415,7 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
           {batchOptions.map((option) => (
             <option key={option.batchId} value={option.batchId}>
               {option.courseName} — {option.cohortLabel} — {formatDate(option.startDate)}
+              {option.hasStarted ? ' — in progress' : ''}
               {option.isFree ? ' — Free' : ''}
             </option>
           ))}
@@ -441,6 +444,13 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
               </p>
             ) : (
               <p>Course fee: {formatGhs(selectedBatchFee)}</p>
+            )}
+            {selectedBatch.hasStarted && (
+              <p className="mt-1 font-medium text-amber-600">
+                This intake started on {formatDate(selectedBatch.startDate)} and runs
+                until {formatDate(selectedBatch.endDate)}. You can still join, but you
+                will have missed the sessions held so far.
+              </p>
             )}
             {selectedBatch.isFull ? (
               <p className="mt-1 font-medium text-amber-600">

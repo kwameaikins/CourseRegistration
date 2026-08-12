@@ -4,6 +4,7 @@ import { AppError } from '@/lib/errors';
 
 const registrationsRepositoryMock = {
   findOrCreateParticipant: vi.fn(),
+  selectParticipantProfileSystem: vi.fn(),
   insertRegistration: vi.fn(),
   insertInitialPayment: vi.fn(),
   updateRegistrationNotes: vi.fn(),
@@ -13,6 +14,9 @@ const registrationsRepositoryMock = {
   selectAllRegistrationsForExport: vi.fn(),
   callDeleteRegistrationImmediately: vi.fn(),
   callDeleteParticipantImmediately: vi.fn(),
+  updateRegistrationLapsedSystem: vi.fn(),
+  updateRegistrationReinstatedSystem: vi.fn(),
+  selectAutoLapseCandidatesSystem: vi.fn(),
 };
 const coursesServiceMock = {
   getBatchByIdSystem: vi.fn(),
@@ -55,6 +59,7 @@ const sendWhatsappOnceMock = vi.fn();
 const sendSmsOnceMock = vi.fn();
 const sendTransactionalEmailMock = vi.fn();
 const sendSmsMessageMock = vi.fn();
+const insertStaffActionAuditLogMock = vi.fn();
 
 vi.mock('@/modules/registrations/repository', () => registrationsRepositoryMock);
 vi.mock('@/modules/courses/service', () => coursesServiceMock);
@@ -77,9 +82,15 @@ vi.mock('@/lib/resend/client', () => ({
 vi.mock('@/lib/arkesel/client', () => ({
   sendSmsMessage: (...args: unknown[]) => sendSmsMessageMock(...args),
 }));
+// Best-effort timeline entry for a write-off — mocked so the tests never reach
+// a Supabase client. The authoritative record is the lapsed_* columns.
+vi.mock('@/modules/agent-tools/repository', () => ({
+  insertStaffActionAuditLog: (...args: unknown[]) => insertStaffActionAuditLogMock(...args),
+}));
 
 const {
   createRegistration,
+  enrolExistingParticipant,
   bulkImportRegistrations,
   createCorporateEmployeeRegistration,
   deleteRegistration,
@@ -90,8 +101,14 @@ const {
   getRegistrationContact,
   sendSmsToRegistration,
   sendEmailToRegistration,
+  lapseRegistration,
+  reinstateRegistration,
+  shouldAutoLapse,
+  runAutoLapseSweep,
 } = await import('@/modules/registrations/service');
-const { registrationInputSchema } = await import('@/modules/registrations/types');
+const { registrationInputSchema, publicRegistrationInputSchema } = await import(
+  '@/modules/registrations/types'
+);
 
 const FUTURE_DATE = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
   .toISOString()
@@ -205,6 +222,156 @@ beforeEach(() => {
   sendSmsOnceMock.mockResolvedValue('sent');
 });
 
+// One-click enrolment for a Participant who already has an account
+// (BR-42/BR-43, 2026-08-12). These run through the REAL createRegistration —
+// only the repository and sibling modules are mocked — so they also prove the
+// delegation actually reaches the insert rather than just being called.
+describe('enrolExistingParticipant', () => {
+  const storedProfile = (overrides: Record<string, unknown> = {}) => ({
+    id: 'participant-1',
+    first_name: 'Ama',
+    middle_name: null,
+    surname: 'Owusu',
+    full_name: 'Ama Owusu',
+    gender: 'Female',
+    email: 'ama.owusu@example.com',
+    phone: '+233241234567',
+    job_title: 'Accountant',
+    company: 'Knowsia',
+    consent_given: true,
+    deleted_at: null,
+    ...overrides,
+  });
+
+  const batchId = '4c9f6ae2-0000-4000-8000-000000000001';
+
+  beforeEach(() => {
+    registrationsRepositoryMock.selectParticipantProfileSystem.mockResolvedValue(storedProfile());
+  });
+
+  // The point of the feature: nothing already on the record is asked for again.
+  it('registers from the stored record alone', async () => {
+    const result = await enrolExistingParticipant('participant-1', {
+      batchId,
+      couponCode: null,
+    });
+
+    expect(result).toMatchObject({ outcome: 'registered' });
+    expect(registrationsRepositoryMock.findOrCreateParticipant).toHaveBeenCalledWith(
+      expect.objectContaining({
+        first_name: 'Ama',
+        surname: 'Owusu',
+        gender: 'Female',
+        email: 'ama.owusu@example.com',
+        job_title: 'Accountant',
+        company: 'Knowsia',
+      }),
+    );
+  });
+
+  // BR-43 — the value that makes repeat enrolments countable.
+  it('records lead_source Returning', async () => {
+    await enrolExistingParticipant('participant-1', { batchId, couponCode: null });
+    expect(registrationsRepositoryMock.insertRegistration).toHaveBeenCalledWith(
+      expect.objectContaining({ lead_source: 'Returning', consent_given: true }),
+    );
+  });
+
+  // BR-15 satisfied from participants.consent_given rather than a fresh
+  // checkbox (founder decision 2026-08-12) — no consent field is sent at all.
+  it('reuses the consent already on file', async () => {
+    await enrolExistingParticipant('participant-1', { batchId, couponCode: null });
+    expect(registrationsRepositoryMock.insertRegistration).toHaveBeenCalled();
+  });
+
+  // Reusing is not assuming: a record with no consent is refused outright.
+  it('refuses a participant with no consent on file', async () => {
+    registrationsRepositoryMock.selectParticipantProfileSystem.mockResolvedValue(
+      storedProfile({ consent_given: false }),
+    );
+    await expect(
+      enrolExistingParticipant('participant-1', { batchId, couponCode: null }),
+    ).rejects.toMatchObject({ code: 'CONSENT_REQUIRED' });
+    expect(registrationsRepositoryMock.insertRegistration).not.toHaveBeenCalled();
+  });
+
+  it('treats a soft-deleted participant as a dead session', async () => {
+    registrationsRepositoryMock.selectParticipantProfileSystem.mockResolvedValue(
+      storedProfile({ deleted_at: '2026-02-01T00:00:00.000Z' }),
+    );
+    await expect(
+      enrolExistingParticipant('participant-1', { batchId, couponCode: null }),
+    ).rejects.toMatchObject({ code: 'UNAUTHENTICATED' });
+  });
+
+  // Legacy imports predate some columns — ask for the gap, not the whole form.
+  it('names only the fields the record is actually missing', async () => {
+    registrationsRepositoryMock.selectParticipantProfileSystem.mockResolvedValue(
+      storedProfile({ gender: null, job_title: null }),
+    );
+    await expect(
+      enrolExistingParticipant('participant-1', { batchId, couponCode: null }),
+    ).rejects.toMatchObject({
+      code: 'MISSING_PROFILE_FIELDS',
+      message: expect.stringContaining('gender, job title'),
+    });
+    expect(registrationsRepositoryMock.insertRegistration).not.toHaveBeenCalled();
+  });
+
+  it('accepts a top-up for a missing field and enrols', async () => {
+    registrationsRepositoryMock.selectParticipantProfileSystem.mockResolvedValue(
+      storedProfile({ gender: null }),
+    );
+    await enrolExistingParticipant('participant-1', {
+      batchId,
+      couponCode: null,
+      gender: 'Male',
+    });
+    expect(registrationsRepositoryMock.findOrCreateParticipant).toHaveBeenCalledWith(
+      expect.objectContaining({ gender: 'Male' }),
+    );
+  });
+
+  // A supplied value must never overwrite a stored one — this enrols, it does
+  // not edit a profile (the portal's Account panel does that, and it carries
+  // its own certificate-renaming side effects).
+  it('ignores a supplied field when the record already has one', async () => {
+    await enrolExistingParticipant('participant-1', {
+      batchId,
+      couponCode: null,
+      company: 'Somewhere Else',
+    });
+    expect(registrationsRepositoryMock.findOrCreateParticipant).toHaveBeenCalledWith(
+      expect.objectContaining({ company: 'Knowsia' }),
+    );
+  });
+
+  // BR-19 still applies — an authenticated caller gets no extra rights.
+  it('still refuses a batch that has ended', async () => {
+    coursesServiceMock.getBatchByIdSystem.mockResolvedValue(
+      activeBatch({ startDate: '2020-01-01', endDate: '2020-01-05' }),
+    );
+    await expect(
+      enrolExistingParticipant('participant-1', { batchId, couponCode: null }),
+    ).rejects.toMatchObject({ code: 'INVALID_BATCH' });
+  });
+
+  // A full batch takes createRegistration's existing waitlist branch, which
+  // forwards the same lead_source — the reason waitlist_entries' CHECK had to
+  // gain 'Returning' alongside registrations'.
+  it('falls through to the waitlist on a full batch, still as Returning', async () => {
+    coursesServiceMock.getSeatsRemaining.mockResolvedValue(0);
+    const result = await enrolExistingParticipant('participant-1', {
+      batchId,
+      couponCode: null,
+    });
+    expect(result).toMatchObject({ outcome: 'waitlisted' });
+    expect(waitlistServiceMock.joinWaitlist).toHaveBeenCalledWith(
+      expect.objectContaining({ leadSource: 'Returning' }),
+    );
+  });
+});
+
 describe('BR-15 — mandatory DPA consent (T-BR15-01 logic)', () => {
   it('rejects consentGiven: false with CONSENT_REQUIRED and creates nothing', async () => {
     await expect(
@@ -214,7 +381,7 @@ describe('BR-15 — mandatory DPA consent (T-BR15-01 logic)', () => {
   });
 });
 
-describe('BR-01/BR-19 — batch must be Active and in the future', () => {
+describe('BR-01/BR-19 — batch must be Active and not yet ended', () => {
   it('rejects an inactive batch', async () => {
     coursesServiceMock.getBatchByIdSystem.mockResolvedValue(activeBatch({ isActive: false }));
     await expect(createRegistration(validInput())).rejects.toMatchObject({
@@ -222,12 +389,38 @@ describe('BR-01/BR-19 — batch must be Active and in the future', () => {
     });
   });
 
-  it('rejects a past batch (T-BR19-01 logic)', async () => {
+  it('rejects a batch that has already ended (T-BR19-01 logic)', async () => {
     coursesServiceMock.getBatchByIdSystem.mockResolvedValue(
-      activeBatch({ startDate: '2020-01-01' }),
+      activeBatch({ startDate: '2020-01-01', endDate: '2020-01-05' }),
     );
     await expect(createRegistration(validInput())).rejects.toMatchObject({
       code: 'INVALID_BATCH',
+    });
+  });
+
+  // Late registration, founder-approved 2026-08-12. This is the exact case that
+  // turned a real registrant away on 2026-08-11: the class had begun, so the
+  // intake vanished from the form AND the server refused the batch id. A course
+  // still running is still joinable; only end_date closes it.
+  it('ACCEPTS a batch that has started but not yet ended', async () => {
+    coursesServiceMock.getBatchByIdSystem.mockResolvedValue(
+      activeBatch({ startDate: '2020-01-01', endDate: FUTURE_DATE }),
+    );
+    await expect(createRegistration(validInput())).resolves.toMatchObject({
+      outcome: 'registered',
+    });
+  });
+
+  // The boundary the old rule got wrong twice over: a one-day course, today.
+  // start_date < today was false only until midnight, so a same-day cohort was
+  // open in the morning and gone by the afternoon of its own final session.
+  it('ACCEPTS a batch ending today', async () => {
+    const todayIso = new Date().toISOString().slice(0, 10);
+    coursesServiceMock.getBatchByIdSystem.mockResolvedValue(
+      activeBatch({ startDate: '2020-01-01', endDate: todayIso }),
+    );
+    await expect(createRegistration(validInput())).resolves.toMatchObject({
+      outcome: 'registered',
     });
   });
 
@@ -637,6 +830,35 @@ describe('registration input schema', () => {
     expect(result.success).toBe(false);
   });
 
+  // BR-43 (2026-08-12): 'Returning' is system-assigned by the portal's
+  // enrolment path, where a session has already proven who the caller is. An
+  // anonymous visitor claiming it would corrupt the repeat-enrolment figure the
+  // value exists to make countable — so the internal schema carries it and the
+  // public one, which POST /api/registrations uses, does not.
+  it('accepts Returning on the internal schema', () => {
+    const result = registrationInputSchema.safeParse({
+      ...validInput(),
+      leadSource: 'Returning',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects Returning on the public schema', () => {
+    const result = publicRegistrationInputSchema.safeParse({
+      ...validInput(),
+      leadSource: 'Returning',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('still accepts a real channel on the public schema', () => {
+    const result = publicRegistrationInputSchema.safeParse({
+      ...validInput(),
+      leadSource: 'Facebook',
+    });
+    expect(result.success).toBe(true);
+  });
+
   it('rejects an unknown gender', () => {
     const result = registrationInputSchema.safeParse({
       ...validInput(),
@@ -854,6 +1076,198 @@ describe('deleteRegistration — immediate hard delete of wrongly-entered/test d
   });
 });
 
+// Write-off (founder direction 2026-08-09). The point of the feature is that a
+// registrant who never paid and never attended stops counting as receivable
+// WITHOUT anything being deleted and WITHOUT a payment being invented — so
+// these tests care most about what is NOT done: amount_paid is never touched,
+// and a fully-paid row can never be written off.
+describe('lapseRegistration — writing off an uncollectible balance', () => {
+  function lapseRow(overrides: Record<string, unknown> = {}) {
+    return {
+      registration: {
+        id: 'reg-1',
+        batch_id: 'batch-1',
+        registration_status: 'Registered',
+        lead_source: 'WhatsApp',
+        lapsed_at: null,
+        lapsed_by: null,
+        lapsed_reason: null,
+      },
+      payment: { payment_status: 'Unpaid', balance: '1200.00', amount_paid: '0.00' },
+      batch: { id: 'batch-1', capacity: null, cohort_label: 'JUL-2026' },
+      course: { course_name: 'Understanding ESG' },
+      lapsedByName: null,
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    usersServiceMock.requireRole.mockResolvedValue({
+      id: 'staff-finance-1',
+      fullName: 'Kofi Finance',
+      role: 'finance',
+    });
+    registrationsRepositoryMock.selectRegistration360.mockResolvedValue(lapseRow());
+    registrationsRepositoryMock.updateRegistrationLapsedSystem.mockResolvedValue(undefined);
+    registrationsRepositoryMock.updateRegistrationReinstatedSystem.mockResolvedValue(undefined);
+  });
+
+  it('is open to finance as well as admin — a receivable is finance\'s call', async () => {
+    await lapseRegistration('reg-1', 'Never paid, never attended');
+    expect(usersServiceMock.requireRole).toHaveBeenCalledWith(['admin', 'finance']);
+  });
+
+  it('records the acting staff member and the reason', async () => {
+    await lapseRegistration('reg-1', 'No response to four follow-ups');
+    expect(registrationsRepositoryMock.updateRegistrationLapsedSystem).toHaveBeenCalledWith({
+      registrationId: 'reg-1',
+      staffId: 'staff-finance-1',
+      reason: 'No response to four follow-ups',
+    });
+  });
+
+  it('refuses a fully-paid registration — there is nothing to write off', async () => {
+    registrationsRepositoryMock.selectRegistration360.mockResolvedValue(
+      lapseRow({ payment: { payment_status: 'Paid', balance: '0.00', amount_paid: '1200.00' } }),
+    );
+    await expect(lapseRegistration('reg-1', 'Did not attend')).rejects.toThrow(
+      /fully paid/i,
+    );
+    expect(registrationsRepositoryMock.updateRegistrationLapsedSystem).not.toHaveBeenCalled();
+  });
+
+  it('refuses a registration that is already written off', async () => {
+    registrationsRepositoryMock.selectRegistration360.mockResolvedValue(
+      lapseRow({
+        registration: { ...lapseRow().registration, registration_status: 'Lapsed' },
+      }),
+    );
+    await expect(lapseRegistration('reg-1', 'Never paid')).rejects.toThrow(/already been written off/i);
+    expect(registrationsRepositoryMock.updateRegistrationLapsedSystem).not.toHaveBeenCalled();
+  });
+
+  it('frees the seat — a capped batch notifies the waitlist, same as a deletion', async () => {
+    registrationsRepositoryMock.selectRegistration360.mockResolvedValue(
+      lapseRow({ batch: { id: 'batch-1', capacity: 30, cohort_label: 'JUL-2026' } }),
+    );
+    coursesServiceMock.getSeatsRemaining.mockResolvedValue(1);
+
+    await lapseRegistration('reg-1', 'Never paid, never attended');
+
+    expect(waitlistServiceMock.notifyNextIfSeatAvailable).toHaveBeenCalledWith('batch-1', 1, {
+      courseName: 'Understanding ESG',
+      cohortLabel: 'JUL-2026',
+    });
+  });
+
+  it('reinstates to Confirmed when the fee is settled, Registered otherwise', async () => {
+    registrationsRepositoryMock.selectRegistration360.mockResolvedValue(
+      lapseRow({
+        registration: { ...lapseRow().registration, registration_status: 'Lapsed' },
+        payment: { payment_status: 'Paid', balance: '0.00', amount_paid: '1200.00' },
+      }),
+    );
+    await reinstateRegistration('reg-1');
+    expect(registrationsRepositoryMock.updateRegistrationReinstatedSystem).toHaveBeenCalledWith(
+      'reg-1',
+      'Confirmed',
+    );
+
+    registrationsRepositoryMock.selectRegistration360.mockResolvedValue(
+      lapseRow({
+        registration: { ...lapseRow().registration, registration_status: 'Lapsed' },
+      }),
+    );
+    await reinstateRegistration('reg-1');
+    expect(registrationsRepositoryMock.updateRegistrationReinstatedSystem).toHaveBeenLastCalledWith(
+      'reg-1',
+      'Registered',
+    );
+  });
+});
+
+// The rule the nightly sweep applies. Pure, so it is tested directly rather
+// than through a mocked database — the arithmetic of "who gets closed out" is
+// the part worth pinning down.
+describe('shouldAutoLapse — the 15-day rule (founder decision 2026-08-09)', () => {
+  it('closes a registration with no money and no attendance', () => {
+    expect(shouldAutoLapse({ amountPaid: 0, attendanceRows: 0 })).toEqual({
+      lapse: true,
+      skipReason: null,
+    });
+  });
+
+  it('leaves part-payers alone — real money changed hands, a human decides', () => {
+    expect(shouldAutoLapse({ amountPaid: 500, attendanceRows: 0 })).toEqual({
+      lapse: false,
+      skipReason: 'part_payment',
+    });
+  });
+
+  it('leaves anyone the Zoom sync saw, however briefly', () => {
+    expect(shouldAutoLapse({ amountPaid: 0, attendanceRows: 1 })).toEqual({
+      lapse: false,
+      skipReason: 'attended',
+    });
+  });
+});
+
+describe('runAutoLapseSweep', () => {
+  beforeEach(() => {
+    registrationsRepositoryMock.updateRegistrationLapsedSystem.mockResolvedValue(undefined);
+    registrationsRepositoryMock.selectAutoLapseCandidatesSystem.mockResolvedValue([
+      { registrationId: 'reg-unpaid', batchId: 'b1', amountPaid: 0, paymentStatus: 'Unpaid', attendanceRows: 0 },
+      { registrationId: 'reg-part', batchId: 'b1', amountPaid: 400, paymentStatus: 'Part Payment', attendanceRows: 0 },
+      { registrationId: 'reg-attended', batchId: 'b1', amountPaid: 0, paymentStatus: 'Unpaid', attendanceRows: 2 },
+    ]);
+  });
+
+  it('writes off only the unpaid no-show, and attributes it to no staff member', async () => {
+    const summary = await runAutoLapseSweep({ now: new Date('2026-08-09T07:00:00Z') });
+
+    expect(summary).toMatchObject({
+      dryRun: false,
+      candidatesEvaluated: 3,
+      lapsed: 1,
+      skippedPartPayment: 1,
+      skippedAttended: 1,
+    });
+    expect(registrationsRepositoryMock.updateRegistrationLapsedSystem).toHaveBeenCalledTimes(1);
+    expect(registrationsRepositoryMock.updateRegistrationLapsedSystem).toHaveBeenCalledWith(
+      expect.objectContaining({ registrationId: 'reg-unpaid', staffId: null }),
+    );
+  });
+
+  it('counts back 15 days from today to pick the batch end-date cutoff', async () => {
+    await runAutoLapseSweep({ now: new Date('2026-08-09T07:00:00Z') });
+    expect(registrationsRepositoryMock.selectAutoLapseCandidatesSystem).toHaveBeenCalledWith(
+      '2026-07-25',
+    );
+  });
+
+  it('a dry run reports what it would close without writing anything', async () => {
+    const summary = await runAutoLapseSweep({ dryRun: true });
+    expect(summary).toMatchObject({ dryRun: true, lapsed: 1 });
+    expect(registrationsRepositoryMock.updateRegistrationLapsedSystem).not.toHaveBeenCalled();
+  });
+
+  it('one failing row does not abort the rest of the sweep', async () => {
+    registrationsRepositoryMock.selectAutoLapseCandidatesSystem.mockResolvedValue([
+      { registrationId: 'reg-a', batchId: 'b1', amountPaid: 0, paymentStatus: 'Unpaid', attendanceRows: 0 },
+      { registrationId: 'reg-b', batchId: 'b1', amountPaid: 0, paymentStatus: 'Unpaid', attendanceRows: 0 },
+    ]);
+    registrationsRepositoryMock.updateRegistrationLapsedSystem
+      .mockRejectedValueOnce(new Error('constraint violation'))
+      .mockResolvedValueOnce(undefined);
+
+    const summary = await runAutoLapseSweep();
+
+    expect(summary.lapsed).toBe(1);
+    expect(summary.errors).toHaveLength(1);
+    expect(summary.errors[0]).toContain('reg-a');
+  });
+});
+
 describe('deleteParticipantImmediately — immediate hard delete distinct from the DPA flow', () => {
   beforeEach(() => {
     usersServiceMock.requireRole.mockResolvedValue({
@@ -1015,13 +1429,30 @@ describe('transferRegistration — batch/cohort transfer (system review, 2026-07
     ).rejects.toMatchObject({ code: 'INVALID_BATCH' });
   });
 
-  it('rejects a destination batch that has already started', async () => {
+  it('rejects a destination batch that has already ended', async () => {
     coursesServiceMock.getBatchByIdSystem.mockResolvedValue(
-      destinationBatch({ startDate: '2020-01-01' }),
+      destinationBatch({ startDate: '2020-01-01', endDate: '2020-01-05' }),
     );
     await expect(
       transferRegistration('reg-1', { newBatchId: 'new-batch-1', reason: 'Schedule clash' }),
     ).rejects.toMatchObject({ code: 'INVALID_BATCH' });
+  });
+
+  // Mirrors createRegistration's late-registration window (2026-08-12) — if
+  // someone can register onto a running cohort directly, refusing to transfer
+  // them onto the same one would be one rule answering two ways.
+  it('ACCEPTS a destination batch that has started but not yet ended', async () => {
+    coursesServiceMock.getBatchByIdSystem.mockResolvedValue(
+      destinationBatch({ startDate: '2020-01-01', endDate: FUTURE_DATE }),
+    );
+    await transferRegistration('reg-1', {
+      newBatchId: 'new-batch-1',
+      reason: 'Joining the cohort already under way',
+    });
+    expect(registrationsRepositoryMock.updateRegistrationBatch).toHaveBeenCalledWith(
+      'reg-1',
+      'new-batch-1',
+    );
   });
 
   it('surfaces BR-03 as DUPLICATE_REGISTRATION when the destination move violates the unique constraint', async () => {
@@ -1190,6 +1621,52 @@ describe('listRegistrations — role-based field shaping (T-RLS-03)', () => {
     it('no filter returns everything', async () => {
       const { registrations } = await listRegistrations({ page: 1, limit: 50 });
       expect(registrations).toHaveLength(3);
+    });
+
+    // 'outstanding' is the collections view, and a written-off registration is
+    // not being collected — it still has a balance, but nobody is pursuing it.
+    // The repository narrows on lapsed_at too; this pass is the row-level
+    // guarantee, exactly as for the 'outstanding' string itself.
+    it("'outstanding' excludes a written-off registration despite its balance", async () => {
+      registrationsRepositoryMock.selectRegistrationList.mockResolvedValue({
+        rows: [
+          listRow({ payment: { ...listRow().payment, payment_status: 'Unpaid' } }),
+          listRow({
+            registration: { ...listRow().registration, registration_status: 'Lapsed' },
+            payment: { ...listRow().payment, payment_status: 'Unpaid' },
+          }),
+        ],
+        total: 2,
+      });
+
+      const { registrations } = await listRegistrations({
+        page: 1,
+        limit: 50,
+        paymentStatus: 'outstanding',
+      });
+
+      expect(registrations).toHaveLength(1);
+      expect(registrations[0].registrationStatus).toBe('Confirmed');
+    });
+
+    it('the Registrations screen can still find written-off rows by status', async () => {
+      registrationsRepositoryMock.selectRegistrationList.mockResolvedValue({
+        rows: [
+          listRow({
+            registration: { ...listRow().registration, registration_status: 'Lapsed' },
+            payment: { ...listRow().payment, payment_status: 'Unpaid' },
+          }),
+        ],
+        total: 1,
+      });
+
+      const { registrations } = await listRegistrations({
+        page: 1,
+        limit: 50,
+        registrationStatus: 'Lapsed',
+      });
+
+      expect(registrations).toHaveLength(1);
     });
   });
 

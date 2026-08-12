@@ -15,6 +15,38 @@ type ParticipantRow = Database['public']['Tables']['participants']['Row'];
 type RegistrationRow = Database['public']['Tables']['registrations']['Row'];
 type PaymentRow = Database['public']['Tables']['payments']['Row'];
 
+// One-click enrolment (BR-42, 2026-08-12) — every field the public registration
+// form would otherwise make a returning Participant re-type, read straight off
+// the record captured the first time they registered. consent_given/consent_at
+// come with it because BR-15 is satisfied from the stored consent rather than a
+// fresh checkbox, and the service refuses anyone whose record carries none
+// rather than assuming it.
+export async function selectParticipantProfileSystem(participantId: string): Promise<{
+  id: string;
+  first_name: string | null;
+  middle_name: string | null;
+  surname: string | null;
+  full_name: string;
+  gender: string | null;
+  email: string;
+  phone: string;
+  job_title: string | null;
+  company: string | null;
+  consent_given: boolean;
+  deleted_at: string | null;
+} | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('participants')
+    .select(
+      'id, first_name, middle_name, surname, full_name, gender, email, phone, job_title, company, consent_given, deleted_at',
+    )
+    .eq('id', participantId)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 // BR-02: atomic upsert on the unique email — two simultaneous registrations
 // from the same new email cannot create two Participant rows, and a repeat
 // registration refreshes the Participant's latest contact details.
@@ -141,6 +173,10 @@ export async function selectRegistrationList(filters: RegistrationListFilters): 
   if (filters.batchId) query = query.eq('batch_id', filters.batchId);
   else if (batchIdFilter) query = query.in('batch_id', batchIdFilter);
   if (paymentRegistrationIds) query = query.in('id', paymentRegistrationIds);
+  // See applyPostJoinFilters: 'outstanding' is the collections view, and a
+  // written-off registration is not being collected. Narrowed here as well as
+  // there so the page window fills with rows someone can actually act on.
+  if (filters.paymentStatus === 'outstanding') query = query.is('lapsed_at', null);
   if (filters.registrationStatus) {
     query = query.eq('registration_status', filters.registrationStatus);
   }
@@ -280,6 +316,10 @@ export async function selectAllRegistrationsForExport(
   if (filters.batchId) query = query.eq('batch_id', filters.batchId);
   else if (batchIdFilter) query = query.in('batch_id', batchIdFilter);
   if (paymentRegistrationIds) query = query.in('id', paymentRegistrationIds);
+  // See applyPostJoinFilters: 'outstanding' is the collections view, and a
+  // written-off registration is not being collected. Narrowed here as well as
+  // there so the page window fills with rows someone can actually act on.
+  if (filters.paymentStatus === 'outstanding') query = query.is('lapsed_at', null);
   if (filters.registrationStatus) {
     query = query.eq('registration_status', filters.registrationStatus);
   }
@@ -376,6 +416,7 @@ export async function selectRegistration360(registrationId: string): Promise<{
   course: { course_name: string; course_code: string } | null;
   verifiedByName: string | null;
   discountGrantedByName: string | null;
+  lapsedByName: string | null;
   emailLog: Array<{
     email_type: string;
     sent_at: string;
@@ -505,6 +546,19 @@ export async function selectRegistration360(registrationId: string): Promise<{
     discountGrantedByName = staff?.full_name ?? null;
   }
 
+  // Null when the nightly sweep did it rather than a person — the 360 view
+  // renders that as "written off automatically", which is why the distinction
+  // is worth a column.
+  let lapsedByName: string | null = null;
+  if (registration.lapsed_by) {
+    const { data: staff } = await supabase
+      .from('staff_users')
+      .select('full_name')
+      .eq('id', registration.lapsed_by)
+      .maybeSingle();
+    lapsedByName = staff?.full_name ?? null;
+  }
+
   return {
     registration,
     participant,
@@ -513,6 +567,7 @@ export async function selectRegistration360(registrationId: string): Promise<{
     course,
     verifiedByName,
     discountGrantedByName,
+    lapsedByName,
     emailLog: emailLog ?? [],
     whatsappLog: whatsappLog ?? [],
     smsLog: smsLog ?? [],
@@ -550,6 +605,143 @@ export async function updateRegistrationNotes(
     .update({ notes, updated_at: new Date().toISOString() })
     .eq('id', registrationId);
   if (error) throw error;
+}
+
+// Write-off (2026-08-09) — marks a Registration uncollectible without
+// destroying it, the alternative to the hard delete below.
+//
+// Service-role rather than the session client, deliberately: only `admin` has
+// an RLS UPDATE policy on registrations (finance is SELECT-only, see
+// 202607170001_foundation.sql), but writing off a receivable is finance's job
+// as much as it is an admin's. The service layer is the authorization boundary
+// here — same posture as the tutor-portal and access-grants reads — and
+// lapseRegistration checks the role before this is ever reached.
+//
+// `amount_paid` is untouched on purpose. Zeroing the balance by inventing a
+// payment would put money in the revenue figures that never arrived; the
+// balance stays on the row as a fact and the STATUS is what makes it
+// non-collectible.
+export async function updateRegistrationLapsedSystem(input: {
+  registrationId: string;
+  staffId: string | null;
+  reason: string;
+}): Promise<void> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase
+    .from('registrations')
+    .update({
+      registration_status: 'Lapsed',
+      lapsed_at: new Date().toISOString(),
+      lapsed_by: input.staffId,
+      lapsed_reason: input.reason,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', input.registrationId)
+    // Idempotency for the nightly sweep, and the race guard for the manual
+    // action: two staff writing off the same row concurrently means the
+    // second update matches nothing rather than overwriting the first one's
+    // reason and attribution.
+    .is('lapsed_at', null);
+  if (error) throw error;
+}
+
+// Undo — the late payer, or a write-off made in error. Restores the status the
+// row would have had on its own: 'Confirmed' if the fee is settled, otherwise
+// 'Registered'. Clears the whole audit triple together, which
+// registrations_lapsed_audit_check requires.
+export async function updateRegistrationReinstatedSystem(
+  registrationId: string,
+  restoredStatus: 'Registered' | 'Confirmed',
+): Promise<void> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase
+    .from('registrations')
+    .update({
+      registration_status: restoredStatus,
+      lapsed_at: null,
+      lapsed_by: null,
+      lapsed_reason: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', registrationId)
+    .eq('registration_status', 'Lapsed');
+  if (error) throw error;
+}
+
+// Auto-lapse candidates (2026-08-09): every not-yet-lapsed Registration on a
+// non-free Batch that has already ended, with the three facts the rule needs.
+//
+// Free batches are excluded here rather than filtered later — their payments
+// settle to 'Paid' at GHS 0 (202608030048), so nobody on one can be a debtor
+// and running them through the rule at all is a category error.
+//
+// Attendance is returned as a bare row count, not a rate. The rule is "did we
+// ever see them", and 2026-08-08 already settled that any appearance however
+// brief counts as turning up (see feedback/repository.ts) — someone the Zoom
+// sync saw for two minutes is a person for staff to judge, not a row for a
+// cron job to close.
+export async function selectAutoLapseCandidatesSystem(endedOnOrBefore: string): Promise<
+  Array<{
+    registrationId: string;
+    batchId: string;
+    amountPaid: number;
+    paymentStatus: string;
+    attendanceRows: number;
+  }>
+> {
+  const supabase = createSupabaseServiceRoleClient();
+
+  const { data: batches, error: batchesError } = await supabase
+    .from('batches')
+    .select('id, end_date')
+    .eq('is_free', false)
+    .not('end_date', 'is', null)
+    .lte('end_date', endedOnOrBefore);
+  if (batchesError) throw batchesError;
+  if (!batches || batches.length === 0) return [];
+
+  const { data: registrations, error: registrationsError } = await supabase
+    .from('registrations')
+    .select('id, batch_id')
+    .in('batch_id', batches.map((batch) => batch.id))
+    .is('lapsed_at', null);
+  if (registrationsError) throw registrationsError;
+  if (!registrations || registrations.length === 0) return [];
+
+  const registrationIds = registrations.map((registration) => registration.id);
+
+  const [paymentsResult, attendanceResult] = await Promise.all([
+    supabase
+      .from('payments')
+      .select('registration_id, amount_paid, payment_status')
+      .in('registration_id', registrationIds),
+    supabase.from('attendance').select('registration_id').in('registration_id', registrationIds),
+  ]);
+  if (paymentsResult.error) throw paymentsResult.error;
+  if (attendanceResult.error) throw attendanceResult.error;
+
+  const paymentByRegistrationId = new Map(
+    (paymentsResult.data ?? []).map((payment) => [payment.registration_id, payment]),
+  );
+  const attendanceCounts = new Map<string, number>();
+  for (const row of attendanceResult.data ?? []) {
+    attendanceCounts.set(row.registration_id, (attendanceCounts.get(row.registration_id) ?? 0) + 1);
+  }
+
+  return registrations.map((registration) => {
+    const payment = paymentByRegistrationId.get(registration.id);
+    return {
+      registrationId: registration.id,
+      batchId: registration.batch_id,
+      amountPaid: Number(payment?.amount_paid ?? 0),
+      // A missing payment row cannot happen through any current write path
+      // (createRegistration always makes one), but if it ever did, treating it
+      // as Unpaid is the reading that lets the sweep close it — which is the
+      // right outcome for a registration with no money attached to it at all.
+      paymentStatus: payment?.payment_status ?? 'Unpaid',
+      attendanceRows: attendanceCounts.get(registration.id) ?? 0,
+    };
+  });
 }
 
 // DPA deletion functions (Document 3, Section 8) — SECURITY DEFINER functions

@@ -89,13 +89,22 @@ export async function updateBatchById(
 // SELECT policy on batches/courses (public PII posture, Document 3 Section 7),
 // so this read runs on the service-role client, server-side only, and selects
 // exactly the non-sensitive fields the public form displays.
-export async function selectActiveFutureBatchesPublic(): Promise<
+//
+// Late registration (founder-approved 2026-08-12): the window closes on
+// end_date, not start_date. It used to close on start_date, which meant a
+// cohort became unreachable at midnight on its first day even though it ran
+// for weeks afterwards — a real registrant was turned away from an
+// AI-Powered Financial Reporting intake on 2026-08-11 with no route in
+// except a staff bulk import. end_date is NOT NULL on batches, so this is a
+// total order with no null-handling branch.
+export async function selectActiveJoinableBatchesPublic(): Promise<
   Array<
     Pick<
       BatchRow,
       | 'id'
       | 'cohort_label'
       | 'start_date'
+      | 'end_date'
       | 'course_fee'
       | 'is_free'
       | 'capacity'
@@ -110,10 +119,10 @@ export async function selectActiveFutureBatchesPublic(): Promise<
   const { data: batches, error: batchesError } = await supabase
     .from('batches')
     .select(
-      'id, course_id, cohort_label, start_date, course_fee, is_free, capacity, discount_cutoff_date, discounted_fee',
+      'id, course_id, cohort_label, start_date, end_date, course_fee, is_free, capacity, discount_cutoff_date, discounted_fee',
     )
     .eq('is_active', true)
-    .gte('start_date', new Date().toISOString().slice(0, 10))
+    .gte('end_date', new Date().toISOString().slice(0, 10))
     .order('start_date', { ascending: true });
   if (batchesError) throw batchesError;
 
@@ -136,6 +145,7 @@ export async function selectActiveFutureBatchesPublic(): Promise<
     id: batch.id,
     cohort_label: batch.cohort_label,
     start_date: batch.start_date,
+    end_date: batch.end_date,
     course_fee: batch.course_fee,
     is_free: batch.is_free,
     capacity: batch.capacity,
@@ -150,7 +160,7 @@ export async function selectActiveFutureBatchesPublic(): Promise<
 // Capacity check (BR-19 addendum, waitlist feature 2026-07-24): counts only
 // active registrations (Cancelled excluded) per batch, so a cancellation
 // frees up a seat. Service-role client — same public/system posture as
-// selectActiveFutureBatchesPublic above; this runs as part of the same
+// selectActiveJoinableBatchesPublic above; this runs as part of the same
 // public-form data load, before any staff session exists.
 export async function countRegistrationsByBatchIdsSystem(
   batchIds: string[],
@@ -163,7 +173,11 @@ export async function countRegistrationsByBatchIdsSystem(
     .from('registrations')
     .select('batch_id')
     .in('batch_id', batchIds)
-    .neq('registration_status', 'Cancelled');
+    // 'Lapsed' joined 'Cancelled' here on 2026-08-09. This is the one seat-
+    // affecting read phrased as a negative, which makes it the one place a new
+    // status is silently wrong rather than loudly wrong — a written-off
+    // registration would otherwise go on occupying a seat forever.
+    .not('registration_status', 'in', '("Cancelled","Lapsed")');
   if (error) throw error;
 
   for (const row of data) {
@@ -174,15 +188,20 @@ export async function countRegistrationsByBatchIdsSystem(
 
 
 // Public course catalogue (2026-08-03) — every Course, each with the Active,
-// not-yet-started Batches a visitor could actually register for. Service-role
-// for the same reason as selectActiveFutureBatchesPublic: the anon role has no
-// RLS SELECT policy on courses/batches, and this runs on a public page with no
-// session. Only the non-sensitive columns the catalogue renders are selected —
-// notably NOT zoom_link, which must never reach an unregistered visitor.
+// still-joinable Batches a visitor could actually register for. Service-role
+// for the same reason as selectActiveJoinableBatchesPublic: the anon role has
+// no RLS SELECT policy on courses/batches, and this runs on a public page with
+// no session. Only the non-sensitive columns the catalogue renders are selected
+// — notably NOT zoom_link, which must never reach an unregistered visitor.
 //
 // Courses with no upcoming Batch are still returned: the catalogue shows them
 // as "Dates to be announced" rather than hiding a programme the founder's copy
 // says is on offer.
+//
+// Shares BR-19's end_date window with selectActiveJoinableBatchesPublic
+// (2026-08-12) rather than keeping its own start_date cutoff: the catalogue and
+// the registration form must agree on what is joinable, or the catalogue tells
+// a visitor a cohort is gone while /register still accepts them onto it.
 export async function selectPublicCourseCatalogSystem(): Promise<
   Array<{
     course: Pick<
@@ -222,7 +241,7 @@ export async function selectPublicCourseCatalogSystem(): Promise<
       'id, course_id, cohort_label, start_date, start_time, end_date, course_fee, is_free, capacity, discount_cutoff_date, discounted_fee, facilitator_name',
     )
     .eq('is_active', true)
-    .gte('start_date', new Date().toISOString().slice(0, 10))
+    .gte('end_date', new Date().toISOString().slice(0, 10))
     .order('start_date', { ascending: true });
   if (batchesError) throw batchesError;
 

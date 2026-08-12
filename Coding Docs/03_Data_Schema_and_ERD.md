@@ -192,7 +192,10 @@ create table registrations (
     batch_id                uuid not null references batches(id) on delete restrict,
     registration_status     text not null default 'Registered'
                               check (registration_status in ('Registered','Confirmed','Attended','Cancelled')),
-    lead_source             text not null check (lead_source in ('WhatsApp','Facebook','LinkedIn','Referral','Website','Other')),
+    -- 'Returning' added 2026-08-12 (BR-43, migration 202608120060) — system-assigned
+    -- by the portal's one-click enrolment, never self-declared on the public form.
+    -- waitlist_entries.lead_source carries the same CHECK and moved with it.
+    lead_source             text not null check (lead_source in ('WhatsApp','Facebook','LinkedIn','Referral','Website','Other','Returning')),
     consent_given            boolean not null,
     notes                   text,
     registered_at           timestamptz not null default now(),

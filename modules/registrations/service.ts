@@ -40,12 +40,18 @@ import { ensureParticipantAuth } from '@/modules/portal/service';
 // to re-register a Paid participant against the destination Batch's Zoom
 // meeting (system review, 2026-07-24).
 import * as attendanceService from '@/modules/attendance/service';
+// Timeline entry for a write-off, same best-effort posture as access-grants —
+// the authoritative record is the lapsed_* columns on the registration itself.
+import { insertStaffActionAuditLog } from '@/modules/agent-tools/repository';
+import { AUTO_LAPSE_GRACE_DAYS, AUTO_LAPSE_REASON } from '@/modules/registrations/types';
 import type {
+  AutoLapseSweepSummary,
   BulkImportRequest,
   BulkImportResult,
   BulkImportRow,
   BulkImportRowResult,
   CreateRegistrationResult,
+  EnrolExistingParticipantInput,
   Registration360,
   RegistrationInput,
   RegistrationListFilters,
@@ -85,10 +91,19 @@ export async function createRegistration(
     );
   }
 
-  // BR-01/BR-19: the Batch must exist, be Active, and not have started.
+  // BR-01/BR-19: the Batch must exist, be Active, and not have ENDED.
+  //
+  // This tested startDate until 2026-08-12, which closed a cohort to new
+  // registrations at midnight on its first day even while it was still
+  // running — and because the gate lives here as well as in the form's query,
+  // a deep link with a known batch id was rejected too, so there was no route
+  // in at all short of a staff bulk import. Late registration is now allowed
+  // for the whole run: a course still teaching is a course someone can still
+  // join, and whether joining late is worthwhile is the registrant's call.
+  // Deactivating the Batch (BR-01) remains the way to close one early.
   const batch = await coursesService.getBatchByIdSystem(input.batchId);
   const todayIso = new Date().toISOString().slice(0, 10);
-  if (!batch || !batch.isActive || batch.startDate < todayIso) {
+  if (!batch || !batch.isActive || batch.endDate < todayIso) {
     throw new AppError(
       'INVALID_BATCH',
       'This course intake is not open for registration.',
@@ -389,6 +404,120 @@ export async function createRegistration(
   };
 }
 
+// One-click enrolment for a Participant who already has an account (BR-42/BR-43,
+// founder direction 2026-08-12): "those with an already existing account should
+// not go through the same process of registering, since their information is
+// already captured — they only have to enrol on to the course they're
+// interested in."
+//
+// Until now the student portal's Explore panel ended in a plain link to
+// /register, so somebody already signed in was dropped into the blank public
+// form to re-type their name, gender, email, phone, job title, company, lead
+// source and consent — every one of which is already on their participants row.
+//
+// This deliberately does NOT write a Registration of its own. It rebuilds the
+// form input from the stored record and calls createRegistration above, so
+// BR-01/BR-02/BR-03/BR-19, the capacity/waitlist branch, coupon and partner
+// attribution, the welcome and payment emails, lead capture and the sales
+// opportunity all keep working with no second implementation to drift out of
+// step. Only the lead source differs.
+//
+// Lives in this module rather than portal for two reasons: creating a
+// Registration is this aggregate's job, and portal/service.ts is already
+// imported HERE for ensureParticipantAuth — putting it there and importing
+// registrations back would make the two modules circular.
+//
+// `participantId` is resolved from the portal session by the route
+// (app/api/portal/enrol), never taken from a request body.
+export async function enrolExistingParticipant(
+  participantId: string,
+  input: EnrolExistingParticipantInput,
+  referralCookieCode?: string | null,
+): Promise<CreateRegistrationResult> {
+  const participant = await registrationsRepository.selectParticipantProfileSystem(participantId);
+  if (!participant || participant.deleted_at !== null) {
+    // Same posture as the portal login path: a soft-deleted participant has no
+    // portal presence at all, so this reads as a dead session rather than as an
+    // enrolment failure.
+    throw new AppError('UNAUTHENTICATED', 'Your session has expired. Please log in again.', 401);
+  }
+
+  // BR-15, satisfied from the record rather than a fresh checkbox (founder
+  // decision 2026-08-12). Consent is to the processing of their personal data —
+  // given once, timestamped in participants.consent_at, and not a per-course
+  // question. It is still ENFORCED: a record carrying no consent is refused and
+  // sent to the full form, rather than being waved through on an assumption.
+  if (participant.consent_given !== true) {
+    throw new AppError(
+      'CONSENT_REQUIRED',
+      'We do not have your data-processing consent on file. Please use the full registration form for this course.',
+      400,
+    );
+  }
+
+  // Taken from the record, topped up from the request ONLY where the record has
+  // a gap. A supplied value never overwrites a stored one — this is an
+  // enrolment endpoint, not a profile editor (the portal's Account panel is
+  // that, and it carries its own certificate-renaming side effects).
+  const gender = participant.gender ?? input.gender ?? null;
+  const jobTitle = participant.job_title ?? input.jobTitle ?? null;
+  const company = participant.company ?? input.company ?? null;
+  const firstName = participant.first_name;
+  const surname = participant.surname;
+
+  // Phrased as one boolean rather than a length check on the list below so the
+  // compiler narrows all five to non-null for the createRegistration call —
+  // otherwise this needs five non-null assertions, which would silently survive
+  // someone later deleting a branch from the check.
+  if (
+    !firstName ||
+    !surname ||
+    (gender !== 'Male' && gender !== 'Female') ||
+    !jobTitle ||
+    !company
+  ) {
+    const missing: string[] = [];
+    if (!firstName) missing.push('first name');
+    if (!surname) missing.push('surname');
+    if (gender !== 'Male' && gender !== 'Female') missing.push('gender');
+    if (!jobTitle) missing.push('job title');
+    if (!company) missing.push('company');
+    // Named in the message rather than a structured payload: AppError carries
+    // code/message/status only, and widening that shared contract for one
+    // caller would touch every route in the app. The portal reveals its three
+    // top-up inputs on this code; the message says which are actually needed.
+    throw new AppError(
+      'MISSING_PROFILE_FIELDS',
+      `We need a little more before enrolling you: ${missing.join(', ')}.`,
+      400,
+    );
+  }
+
+  return createRegistration(
+    {
+      firstName,
+      middleName: participant.middle_name,
+      surname,
+      gender,
+      email: participant.email,
+      phone: participant.phone,
+      jobTitle,
+      company,
+      batchId: input.batchId,
+      // System-assigned, and the whole reason 'Returning' exists: this person
+      // did not arrive from a marketing channel, they already had an account.
+      // Re-crediting whichever channel first found them would overstate it on
+      // every course they ever take, and 'Other' would bury repeat enrolments
+      // in the genuine-unknown bucket. Not selectable on the public form — see
+      // SELF_DECLARED_LEAD_SOURCES in lib/domain/types.ts.
+      leadSource: 'Returning',
+      consentGiven: true,
+      couponCode: input.couponCode,
+    },
+    referralCookieCode,
+  );
+}
+
 // Bulk import — staff backfill of registrations collected outside the
 // system (e.g. a Google Form), some already paid, some not. Deliberately
 // skips BR-01/BR-19's "batch must be Active and not yet started" gate:
@@ -680,7 +809,16 @@ function applyPostJoinFilters(
 ): RegistrationListRow[] {
   let result = rows;
   if (filters.paymentStatus === 'outstanding') {
-    result = result.filter((row) => row.paymentStatus !== 'Paid');
+    // 'outstanding' means "money we are still trying to collect", so a
+    // written-off registration is excluded by definition (2026-08-09) — it
+    // still has a balance, but nobody is pursuing it. Both layers filter it,
+    // for the reason in the comment above: the repository so the page window
+    // fills with real debtors, this pass as the row-level guarantee.
+    //
+    // A Lapsed row is still fully reachable on the Registrations screen via
+    // the registration-status filter; it is only the collections view that
+    // hides it.
+    result = result.filter((row) => row.paymentStatus !== 'Paid' && row.registrationStatus !== 'Lapsed');
   } else if (filters.paymentStatus) {
     result = result.filter((row) => row.paymentStatus === filters.paymentStatus);
   }
@@ -809,12 +947,21 @@ export async function getRegistration360(registrationId: string): Promise<Regist
     // guessing the viewer's role; the service layer is still authoritative
     // (deleteRegistration re-checks the role itself).
     canDelete: staffUser.role === 'admin',
+    // Mirrors lapseRegistration's own guards exactly: the role, not already
+    // written off, and something actually left to write off.
+    canLapse:
+      (staffUser.role === 'admin' || staffUser.role === 'finance') &&
+      data.registration.registration_status !== 'Lapsed' &&
+      data.payment?.payment_status !== 'Paid',
     registration: {
       id: data.registration.id,
       registrationStatus: parseRegistrationStatus(data.registration.registration_status),
       leadSource: parseLeadSource(data.registration.lead_source),
       notes: data.registration.notes,
       registeredAt: data.registration.registered_at,
+      lapsedAt: data.registration.lapsed_at,
+      lapsedByName: data.lapsedByName,
+      lapsedReason: data.registration.lapsed_reason,
     },
     participant: data.participant
       ? {
@@ -1014,6 +1161,206 @@ export async function updateNotes(registrationId: string, notes: string | null):
   await registrationsRepository.updateRegistrationNotes(registrationId, notes);
 }
 
+// ---------------------------------------------------------------------------
+// Write-off (founder direction 2026-08-09)
+//
+// A registrant who never paid and never turned up used to have no ending: the
+// only status transition that existed was Registered -> Confirmed, so the row
+// sat in Total Outstanding, in the collections queue, in the seat count and on
+// the participant's own portal with a live Pay Now button, indefinitely. The
+// only tool for clearing one was a hard delete, which destroys the evidence
+// that they ever registered.
+//
+// 'Lapsed' ends it without inventing a payment and without erasing anything.
+// See the migration header (202608090059) for why it is its own status rather
+// than a second meaning for 'Cancelled'.
+// ---------------------------------------------------------------------------
+
+// Pure, so the rule is directly testable without a database — the same
+// reasoning as isGrantActiveOn in access-grants.
+//
+// Note what is NOT here: a part-payment arm. Founder decision 2026-08-09 —
+// someone who paid GHS 500 of 2,000 and vanished had real money change hands,
+// and that deserves a human looking at it (refund? credit? chase?), not a cron
+// job closing the file. They stay in receivables until someone writes them off
+// by hand, which is what makes lapseRegistration load-bearing rather than a
+// convenience.
+export function shouldAutoLapse(candidate: {
+  amountPaid: number;
+  attendanceRows: number;
+}): { lapse: boolean; skipReason: 'part_payment' | 'attended' | null } {
+  if (candidate.amountPaid > 0) return { lapse: false, skipReason: 'part_payment' };
+  if (candidate.attendanceRows > 0) return { lapse: false, skipReason: 'attended' };
+  return { lapse: true, skipReason: null };
+}
+
+// Admin OR finance: writing off a receivable is a finance decision as much as
+// an administrative one. Finance has no RLS UPDATE policy on registrations, so
+// the repository write runs service-role with this check as the boundary —
+// see updateRegistrationLapsedSystem.
+export async function lapseRegistration(registrationId: string, reason: string): Promise<void> {
+  const staffUser = await usersService.requireRole(['admin', 'finance']);
+
+  const existing = await registrationsRepository.selectRegistration360(registrationId);
+  if (!existing) {
+    throw new AppError('NOT_FOUND', 'Registration not found.', 404);
+  }
+  if (existing.registration.registration_status === 'Lapsed') {
+    throw new AppError(
+      'VALIDATION_ERROR',
+      'This registration has already been written off.',
+      400,
+    );
+  }
+  // Refusing a fully-paid row is the guard that stops this becoming a way to
+  // quietly make settled revenue disappear. A paid registrant who did not
+  // attend is not a receivables problem at all — there is nothing to collect.
+  if (existing.payment?.payment_status === 'Paid') {
+    throw new AppError(
+      'VALIDATION_ERROR',
+      'This registration is fully paid — there is no outstanding balance to write off.',
+      400,
+    );
+  }
+
+  await registrationsRepository.updateRegistrationLapsedSystem({
+    registrationId,
+    staffId: staffUser.id,
+    reason,
+  });
+
+  await notifyWaitlistOfFreedSeat(existing);
+
+  // Best-effort, exactly as in access-grants: the audit-log insert runs on the
+  // session client and only admin holds the INSERT policy, so a finance
+  // write-off would fail here. The authoritative record is on the registration
+  // row itself (lapsed_at/lapsed_by/lapsed_reason) — this is the timeline
+  // entry, not the source of truth.
+  try {
+    await insertStaffActionAuditLog({
+      actor_staff_id: staffUser.id,
+      action_type: 'lapse_registration',
+      target_registration_id: registrationId,
+      reason,
+      details: {
+        previousStatus: existing.registration.registration_status,
+        balanceWrittenOff: Number(existing.payment?.balance ?? 0),
+      },
+    });
+  } catch (err) {
+    console.error('[lapse registration audit log]', err);
+  }
+}
+
+// Undo, for the late bank transfer or the write-off made in error. Restores
+// the status the row would hold on its own — BR-06's trigger only ever fires
+// on a payment write, so it cannot do this for us.
+export async function reinstateRegistration(registrationId: string): Promise<void> {
+  const staffUser = await usersService.requireRole(['admin', 'finance']);
+
+  const existing = await registrationsRepository.selectRegistration360(registrationId);
+  if (!existing) {
+    throw new AppError('NOT_FOUND', 'Registration not found.', 404);
+  }
+  if (existing.registration.registration_status !== 'Lapsed') {
+    throw new AppError('VALIDATION_ERROR', 'This registration is not written off.', 400);
+  }
+
+  const restoredStatus =
+    existing.payment?.payment_status === 'Paid' ? ('Confirmed' as const) : ('Registered' as const);
+  await registrationsRepository.updateRegistrationReinstatedSystem(registrationId, restoredStatus);
+
+  try {
+    await insertStaffActionAuditLog({
+      actor_staff_id: staffUser.id,
+      action_type: 'reinstate_registration',
+      target_registration_id: registrationId,
+      reason: null,
+      details: { restoredStatus, wasLapsedAt: existing.registration.lapsed_at },
+    });
+  } catch (err) {
+    console.error('[reinstate registration audit log]', err);
+  }
+}
+
+// A written-off seat is a freed seat, same as a deletion — reuses the exact
+// path deleteRegistration already takes so the waitlist behaves identically
+// whichever way a seat opens up.
+async function notifyWaitlistOfFreedSeat(
+  existing: NonNullable<Awaited<ReturnType<typeof registrationsRepository.selectRegistration360>>>,
+): Promise<void> {
+  const batch = existing.batch;
+  if (!batch || batch.capacity === null) return;
+  try {
+    const seatsRemaining = await coursesService.getSeatsRemaining(batch.id);
+    await waitlistService.notifyNextIfSeatAvailable(batch.id, seatsRemaining, {
+      courseName: existing.course?.course_name ?? batch.cohort_label,
+      cohortLabel: batch.cohort_label,
+    });
+  } catch (err) {
+    console.error('[lapse waitlist notify]', err);
+  }
+}
+
+// Nightly sweep, bundled into the 07:00 cron. Closes out the registrations
+// nobody will ever collect on, so the receivables figure means something
+// without anyone having to remember to tidy up.
+//
+// Deliberately silent: no email goes to the participant. Telling someone
+// "we've written off the course you didn't attend" 15 days later is a
+// collections letter nobody asked for, and the balance is not being pursued —
+// that is the entire point. Reinstating restores the row if they do surface.
+export async function runAutoLapseSweep(
+  options: { dryRun?: boolean; now?: Date } = {},
+): Promise<AutoLapseSweepSummary> {
+  const now = options.now ?? new Date();
+  const dryRun = options.dryRun ?? false;
+  const summary: AutoLapseSweepSummary = {
+    dryRun,
+    candidatesEvaluated: 0,
+    lapsed: 0,
+    skippedPartPayment: 0,
+    skippedAttended: 0,
+    errors: [],
+  };
+
+  const cutoff = new Date(now.getTime() - AUTO_LAPSE_GRACE_DAYS * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+  const candidates = await registrationsRepository.selectAutoLapseCandidatesSystem(cutoff);
+
+  for (const candidate of candidates) {
+    summary.candidatesEvaluated += 1;
+    const { lapse, skipReason } = shouldAutoLapse(candidate);
+    if (!lapse) {
+      if (skipReason === 'part_payment') summary.skippedPartPayment += 1;
+      else summary.skippedAttended += 1;
+      continue;
+    }
+    if (dryRun) {
+      summary.lapsed += 1;
+      continue;
+    }
+    try {
+      await registrationsRepository.updateRegistrationLapsedSystem({
+        registrationId: candidate.registrationId,
+        // Null actor: the system did this, not a person — the same convention
+        // the access sweep uses when it revokes a grant.
+        staffId: null,
+        reason: AUTO_LAPSE_REASON,
+      });
+      summary.lapsed += 1;
+    } catch (err) {
+      summary.errors.push(`${candidate.registrationId}: ${String(err)}`);
+    }
+  }
+
+  // No waitlist notification here, unlike the manual write-off: every batch in
+  // this sweep ended at least 15 days ago, so there is no seat left to offer
+  // anyone.
+  return summary;
+}
+
 // DPA-02 — soft delete (Step 1, immediate anonymisation, BR-16).
 export async function softDeleteParticipant(participantId: string): Promise<{
   participantId: string;
@@ -1115,18 +1462,21 @@ export async function transferRegistration(
 
   // Same BR-01/BR-19 eligibility gate createRegistration applies to a fresh
   // registration, reused here rather than reinvented — plus same-course,
-  // since a transfer moves cohorts, not products.
+  // since a transfer moves cohorts, not products. Tracks the 2026-08-12 move
+  // to an end_date window: if someone can register onto a running cohort
+  // directly, refusing to transfer them onto the same one would be the same
+  // rule answering two ways.
   const destinationBatch = await coursesService.getBatchByIdSystem(input.newBatchId);
   const todayIso = new Date().toISOString().slice(0, 10);
   if (
     !destinationBatch ||
     destinationBatch.courseId !== data.batch.course_id ||
     !destinationBatch.isActive ||
-    destinationBatch.startDate < todayIso
+    destinationBatch.endDate < todayIso
   ) {
     throw new AppError(
       'INVALID_BATCH',
-      'The destination batch must be an active, not-yet-started batch of the same course.',
+      'The destination batch must be an active batch of the same course that has not yet ended.',
       400,
     );
   }
