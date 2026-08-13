@@ -126,6 +126,98 @@ export async function addMeetingRegistrant(params: {
   return { registrantId: data.registrant_id, joinUrl: data.join_url };
 }
 
+// Non-throwing variant of addMeetingRegistrant.
+//
+// addMeetingRegistrant throws, and every caller of ensureZoomRegistration
+// wraps it in a try/catch that only console.errors — so a PERSISTENT failure
+// (the whole account's meetings not accepting registrants) looks identical to
+// no failure at all. That is why zoom_registrants sat empty account-wide for a
+// month while the app held meeting:write:registrant. Callers that want to
+// record why it failed use this instead.
+export async function tryAddMeetingRegistrant(params: {
+  meetingId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+}): Promise<
+  { ok: true; registrantId: string; joinUrl: string } | { ok: false; message: string }
+> {
+  const result = await zoomTry<{ registrant_id: string; join_url: string }>(
+    `/meetings/${encodeURIComponent(params.meetingId)}/registrants`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        email: params.email,
+        first_name: params.firstName,
+        last_name: params.lastName || '-',
+        auto_approve: true,
+      }),
+    },
+  );
+  if (!result.ok) return { ok: false, message: result.message };
+  return { ok: true, registrantId: result.data.registrant_id, joinUrl: result.data.join_url };
+}
+
+// Whether a meeting actually accepts registrants.
+//
+// This is the difference between diagnosing the gap and guessing at it. Zoom's
+// approval_type is the authority: 0 = automatically approve, 1 = manually
+// approve, 2 = NO REGISTRATION REQUIRED. Only 2 means POST /registrants will
+// fail, and no amount of scope-granting changes that — it is a property of the
+// meeting, not of the app's permissions.
+//
+// Meetings this app creates set approval_type 0 (createCourseMeeting,
+// createBatchClassroomMeeting). A meeting created by hand in the Zoom console,
+// or before auto-create existed, defaults to 2.
+export async function getMeetingRegistrationState(meetingId: string): Promise<{
+  registrationEnabled: boolean;
+  approvalType: number | null;
+  registrationType: number | null;
+}> {
+  const data = await zoomFetch<{
+    settings?: { approval_type?: number; registration_type?: number };
+  }>(`/meetings/${encodeURIComponent(meetingId)}`);
+  const approvalType = data.settings?.approval_type ?? null;
+  return {
+    registrationEnabled: approvalType === 0 || approvalType === 1,
+    approvalType,
+    registrationType: data.settings?.registration_type ?? null,
+  };
+}
+
+// Turns registration ON for a meeting that already exists — the counterpart to
+// enableCloudRecording, and the repair for a meeting sitting at approval_type 2.
+//
+// DELIBERATELY NEVER CALLED AUTOMATICALLY. Enabling registration changes what
+// the meeting's plain shared join link does for everyone who already has it,
+// which for a cohort mid-course is a live behaviour change nobody asked for.
+// It is opt-in from the backfill endpoint so a human decides, per Batch, with
+// the cohort's schedule in front of them.
+//
+// PATCH /meetings/{id} answers 204 with an empty body, so it cannot go through
+// zoomFetch's response.json().
+export async function enableMeetingRegistration(meetingId: string): Promise<void> {
+  const token = await getAccessToken();
+  const path = `/meetings/${encodeURIComponent(meetingId)}`;
+  const response = await fetch(`${ZOOM_API_BASE}${path}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    // settings is merged by Zoom, not replaced. registration_type 1 = register
+    // once, attend any occurrence, which is what a recurring classroom needs;
+    // the alternative types make a student register per session.
+    body: JSON.stringify({ settings: { approval_type: 0, registration_type: 1 } }),
+  });
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(
+      `Zoom API PATCH ${path} failed ${response.status}: ${body.slice(0, 300)}`,
+    );
+  }
+}
+
 // Revokes a registrant's personal join link (access-grant expiry sweep,
 // 2026-08-08). Zoom's registrant-status endpoint answers 204 with an empty
 // body, so it cannot go through zoomFetch's response.json().

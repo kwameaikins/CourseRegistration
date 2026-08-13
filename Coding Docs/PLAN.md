@@ -383,9 +383,16 @@ RTC work, and doing them is what keeps the SFU decision cheap to reverse:
 - [ ] P1 Provider adapter: widen `LiveSession.provider` (already a `'zoom'` literal in
       `modules/live-sessions/types.ts`) to a union, add the column, and move `lib/zoom/client.ts`
       behind a `LiveSessionProvider` interface. Required by Document 14 §1 for Teams/Meet anyway
-- [ ] P2 Close the Zoom registrant gap — `ensureZoomRegistration` has never produced a
-      `zoom_registrants` row, so every session depends on display-name inference. Highest-value
-      attendance work available, and not an RTC project
+- [~] P2 Close the Zoom registrant gap — **instrumented and repairable 2026-08-13, not yet run
+      against production.** Nothing was wired wrong: every Paid path does reach
+      `ensureZoomRegistration`, but it threw into callers that only `console.error`-ed, so a
+      permanent account-wide failure was indistinguishable from success. It now returns `'failed'`
+      and reports to Sentry. Likely root cause is Zoom's `approval_type: 2` ("no registration
+      required"), the default for a meeting created by hand in the console — no scope grant fixes
+      that. New `POST /api/cron/zoom/registrants/backfill` (CRON_SECRET, dry-run by default, not in
+      vercel.json) reports `approvalType` for a batch and can register the backlog; enabling
+      registration on a live meeting is opt-in only. Doc 7 §9.4, Doc 5 §19
+  - [ ] Run the dry form on ESG2 and IA02 — `{"batchId":"<uuid>"}` — and read `approvalType`
 - [ ] P3 Finish L1's batch schedule generator (already listed above)
 
 Not scheduled, gated behind a budget exception that does not exist yet: Stage 1 (RTC-0..RTC-3,

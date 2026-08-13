@@ -9,14 +9,16 @@
 //     registered email (participants join via personal links, so the report
 //     carries the exact email we registered).
 import {
-  addMeetingRegistrant,
   denyMeetingRegistrant,
+  enableMeetingRegistration,
   getMeetingParticipantsOn,
+  getMeetingRegistrationState,
   isZoomConfigured,
+  tryAddMeetingRegistrant,
   type ZoomParticipantRecord,
 } from '@/lib/zoom/client';
 import { attendanceRatePercent, meetsAttendanceThreshold } from '@/lib/attendance-constants';
-import { AppError } from '@/lib/errors';
+import { AppError, captureToSentry } from '@/lib/errors';
 import * as attendanceRepository from '@/modules/attendance/repository';
 import * as communicationsService from '@/modules/communications/service';
 import * as usersService from '@/modules/users/service';
@@ -207,17 +209,32 @@ export async function ensureZoomRegistration(
   const existing = await attendanceRepository.selectZoomRegistrant(registrationId);
   if (existing) return 'already_registered';
 
-  const { registrantId, joinUrl } = await addMeetingRegistrant({
+  // Non-throwing (2026-08-13). This used to throw into a caller that only
+  // console.errored, so a permanent, account-wide failure was indistinguishable
+  // from success: zoom_registrants stayed empty for a month while every Paid
+  // transition "succeeded". Reporting it to Sentry is the same fix the nightly
+  // sync got on 2026-08-06, for the same reason — a swallowed error on a path
+  // nobody watches is a feature that has silently stopped existing.
+  const added = await tryAddMeetingRegistrant({
     meetingId: context.batchZoomMeetingId,
     email: context.participantEmail,
     firstName: context.participantFirstName,
     lastName: context.participantSurname,
   });
+  if (!added.ok) {
+    captureToSentry(new Error(added.message), {
+      job: 'zoom_ensure_registration',
+      registrationId,
+      meetingId: context.batchZoomMeetingId,
+    });
+    console.error('[zoom ensureZoomRegistration]', added.message);
+    return 'failed';
+  }
 
   const inserted = await attendanceRepository.insertZoomRegistrant({
     registration_id: registrationId,
-    zoom_registrant_id: registrantId,
-    join_url: joinUrl,
+    zoom_registrant_id: added.registrantId,
+    join_url: added.joinUrl,
   });
   if (inserted === 'duplicate') return 'already_registered';
 
@@ -231,6 +248,132 @@ export async function ensureZoomRegistration(
   }
 
   return 'registered';
+}
+
+export interface ZoomRegistrantBackfillResult {
+  batchId: string;
+  meetingId: string | null;
+  dryRun: boolean;
+  // The diagnosis. Zoom's approval_type is the authority on whether the
+  // meeting accepts registrants at all, and approval_type 2 ("no registration
+  // required") is the state a hand-made meeting defaults to — no amount of
+  // scope-granting makes POST /registrants work against one.
+  registrationEnabled: boolean | null;
+  approvalType: number | null;
+  registrationEnabledByThisRun: boolean;
+  eligible: number;
+  registered: number;
+  failed: number;
+  outcomes: Array<{ registrationId: string; email: string; outcome: string; detail?: string }>;
+  errors: string[];
+}
+
+// Repairs a Batch whose settled registrants never got a personal Zoom join
+// link (founder-directed 2026-08-13).
+//
+// zoom_registrants was empty ACCOUNT-WIDE for a month despite the app holding
+// meeting:write:registrant and every Paid path calling ensureZoomRegistration.
+// Nothing was wired wrong — the failure was invisible: addMeetingRegistrant
+// threw into callers that only console.errored, so a permanent failure and a
+// success were indistinguishable from the outside. The 2026-08-06 attendance
+// investigation found the identical shape one layer over.
+//
+// Manual trigger only (deliberately absent from vercel.json), CRON_SECRET-gated
+// and DRY-RUN BY DEFAULT — the enableRegistration option changes how a live
+// cohort's existing shared join link behaves, which is a decision for a human
+// with the schedule in front of them, not a side effect of a repair job.
+export async function runZoomRegistrantBackfill(params: {
+  batchId: string;
+  dryRun?: boolean;
+  enableRegistration?: boolean;
+}): Promise<ZoomRegistrantBackfillResult> {
+  const dryRun = params.dryRun !== false;
+  const errors: string[] = [];
+  const result: ZoomRegistrantBackfillResult = {
+    batchId: params.batchId,
+    meetingId: null,
+    dryRun,
+    registrationEnabled: null,
+    approvalType: null,
+    registrationEnabledByThisRun: false,
+    eligible: 0,
+    registered: 0,
+    failed: 0,
+    outcomes: [],
+    errors,
+  };
+
+  if (!isZoomConfigured()) {
+    errors.push('Zoom is not configured (ZOOM_ACCOUNT_ID/CLIENT_ID/CLIENT_SECRET).');
+    return result;
+  }
+
+  const batch = await attendanceRepository.selectBatchForBackfill(params.batchId);
+  if (!batch) {
+    errors.push(`Batch ${params.batchId} not found.`);
+    return result;
+  }
+  if (!batch.zoom_meeting_id) {
+    errors.push(`Batch ${params.batchId} has no zoom_meeting_id — nothing to register against.`);
+    return result;
+  }
+  result.meetingId = batch.zoom_meeting_id;
+
+  // Diagnose before touching anything. Reported even on a dry run, because
+  // this single field is usually the whole answer.
+  try {
+    const state = await getMeetingRegistrationState(batch.zoom_meeting_id);
+    result.registrationEnabled = state.registrationEnabled;
+    result.approvalType = state.approvalType;
+  } catch (err) {
+    errors.push(`Could not read meeting settings: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  if (result.registrationEnabled === false && params.enableRegistration && !dryRun) {
+    try {
+      await enableMeetingRegistration(batch.zoom_meeting_id);
+      result.registrationEnabled = true;
+      result.registrationEnabledByThisRun = true;
+    } catch (err) {
+      errors.push(`Could not enable registration: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  const pending = await attendanceRepository.selectRegistrationsMissingZoomRegistrant(params.batchId);
+  result.eligible = pending.length;
+
+  // Registering against a meeting that does not accept registrants would fail
+  // once per participant and tell us nothing new — stop with the diagnosis.
+  if (result.registrationEnabled === false) {
+    errors.push(
+      'Meeting has registration DISABLED (approval_type 2). No registrant can be added until it is enabled — re-run with { "enableRegistration": true, "dryRun": false }, noting that this changes what the existing shared join link does for anyone already holding it.',
+    );
+    return result;
+  }
+
+  for (const registration of pending) {
+    if (dryRun) {
+      result.outcomes.push({
+        registrationId: registration.registrationId,
+        email: registration.email,
+        outcome: 'would_register',
+      });
+      continue;
+    }
+    const outcome = await ensureZoomRegistration(registration.registrationId);
+    if (outcome === 'registered' || outcome === 'already_registered') {
+      result.registered += 1;
+    } else {
+      result.failed += 1;
+    }
+    result.outcomes.push({
+      registrationId: registration.registrationId,
+      email: registration.email,
+      outcome,
+    });
+  }
+
+  return result;
 }
 
 // Batch transfer support (system review, 2026-07-24), called from

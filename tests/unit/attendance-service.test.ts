@@ -22,7 +22,10 @@ const usersServiceMock = {
 };
 const zoomClientMock = {
   addMeetingRegistrant: vi.fn(),
+  tryAddMeetingRegistrant: vi.fn(),
   getMeetingParticipantsOn: vi.fn(),
+  getMeetingRegistrationState: vi.fn(),
+  enableMeetingRegistration: vi.fn(),
   isZoomConfigured: vi.fn(() => false),
   denyMeetingRegistrant: vi.fn(),
 };

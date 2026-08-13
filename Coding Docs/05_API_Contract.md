@@ -609,3 +609,25 @@ platform, distinct from `/api/cron/**` (scheduled self-calls) and `/api/public/*
 catalogue). It uses the same inline `Bearer` shared-secret check as every cron route, and fails
 closed when the secret is unset. `middleware.ts` matches only staff *page* routes, so it does not
 apply here.
+
+---
+
+## 19. Zoom Registrant Backfill (2026-08-13)
+
+`POST /api/cron/zoom/registrants/backfill` — `CRON_SECRET`-gated, **dry-run by default**,
+deliberately absent from `vercel.json`'s cron list. Diagnoses and repairs a Batch whose settled
+registrants never received a personal Zoom join link. Full runbook in Document 7 §9.4.
+
+Body: `{ batchId: string, dryRun?: boolean, enableRegistration?: boolean }`
+
+The response's `registrationEnabled` / `approvalType` are the diagnosis and are populated even on
+a dry run — `approval_type: 2` ("no registration required", the default for a meeting created by
+hand in the Zoom console) means no registrant can ever be added, whatever scopes the app holds.
+
+`enableRegistration` is opt-in **and ignored on a dry run**. It changes what the meeting's existing
+shared join link does for everyone already holding it, so it is never applied as a side effect of a
+repair.
+
+This joins the two existing manual-trigger repair endpoints — `POST /api/cron/attendance/backfill`
+and `POST /api/cron/registrations/auto-lapse` — which share the same posture: `CRON_SECRET`, dry-run
+by default, and out of `vercel.json` so they only ever run when a human asks.

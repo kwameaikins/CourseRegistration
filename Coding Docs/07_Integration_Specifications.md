@@ -389,6 +389,48 @@ Zoom-delivered classes via per-participant registration links.
 `GET /report/meetings/{id}/participants` report. Cost: GHS 0 (API included in the Zoom
 plan already used to host classes).
 
+### 9.4 "Registration Required" is a property of the MEETING, not of the app (2026-08-13)
+
+Step 4 of §9.2 is not a formality — it is the most likely reason personal join links do not
+issue, and it is invisible from inside this app.
+
+Zoom's `settings.approval_type` is the authority:
+
+| `approval_type` | Meaning | `POST /registrants` |
+| --- | --- | --- |
+| `0` | Automatically approve | works |
+| `1` | Manually approve | works |
+| `2` | **No registration required** | **always fails** |
+
+A meeting created **by hand in the Zoom console defaults to `2`**. No scope grant changes
+that — `meeting:write:registrant` lets the app *call* the endpoint, not force a meeting to
+accept registrants. Meetings this app creates itself (`createCourseMeeting`,
+`createBatchClassroomMeeting`) set `approval_type: 0, registration_type: 1` and are
+unaffected; the exposure is meetings created before auto-create existed, or pasted in from
+the console.
+
+**Diagnose and repair:** `POST /api/cron/zoom/registrants/backfill`
+(`CRON_SECRET`-gated, **dry-run by default**, deliberately absent from `vercel.json`).
+
+```
+{ "batchId": "<uuid>" }                                     # diagnose only
+{ "batchId": "<uuid>", "dryRun": false }                    # register the backlog
+{ "batchId": "<uuid>", "dryRun": false, "enableRegistration": true }
+```
+
+Run the dry form first: the `registrationEnabled` / `approvalType` fields in the response
+are usually the whole answer and cost nothing to read.
+
+`enableRegistration` is opt-in and ignored on a dry run. It is **never** applied
+automatically, because turning registration on changes what the meeting's existing
+**shared** join link does for everyone already holding it — for a cohort mid-course that is
+a live behaviour change, and it belongs to a human with the schedule in front of them.
+
+**Why this went unnoticed:** `ensureZoomRegistration` threw into callers that only
+`console.error`-ed, so a permanent account-wide failure and a success were
+indistinguishable from the outside — the same failure shape as the nightly attendance sync
+before 2026-08-06. It now returns `'failed'` and reports to Sentry instead of throwing.
+
 ---
 
 ## 10. Anthropic Claude — Admin Assistant

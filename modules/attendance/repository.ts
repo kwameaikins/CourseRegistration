@@ -187,6 +187,74 @@ export async function selectZoomRegistrantsForBatch(
   });
 }
 
+// Everyone on a Batch who SHOULD hold a personal Zoom join link but does not
+// (registrant backfill, 2026-08-13).
+//
+// Eligibility is derived here from payments rather than by calling
+// modules/access-grants, which would be circular: access-grants already calls
+// attendanceService.ensureZoomRegistration. Settled means Paid — the same
+// condition every runSettledEnrollmentSideEffects path passes before it tries
+// to register, so this returns exactly the set that should already have a row.
+//
+// Cancelled and Lapsed are excluded: neither is owed joining details, and a
+// Lapsed registrant is explicitly one whose seat is closed (BR-38).
+export async function selectRegistrationsMissingZoomRegistrant(batchId: string): Promise<
+  Array<{ registrationId: string; email: string; firstName: string; surname: string }>
+> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data: registrations, error } = await supabase
+    .from('registrations')
+    .select('id, participant_id, registration_status')
+    .eq('batch_id', batchId);
+  if (error) throw error;
+  if (!registrations || registrations.length === 0) return [];
+
+  const live = registrations.filter(
+    (row) => row.registration_status !== 'Cancelled' && row.registration_status !== 'Lapsed',
+  );
+  if (live.length === 0) return [];
+
+  const registrationIds = live.map((row) => row.id);
+  const [
+    { data: payments, error: paymentsError },
+    { data: existing, error: existingError },
+    { data: participants, error: participantsError },
+  ] = await Promise.all([
+    supabase
+      .from('payments')
+      .select('registration_id, payment_status')
+      .in('registration_id', registrationIds),
+    supabase.from('zoom_registrants').select('registration_id').in('registration_id', registrationIds),
+    supabase
+      .from('participants')
+      .select('id, email, first_name, surname, full_name, deleted_at')
+      .in('id', [...new Set(live.map((row) => row.participant_id))]),
+  ]);
+  if (paymentsError) throw paymentsError;
+  if (existingError) throw existingError;
+  if (participantsError) throw participantsError;
+
+  const settled = new Set(
+    (payments ?? []).filter((row) => row.payment_status === 'Paid').map((row) => row.registration_id),
+  );
+  const alreadyRegistered = new Set((existing ?? []).map((row) => row.registration_id));
+  const participantById = new Map((participants ?? []).map((row) => [row.id, row]));
+
+  return live.flatMap((registration) => {
+    if (!settled.has(registration.id) || alreadyRegistered.has(registration.id)) return [];
+    const participant = participantById.get(registration.participant_id);
+    if (!participant || participant.deleted_at !== null) return [];
+    return [
+      {
+        registrationId: registration.id,
+        email: participant.email,
+        firstName: participant.first_name ?? participant.full_name,
+        surname: participant.surname ?? '',
+      },
+    ];
+  });
+}
+
 export async function markBatchZoomRevoked(batchId: string): Promise<void> {
   const supabase = createSupabaseServiceRoleClient();
   const { error } = await supabase

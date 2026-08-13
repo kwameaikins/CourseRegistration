@@ -1209,6 +1209,51 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     for Teams/Meet anyway, and is what keeps the SFU choice cheap to reverse),
     P2 close the Zoom registrant gap, P3 finish L1's schedule generator.
 
+  Zoom registrant gap — INSTRUMENTED AND REPAIRABLE (2026-08-13). The
+    longest-standing open item: `ensureZoomRegistration` had never written a
+    single `zoom_registrants` row account-wide despite the app holding
+    `meeting:write:registrant`, so every session fell back to display-name
+    inference (which is why the ESG2 backfill needed the loosened
+    `minSharedTokens: 1` tier that knowingly produces some wrong rows feeding a
+    certificate gate).
+    NOTHING WAS WIRED WRONG. Every Paid path does reach it —
+    runSettledEnrollmentSideEffects is the single funnel and it calls
+    ensureZoomRegistration, for free batches too (runZeroFeeEnrollmentSideEffects
+    delegates to the same function). The defect was that the failure was
+    INVISIBLE: `addMeetingRegistrant` threw into callers that only
+    console.error, and the `'failed'` outcome existed in the type but was never
+    returned and never inspected. A permanent account-wide failure and a
+    success looked identical from outside. Exactly the shape of the 2026-08-06
+    attendance bug one layer up (errors landed in summary.errors, cron returned
+    200).
+    THE LIKELY ROOT CAUSE, and the thing to check first: Zoom's
+    `settings.approval_type` is a property of the MEETING, not of this app's
+    permissions. 0 = auto-approve, 1 = manual approve, 2 = NO REGISTRATION
+    REQUIRED — and POST /registrants ALWAYS fails against 2. A meeting created
+    by hand in the Zoom console defaults to 2. Meetings this app creates
+    (createCourseMeeting, createBatchClassroomMeeting) set approval_type 0 /
+    registration_type 1 and are fine; the exposure is meetings created before
+    auto-create existed or pasted in from the console. No scope grant fixes a
+    2 — which is why granting `report:read:list_meeting_participants:admin`
+    (still open below) would NOT have helped here.
+    Built: `tryAddMeetingRegistrant` (non-throwing) so ensureZoomRegistration
+    returns 'failed' and reports to Sentry instead of swallowing;
+    `getMeetingRegistrationState` (reads approval_type — the actual diagnosis,
+    rather than guessing from error strings, which is why no Zoom error CODE is
+    hardcoded anywhere); `enableMeetingRegistration` (PATCH, mirrors
+    enableCloudRecording); and `POST /api/cron/zoom/registrants/backfill` —
+    CRON_SECRET-gated, DRY-RUN BY DEFAULT, not in vercel.json, same shape as
+    the attendance backfill beside it.
+    `enableMeetingRegistration` is DELIBERATELY NEVER CALLED AUTOMATICALLY, and
+    is ignored on a dry run: turning registration on changes what the meeting's
+    existing SHARED join link does for everyone already holding it, so for a
+    cohort mid-course it is a live behaviour change a human must choose. Two
+    tests pin that (never on dry run, never unless explicitly asked).
+    NOT YET RUN against production — the dry form
+    (`{"batchId":"<uuid>"}`) reports registrationEnabled/approvalType and costs
+    nothing; run it on ESG2/IA02 first, since that single field is probably the
+    whole answer. Doc 7 §9.4 has the full runbook.
+
 Open decisions (founder):
   - Knowsia Live budget exception (~EUR 50-150/month bare metal). Not needed
     while the answer is "don't build"; revisit only once the product has
@@ -1220,9 +1265,11 @@ Open decisions (founder):
     required any more (Dashboard fallback covers it) but the report API is the
     only one that returns participant emails, which is what makes matching
     exact rather than inferred.
-  - Zoom meeting registration: `ensureZoomRegistration` has produced zero
-    `zoom_registrants` rows despite the app holding `meeting:write:registrant`.
-    Until personal join links actually issue, every session will depend on
+  - Zoom meeting registration: instrumented and repairable as of 2026-08-13
+    (see the entry above), but NOT yet run against production. Run
+    `POST /api/cron/zoom/registrants/backfill` with `{"batchId":"<uuid>"}` on a
+    real batch — the `approvalType` it reports is probably the whole answer.
+    Until personal join links actually issue, every session still depends on
     display-name inference.
   - Exposed legacy Supabase service_role key still needs rotation.
   - .env holds Paystack LIVE keys; Week 2 gate wants a TEST-mode
