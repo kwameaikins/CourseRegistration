@@ -10,6 +10,8 @@ Knowsia controls the learning journey; Zoom provides the live classroom. Knowsia
 
 The platform stays a modular monolith. Do not introduce microservices for this scope. Provider-specific code belongs behind a live-session provider adapter so Microsoft Teams or Google Meet can be added later without changing learning rules.
 
+**Recorded exception (2026-08-13), not yet exercised:** a self-hosted WebRTC classroom ("Knowsia Live") cannot run on Vercel — no UDP, no long-lived process, no persistent WebSocket on the current plan, function time limits. If it is ever built it requires exactly **one** additional always-on deployable, and the module boundary rule holds across that process boundary (it writes through `liveSessionsService` on a shared secret, never to tables directly — the same trust shape as the `'system'` tier in `modules/agent-tools/registry.ts`). This is a single named exception, not a precedent for splitting the monolith. It is **not being built** — see `Coding Docs/18_Knowsia_Live_RTC.md` §1 for the decision and §3.3 for why one deployable rather than the six the source plan proposed. Zoom remains the provider.
+
 ## 2. Source of Truth
 
 `Course -> Batch -> LiveSession` is the authoritative hierarchy.
