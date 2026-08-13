@@ -982,6 +982,61 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     the schema is ahead of the app rather than behind it. Deploying the code
     first would have made every re-enrolment a constraint violation.
 
+  Voice payment-chase reaches running cohorts (2026-08-13) — founder-directed
+    follow-on from late registration. `payment_followup` and
+    `bank_transfer_chase` filtered on `start_date >= today`, which was
+    near-tautological while BR-19 also closed registration on start_date (no
+    unpaid registration could exist on a started batch). Late registration broke
+    that pairing: an unpaid late registrant was chased by nothing at all, while
+    consuming the course they owed for. Both now use `end_date >= today`;
+    bank_transfer_chase keeps its "no more than 3 days before the start" upper
+    bound, so only the lower bound moved. Chasing still STOPS at end_date —
+    money owed on a finished course is a different conversation, and the BR-38
+    sweep closes that population 15 days later.
+    Cannot become nagging: reserveCallSlot inserts (registration_id, call_type)
+    under a unique constraint before dialing, so it is one call of each type per
+    registration ever; widening a window changes who is reachable, never how
+    often anyone is rung.
+    MANUAL STEP OUTSTANDING: the Vapi system prompt says "starting
+    {{start_date}}", which is false for a cohort that began last week — a money
+    call opening on a false statement. The dispatcher now computes
+    `{{course_timing}}` server-side (courseTimingPhrase) and sends it alongside
+    the unchanged {{start_date}}. Prompt text lives in the Vapi DASHBOARD and is
+    not deployable from this repo — see Document 7 §11.3 step 6 for the paste.
+    Additive, so nothing breaks before it is done; the wording is just wrong for
+    late registrants. (Voice is still dormant anyway until VAPI_* is set.)
+
+  Returning-participant nudge + repeat-enrolment metric (2026-08-13) — founder
+    asked how a logged-out repeat registration is deduplicated and how such a
+    person gets enrolled as returning. Answer, now written up as BR-44: same
+    email is fully deduplicated at the DATABASE (participants.email unique, then
+    unique(participant_id, batch_id) -> 409 DUPLICATE_REGISTRATION for the same
+    batch, different batch permitted per EC-01); a DIFFERENT email is not
+    deduplicated at all, since phone is deliberately not unique (shared
+    household/office numbers), so that person becomes a second Participant with
+    a second portal login — known and accepted, merging is a manual staff action.
+    Two changes from it. (1) The public form now carries a standing prompt above
+    the fields pointing returning participants at the portal. Shown
+    UNCONDITIONALLY, not triggered by looking the typed email up: a public "does
+    this address have an account?" check is an account-enumeration oracle, and
+    portal login, tutor login, portal forgot-PIN and staff forgot-password all
+    deliberately return identical responses so they cannot be used to probe who
+    is a participant. The prompt reaches the returning student either way and
+    tells a stranger nothing. (2) NEW DASHBOARD TILE "Repeat Enrolments",
+    derived from registration HISTORY, not from lead_source = 'Returning'.
+    'Returning' marks the PATH (portal one-click) rather than the fact of coming
+    back, so counting it undercounts anyone re-registering through the public
+    form — where picking a real marketing channel is the correct answer, since
+    that channel is what re-reached them. Any registration that is not a
+    participant's first is a repeat, which is exactly computable.
+    `selectRepeatEnrolmentStats` deliberately does NOT reuse selectDashboardData
+    (that read is scoped to ACTIVE batches, so someone whose first course ran on
+    a since-deactivated cohort would look like a first-timer), excludes
+    Cancelled/Lapsed from the measured population like every other dashboard
+    figure, but applies NO status filter to the history lookup — a prior
+    registration they cancelled still means they are not new to us. Honours the
+    dashboard date range so the tile describes the same window as the others.
+
 Open decisions (founder):
   - AI05 ("...Reporting and Modeling") vs AI02 ("...Reporting and
     Analysis") are near-duplicate courses — pick a canonical one.

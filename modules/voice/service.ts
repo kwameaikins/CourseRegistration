@@ -25,6 +25,25 @@ import type {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// Since 2026-08-13 the payment-chase call types reach cohorts that are already
+// running, not just ones about to begin (see the end_date windows in
+// voice/repository.ts). The Vapi system prompt describes the course as
+// "starting {{start_date}}", which for a cohort that began last week is simply
+// false, and a money call that opens on a false statement is the fastest way to
+// lose the caller's trust. This resolves the phrasing server-side and passes it
+// as {{course_timing}} so the assistant never has to infer it from a bare date
+// — the same posture as every other computed variable here.
+export function courseTimingPhrase(
+  startDate: string,
+  endDate: string,
+  todayIso: string,
+): string {
+  if (startDate > todayIso) return `starting on ${startDate}`;
+  if (endDate < todayIso) return `which finished on ${endDate}`;
+  if (startDate === todayIso) return `starting today, running until ${endDate}`;
+  return `already under way since ${startDate} and running until ${endDate}`;
+}
+
 // 10:00 Ghana time (UTC+0) on the dispatch day.
 export function callingWindowStart(now: Date): string {
   return `${now.toISOString().slice(0, 10)}T10:00:00.000Z`;
@@ -36,6 +55,7 @@ async function dispatchCallsOfType(
   extraVariables: Map<string, Record<string, string>> | null,
   earliestAt: string,
   summary: VoiceDispatchSummary,
+  todayIso: string = new Date().toISOString().slice(0, 10),
 ): Promise<void> {
   if (registrationIds.length === 0) return;
   const contexts = await voiceRepository.selectCallContexts(registrationIds);
@@ -68,6 +88,15 @@ async function dispatchCallsOfType(
           course_name: context.courseName,
           cohort_label: context.cohortLabel,
           start_date: context.startDate,
+          // Kept alongside start_date rather than replacing it: existing Vapi
+          // prompt text and any analysis config still reference {{start_date}},
+          // and removing a variable a live assistant reads would break calls
+          // that work today.
+          course_timing: courseTimingPhrase(
+            context.startDate,
+            context.endDate,
+            todayIso,
+          ),
           course_fee: formatGhs(context.courseFee),
           balance: formatGhs(context.balance),
           ...(extraVariables?.get(registrationId) ?? {}),
@@ -114,6 +143,7 @@ export async function runVoiceCallDispatch(now = new Date()): Promise<VoiceDispa
       null,
       earliestAt,
       summary,
+      todayIso,
     );
 
     // 2. Part Payment with the start date <= 3 days away.
@@ -126,6 +156,7 @@ export async function runVoiceCallDispatch(now = new Date()): Promise<VoiceDispa
       null,
       earliestAt,
       summary,
+      todayIso,
     );
 
     // 3. Missed yesterday's session despite paying.
@@ -135,6 +166,7 @@ export async function runVoiceCallDispatch(now = new Date()): Promise<VoiceDispa
       null,
       earliestAt,
       summary,
+      todayIso,
     );
 
     // 4. No feedback response 3 days after the course ended.
@@ -144,6 +176,7 @@ export async function runVoiceCallDispatch(now = new Date()): Promise<VoiceDispa
       null,
       earliestAt,
       summary,
+      todayIso,
     );
 
     // 5. Course-interest matches an open batch.
@@ -165,6 +198,7 @@ export async function runVoiceCallDispatch(now = new Date()): Promise<VoiceDispa
       upsellVariables,
       earliestAt,
       summary,
+      todayIso,
     );
   } catch (err) {
     summary.errors.push(String(err));

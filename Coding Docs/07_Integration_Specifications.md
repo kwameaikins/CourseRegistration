@@ -431,8 +431,8 @@ Registration per type — the `call_log` unique pair is reserved BEFORE dialing
 
 | Type | Trigger |
 |---|---|
-| `payment_followup` | Unpaid, registered 3+ days ago, batch not started, reminders enabled |
-| `bank_transfer_chase` | Part Payment with start date ≤ 3 days away |
+| `payment_followup` | Unpaid, registered 3+ days ago, batch **not yet ended**, reminders enabled |
+| `bank_transfer_chase` | Part Payment, batch starts within 3 days **or is already running**, and has not ended |
 | `no_show_recovery` | Paid but absent from yesterday's session (needs Zoom attendance) |
 | `feedback_voice` | No feedback response 3 days after end_date; answers write into the same `feedback` table as the web form |
 | `upsell` | Feedback course-interest matches an open future batch the participant isn't on |
@@ -472,6 +472,15 @@ flags, promised payment dates, and captured bank references.
 5. **Verify the wire shapes on the first pilot call** — Vapi's webhook payload
    fields occasionally shift between versions; the handlers read defensively,
    but the first live call should be checked end to end on the Calls screen.
+6. **`{{course_timing}}` (added 2026-08-13) must be pasted into the live
+   assistant's system prompt** — like the `ad_hoc` addition before it, prompt
+   text lives in the Vapi dashboard and is NOT deployable from this repo. The
+   code already sends the variable. Until the dashboard prompt is updated, the
+   assistant still reads `{{start_date}}` and will describe a cohort that began
+   last week as "starting" on a past date, because the payment-chase call
+   windows now reach courses already under way. The variable is additive —
+   `{{start_date}}` is still sent, so nothing breaks before the paste; the
+   wording is just wrong for late registrants.
 
 **Suggested outbound system prompt** (paste into the Vapi assistant; the
 `{{variables}}` are injected per call):
@@ -480,12 +489,17 @@ flags, promised payment dates, and captured bank references.
 > Knowsia, a Ghanaian training business. Speak natural Ghanaian English,
 > keep the call under 3 minutes, and never pressure anyone.
 > The call type is {{call_type}} for {{participant_name}}, course
-> {{course_name}} ({{cohort_label}}), starting {{start_date}}, fee
+> {{course_name}} ({{cohort_label}}), {{course_timing}}, fee
 > {{course_fee}}, outstanding balance {{balance}}.
+> Describe the course timing using {{course_timing}} exactly as given —
+> it already says whether the cohort is upcoming or already running. Never
+> tell someone a course is "starting" on a date that has passed.
 > payment_followup: gently remind them their seat isn't confirmed until
 > payment; offer card/Mobile Money (they can use the link on the
 > registration page) or bank transfer; if they promise to pay, note the
-> date. bank_transfer_chase: ask if the transfer went through and record
+> date. If the course is already under way, acknowledge that they have
+> started attending and keep the tone helpful rather than accusing.
+> bank_transfer_chase: ask if the transfer went through and record
 > the transaction reference. no_show_recovery: we missed them in
 > yesterday's session — ask if everything is okay and how we can help them
 > join the next one. feedback_voice: ask four short questions — overall

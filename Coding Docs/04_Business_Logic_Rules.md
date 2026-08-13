@@ -474,12 +474,32 @@ and preferable to suppressing the invitation. Early-bird pricing needs no specia
 started batch's `discount_cutoff_date` has necessarily passed, so `effectiveCourseFee` already
 returns the full fee. A started batch that is full still routes to the waitlist as normal.
 
-**Known gap, deliberately not changed here:** the voice module's `payment_followup` and
-`bank_transfer_chase` call targeting still filters on `start_date >= current_date`
-(`modules/voice/repository.ts`). An unpaid late registrant therefore receives no payment-chase
-call, because their cohort has already begun. That is a call-policy question ("do we phone
-people about a course already under way"), not a registration-window one, and needs its own
-founder decision before it moves.
+**Voice call targeting followed on 2026-08-13 (founder-directed).** `payment_followup` and
+`bank_transfer_chase` in `modules/voice/repository.ts` filtered on `start_date >= current_date`,
+which was near-tautological while BR-19 also closed registration on `start_date` — no unpaid
+registration could exist on a started batch. Late registration broke that pairing and left an
+unpaid late registrant chased by nothing at all, which is backwards: they are consuming the
+course while owing for it. Both now use `end_date >= current_date`; `bank_transfer_chase` keeps
+its "not more than 3 days before the start" upper bound, so the only thing that moved is the
+lower one.
+
+Neither can become repeated nagging. `reserveCallSlot` inserts a `(registration_id, call_type)`
+row under a unique constraint before dialing, so each Registration gets **at most one call of
+each type, ever** — widening a window changes who becomes reachable, never how often anyone is
+rung.
+
+Chasing still stops at `end_date`. Money owed on a *finished* course is a different and harder
+conversation than "your seat isn't confirmed yet", and the BR-38 auto-lapse sweep is what closes
+that population out 15 days later; extending calls past the end would be a new policy rather
+than this fix.
+
+One consequence needed handling outside the query. The Vapi system prompt describes the course
+as *"starting {{start_date}}"*, which is false for a cohort that began last week — and a money
+call that opens on a false statement is the fastest way to lose the listener. The dispatcher now
+computes `{{course_timing}}` server-side (`courseTimingPhrase`) and sends it alongside the
+unchanged `{{start_date}}`. **The prompt text itself lives in the Vapi dashboard and cannot be
+deployed from this repo** — see Document 7 §11.3 step 6 for the exact paste, the same manual
+step the `ad_hoc` call type needed.
 
 ---
 
@@ -691,6 +711,42 @@ data-processing consent — was dropped into the blank public form to type all o
   all take the **full** set, because they are handling values coming back out of the database.
   `LEAD_SOURCES` / `SELF_DECLARED_LEAD_SOURCES` in `lib/domain/types.ts` are the one place that
   distinction is expressed; the enum used to be repeated in eight places.
+
+  **`'Returning'` is not the repeat-business metric, and must not be used as one** (settled
+  2026-08-13). It marks the *path* somebody took, not the fact that they came back: it is only
+  ever set by the portal's one-click enrolment, so a returning student who registers through the
+  public form while logged out is recorded under whichever marketing channel they pick — which is
+  correct, since that channel is what re-reached them, but it means a count of `'Returning'`
+  systematically undercounts repeat business. Repeat rate is instead **derived from registration
+  history**: any registration that is not that participant's first is a repeat, which is exactly
+  computable and independent of how they arrived. See `selectRepeatEnrolmentStats` and the
+  Repeat Enrolments tile on the dashboard.
+
+### BR-44 — A logged-out repeat registration is deduplicated by email, not by person
+
+Registering while signed out is a normal, supported path; the portal is a convenience, never a
+requirement. Three cases, and they behave differently:
+
+- **Same email.** `findOrCreateParticipant` upserts with `onConflict: 'email'`, so no second
+  Participant is created and their existing record is refreshed. `unique (participant_id,
+  batch_id)` then decides: the same Batch raises a unique violation surfaced as
+  `409 DUPLICATE_REGISTRATION`, and a different Batch is permitted (EC-01). This is a database
+  guarantee, so it holds against two simultaneous submissions, not just sequential ones.
+- **A different email.** *Not* deduplicated. `participants.email` is the only unique key —
+  `phone` is `not null` but deliberately not unique, because shared household and office numbers
+  are common in this market. The same person using a second address becomes a second Participant
+  with a second portal login, and BR-03 cannot fire because the `participant_id` differs. Known
+  and accepted; merging duplicates is a manual staff action if it ever shows up in the data.
+- **Lead source.** They cannot be recorded as `'Returning'` — see BR-43. This is why the repeat
+  metric is derived from history rather than from the enum.
+
+To keep the logged-out path from being the *default* for people who already have an account, the
+public form carries a standing prompt above the fields pointing returning participants at the
+portal. It is shown unconditionally rather than triggered by looking the typed email up: a public
+"does this address have an account?" endpoint is an account-enumeration oracle, and portal login,
+tutor login, portal forgot-PIN and staff forgot-password all deliberately return identical
+responses precisely so that they cannot be used to probe who is a participant. The prompt reaches
+the returning student either way, and tells a stranger nothing.
 
   Schema: `registrations_lead_source_check` and `waitlist_entries_lead_source_check` both gain
   the value in `202608120060_returning_lead_source.sql`. The waitlist constraint is not

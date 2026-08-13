@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const dashboardRepositoryMock = {
   selectDashboardData: vi.fn(),
+  selectRepeatEnrolmentStats: vi.fn(),
 };
 const usersServiceMock = {
   requireRole: vi.fn(),
@@ -47,6 +48,11 @@ beforeEach(() => {
     seatsFilled: 18,
     amountInvoiced: 24000,
     amountSettled: 14400,
+  });
+  dashboardRepositoryMock.selectRepeatEnrolmentStats.mockResolvedValue({
+    inWindow: 0,
+    repeat: 0,
+    returningParticipants: 0,
   });
   dashboardRepositoryMock.selectDashboardData.mockResolvedValue([
     {
@@ -152,5 +158,54 @@ describe('F1.08 — dashboard aggregation (computed live)', () => {
       wonValue: 1200,
       byStage: { New: 2, Won: 1, Lost: 1 },
     });
+  });
+});
+
+// Repeat business is measured from registration history, not from
+// lead_source = 'Returning' (2026-08-13) — that value only marks the portal
+// enrolment path, so it would undercount anyone re-registering through the
+// public form.
+describe('repeat enrolment rate', () => {
+  it('reports the rate, the counts behind it, and the distinct people', async () => {
+    dashboardRepositoryMock.selectRepeatEnrolmentStats.mockResolvedValue({
+      inWindow: 8,
+      repeat: 3,
+      returningParticipants: 2,
+    });
+
+    const summary = await getDashboardSummary();
+
+    expect(summary.repeatEnrolment).toEqual({
+      registrations: 8,
+      repeatRegistrations: 3,
+      repeatRate: 37.5,
+      returningParticipants: 2,
+    });
+  });
+
+  it('reports 0% rather than dividing by zero on an empty window', async () => {
+    dashboardRepositoryMock.selectRepeatEnrolmentStats.mockResolvedValue({
+      inWindow: 0,
+      repeat: 0,
+      returningParticipants: 0,
+    });
+
+    const summary = await getDashboardSummary();
+    expect(summary.repeatEnrolment.repeatRate).toBe(0);
+  });
+
+  // The tile has to describe the same period as the registration tile beside
+  // it, so the window is passed through rather than defaulting to all time.
+  it('passes the dashboard date range through to the repository', async () => {
+    await getDashboardSummary({ dateFrom: '2026-08-01', dateTo: '2026-08-13' });
+    expect(dashboardRepositoryMock.selectRepeatEnrolmentStats).toHaveBeenCalledWith(
+      '2026-08-01',
+      '2026-08-13',
+    );
+  });
+
+  it('passes nulls when no range is set', async () => {
+    await getDashboardSummary();
+    expect(dashboardRepositoryMock.selectRepeatEnrolmentStats).toHaveBeenCalledWith(null, null);
   });
 });

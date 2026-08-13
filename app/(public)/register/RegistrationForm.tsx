@@ -384,6 +384,28 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+      {/* Returning-participant nudge (founder-directed 2026-08-13). Everything
+          below is already on file for anyone who has registered with us before,
+          and the portal can enrol them in one click (BR-42) — so the offer is
+          made BEFORE they start typing, which is the only moment it saves them
+          anything.
+
+          Deliberately shown to everyone rather than triggered by looking their
+          email up: a public "does this address have an account?" check is an
+          account-enumeration oracle, and this codebase refuses that everywhere
+          it matters (portal login, tutor login, forgot-PIN, staff
+          forgot-password all return identical responses precisely so they
+          cannot be used to probe who is a participant). A returning student
+          reads this line either way; a stranger learns nothing from it. */}
+      <p className="rounded-md border border-input bg-muted/40 p-3 text-sm">
+        <span className="font-medium">Registered with us before?</span>{' '}
+        <a href="/portal/login" className="underline">
+          Log in to your student portal
+        </a>{' '}
+        and use <span className="font-medium">Explore Courses</span> to enrol in one
+        click — we already have your details, so there is no form to fill in.
+      </p>
+
       {bannerError && (
         <p
           role="alert"
