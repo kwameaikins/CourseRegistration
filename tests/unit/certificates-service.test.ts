@@ -24,7 +24,7 @@ vi.mock('@/lib/resend/client', () => ({
 
 const {
   buildCertificateNumber,
-  getBatchIssueContext,
+  getBatchIssueContextSystem,
   getCertificatePdf,
   issueCertificateIfEligible,
   issueForBatch,
@@ -155,7 +155,7 @@ describe('batch issuance', () => {
       ],
     });
 
-    const context = await getBatchIssueContext('batch-1');
+    const context = await getBatchIssueContextSystem('batch-1');
     const eligibility = Object.fromEntries(
       context!.candidates.map((c) => [c.registrationId, c.eligible]),
     );
@@ -185,7 +185,7 @@ describe('batch issuance', () => {
       ],
     });
 
-    const context = await getBatchIssueContext('batch-1');
+    const context = await getBatchIssueContextSystem('batch-1');
     const eligibility = Object.fromEntries(
       context!.candidates.map((c) => [c.registrationId, c.eligible]),
     );
@@ -200,7 +200,7 @@ describe('batch issuance', () => {
       candidates: [candidate({ attendedSessions: 0 })],
     });
 
-    const context = await getBatchIssueContext('batch-1');
+    const context = await getBatchIssueContextSystem('batch-1');
     expect(context!.candidates[0].eligible).toBe(true);
   });
 

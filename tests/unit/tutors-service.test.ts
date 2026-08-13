@@ -38,11 +38,12 @@ const attendanceServiceMock = {
   raiseAttendanceException: vi.fn(),
 };
 const certificatesServiceMock = {
-  getBatchIssueContext: vi.fn(),
+  getBatchIssueContextSystem: vi.fn(),
 };
 const liveSessionsServiceMock = {
   addSessionMaterial: vi.fn(),
   uploadSessionMaterialFile: vi.fn(),
+  getSessionMaterialBatchIdSystem: vi.fn(),
   getSessionMaterialDownloadUrlSystem: vi.fn(),
   removeSessionMaterial: vi.fn(),
   getSessionMaterialsForBatchSystem: vi.fn(),
@@ -491,7 +492,7 @@ describe('batch-scoped reads reject a batch that does not belong to the calling 
     await expect(getCertificateEligibilityForBatch('session-1', 'batch-not-mine')).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
-    expect(certificatesServiceMock.getBatchIssueContext).not.toHaveBeenCalled();
+    expect(certificatesServiceMock.getBatchIssueContextSystem).not.toHaveBeenCalled();
   });
 
   // Learning resource uploads + assignments (2026-08-04) — the same
@@ -516,15 +517,14 @@ describe('batch-scoped reads reject a batch that does not belong to the calling 
   });
 
   it('getMaterialDownloadUrl rejects a material belonging to another tutor’s batch', async () => {
-    liveSessionsServiceMock.getSessionMaterialDownloadUrlSystem.mockResolvedValue({
-      url: 'https://r2.example/signed',
-      batchId: 'batch-not-mine',
-      fileName: 'slides.pdf',
-    });
+    liveSessionsServiceMock.getSessionMaterialBatchIdSystem.mockResolvedValue('batch-not-mine');
     tutorsRepositoryMock.selectBatchForTutorSystem.mockResolvedValue(null);
     await expect(getMaterialDownloadUrl('session-1', 'material-1')).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
+    // Authorization now precedes signing (2026-08-13): a refused request must
+    // never have caused a presigned URL to exist in the first place.
+    expect(liveSessionsServiceMock.getSessionMaterialDownloadUrlSystem).not.toHaveBeenCalled();
   });
 
   it('getAssignmentsForBatch rejects a batch that is not this tutor’s', async () => {

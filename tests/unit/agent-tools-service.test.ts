@@ -18,7 +18,7 @@ const certificatesServiceMock = {
   verifyCertificate: vi.fn(),
   revokeCertificate: vi.fn(),
   resendCertificateEmail: vi.fn(),
-  getBatchIssueContext: vi.fn(),
+  getBatchIssueContextSystem: vi.fn(),
 };
 const communicationsServiceMock = {
   getTemplatesForCourse: vi.fn(),
@@ -531,15 +531,15 @@ describe('student-support tools (2026-07-27)', () => {
     await expect(
       runTool('get_certificate_candidates_for_batch', { batchId: 'batch-1' }, FINANCE_STAFF),
     ).rejects.toMatchObject({ code: 'FORBIDDEN' });
-    expect(certificatesServiceMock.getBatchIssueContext).not.toHaveBeenCalled();
+    expect(certificatesServiceMock.getBatchIssueContextSystem).not.toHaveBeenCalled();
   });
 
   it('get_certificate_candidates_for_batch: delegates to certificatesService for an admin', async () => {
-    certificatesServiceMock.getBatchIssueContext.mockResolvedValue({ courseCode: 'AI01', candidates: [] });
+    certificatesServiceMock.getBatchIssueContextSystem.mockResolvedValue({ courseCode: 'AI01', candidates: [] });
 
     const result = await runTool('get_certificate_candidates_for_batch', { batchId: 'batch-1' }, ADMIN_STAFF);
 
-    expect(certificatesServiceMock.getBatchIssueContext).toHaveBeenCalledWith('batch-1');
+    expect(certificatesServiceMock.getBatchIssueContextSystem).toHaveBeenCalledWith('batch-1');
     expect(result).toMatchObject({ courseCode: 'AI01' });
   });
 });

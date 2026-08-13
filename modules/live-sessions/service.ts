@@ -354,9 +354,28 @@ export async function uploadSessionMaterialFile(input: {
   return toSessionMaterial(row);
 }
 
+// The owning batch of a material, so a caller can authorize BEFORE anything is
+// signed (2026-08-13).
+//
+// getSessionMaterialDownloadUrlSystem's contract says the caller must authorize
+// the material's batch first — but it was the only way to learn which batch
+// that was, so both callers necessarily minted a presigned URL and then decided
+// whether the caller was allowed it. Nothing leaked (each threw before
+// returning), but "sign first, authorize second" is one stray log line or
+// refactor away from leaking, and the documented contract was unsatisfiable as
+// written. This makes it satisfiable.
+export async function getSessionMaterialBatchIdSystem(id: string): Promise<string> {
+  const existing = await liveSessionsRepository.selectSessionMaterialByIdSystem(id);
+  if (!existing) {
+    throw new AppError('NOT_FOUND', 'Material not found.', 404);
+  }
+  return existing.batch_id;
+}
+
 // Short-lived presigned GET URL for a file-backed material, same pattern as
 // the payment slip's. The caller is responsible for authorizing access to
-// the material's batch BEFORE calling this — this function only resolves the
+// the material's batch BEFORE calling this (see
+// getSessionMaterialBatchIdSystem above) — this function only resolves the
 // key, it has no session context of its own.
 export async function getSessionMaterialDownloadUrlSystem(
   id: string,

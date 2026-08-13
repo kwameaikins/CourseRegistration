@@ -872,7 +872,7 @@ export const AGENT_TOOLS: AgentTool[] = [
     trust: { kind: 'staff', roles: ['admin'] },
     mode: 'read',
     surfaces: ['assistant'],
-    run: async (input) => certificatesService.getBatchIssueContext(input.batchId),
+    run: async (input) => certificatesService.getBatchIssueContextSystem(input.batchId),
   }),
 
   // --- Vapi voice tools (system trust — no staff identity, gated by the

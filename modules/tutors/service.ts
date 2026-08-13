@@ -420,7 +420,7 @@ export async function getAttendanceForBatch(
 // Visibility only — issuance stays admin-only.
 //
 // Every field is projected EXPLICITLY rather than returning
-// getBatchIssueContext's candidates verbatim (2026-08-13). The old
+// getBatchIssueContextSystem's candidates verbatim (2026-08-13). The old
 // pass-through made this payload whatever modules/certificates happened to
 // return, so an amount added there for the staff Certificates screen would
 // have reached tutors silently — BR-33 permits the settled/unsettled boolean
@@ -431,7 +431,7 @@ export async function getCertificateEligibilityForBatch(
   batchId: string,
 ): Promise<TutorPortalCertificateCandidate[]> {
   await requireOwnBatch(sessionId, batchId);
-  const context = await certificatesService.getBatchIssueContext(batchId);
+  const context = await certificatesService.getBatchIssueContextSystem(batchId);
   return (context?.candidates ?? []).map((candidate) => ({
     registrationId: candidate.registrationId,
     participantName: candidate.participantName,
@@ -547,9 +547,13 @@ export async function getMaterialDownloadUrl(
   materialId: string,
 ): Promise<string> {
   const { tutorId } = await requireTutorPortalSession(sessionId);
-  const material = await liveSessionsService.getSessionMaterialDownloadUrlSystem(materialId);
-  const batch = await tutorsRepository.selectBatchForTutorSystem(material.batchId, tutorId);
+  // Authorize BEFORE anything is signed (2026-08-13). This used to mint the
+  // presigned URL first and then decide whether the caller was allowed it —
+  // safe only because the throw came before the return.
+  const batchId = await liveSessionsService.getSessionMaterialBatchIdSystem(materialId);
+  const batch = await tutorsRepository.selectBatchForTutorSystem(batchId, tutorId);
   if (!batch) throw new AppError('NOT_FOUND', 'Material not found.', 404);
+  const material = await liveSessionsService.getSessionMaterialDownloadUrlSystem(materialId);
   return material.url;
 }
 

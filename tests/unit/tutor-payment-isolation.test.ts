@@ -18,7 +18,7 @@ const repositoryMock = {
   selectBatchForTutorSystem: vi.fn(),
   selectRosterForBatchSystem: vi.fn(),
 };
-const certificatesServiceMock = { getBatchIssueContext: vi.fn() };
+const certificatesServiceMock = { getBatchIssueContextSystem: vi.fn() };
 
 vi.mock('@/modules/tutors/repository', () => repositoryMock);
 vi.mock('@/modules/certificates/service', () => certificatesServiceMock);
@@ -76,7 +76,7 @@ beforeEach(() => {
 
 describe('BR-33 — certificate eligibility', () => {
   beforeEach(() => {
-    certificatesServiceMock.getBatchIssueContext.mockResolvedValue({
+    certificatesServiceMock.getBatchIssueContextSystem.mockResolvedValue({
       courseCode: 'ESG',
       courseTitle: 'Understanding ESG',
       defaultHours: 12,
@@ -106,7 +106,7 @@ describe('BR-33 — certificate eligibility', () => {
   it('exposes no payment FIGURE, even if the upstream context grows one', async () => {
     // Simulates modules/certificates later adding an amount to its candidate
     // shape — the tutor payload must not inherit it by simply passing through.
-    certificatesServiceMock.getBatchIssueContext.mockResolvedValue({
+    certificatesServiceMock.getBatchIssueContextSystem.mockResolvedValue({
       courseCode: 'ESG',
       courseTitle: 'Understanding ESG',
       defaultHours: 12,

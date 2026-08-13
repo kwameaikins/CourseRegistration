@@ -707,10 +707,14 @@ export async function getMaterialDownloadUrl(
   if (!match || !match.batch) {
     throw new AppError('NOT_FOUND', 'Registration not found.', 404);
   }
-  const material = await liveSessionsService.getSessionMaterialDownloadUrlSystem(materialId);
-  if (material.batchId !== match.batch.id) {
+  // Authorize BEFORE anything is signed (2026-08-13) — same reordering as the
+  // tutor portal's equivalent. Resolving the owning batch first means a
+  // presigned URL is never created for a material this session cannot have.
+  const materialBatchId = await liveSessionsService.getSessionMaterialBatchIdSystem(materialId);
+  if (materialBatchId !== match.batch.id) {
     throw new AppError('NOT_FOUND', 'Material not found.', 404);
   }
+  const material = await liveSessionsService.getSessionMaterialDownloadUrlSystem(materialId);
   return material.url;
 }
 

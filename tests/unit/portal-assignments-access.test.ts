@@ -25,6 +25,7 @@ const assignmentsServiceMock = {
 };
 const liveSessionsServiceMock = {
   getSessionMaterialsForBatchSystem: vi.fn(),
+  getSessionMaterialBatchIdSystem: vi.fn(),
   getSessionMaterialDownloadUrlSystem: vi.fn(),
 };
 
@@ -186,17 +187,17 @@ describe('getMySubmissionDownloadUrl', () => {
 
 describe('getMaterialDownloadUrl', () => {
   it('refuses a material from another cohort even for an owned registration', async () => {
-    liveSessionsServiceMock.getSessionMaterialDownloadUrlSystem.mockResolvedValue({
-      url: 'https://r2.example/signed',
-      batchId: 'batch-other',
-      fileName: 'slides.pdf',
-    });
+    liveSessionsServiceMock.getSessionMaterialBatchIdSystem.mockResolvedValue('batch-other');
     await expect(
       getMaterialDownloadUrl('session-1', 'reg-mine', 'material-1'),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    // Authorization now precedes signing (2026-08-13): a refused request must
+    // never have caused a presigned URL to exist in the first place.
+    expect(liveSessionsServiceMock.getSessionMaterialDownloadUrlSystem).not.toHaveBeenCalled();
   });
 
   it('returns the signed URL for a material on the registration’s own batch', async () => {
+    liveSessionsServiceMock.getSessionMaterialBatchIdSystem.mockResolvedValue('batch-1');
     liveSessionsServiceMock.getSessionMaterialDownloadUrlSystem.mockResolvedValue({
       url: 'https://r2.example/signed',
       batchId: 'batch-1',

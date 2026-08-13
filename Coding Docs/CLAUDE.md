@@ -1246,13 +1246,22 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     IS exposed and must stay; no figure may appear even if upstream grows one).
     Document 16 §11 still needs founder sign-off for AMOUNTS — that half of the
     scope question is unchanged and still unbuilt.
-    Two nits recorded, not fixed: certificatesService.getBatchIssueContext is a
-    system-context read WITHOUT the `...System` suffix (safe, but that suffix
-    is the convention a future session scans for to catch the silent-empty bug
-    class, so an unmarked one is a trap); and getMaterialDownloadUrl mints the
-    R2 presigned URL BEFORE the ownership check — not a leak today since it
-    throws before returning, but the ordering becomes one the moment that
-    function gains logging or a side effect.
+    Both nits from the pass were then FIXED (same day):
+    (1) `certificatesService.getBatchIssueContext` → `...ContextSystem`. It has
+    no internal authorization — all three callers gate separately (admin route
+    requireRole, tutor service requireOwnBatch, agent-tools' own trust tier) —
+    so the missing suffix was the only thing wrong. That suffix is load-bearing:
+    it is the signal this very audit used to triage 24 cross-module calls, and a
+    function that lies about its contract undermines the next one.
+    (2) Download-URL ordering, in BOTH portals. `getMaterialDownloadUrl` minted
+    the R2 presigned URL and THEN checked ownership — safe only because the
+    throw came before the return. The documented contract ("caller authorizes
+    the batch BEFORE calling this") was in fact unsatisfiable, since that
+    function was the only way to learn which batch owned the material. New
+    `liveSessionsService.getSessionMaterialBatchIdSystem` makes it satisfiable;
+    tutor and student portals now resolve the batch, authorize, and only then
+    sign. Both tests assert the presigned call is NEVER reached on refusal,
+    which is the property that actually matters.
 
   Zoom registrant gap — INSTRUMENTED AND REPAIRABLE (2026-08-13). The
     longest-standing open item: `ensureZoomRegistration` had never written a

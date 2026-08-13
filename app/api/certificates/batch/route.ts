@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     if (!batchId) {
       throw new AppError('VALIDATION_ERROR', 'batchId is required.', 400);
     }
-    const context = await certificatesService.getBatchIssueContext(batchId);
+    const context = await certificatesService.getBatchIssueContextSystem(batchId);
     if (!context) {
       throw new AppError('NOT_FOUND', 'Batch not found.', 404);
     }

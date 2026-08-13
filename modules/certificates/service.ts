@@ -36,7 +36,7 @@ const APP_URL = () => process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.co
 // a staff session: verifyCertificate (public /verify page),
 // getCertificatePdf (emailed download link), issueCertificateIfEligible
 // (public feedback submission), renameExistingCertificates (student portal)
-// and getBatchIssueContext (also read by the tutor portal via
+// and getBatchIssueContextSystem (also read by the tutor portal via
 // modules/tutors). Those keep the boundary appropriate to their own caller.
 const CERTIFICATE_STAFF_ROLES = ['admin'] as const;
 
@@ -276,7 +276,7 @@ export async function issueManual(
   return toView(row);
 }
 
-export async function getBatchIssueContext(batchId: string): Promise<{
+export async function getBatchIssueContextSystem(batchId: string): Promise<{
   courseCode: string;
   courseTitle: string;
   defaultHours: number;
