@@ -54,6 +54,17 @@ export interface DashboardSummary {
     amountInvoiced: number;
     amountSettled: number;
   };
+  // Repeat business (2026-08-13). Measured from registration history, NOT from
+  // lead_source = 'Returning' — that value only marks people who came back
+  // through the portal's one-click enrolment, so it undercounts anyone who
+  // re-registered through the public form. See the repository for the full
+  // reasoning.
+  repeatEnrolment: {
+    registrations: number;
+    repeatRegistrations: number;
+    repeatRate: number;
+    returningParticipants: number;
+  };
   // Echoed back so the page can label the tiles for the window actually
   // applied rather than hard-coding "this month".
   appliedRange: { dateFrom: string | null; dateTo: string | null };
@@ -83,12 +94,19 @@ export async function getDashboardSummary(
   await usersService.requireRole(['admin', 'management']);
   const hasRange = Boolean(range.dateFrom || range.dateTo);
 
-  const [batches, leadPipeline, salesPipeline, corporateSummary] = await Promise.all([
-    dashboardRepository.selectDashboardData(),
-    leadsService.getPipelineSummary(),
-    opportunitiesService.getPipelineSummary(),
-    corporateService.getCorporateSummary(),
-  ]);
+  const [batches, leadPipeline, salesPipeline, corporateSummary, repeatStats] =
+    await Promise.all([
+      dashboardRepository.selectDashboardData(),
+      leadsService.getPipelineSummary(),
+      opportunitiesService.getPipelineSummary(),
+      corporateService.getCorporateSummary(),
+      // Honours the same window as the registration tiles, so "repeat rate"
+      // always describes the period the rest of the screen is describing.
+      dashboardRepository.selectRepeatEnrolmentStats(
+        range.dateFrom ?? null,
+        range.dateTo ?? null,
+      ),
+    ]);
 
   // The range filters REGISTRATIONS, not batches: a cohort that started
   // outside the window can still have taken registrations inside it, and
@@ -179,6 +197,15 @@ export async function getDashboardSummary(
       totalOutstandingBalance: round2(
         revenueRegistrations.reduce((sum, r) => sum + (r.courseFee - r.amountPaid), 0),
       ),
+    },
+    repeatEnrolment: {
+      registrations: repeatStats.inWindow,
+      repeatRegistrations: repeatStats.repeat,
+      repeatRate:
+        repeatStats.inWindow === 0
+          ? 0
+          : round2((repeatStats.repeat / repeatStats.inWindow) * 100),
+      returningParticipants: repeatStats.returningParticipants,
     },
     appliedRange: { dateFrom: range.dateFrom ?? null, dateTo: range.dateTo ?? null },
     leadSources: [...leadSourceMap.entries()]

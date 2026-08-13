@@ -36,6 +36,7 @@ vi.mock('@/modules/feedback/service', () => ({
 
 const {
   callingWindowStart,
+  courseTimingPhrase,
   handleEndOfCallReport,
   runVoiceCallDispatch,
   lookupCustomerForAgent,
@@ -50,6 +51,7 @@ function context(overrides: Record<string, unknown> = {}) {
     courseName: 'ESG and Sustainability Reporting',
     cohortLabel: 'JUL 2026',
     startDate: '2026-08-03',
+    endDate: '2026-08-14',
     courseFee: 680,
     balance: 680,
     ...overrides,
@@ -74,6 +76,35 @@ describe('calling window', () => {
   it('schedules dialing for 10:00 Ghana time on the dispatch day', () => {
     expect(callingWindowStart(new Date('2026-07-20T07:00:00Z'))).toBe(
       '2026-07-20T10:00:00.000Z',
+    );
+  });
+});
+
+// Payment-chase calls reach cohorts already under way since 2026-08-13, so the
+// assistant can no longer be handed a bare start date and told to say
+// "starting" — that would be a false statement opening a call about money.
+describe('courseTimingPhrase', () => {
+  it('says "starting on" for a cohort that has not begun', () => {
+    expect(courseTimingPhrase('2026-08-20', '2026-08-28', '2026-08-13')).toBe(
+      'starting on 2026-08-20',
+    );
+  });
+
+  it('never says "starting" for a cohort already under way', () => {
+    const phrase = courseTimingPhrase('2026-08-10', '2026-08-14', '2026-08-13');
+    expect(phrase).toBe('already under way since 2026-08-10 and running until 2026-08-14');
+    expect(phrase).not.toContain('starting');
+  });
+
+  it('handles the same-day boundary without claiming it already started', () => {
+    expect(courseTimingPhrase('2026-08-13', '2026-08-14', '2026-08-13')).toBe(
+      'starting today, running until 2026-08-14',
+    );
+  });
+
+  it('describes a finished cohort in the past tense', () => {
+    expect(courseTimingPhrase('2026-08-01', '2026-08-05', '2026-08-13')).toBe(
+      'which finished on 2026-08-05',
     );
   });
 });
@@ -153,6 +184,27 @@ describe('runVoiceCallDispatch', () => {
       expect.objectContaining({ status: 'failed' }),
     );
     expect(summary.errors).toHaveLength(1);
+  });
+
+  // The dispatcher resolves the phrasing rather than leaving the assistant to
+  // infer it from {{start_date}}, which it would get wrong for a late
+  // registrant on a running cohort.
+  it('sends course_timing alongside the unchanged start_date', async () => {
+    repositoryMock.selectPaymentFollowupRegistrations.mockResolvedValue(['reg-1']);
+    repositoryMock.selectCallContexts.mockResolvedValue(
+      new Map([['reg-1', context({ startDate: '2026-07-15', endDate: '2026-07-25' })]]),
+    );
+
+    await runVoiceCallDispatch(new Date('2026-07-20T07:00:00Z'));
+
+    expect(clientMock.startOutboundCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variableValues: expect.objectContaining({
+          start_date: '2026-07-15',
+          course_timing: 'already under way since 2026-07-15 and running until 2026-07-25',
+        }),
+      }),
+    );
   });
 
   it('passes upsell pitch variables through to the call', async () => {

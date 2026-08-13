@@ -26,6 +26,10 @@ async function selectCallContexts(registrationIds: string[]): Promise<
       courseName: string;
       cohortLabel: string;
       startDate: string;
+      // Added 2026-08-13 alongside the end_date call windows: the assistant
+      // must be able to say "already under way" rather than "starting" for a
+      // cohort that began before we rang.
+      endDate: string;
       courseFee: number;
       balance: number;
     }
@@ -40,6 +44,10 @@ async function selectCallContexts(registrationIds: string[]): Promise<
       courseName: string;
       cohortLabel: string;
       startDate: string;
+      // Added 2026-08-13 alongside the end_date call windows: the assistant
+      // must be able to say "already under way" rather than "starting" for a
+      // cohort that began before we rang.
+      endDate: string;
       courseFee: number;
       balance: number;
     }
@@ -64,7 +72,7 @@ async function selectCallContexts(registrationIds: string[]): Promise<
       .in('id', participantIds),
     supabase
       .from('batches')
-      .select('id, cohort_label, start_date, course_fee, course_id')
+      .select('id, cohort_label, start_date, end_date, course_fee, course_id')
       .in('id', batchIds),
     supabase
       .from('payments')
@@ -98,6 +106,7 @@ async function selectCallContexts(registrationIds: string[]): Promise<
       courseName: courseById.get(batch.course_id) ?? '',
       cohortLabel: batch.cohort_label,
       startDate: batch.start_date,
+      endDate: batch.end_date,
       courseFee: Number(payment?.course_fee ?? batch.course_fee),
       balance: Number(payment?.balance ?? batch.course_fee),
     });
@@ -220,10 +229,22 @@ export async function selectCustomerSummaryByIdentifier(identifier: string): Pro
 }
 
 // 1. payment_followup — Unpaid, registered 3+ days ago, batch active with
-// payment reminders on and not yet started. Free events are excluded outright:
+// payment reminders on and STILL RUNNING. Free events are excluded outright:
 // an AI voice call chasing a webinar registrant for a balance of GHS 0.00 is
 // the worst-case version of this feature going wrong, so it does not rely on
 // their payment_status settling to 'Paid' alone.
+//
+// This tested start_date until 2026-08-13, which was near-tautological while
+// BR-19 also closed registration on start_date — nobody unpaid could exist on
+// a started batch. Late registration (2026-08-12) broke that pairing and left a
+// real hole: someone joining a running cohort and not paying was never chased
+// at all, which is exactly backwards, since they are consuming the course while
+// they owe for it. The window now closes on end_date, matching BR-19.
+//
+// It deliberately does NOT extend past end_date. Money owed on a finished
+// course is a different, harder conversation than "your seat isn't confirmed
+// yet", and the auto-lapse sweep (BR-38) is what closes that population out
+// 15 days later. Widening to cover it would be a new policy, not this fix.
 export async function selectPaymentFollowupRegistrations(
   cutoffIso: string,
   todayIso: string,
@@ -235,16 +256,18 @@ export async function selectPaymentFollowupRegistrations(
     .eq('is_active', true)
     .eq('is_free', false)
     .eq('payment_reminder_enabled', true)
-    .gte('start_date', todayIso);
+    .gte('end_date', todayIso);
   if (batchesError) throw batchesError;
   if (!batches || batches.length === 0) return [];
 
-  // Written-off registrations are never called (2026-08-09). The batch filter
-  // above already makes this near-unreachable — a lapsed registration's cohort
-  // ended at least 15 days ago and this only looks at batches that have not
-  // started — but an AI voice call demanding money we have formally stopped
-  // pursuing is the single worst failure this feature has available to it, so
-  // it gets a guard of its own rather than relying on a date window.
+  // Written-off registrations are never called (2026-08-09). This guard used to
+  // be near-unreachable because the batch filter only looked at cohorts that
+  // had not started, while a lapsed cohort ended 15+ days ago. The end_date
+  // window above shrinks that margin — a lapsed row's batch is now excluded by
+  // roughly a fortnight rather than by the whole course — so this check is
+  // MORE load-bearing than it was, not less. An AI voice call demanding money
+  // we have formally stopped pursuing is the single worst failure this feature
+  // has available to it; it keeps its own guard rather than trusting a date.
   const { data: registrations, error } = await supabase
     .from('registrations')
     .select('id, registered_at')
@@ -265,7 +288,21 @@ export async function selectPaymentFollowupRegistrations(
     .map((p) => p.registration_id);
 }
 
-// 2. bank_transfer_chase — Part Payment with the start date <= 3 days away.
+// 2. bank_transfer_chase — Part Payment on a batch that starts within 3 days
+// or is already under way, and has not yet ended.
+//
+// The upper bound is what stops us ringing about a deposit months early; it is
+// kept exactly as it was. The LOWER bound used to be today, which meant the
+// call could only ever fire in a three-day window before the start — so a
+// part-payer on a running cohort (now reachable at all, since late registration
+// landed 2026-08-12) fell out of it permanently. Replaced with "the course has
+// not ended", so the chase stays available for as long as the course is still
+// being delivered.
+//
+// Note this cannot become repeated nagging: reserveCallSlot writes a
+// (registration_id, call_type) row with a unique constraint, so each
+// registration gets at most ONE bank_transfer_chase call ever. Widening the
+// window changes WHO becomes reachable, never how often anyone is called.
 export async function selectBankTransferChaseRegistrations(
   todayIso: string,
   latestStartIso: string,
@@ -275,7 +312,7 @@ export async function selectBankTransferChaseRegistrations(
     .from('batches')
     .select('id')
     .eq('is_active', true)
-    .gte('start_date', todayIso)
+    .gte('end_date', todayIso)
     .lte('start_date', latestStartIso);
   if (batchesError) throw batchesError;
   if (!batches || batches.length === 0) return [];

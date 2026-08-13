@@ -25,6 +25,78 @@ export interface BatchSummaryRaw {
   }>;
 }
 
+// Repeat-enrolment rate (founder-directed 2026-08-13). Deliberately derived
+// from registration history rather than from `lead_source = 'Returning'`: that
+// value is only ever set by the portal's one-click enrolment (BR-43), so it
+// counts the PATH someone took, not the fact that they came back. A returning
+// student who registers through the public form while logged out picks a real
+// marketing channel — correctly, since that channel is what re-reached them —
+// and would be invisible to a lead-source count. Any registration that is not a
+// participant's first IS a repeat, and that is computable exactly.
+//
+// This cannot reuse selectDashboardData: that read is scoped to ACTIVE batches,
+// so a participant whose first course ran on a since-deactivated cohort would
+// look like a first-timer.
+export async function selectRepeatEnrolmentStats(
+  dateFrom: string | null,
+  dateTo: string | null,
+): Promise<{ inWindow: number; repeat: number; returningParticipants: number }> {
+  const supabase = createSupabaseServiceRoleClient();
+
+  // Population being measured: same exclusions as every other dashboard figure
+  // — a written-off or cancelled registration is not business we counted.
+  let windowQuery = supabase
+    .from('registrations')
+    .select('id, participant_id, registered_at')
+    .is('lapsed_at', null)
+    .neq('registration_status', 'Cancelled');
+  if (dateFrom) windowQuery = windowQuery.gte('registered_at', `${dateFrom}T00:00:00.000Z`);
+  if (dateTo) windowQuery = windowQuery.lte('registered_at', `${dateTo}T23:59:59.999Z`);
+
+  const { data: windowRows, error: windowError } = await windowQuery;
+  if (windowError) throw windowError;
+  if (!windowRows || windowRows.length === 0) {
+    return { inWindow: 0, repeat: 0, returningParticipants: 0 };
+  }
+
+  const participantIds = [...new Set(windowRows.map((row) => row.participant_id))];
+
+  // History lookup applies NO status filter, unlike the population above. The
+  // question here is "had this person enrolled with us before", and a prior
+  // registration they cancelled or that was later written off still means they
+  // are not new to us — filtering those out would misclassify a genuine
+  // returner as a first-timer. Bounded by the participants active in the
+  // window rather than scanning the whole table.
+  const { data: historyRows, error: historyError } = await supabase
+    .from('registrations')
+    .select('participant_id, registered_at')
+    .in('participant_id', participantIds);
+  if (historyError) throw historyError;
+
+  const earliestByParticipant = new Map<string, string>();
+  for (const row of historyRows ?? []) {
+    const current = earliestByParticipant.get(row.participant_id);
+    if (!current || row.registered_at < current) {
+      earliestByParticipant.set(row.participant_id, row.registered_at);
+    }
+  }
+
+  const returning = new Set<string>();
+  let repeat = 0;
+  for (const row of windowRows) {
+    const earliest = earliestByParticipant.get(row.participant_id);
+    // Strictly later than their first: the first registration itself is never a
+    // repeat, and comparing on the timestamp rather than a count keeps this
+    // correct when only part of someone's history falls inside the window.
+    if (earliest && row.registered_at > earliest) {
+      repeat += 1;
+      returning.add(row.participant_id);
+    }
+  }
+
+  return { inWindow: windowRows.length, repeat, returningParticipants: returning.size };
+}
+
 export async function selectDashboardData(): Promise<BatchSummaryRaw[]> {
   const supabase = createSupabaseServiceRoleClient();
 

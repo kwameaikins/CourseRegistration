@@ -65,7 +65,7 @@ export default async function ManagementDashboardPage({
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -74,6 +74,26 @@ export default async function ManagementDashboardPage({
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold">{summary.aggregate.registrationsThisMonth}</p>
+          </CardContent>
+        </Card>
+        {/* Repeat business (2026-08-13). Counted from registration history, not
+            from the 'Returning' lead source — that only marks people who came
+            back via the portal, so it would undercount anyone re-registering
+            through the public form. */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Repeat Enrolments — {periodLabel}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold">{summary.repeatEnrolment.repeatRate}%</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {summary.repeatEnrolment.repeatRegistrations} of{' '}
+              {summary.repeatEnrolment.registrations} registrations, from{' '}
+              {summary.repeatEnrolment.returningParticipants} returning participant
+              {summary.repeatEnrolment.returningParticipants === 1 ? '' : 's'}
+            </p>
           </CardContent>
         </Card>
         <Card>
