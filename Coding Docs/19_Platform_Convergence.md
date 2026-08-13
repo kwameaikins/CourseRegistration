@@ -196,9 +196,11 @@ same capability twice.** That is available the moment §3 is agreed, which it no
    recorded and should be. It did **not** block Seam I's Registration half — the design never
    crosses databases, so the answer only matters for operational questions (backups, connection
    limits, blast radius), not for the integration itself.
-5. **Migration `202608130061` is written but not applied.** Applying it is a separate, explicit
-   step, per this repo's practice of marking a migration applied only once verified against the
-   remote.
+5. ~~Migration `202608130061` is written but not applied.~~ **Applied to production 2026-08-13 and
+   verified present in `supabase migration list`** (62 migrations, 0 pending). Note the ordering is
+   the safe one: the schema now accepts the link while no deployed code writes it yet, since the
+   integration stays dormant until `KNOWSIA_APP_URL` and `KNOWSIA_APP_SERVICE_KEY` are set. Same
+   schema-ahead-of-app ordering as `202608120060`.
 
 ---
 

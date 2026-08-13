@@ -1139,17 +1139,33 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     other platform, distinct from /api/cron (scheduled self-calls) and
     /api/public (WordPress catalogue). middleware.ts matches only staff PAGE
     routes so it does not apply.
-    950 tests pass (15 new), lint and tsc clean FOR THIS REPO'S OWN FILES.
-    Migration `202608130061_knowsia_app_account_link.sql` WRITTEN, NOT YET
-    APPLIED. KnowsiaApp's half (accept token, verify, find-or-create m1_users,
-    link, store its own back-link) is a separate repo and a separate pass.
-    ⚠️ KnowsiaApp was still nested inside this working tree when this shipped,
-    which BREAKS `npm run build` and `npx tsc --noEmit` locally — 167 type
-    errors and 677 lint errors, all of them KnowsiaApp's files resolved against
-    THIS repo's tsconfig (`include: ["**/*.ts","**/*.tsx"]`, excluding only
-    node_modules). Vercel is unaffected because KnowsiaApp is untracked and so
-    is never pushed — but a `git add .` would both swallow the nested repo and
-    break the deployed build. Move it to a sibling directory.
+    950 tests pass (15 new), lint and tsc clean, build compiles.
+    Migration `202608130061_knowsia_app_account_link.sql` APPLIED to production
+    2026-08-13 and verified present in `supabase migration list` (62
+    migrations, 0 pending). Ordering is the safe one — schema ahead of app, so
+    the columns exist while nothing writes them yet. KnowsiaApp's half (accept
+    token, verify, find-or-create m1_users, link, store its own back-link) is a
+    separate repo and a separate pass.
+    Resolved during the same session: a full duplicate of the KnowsiaApp repo
+    had been copied INTO this working tree, which broke `npx tsc --noEmit`
+    (167 errors) and `npm run lint` (677 errors) — every one of them
+    KnowsiaApp's files resolved against THIS repo's tsconfig, which includes
+    `**/*.ts` and excludes only node_modules. Deleted after verifying it was
+    byte-identical to `E:\KnowsiaApp` (same HEAD, clean tree, no stashes, all 8
+    gitignored .env files matching sizes and timestamps). NOTE FOR NEXT TIME:
+    `Remove-Item -Recurse` CANNOT delete that repo — `.git/refs/codex/
+    turn-diffs/checkpoints/...` exceeds the Windows 260-char path limit and the
+    delete half-completes. Use `robocopy <empty-dir> <target> /MIR` then
+    remove the emptied directory.
+    SEPARATE PRE-EXISTING ISSUE, not caused by any of this: `npm run build`
+    exits 1 on Windows with `uncaughtException [Error: kill EPERM]` AFTER
+    printing "Compiled successfully", and never writes routes-manifest.json.
+    Confirmed pre-existing by building `main` without these changes — identical
+    failure. It is a Node worker-teardown problem specific to Windows, so
+    Vercel's Linux builds are unaffected, but `npm run build` is NOT a reliable
+    local green light on this machine. Verify a build by checking
+    "Compiled successfully" plus the artifacts under `.next/server/app/`,
+    not by the exit code.
 
   Knowsia Live self-hosted RTC — ASSESSED, NOT BUILT (2026-08-13). Founder
     supplied `Coding Docs/knowsia-live-mediasoup-engineering-plan.md`, a

@@ -342,8 +342,10 @@ taking the first real payment:
       anyone else. Chose an opaque token + service-key callback over a self-contained JWT: genuinely
       single-use, no new dependency, and an intercepted token is worthless without
       `KNOWSIA_APP_SERVICE_KEY`. BR-45, Document 3 §16, Document 5 §18.
-      Migration `202608130061_knowsia_app_account_link.sql` **written, NOT yet applied**.
-      Dormant until `KNOWSIA_APP_URL` + `KNOWSIA_APP_SERVICE_KEY` are set.
+      Migration `202608130061_knowsia_app_account_link.sql` **applied to production 2026-08-13 and
+      verified present in `supabase migration list`** (62 migrations, 0 pending). Schema is ahead
+      of the app on purpose — the integration stays dormant until `KNOWSIA_APP_URL` +
+      `KNOWSIA_APP_SERVICE_KEY` are set, so nothing writes the new columns yet.
   - [ ] KnowsiaApp half: accept the token at `/auth/handoff`, call verify, find-or-create its
         `m1_users` row, call link, and store its own back-link. Separate repo, separate pass
 - [ ] II — One domain / shared navigation: Vercel path rewrites, both frontends being Next.js.
