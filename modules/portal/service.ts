@@ -60,18 +60,22 @@ import { parsePaymentStatus } from '@/lib/domain/parsers';
 // registrations (enrolExistingParticipant) — which is where creating a
 // Registration belongs anyway; this module's job is proving who the caller is,
 // and app/api/portal/enrol composes the two.
-import type {
-  PortalChangePinInput,
-  PortalDashboard,
-  PortalExchangeLoginTokenResult,
-  PortalForgotPinInput,
-  PortalLoginInput,
-  PortalLoginResult,
-  PortalReceiptData,
-  PortalResetPinInput,
-  PortalSetUpInstallmentPlanInput,
-  PortalUpdateNameInput,
-  StudentStatusSummary,
+import {
+  KNOWSIA_APP_HANDOFF_TOKEN_DURATION_MS,
+  type KnowsiaAppHandoffResult,
+  type KnowsiaAppIdentity,
+  type KnowsiaAppLinkInput,
+  type PortalChangePinInput,
+  type PortalDashboard,
+  type PortalExchangeLoginTokenResult,
+  type PortalForgotPinInput,
+  type PortalLoginInput,
+  type PortalLoginResult,
+  type PortalReceiptData,
+  type PortalResetPinInput,
+  type PortalSetUpInstallmentPlanInput,
+  type PortalUpdateNameInput,
+  type StudentStatusSummary,
 } from '@/modules/portal/types';
 import type { FeedbackSubmissionInput, FeedbackSubmissionResult } from '@/modules/feedback/types';
 import type { PaymentSubmission, PaymentSubmissionInput } from '@/modules/payments/types';
@@ -325,6 +329,7 @@ export async function getPortalDashboard(sessionId: string | undefined): Promise
     email: data.participant.email,
     phone: data.participant.phone,
     mustChangePin: auth?.must_change_pin ?? false,
+    studyPlatformEnabled: isKnowsiaAppConfigured(),
     registrations: data.registrations.map((row) => ({
       registrationId: row.registration.id,
       courseName: row.course?.course_name ?? '',
@@ -828,4 +833,85 @@ export async function resetPin(input: PortalResetPinInput): Promise<void> {
   }
   await portalRepository.updateParticipantPin(consumed.participantId, hashPin(input.newPin));
   await portalRepository.clearLockout(consumed.participantId);
+}
+
+// ---------------------------------------------------------------------------
+// KnowsiaApp account link — Seam I of platform convergence (2026-08-13).
+// See Coding Docs/19_Platform_Convergence.md. The boundary is "people and money
+// here; learning content and AI there", so this system proves WHO someone is
+// and KnowsiaApp decides what they may study. Nothing here reads KnowsiaApp's
+// database and nothing there reads this one — the link is made over HTTP.
+// ---------------------------------------------------------------------------
+
+// Dormant until configured, exactly like WhatsApp/Arkesel/Vapi/R2 in this
+// codebase: with no KNOWSIA_APP_URL the button never renders and this throws a
+// clean error rather than minting a token pointing nowhere.
+export function isKnowsiaAppConfigured(): boolean {
+  return Boolean(process.env.KNOWSIA_APP_URL && process.env.KNOWSIA_APP_SERVICE_KEY);
+}
+
+// Identity comes from the session cookie, never from the request body — the
+// same rule as POST /api/portal/enrol. A caller cannot mint a handoff for
+// anyone but themselves because there is no parameter with which to try.
+export async function issueKnowsiaAppHandoff(
+  sessionId: string | undefined,
+): Promise<KnowsiaAppHandoffResult> {
+  const { participantId } = await requirePortalSession(sessionId);
+
+  if (!isKnowsiaAppConfigured()) {
+    throw new AppError(
+      'KNOWSIA_APP_NOT_CONFIGURED',
+      'The study platform is not available yet.',
+      503,
+    );
+  }
+
+  // A soft-deleted participant keeps a live session only in a race; refuse
+  // rather than hand their identity to another system (Ghana DPA).
+  const link = await portalRepository.selectKnowsiaAppLink(participantId);
+  if (!link || link.deletedAt !== null) {
+    throw new AppError('UNAUTHENTICATED', 'Your session has expired. Please log in again.', 401);
+  }
+
+  const expiresAt = new Date(Date.now() + KNOWSIA_APP_HANDOFF_TOKEN_DURATION_MS).toISOString();
+  const token = await portalRepository.insertKnowsiaAppHandoffToken(participantId, expiresAt);
+
+  const base = process.env.KNOWSIA_APP_URL!.replace(/\/+$/, '');
+  return {
+    token: token.id,
+    url: `${base}/auth/handoff?token=${encodeURIComponent(token.id)}`,
+    expiresAt,
+  };
+}
+
+// Called by KnowsiaApp over HTTP, authenticated by KNOWSIA_APP_SERVICE_KEY at
+// the route. Single-use: the second call for the same token returns null
+// because the atomic UPDATE no longer matches.
+export async function redeemKnowsiaAppHandoff(token: string): Promise<KnowsiaAppIdentity> {
+  const consumed = await portalRepository.consumeKnowsiaAppHandoffToken(token);
+  if (!consumed) {
+    throw new AppError('INVALID_TOKEN', 'This handoff token is invalid, used, or expired.', 400);
+  }
+  return consumed;
+}
+
+// Records the link once KnowsiaApp has found-or-created its own user. Safe to
+// retry with the same pair; a DIFFERENT KnowsiaApp user for an already-linked
+// Participant is refused rather than silently overwritten — one Participant is
+// one person, and a link that moves means something went wrong upstream, not
+// that the newer value is better.
+export async function linkKnowsiaAppUser(input: KnowsiaAppLinkInput): Promise<void> {
+  const link = await portalRepository.selectKnowsiaAppLink(input.participantId);
+  if (!link || link.deletedAt !== null) {
+    throw new AppError('NOT_FOUND', 'No such participant.', 404);
+  }
+  if (link.knowsiaAppUserId === input.knowsiaAppUserId) return; // already linked — no-op
+  if (link.knowsiaAppUserId !== null) {
+    throw new AppError(
+      'ALREADY_LINKED',
+      'This participant is already linked to a different study-platform account.',
+      409,
+    );
+  }
+  await portalRepository.updateKnowsiaAppLink(input.participantId, input.knowsiaAppUserId);
 }

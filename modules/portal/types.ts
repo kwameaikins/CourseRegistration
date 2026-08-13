@@ -118,6 +118,10 @@ export interface PortalDashboard {
   phone: string;
   mustChangePin: boolean;
   registrations: PortalDashboardRegistration[];
+  // Whether the KnowsiaApp study platform is wired up (Seam I, 2026-08-13).
+  // Server-derived rather than a NEXT_PUBLIC_ mirror so there is exactly one
+  // source of truth for whether the integration is live.
+  studyPlatformEnabled: boolean;
 }
 
 // Self-service name correction (founder request, 2026-07-24) — participants
@@ -174,6 +178,42 @@ export const portalResetPinSchema = z.object({
   newPin: z.string().trim().regex(/^\d{4}$/, 'PIN must be 4 digits'),
 });
 export type PortalResetPinInput = z.infer<typeof portalResetPinSchema>;
+
+// KnowsiaApp account link / handoff (Seam I, 2026-08-13) — see
+// Coding Docs/19_Platform_Convergence.md §4. 60 seconds, not the 15 minutes a
+// PIN reset gets: this token is redeemed by a machine inside a browser
+// redirect, so a long window buys nothing and only widens the replay surface.
+export const KNOWSIA_APP_HANDOFF_TOKEN_DURATION_MS = 60 * 1000;
+
+export interface KnowsiaAppHandoffResult {
+  token: string;
+  url: string;
+  expiresAt: string;
+}
+
+// What KnowsiaApp receives on redeeming a token. Deliberately identity only —
+// no registration, payment, or entitlement data (BR-45). What a linked user may
+// access is Seam III's question, not this one's.
+export interface KnowsiaAppIdentity {
+  participantId: string;
+  email: string;
+  fullName: string;
+  phone: string;
+  knowsiaAppUserId: string | null;
+}
+
+export const knowsiaAppRedeemHandoffSchema = z.object({
+  token: z.uuid(),
+});
+export type KnowsiaAppRedeemHandoffInput = z.infer<typeof knowsiaAppRedeemHandoffSchema>;
+
+export const knowsiaAppLinkSchema = z.object({
+  participantId: z.uuid(),
+  // Opaque to this system — it is KnowsiaApp's m1_users id and is never used
+  // to query anything here.
+  knowsiaAppUserId: z.uuid(),
+});
+export type KnowsiaAppLinkInput = z.infer<typeof knowsiaAppLinkSchema>;
 
 // Staff-facing student lookup (Admin Assistant tools, 2026-07-27) — a
 // richer, structured equivalent of the voice-only lookup_customer tool,

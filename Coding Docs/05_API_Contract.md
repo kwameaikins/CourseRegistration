@@ -574,3 +574,38 @@ Staff-facing (`app/api/live-sessions/**`, admin authors / management reads):
 
 There is deliberately **no** staff endpoint for reading or marking an individual submission —
 see Document 16 Phase 5 "Deliberately not built".
+
+---
+
+## 18. KnowsiaApp Account Link API Surface (2026-08-13)
+
+Seam I of platform convergence — read `Coding Docs/19_Platform_Convergence.md` §4 and BR-45 first.
+Lets a signed-in Participant open **KnowsiaApp** (the separate AI exam-prep platform) without a
+second login. All three routes are **dormant** until `KNOWSIA_APP_URL` and
+`KNOWSIA_APP_SERVICE_KEY` are both set.
+
+| Route | Method | Auth | Purpose |
+|---|---|---|---|
+| `/api/portal/handoff` | POST | Participant session cookie | Mint a 60-second single-use token; returns `{ url, expiresAt }` |
+| `/api/integration/handoff/verify` | POST | `Bearer KNOWSIA_APP_SERVICE_KEY` | Consume a token, return identity |
+| `/api/integration/handoff/link` | POST | `Bearer KNOWSIA_APP_SERVICE_KEY` | Record the link once KnowsiaApp has its own user |
+
+**`/api/portal/handoff` takes no request body at all.** Who the handoff is for comes from the
+session cookie, so it cannot be pointed at another Participant — the same rule as
+`POST /api/portal/enrol`. It is a POST rather than a GET because it writes, and because a GET
+would be prefetchable, which would burn single-use tokens on link hover.
+
+**`verify` returns identity only** — `participantId`, `email`, `fullName`, `phone`,
+`knowsiaAppUserId`. No registration, payment, or access field, ever (BR-45). Second call with the
+same token is `400 INVALID_TOKEN`.
+
+**`link` is separate from `verify` on purpose.** Verify consumes a single-use token and must
+succeed exactly once; linking is idempotent and safely retryable, so if KnowsiaApp creates its user
+but the link call fails it can retry without needing a fresh handoff. Re-linking the same pair is a
+no-op; a different KnowsiaApp user for an already-linked Participant is `409 ALREADY_LINKED`.
+
+`/api/integration/**` is a **new top-level route group** for machine callers from the other
+platform, distinct from `/api/cron/**` (scheduled self-calls) and `/api/public/**` (the WordPress
+catalogue). It uses the same inline `Bearer` shared-secret check as every cron route, and fails
+closed when the secret is unset. `middleware.ts` matches only staff *page* routes, so it does not
+apply here.

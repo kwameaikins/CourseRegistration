@@ -16,7 +16,15 @@ email communication, and role-based staff access across 48 course intakes per ye
 
 This is primarily an internal operations tool for one business — not an LMS, not
 multi-tenant. See `/docs/01_PRD.md`, Section 9 ("Out of Scope") before adding any feature
-not already specified. One deliberate exception as of 2026-08-02: **Knowsia Insights**
+not already specified.
+
+**There is a second Knowsia codebase.** `KnowsiaApp` (`github.com/kwameaikins/KnowsiaApp`, a
+separate repo in a sibling directory) is the AI exam-prep platform — question bank, AI tutor,
+self-paced LMS, subscriptions. The boundary between the two was settled 2026-08-13 and is
+**binding**: *people and money here; learning content and AI there; neither rebuilds the other's
+half.* Read `Coding Docs/19_Platform_Convergence.md` §3 before building anything that sounds like
+studying, questions, or AI tutoring — the answer is almost certainly that it already exists and
+belongs over there. One deliberate exception as of 2026-08-02: **Knowsia Insights**
 (`/news/**`) is a genuinely public-facing news/content product, not an internal tool — see
 `Coding Docs/17_News_Insights_Operations.md`.
 
@@ -31,7 +39,9 @@ your summary of it.
 | Task | Read first |
 |---|---|
 | Any new feature or screen | `/docs/01_PRD.md` — find the Feature ID (F1.xx) if one exists, else check for a trailing "Extension" section pointing at a companion doc (the convention used for every major feature added since the original PRD — Revenue OS, Live Learning Operations, Corporate Registration) |
+| **Anything that might already exist in KnowsiaApp** — question bank, mock exams, AI tutor/explanations, self-paced LMS/video, spaced repetition, study plans, essay marking, subscriptions | `Coding Docs/19_Platform_Convergence.md` §3 — **read before building any of these here.** They belong to the other system and must not be rebuilt in this repo |
 | Live sessions, Zoom delivery, attendance review, recordings, tutor/student learning workflows | Coding Docs/14_Live_Learning_Operations.md |
+| Self-hosted WebRTC classroom ("Knowsia Live"), replacing Zoom as the live provider | `Coding Docs/18_Knowsia_Live_RTC.md` — **decision is "do not build now" (2026-08-13)**; read §1 before acting on `Coding Docs/knowsia-live-mediasoup-engineering-plan.md`, which is the founder's original analysis and is superseded in part (§3 lists every deviation, including LiveKit over mediasoup) |
 | Corporate registration, seat allocations, company portal | Coding Docs/15_Corporate_Operations.md |
 | Tutor portal, tutor management, facilitator assignment | Coding Docs/16_Tutor_Operations.md |
 | Database, schema, migrations | `/docs/03_Data_Schema_and_ERD.md` — full SQL, triggers, RLS |
@@ -64,7 +74,14 @@ your summary of it.
 - **UI:** Shadcn/ui + Tailwind CSS (components copied in via CLI, not npm-installed)
 - **Hosting:** Vercel (including Vercel Cron for scheduled jobs)
 - **Monitoring:** Uptime Robot (uptime) + Sentry (errors)
-- **Budget constraint: $0/month.** Do not introduce any paid service without asking first.
+- **Budget constraint: $0/month — for THIS repo.** Do not introduce any paid service without
+  asking first. Every approved exception so far (Arkesel, Vapi, Anthropic) is small and metered.
+  KnowsiaApp runs its own already-accepted infrastructure budget (Railway, Supabase Pro, Upstash,
+  Cloudflare Stream, PostHog); that is not licence to spend here, and neither repo may commit the
+  other to spend. See `Coding Docs/19_Platform_Convergence.md` §6. A self-hosted
+  WebRTC classroom would not be — ~EUR 50-150/month on bare metal, four figures *per session* on
+  any metered-egress host (~570 GB egress for one 500-person 3-hour class). No exception has been
+  approved and none is needed: the decision is not to build it. See `Coding Docs/18_Knowsia_Live_RTC.md` §6.
 
 ---
 
@@ -1037,7 +1054,150 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     registration they cancelled still means they are not new to us. Honours the
     dashboard date range so the tile describes the same window as the others.
 
+  Platform convergence with KnowsiaApp — DIRECTION SET, NOTHING BUILT
+    (2026-08-13). Founder surfaced a second, separate codebase: `KnowsiaApp`
+    (github.com/kwameaikins/KnowsiaApp) — FastAPI/Python 3.12 + Next.js 15 on
+    Railway/Supabase Pro/Upstash/Celery, an AI exam-prep platform (ICAG/ACCA/
+    ICAN question bank, RAG AI tutor, self-paced LMS, subscriptions with a
+    14-day trial, tutor marketplace, marking engine). It is BUILT BUT NEVER
+    LAUNCHED — 272 tests pass, but no live keys, Cloudflare Stream unverified,
+    Grok unexercised, notification senders stubbed. This repo is the opposite:
+    live, real money, real cohorts, bugs found against real traffic. Both serve
+    the SAME person (a Ghanaian accounting professional), who today would hold
+    two accounts and two logins.
+    DECISION: integrate the product, DO NOT merge the codebases. Porting either
+    way means rewriting Python ML/RAG/Celery into TypeScript or abandoning a
+    shipped registration surface — months, ending with less than exists now,
+    while the only system earning money sits frozen.
+    THE BINDING RULE, and the whole point of the exercise: PEOPLE AND MONEY
+    HERE; LEARNING CONTENT AND AI THERE; NEITHER SYSTEM REBUILDS THE OTHER'S
+    HALF. A capability has exactly one owner; a request landing on the wrong
+    side MOVES rather than being implemented twice. Full ownership table in
+    `Coding Docs/19_Platform_Convergence.md` §3 — read it before building
+    anything that sounds like studying, questions, or AI tutoring.
+    The overlap turned out far smaller than it looked, because KnowsiaApp had
+    deferred or stubbed almost exactly what this repo shipped for real: M10
+    Affiliate (deferred there, four partner tiers live here), M11 CRM (deferred
+    there in favour of HubSpot, Revenue OS live here), and the `notif_`
+    email/SMS/WhatsApp senders (stubs there, Resend/Arkesel/Meta live here) —
+    all three are now on a stop-building list. Only four genuine conflicts
+    existed: certificates (stays HERE — `/verify` URLs are already printed on
+    101 issued certificates and cannot move), corporate (HERE — real companies
+    have bought seats), payments (course fees HERE, subscription billing there;
+    two commercial models, one provider, no shared code), and tutors — which
+    are NOT the same concept: this repo's tutors teach your cohorts, M9's
+    tutors sell their own courses. Whether Knowsia runs a marketplace at all is
+    an open PRODUCT question and the two must not be merged before it is
+    answered.
+    Integration seams, founder-ordered: (I) account link + short-lived
+    single-use handoff token between `participants` and `m1_users` —
+    deliberately NOT full SSO, and identity comes from the existing session
+    never a request body; (II) one domain via Vercel path rewrites, both
+    frontends being Next.js; (III) a paid cohort granting question-bank access,
+    hanging off the existing `runPaidTransitionSideEffects` rather than a new
+    trigger. NONE of it starts before the Paystack test-mode gate clears and
+    this repo goes live. Neither system reads the other's database — HTTP only,
+    which is Rule 2 there and the module boundary rule here, and it does not
+    stop applying at a process boundary.
+    NOT DONE, and the boundary is half-bound until it is: §3 must be mirrored
+    into KnowsiaApp's own CLAUDE.md. A rule written in one repo binds one repo.
+
+  Seam I — KnowsiaApp account link, REGISTRATION HALF BUILT (2026-08-13).
+    Founder directed building despite Document 19 §7's "nothing starts before
+    go-live" — it ships DORMANT (both KNOWSIA_APP_URL and
+    KNOWSIA_APP_SERVICE_KEY unset ⇒ the portal banner never renders and
+    POST /api/portal/handoff returns 503), so production is unchanged until
+    those are set. Same dormant-until-configured posture as WhatsApp, Arkesel,
+    Vapi and R2.
+    Shape: an OPAQUE SINGLE-USE TOKEN + service-key callback, not a
+    self-contained JWT. Third instance of a pattern this repo already had twice
+    (portal_login_tokens, participant_pin_reset_tokens) — the row's id IS the
+    token, consumed by an atomic conditional UPDATE, RLS enabled with zero
+    policies. Chosen over a JWT because the token travels in a URL query string
+    and WILL be logged by the other system and the browser: single-use plus a
+    required KNOWSIA_APP_SERVICE_KEY on redemption makes an intercepted token
+    worthless, whereas a JWT is replayable for its whole TTL. No new dependency
+    either (`jose` is not in package.json). TTL 60 seconds, not the 15 minutes a
+    PIN reset gets — a machine redeems this inside a browser redirect.
+    BR-45 is the rule that keeps the two systems apart: A HANDOFF PROVES
+    IDENTITY, NEVER ENTITLEMENT. The verify response carries participantId/
+    email/fullName/phone and nothing else — no registration, payment, or access
+    field, ever. Widening that payload is precisely how Seam I quietly becomes
+    Seam III with entitlement logic split across two systems and neither owning
+    it. There is deliberately NO status gate either: a Lapsed or Unpaid
+    participant still has a valid identity; the only check is deleted_at (BR-16).
+    POST /api/portal/handoff takes NO REQUEST BODY AT ALL — who it is for comes
+    from the session cookie, so it cannot be pointed at another participant
+    (same rule as POST /api/portal/enrol). It is a POST not a GET because a GET
+    would be prefetchable, which would burn single-use tokens on link hover.
+    verify and link are separate endpoints on purpose: verify consumes a
+    single-use token and must succeed exactly once, link is idempotent and
+    retryable, so a failed link after a successful user-create doesn't need a
+    fresh handoff. A link never MOVES — re-linking the same pair is a no-op, a
+    different KnowsiaApp user for an already-linked participant is a 409.
+    New top-level route group `/api/integration/**` for machine callers from the
+    other platform, distinct from /api/cron (scheduled self-calls) and
+    /api/public (WordPress catalogue). middleware.ts matches only staff PAGE
+    routes so it does not apply.
+    950 tests pass (15 new), lint and tsc clean FOR THIS REPO'S OWN FILES.
+    Migration `202608130061_knowsia_app_account_link.sql` WRITTEN, NOT YET
+    APPLIED. KnowsiaApp's half (accept token, verify, find-or-create m1_users,
+    link, store its own back-link) is a separate repo and a separate pass.
+    ⚠️ KnowsiaApp was still nested inside this working tree when this shipped,
+    which BREAKS `npm run build` and `npx tsc --noEmit` locally — 167 type
+    errors and 677 lint errors, all of them KnowsiaApp's files resolved against
+    THIS repo's tsconfig (`include: ["**/*.ts","**/*.tsx"]`, excluding only
+    node_modules). Vercel is unaffected because KnowsiaApp is untracked and so
+    is never pushed — but a `git add .` would both swallow the nested repo and
+    break the deployed build. Move it to a sibling directory.
+
+  Knowsia Live self-hosted RTC — ASSESSED, NOT BUILT (2026-08-13). Founder
+    supplied `Coding Docs/knowsia-live-mediasoup-engineering-plan.md`, a
+    mediasoup-based plan to replace Zoom with an owned WebRTC classroom
+    (500 participants, sharded routers, own recording pipeline, exact
+    attendance). Assessed against the existing stack; three decisions taken
+    and written up as `Coding Docs/18_Knowsia_Live_RTC.md`. (1) DO NOT BUILD
+    NOW — the product has not launched (Paystack test gate and pivot gate both
+    unreached), Live Learning L1 is itself incomplete (batch schedule
+    generator and provider adapter pending), and the plan's headline benefit
+    was largely delivered by the 2026-08-06 attendance work; the one real
+    remaining identity gap is the open `ensureZoomRegistration` decision
+    below, which is days of work rather than a year. (2) SFU CHOICE SETTLED:
+    LiveKit self-hosted, NOT mediasoup — same deployment ownership, and it
+    ships simulcast, active speaker, multi-node, recording/egress and the
+    token identity model as built-ins, i.e. most of the source plan's
+    sections 4-7/13/20/28; the source plan's own §34 says not to modify the
+    mediasoup worker anyway, so the ownership argument for it was thin.
+    (3) BUDGET UNRESOLVED and blocking any build — ~570 GB egress per
+    500-person 3-hour class, so bare metal or nothing.
+    Two structural notes for whoever picks this up. The fit is genuinely good
+    where it matters: `live_session_attendance` (migration 202607250027) was
+    built provider-agnostic — `source` defaults to 'zoom', there is already a
+    `unique (live_session_id, registration_id)` idempotency key and a
+    `reviewed_at`/`reviewed_by` lock — and has simply never been written to,
+    so a `'knowsia_live'` source value is the whole schema change. RTC
+    attendance must roll through it into the existing `attendance` table, NOT
+    into the source plan's parallel `rtc_*` model: on a free Batch an
+    attendance row is what makes a certificate issuable, and a second
+    attendance system beside the one certificates read is how you get two
+    disagreeing answers to "did they attend". Identity is nearly free here —
+    the portal PIN + session cookie pattern already carries
+    registration/batch/role, so the token is minted from the session cookie,
+    never the request body (same rule as POST /api/portal/enrol).
+    Recorded exception in Document 14 §1: if ever built, exactly ONE extra
+    always-on deployable (Vercel cannot host an SFU), not the six services the
+    source plan proposed — and not a precedent for splitting the monolith.
+    Prerequisite work in PLAN.md is owed regardless and is $0: P1 provider
+    adapter (`LiveSession.provider` is already a `'zoom'` literal in
+    modules/live-sessions/types.ts — widening it is required by Document 14 §1
+    for Teams/Meet anyway, and is what keeps the SFU choice cheap to reverse),
+    P2 close the Zoom registrant gap, P3 finish L1's schedule generator.
+
 Open decisions (founder):
+  - Knowsia Live budget exception (~EUR 50-150/month bare metal). Not needed
+    while the answer is "don't build"; revisit only once the product has
+    launched, Live Learning L1-L3 are complete, and Zoom cost or capacity is a
+    felt constraint rather than an anticipated one.
   - AI05 ("...Reporting and Modeling") vs AI02 ("...Reporting and
     Analysis") are near-duplicate courses — pick a canonical one.
   - Grant the Zoom app `report:read:list_meeting_participants:admin`. Not
@@ -1079,5 +1239,5 @@ still isn't covered:
 
 ---
 
-*Full documentation suite: `Coding Docs/01_PRD.md` through `Coding Docs/16_Tutor_Operations.md`.*
+*Full documentation suite: `Coding Docs/01_PRD.md` through `Coding Docs/19_Platform_Convergence.md`.*
 *Live task tracker: `PLAN.md`.*

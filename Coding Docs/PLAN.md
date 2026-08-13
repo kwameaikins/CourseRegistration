@@ -311,6 +311,90 @@ named pilot batch is approved.
 
 ---
 
+## Platform convergence with KnowsiaApp (direction approved 2026-08-13)
+
+Authoritative design: `Coding Docs/19_Platform_Convergence.md`.
+
+There are two Knowsia codebases: this one (live, real money, cohort training) and `KnowsiaApp`
+(`github.com/kwameaikins/KnowsiaApp`, sibling directory — FastAPI/Python + Next.js on Railway; AI
+exam prep, built but never launched). **Decision: integrate the product, do not merge the
+codebases.** Porting either way costs months and ends with less than exists today.
+
+**The binding rule — people and money here; learning content and AI there; neither system rebuilds
+the other's half.** Ownership table in Document 19 §3. This costs nothing and applies from today.
+
+- [x] Boundary agreed and documented (Document 19 §3)
+- [ ] Mirror §3 into KnowsiaApp's own CLAUDE.md — until then the boundary binds one repo only
+- [ ] Stop-building list on the KnowsiaApp side: M10 Affiliate, M11 CRM, and the `notif_`
+      email/SMS/WhatsApp senders. All three were already deferred or stubbed there and all three
+      ship working here
+- [ ] Record which Supabase project(s) each system uses — needed before the account link is designed
+
+Integration seams, in the founder's chosen order. **None of these start before this repo clears
+its Paystack test-mode gate and goes live** — the work is small but it is not more urgent than
+taking the first real payment:
+
+- [~] I — Account link + handoff token. **Registration half built 2026-08-13.** Opaque single-use
+      token (`knowsia_app_handoff_tokens`, 60s) + `participants.knowsia_app_user_id`, three routes
+      (`POST /api/portal/handoff`, `/api/integration/handoff/verify`, `/api/integration/handoff/link`),
+      a dormant "Open Knowsia Study" banner on the student portal, and 15 unit tests. Identity comes
+      from the session cookie — the mint endpoint takes no body at all, so it cannot be pointed at
+      anyone else. Chose an opaque token + service-key callback over a self-contained JWT: genuinely
+      single-use, no new dependency, and an intercepted token is worthless without
+      `KNOWSIA_APP_SERVICE_KEY`. BR-45, Document 3 §16, Document 5 §18.
+      Migration `202608130061_knowsia_app_account_link.sql` **written, NOT yet applied**.
+      Dormant until `KNOWSIA_APP_URL` + `KNOWSIA_APP_SERVICE_KEY` are set.
+  - [ ] KnowsiaApp half: accept the token at `/auth/handoff`, call verify, find-or-create its
+        `m1_users` row, call link, and store its own back-link. Separate repo, separate pass
+- [ ] II — One domain / shared navigation: Vercel path rewrites, both frontends being Next.js.
+      Cosmetic, no data change, but it is what makes the two feel like one product
+- [ ] III — Paid cohort grants question-bank access: hangs off the existing
+      `runPaidTransitionSideEffects` (already the single place every paid-transition consequence is
+      wired), fire-and-forget and idempotent. First integration with real product value
+
+Open product question, not an engineering one: whether Knowsia runs a tutor marketplace at all
+(KnowsiaApp M9). This repo's tutors *teach your cohorts*; M9's tutors *sell their own courses*.
+They are different concepts and must not be merged before that question is answered.
+
+---
+
+## Knowsia Live — self-hosted RTC (assessed 2026-08-13, NOT being built)
+
+Authoritative design: `Coding Docs/18_Knowsia_Live_RTC.md`. Source analysis:
+`Coding Docs/knowsia-live-mediasoup-engineering-plan.md`.
+
+**Founder decision 2026-08-13: do not build this now.** The product has not launched (Paystack
+test-mode gate unreached, pivot-or-persevere gate unreached), Live Learning L1 is itself
+incomplete, and the plan's headline benefit — exact attendance identity — was largely delivered by
+the 2026-08-06 Zoom attendance work. Zoom remains the classroom provider. The one budget question
+that would unblock a build (~EUR 50-150/month bare metal; four figures per session on any metered-
+egress host) is unresolved and no exception has been approved.
+
+**SFU choice settled: LiveKit, self-hosted — not mediasoup.** Same deployment ownership, and it
+ships simulcast, active speaker, multi-node, recording/egress, and the token identity model as
+built-ins, i.e. most of the source plan's sections 4-7, 13, 20, 28. Rationale and the full
+deviation list in Document 18 §3.
+
+The prerequisite items below are **owed regardless** and are $0 — they are Live Learning work, not
+RTC work, and doing them is what keeps the SFU decision cheap to reverse:
+
+- [ ] P1 Provider adapter: widen `LiveSession.provider` (already a `'zoom'` literal in
+      `modules/live-sessions/types.ts`) to a union, add the column, and move `lib/zoom/client.ts`
+      behind a `LiveSessionProvider` interface. Required by Document 14 §1 for Teams/Meet anyway
+- [ ] P2 Close the Zoom registrant gap — `ensureZoomRegistration` has never produced a
+      `zoom_registrants` row, so every session depends on display-name inference. Highest-value
+      attendance work available, and not an RTC project
+- [ ] P3 Finish L1's batch schedule generator (already listed above)
+
+Not scheduled, gated behind a budget exception that does not exist yet: Stage 1 (RTC-0..RTC-3,
+tutorials only), Stage 2 (simulcast, coturn, recording to R2), Stage 3 (100 -> 500 load tests,
+multi-node), Stage 4 (concurrent classes, cutover eligibility). See Document 18 §7.
+
+**Revisit when:** the product has launched and is taking real payments, Live Learning L1-L3 are
+complete, and Zoom cost or capacity has become a felt constraint rather than an anticipated one.
+
+---
+
 ## Batch capacity, waitlist, and payment installments (founder-approved 2026-07-24)
 
 Migration `202607240017_waitlist_payment_plans.sql` (batches.capacity, waitlist_entries,

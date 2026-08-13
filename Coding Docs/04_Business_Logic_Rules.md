@@ -756,3 +756,40 @@ the returning student either way, and tells a stranger nothing.
   `leads.lead_source` has no CHECK and needs no migration, but its application-side enum gains
   the value in the same commit — otherwise `createLead` silently rejects every returning
   student's lead row, a failure `createRegistration` logs rather than raises.
+
+### BR-45 — A KnowsiaApp handoff proves identity, never entitlement
+
+Seam I of platform convergence (`Coding Docs/19_Platform_Convergence.md` §4) lets a signed-in
+Participant open KnowsiaApp — the separate AI exam-prep platform — without a second login. The
+rule that keeps the two systems' responsibilities apart:
+
+- **A handoff answers "who is this", and nothing else.** `redeemKnowsiaAppHandoff` returns
+  `participantId`, `email`, `fullName`, `phone` and any existing link. It deliberately carries no
+  registration, payment status, batch, or access field. What a linked user may *study* is decided
+  by KnowsiaApp against its own subscription model, and by Seam III when a paid cohort grants
+  question-bank access. Widening this payload is how Seam I silently becomes Seam III, with
+  entitlement rules split across two systems and neither owning them.
+- **No status gate.** A Lapsed (BR-38) or Unpaid Participant still has a valid identity and still
+  gets a handoff. Refusing one here would be an entitlement decision wearing an identity costume.
+  The only check is `participants.deleted_at is null` — a soft-deleted person's details are not
+  handed to another system (BR-16).
+- **Identity comes from the session cookie, never the request body.** `POST /api/portal/handoff`
+  takes no participant parameter at all, so it cannot be pointed at anyone else. Same rule as
+  `POST /api/portal/enrol` (BR-42).
+- **Single-use, 60 seconds.** The row's id *is* the token, consumed by an atomic conditional
+  UPDATE — the same race-safe construction as `portal_login_tokens` and
+  `participant_pin_reset_tokens`. 60 seconds rather than the 15 minutes a PIN reset gets, because
+  a machine redeems this inside a browser redirect. Redemption *also* requires
+  `KNOWSIA_APP_SERVICE_KEY`, so an intercepted token — and it does travel in a URL, so assume it
+  is logged — is worth nothing on its own.
+- **A link never moves.** Re-linking the same pair is a no-op; a *different* KnowsiaApp user for
+  an already-linked Participant is a `409 ALREADY_LINKED`, not an overwrite. One Participant is
+  one person; a link that moves means something went wrong upstream, and the newer value is not
+  automatically the better one.
+
+  Schema: `knowsia_app_handoff_tokens` plus `participants.knowsia_app_user_id` /
+  `knowsia_app_linked_at` in `202608130061_knowsia_app_account_link.sql`. The two columns are
+  paired by CHECK (same discipline as `lapsed_at`/`lapsed_by`), and a partial unique index keeps
+  one KnowsiaApp user mapped to at most one Participant. The token table is RLS-enabled with zero
+  policies — service-role only, matching both existing token tables. Dormant until
+  `KNOWSIA_APP_URL` and `KNOWSIA_APP_SERVICE_KEY` are both set.

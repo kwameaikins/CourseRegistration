@@ -657,3 +657,30 @@ RLS on both new tables follows `session_materials` exactly: admin full, manageme
 RLS to key off (BR-31), so both go through the service-role client with authorization enforced in
 the service layer. See Document 16 Phase 5 for the two ownership checks that boundary depends on,
 and for why the assignment half is flagged as new scope against PRD §9.
+
+---
+
+## 16. KnowsiaApp Account Link Extension (2026-08-13)
+
+Migration `202608130061_knowsia_app_account_link.sql`. Seam I of platform convergence — see
+`Coding Docs/19_Platform_Convergence.md` and BR-45. Links a Participant here to their user in
+**KnowsiaApp**, the separate AI exam-prep platform, so a signed-in student reaches it without a
+second login.
+
+**`knowsia_app_handoff_tokens`** — the third instance of this codebase's opaque single-use token
+pattern, identical in shape and trust posture to `portal_login_tokens` (202607220014) and
+`participant_pin_reset_tokens` (202607260033): `id` **is** the token, `expires_at`, `consumed_at`,
+consumed by an atomic conditional UPDATE so two concurrent redemptions can never both succeed. RLS
+enabled with **zero policies** — service-role only. TTL is 60 seconds rather than the 15 minutes a
+PIN reset gets, because a machine redeems this inside a browser redirect.
+
+**`participants` gains `knowsia_app_user_id` + `knowsia_app_linked_at`.** Both nullable — the
+overwhelming majority of Participants will never have a KnowsiaApp account, and that is not an
+error state. `chk_participants_knowsia_app_link_paired` requires the two to move together (same
+discipline as `lapsed_at`/`lapsed_by` in 202608090059), and the partial unique index
+`uq_participants_knowsia_app_user_id` keeps one KnowsiaApp user mapped to at most one Participant.
+
+`knowsia_app_user_id` is **opaque here**: it is KnowsiaApp's `m1_users` id and is never used to
+query anything. Neither system reads the other's database — the link is established over HTTP, and
+each side stores its own copy. That is Rule 2 in KnowsiaApp and the module boundary rule here, and
+it does not stop applying at a process boundary.

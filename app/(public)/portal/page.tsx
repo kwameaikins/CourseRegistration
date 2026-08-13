@@ -176,6 +176,11 @@ interface Dashboard {
   phone: string;
   mustChangePin: boolean;
   registrations: DashboardRegistration[];
+  // KnowsiaApp study platform (Seam I, 2026-08-13) — false until
+  // KNOWSIA_APP_URL/KNOWSIA_APP_SERVICE_KEY are set, in which case the banner
+  // below never renders. Same dormant-until-configured pattern as WhatsApp,
+  // Arkesel SMS, Vapi and R2 elsewhere in this codebase.
+  studyPlatformEnabled: boolean;
 }
 
 type PanelId =
@@ -251,6 +256,9 @@ export default function PortalDashboardPage() {
   const [payingRegistrationId, setPayingRegistrationId] = useState<string | null>(null);
   const [confirmingRegistrationId, setConfirmingRegistrationId] = useState<string | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const [studyHandoffPending, setStudyHandoffPending] = useState(false);
+  const [studyHandoffError, setStudyHandoffError] = useState<string | null>(null);
 
   const [editingName, setEditingName] = useState(false);
   const [nameForm, setNameForm] = useState({ firstName: '', middleName: '', surname: '' });
@@ -343,6 +351,26 @@ export default function PortalDashboardPage() {
       })
       .catch(() => router.push('/portal/login'));
   }, [router]);
+
+  // Study-platform handoff (Seam I, 2026-08-13). Mints a 60-second single-use
+  // token server-side and follows the returned URL. Deliberately a POST-then-
+  // navigate rather than a plain <a href>: the token is single-use, so a link
+  // the browser could prefetch (or the student could middle-click twice) would
+  // burn tokens before anyone arrives.
+  const handleStudyPlatformHandoff = useCallback(() => {
+    setStudyHandoffPending(true);
+    setStudyHandoffError(null);
+    apiFetch<{ url: string; expiresAt: string }>('/api/portal/handoff', { method: 'POST' })
+      .then(({ url }) => {
+        window.location.href = url;
+      })
+      .catch((err: unknown) => {
+        setStudyHandoffPending(false);
+        setStudyHandoffError(
+          err instanceof ApiError ? err.message : 'Could not open the study platform.',
+        );
+      });
+  }, []);
 
   const fetchMaterials = useCallback((registrationId: string) => {
     setMaterialsByRegistration((current) => ({ ...current, [registrationId]: 'loading' }));
@@ -933,6 +961,27 @@ export default function PortalDashboardPage() {
                         <svg className="icon"><use href="#i-play" /></svg>Join link coming soon
                       </span>
                     )}
+                  </div>
+                )}
+
+                {dashboard.studyPlatformEnabled && (
+                  <div className="feedback-banner">
+                    <div>
+                      <strong>Knowsia Study</strong>
+                      <span>
+                        {studyHandoffError ??
+                          'Practise exam questions and use the AI tutor — you are signed in already.'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={handleStudyPlatformHandoff}
+                      disabled={studyHandoffPending}
+                    >
+                      <svg className="icon" style={{ width: 15, height: 15 }}><use href="#i-book" /></svg>
+                      {studyHandoffPending ? 'Opening…' : 'Open Knowsia Study'}
+                    </button>
                   </div>
                 )}
 

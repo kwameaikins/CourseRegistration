@@ -1657,6 +1657,38 @@ export type Database = {
           },
         ]
       }
+      knowsia_app_handoff_tokens: {
+        Row: {
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          participant_id: string
+        }
+        Insert: {
+          consumed_at?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          participant_id: string
+        }
+        Update: {
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          participant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowsia_app_handoff_tokens_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "participants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_activities: {
         Row: {
           activity_type: string
@@ -2283,6 +2315,8 @@ export type Database = {
           gender: string | null
           id: string
           job_title: string | null
+          knowsia_app_linked_at: string | null
+          knowsia_app_user_id: string | null
           middle_name: string | null
           phone: string
           surname: string | null
@@ -2300,6 +2334,8 @@ export type Database = {
           gender?: string | null
           id?: string
           job_title?: string | null
+          knowsia_app_linked_at?: string | null
+          knowsia_app_user_id?: string | null
           middle_name?: string | null
           phone: string
           surname?: string | null
@@ -2317,6 +2353,8 @@ export type Database = {
           gender?: string | null
           id?: string
           job_title?: string | null
+          knowsia_app_linked_at?: string | null
+          knowsia_app_user_id?: string | null
           middle_name?: string | null
           phone?: string
           surname?: string | null

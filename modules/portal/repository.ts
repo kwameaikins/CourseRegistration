@@ -254,6 +254,103 @@ export async function consumePinResetToken(
   return { participantId: data[0].participant_id };
 }
 
+// KnowsiaApp handoff token support (Seam I, 2026-08-13) — third instance of
+// the opaque single-use token pattern, identical to portal_login_tokens and
+// participant_pin_reset_tokens: the row's id IS the token, service-role only,
+// consumed atomically the same race-safe way.
+export async function insertKnowsiaAppHandoffToken(
+  participantId: string,
+  expiresAt: string,
+): Promise<{ id: string }> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('knowsia_app_handoff_tokens')
+    .insert({ participant_id: participantId, expires_at: expiresAt })
+    .select('id')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// Returns the full identity in the same statement that consumes the token, so
+// a redeemer never needs a second lookup — and so a token whose participant has
+// since been soft-deleted resolves to null rather than leaking their details.
+export async function consumeKnowsiaAppHandoffToken(token: string): Promise<{
+  participantId: string;
+  email: string;
+  fullName: string;
+  phone: string;
+  knowsiaAppUserId: string | null;
+} | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('knowsia_app_handoff_tokens')
+    .update({ consumed_at: new Date().toISOString() })
+    .eq('id', token)
+    .is('consumed_at', null)
+    .gt('expires_at', new Date().toISOString())
+    .select(
+      'participant_id, participants!inner(email, full_name, phone, deleted_at, knowsia_app_user_id)',
+    );
+  if (error) throw error;
+  if (!data || data.length === 0) return null;
+
+  const row = data[0] as unknown as {
+    participant_id: string;
+    participants: {
+      email: string;
+      full_name: string;
+      phone: string;
+      deleted_at: string | null;
+      knowsia_app_user_id: string | null;
+    };
+  };
+  if (row.participants.deleted_at !== null) return null;
+
+  return {
+    participantId: row.participant_id,
+    email: row.participants.email,
+    fullName: row.participants.full_name,
+    phone: row.participants.phone,
+    knowsiaAppUserId: row.participants.knowsia_app_user_id,
+  };
+}
+
+// Idempotent by construction: re-linking the same pair is a no-op write, and a
+// DIFFERENT KnowsiaApp user for an already-linked Participant is rejected by
+// the caller rather than silently overwritten — a link that moves is a sign
+// something is wrong upstream, not a routine update.
+export async function updateKnowsiaAppLink(
+  participantId: string,
+  knowsiaAppUserId: string,
+): Promise<void> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase
+    .from('participants')
+    .update({
+      knowsia_app_user_id: knowsiaAppUserId,
+      knowsia_app_linked_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', participantId);
+  if (error) throw error;
+}
+
+export async function selectKnowsiaAppLink(participantId: string): Promise<{
+  knowsiaAppUserId: string | null;
+  deletedAt: string | null;
+} | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('participants')
+    .select('knowsia_app_user_id, deleted_at')
+    .eq('id', participantId)
+    .limit(1);
+  if (error) throw error;
+  if (!data || data.length === 0) return null;
+  return { knowsiaAppUserId: data[0].knowsia_app_user_id, deletedAt: data[0].deleted_at };
+}
+
 // Lets a successful PIN reset also recover a locked-out account — there is
 // no other self-service path back in once locked_until is in the future.
 export async function clearLockout(participantId: string): Promise<void> {
