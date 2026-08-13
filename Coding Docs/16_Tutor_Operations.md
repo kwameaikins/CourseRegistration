@@ -102,7 +102,9 @@ section for self-service name/phone correction and PIN change.
 
 - A tutor portal session can never read or write another tutor's batches, roster, attendance,
   or certificate data (BR-32).
-- A tutor can never see any payment/financial field for any participant (BR-33).
+- A tutor can never see any participant's payment **amount** (BR-33, revised 2026-08-13). A
+  boolean settled/unsettled flag is permitted where it explains certificate eligibility, and
+  nowhere else; the roster read still has no `payments` join at all.
 - Attendance has no tutor-facing write path in v1; it remains exclusively cron/Zoom-sync-owned
   (BR-34).
 - Staff can no longer create a `staff_users` account with role `tutor` — the role no longer
@@ -252,11 +254,19 @@ Covered by `tests/unit/assignments-service.test.ts`,
 ### Explicitly considered and declined for now
 
 - **Tutor payment/financial visibility** — raised by the founder mid-build ("tutors should also
-  see how much payment received"). This reverses BR-33 ("no payment/financial field for any
-  participant, ever"), which is enforced architecturally (`selectRosterForBatchSystem` has no
-  `payments` join at all, not a field-strip). Deferred pending a scope decision: an aggregate
-  batch total vs. per-student amounts. **Do not build this without founder sign-off on which
-  scope** — it is a deliberate reversal of a documented security boundary, not a bug.
+  see how much payment received"). Deferred pending a scope decision: an aggregate batch total
+  vs. per-student amounts.
+
+  **Half-settled 2026-08-13**, by an authorization review rather than a feature request. The
+  review found the Certificate Eligibility panel had been showing a per-participant Paid/Unpaid
+  pill since it shipped, contradicting BR-33 as then worded and contradicting this section's own
+  claim that nothing of the sort was built. Founder decision: the **boolean stays** — it is what
+  makes an eligibility verdict legible on a paid Batch — and BR-33 was rewritten around the real
+  line, which is *status vs. figure*, not *payment vs. no payment*.
+
+  **Still not built, still needs sign-off: AMOUNTS.** No `amount_paid`, `course_fee`, balance,
+  payment date, method or reference may appear in any tutor-facing payload, and the roster read
+  must keep having no `payments` join. `tests/unit/tutor-payment-isolation.test.ts` pins this.
 
 ### Deferred to a future phase (not built, no shape committed except where noted)
 

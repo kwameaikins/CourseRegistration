@@ -595,9 +595,27 @@ See Document 15 for the full workflow and acceptance criteria.
   own batches, live sessions, rosters, attendance, certificate eligibility) — enforced entirely
   in the service layer, since these tables have RLS enabled with zero policies (no per-row RLS
   for this identity tier, same posture as BR-29).
-- **BR-33:** A tutor can never see any participant's payment/financial data. The roster read
-  never selects the `payments` table at all — stronger than a role-based field-strip, since the
-  data is never fetched in the first place.
+- **BR-33:** A tutor can never see any participant's payment **amount**. The line is between a
+  *status* and a *figure*:
+  - **Allowed:** a boolean settled/unsettled flag, and only where it explains certificate
+    eligibility — the `paid` field on the tutor portal's Certificate Eligibility panel
+    (`getCertificateEligibilityForBatch`). Eligibility on a paid Batch *is* the payment gate, so
+    showing "not eligible" without its reason would make the panel unreadable.
+  - **Never:** `amount_paid`, `course_fee`, `discount_amount`, an outstanding balance, a payment
+    date, method, or reference — no figure, ever, in any tutor-facing payload.
+  - The **roster** read remains architecturally clean: `selectRosterForBatchSystem` has no
+    `payments` join at all, which is stronger than a field-strip because the data is never
+    fetched. That property must not regress.
+
+  *Revised 2026-08-13.* The rule previously read "any payment/financial data", which the
+  Certificate Eligibility panel had contradicted since it shipped — it has always rendered a
+  per-participant Paid/Unpaid pill. Founder decision on review: the boolean is intentional and
+  stays; only amounts were ever the concern. This also settles half of the scope question
+  Document 16 §11 had deferred (status: yes; amounts: still no).
+
+  Known and accepted inference channel: on a paid Batch, "not eligible" alongside submitted
+  feedback and good attendance implies unpaid. Removing the `paid` column would not close this,
+  only obscure it, so it is recorded rather than pretended away.
 - **BR-34:** Attendance stays exclusively owned by the Zoom-sync cron job; the tutor portal is
   read-only in v1 — there is no tutor-facing attendance write path.
 

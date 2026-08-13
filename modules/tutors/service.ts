@@ -417,16 +417,33 @@ export async function getAttendanceForBatch(
   return attendanceService.getAttendanceForBatchSystem(batchId);
 }
 
-// Visibility only — issuance stays admin-only. Same shape
-// modules/certificates/service.ts's getBatchIssueContext already returns
-// to staff.
+// Visibility only — issuance stays admin-only.
+//
+// Every field is projected EXPLICITLY rather than returning
+// getBatchIssueContext's candidates verbatim (2026-08-13). The old
+// pass-through made this payload whatever modules/certificates happened to
+// return, so an amount added there for the staff Certificates screen would
+// have reached tutors silently — BR-33 permits the settled/unsettled boolean
+// but never a figure, and a spread cannot enforce that. Adding a field here is
+// now a deliberate act. Pinned by tests/unit/tutor-payment-isolation.test.ts.
 export async function getCertificateEligibilityForBatch(
   sessionId: string | undefined,
   batchId: string,
 ): Promise<TutorPortalCertificateCandidate[]> {
   await requireOwnBatch(sessionId, batchId);
   const context = await certificatesService.getBatchIssueContext(batchId);
-  return context?.candidates ?? [];
+  return (context?.candidates ?? []).map((candidate) => ({
+    registrationId: candidate.registrationId,
+    participantName: candidate.participantName,
+    participantEmail: candidate.participantEmail,
+    // Status, not a figure — founder decision on the 2026-08-13 review. It is
+    // what makes an eligibility verdict legible on a paid Batch.
+    paid: candidate.paid,
+    feedbackSubmitted: candidate.feedbackSubmitted,
+    attendancePercent: candidate.attendancePercent,
+    alreadyIssued: candidate.alreadyIssued,
+    eligible: candidate.eligible,
+  }));
 }
 
 // --- Attendance Exceptions (Tutor Portal Phase 4, founder-approved

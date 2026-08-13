@@ -110,10 +110,16 @@ describe('issueKnowsiaAppHandoff', () => {
   it('expires the token in about 60 seconds, not the 15 minutes a PIN reset gets', async () => {
     const before = Date.now();
     const result = await issueKnowsiaAppHandoff(SESSION_ID);
+    const after = Date.now();
     const ttlMs = new Date(result.expiresAt).getTime() - before;
 
+    // Bounded by the call's own duration: the service stamps Date.now() + TTL
+    // partway through, so the observed TTL is 60s plus however long the call
+    // took. Asserting a bare <= 60_000 is a race that fails under load.
     expect(ttlMs).toBeGreaterThan(0);
-    expect(ttlMs).toBeLessThanOrEqual(60_000);
+    expect(ttlMs).toBeLessThanOrEqual(60_000 + (after - before));
+    // And unambiguously not the 15-minute PIN-reset window.
+    expect(ttlMs).toBeLessThan(15 * 60 * 1000);
   });
 
   it('strips a trailing slash from KNOWSIA_APP_URL rather than emitting a double slash', async () => {

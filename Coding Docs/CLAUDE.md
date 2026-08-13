@@ -1209,6 +1209,51 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     for Teams/Meet anyway, and is what keeps the SFU choice cheap to reverse),
     P2 close the Zoom registrant gap, P3 finish L1's schedule generator.
 
+  Tutor-tier authorization pass + BR-33 revision (2026-08-13). Ran the "live
+    RLS pass for Tutor" that had been open since the Week 4/5 checklist. The
+    tier is structurally sound: all 20 tutor-portal routes read the session
+    cookie and delegate to tutorsService (no route does its own data access);
+    every batch-scoped service function calls requireOwnBatch and every
+    assignment-scoped one requireOwnAssignment, both resolving the (id,
+    tutorId) pair server-side so no client-supplied id is ever trusted;
+    removeSessionMaterial is stricter still (uploader-only, 403 even on your
+    own batch); RLS is enabled on all 8 tutor-touched tables; and the Phase-4
+    bug class has NOT recurred — staff CRUD uses the RLS client, all 24
+    cross-module calls resolve to service-role reads or tutor-safe writes, and
+    the four non-`System` writes each have an explicit `AsStaff` sibling that
+    does requireRole, so the split is deliberate.
+    ONE REAL FINDING, now resolved by DECISION rather than by code: the
+    Certificate Eligibility panel had been rendering a per-participant
+    Paid/Unpaid pill since it shipped, contradicting BR-33 ("never any
+    payment/financial data") AND Document 16 §11's claim that tutor payment
+    visibility was deferred and unbuilt. Founder decision on review: the
+    BOOLEAN STAYS — on a paid Batch eligibility IS the payment gate, so a
+    verdict without its reason is unreadable — and BR-33 was REWRITTEN around
+    the real line, which is STATUS vs FIGURE, not payment vs no payment.
+    Allowed: a settled/unsettled boolean, and only where it explains
+    certificate eligibility. Never: amount_paid, course_fee, balance,
+    discount, payment date/method/reference — no figure, anywhere. The roster
+    keeps its stronger architectural guarantee (selectRosterForBatchSystem has
+    no payments join at all, so nothing is fetched to strip).
+    Also fixed while pinning it: getCertificateEligibilityForBatch used to
+    return getBatchIssueContext's candidates VERBATIM, so the tutor payload was
+    whatever modules/certificates happened to return — an amount added there
+    for the staff Certificates screen would have reached tutors silently. It
+    now projects every field explicitly, so adding one is a deliberate act. A
+    new test proved this was a live weakness, not a hypothetical: it failed
+    against the pass-through and passes against the projection.
+    `tests/unit/tutor-payment-isolation.test.ts` pins both halves (the boolean
+    IS exposed and must stay; no figure may appear even if upstream grows one).
+    Document 16 §11 still needs founder sign-off for AMOUNTS — that half of the
+    scope question is unchanged and still unbuilt.
+    Two nits recorded, not fixed: certificatesService.getBatchIssueContext is a
+    system-context read WITHOUT the `...System` suffix (safe, but that suffix
+    is the convention a future session scans for to catch the silent-empty bug
+    class, so an unmarked one is a trap); and getMaterialDownloadUrl mints the
+    R2 presigned URL BEFORE the ownership check — not a leak today since it
+    throws before returning, but the ordering becomes one the moment that
+    function gains logging or a side effect.
+
   Zoom registrant gap — INSTRUMENTED AND REPAIRABLE (2026-08-13). The
     longest-standing open item: `ensureZoomRegistration` had never written a
     single `zoom_registrants` row account-wide despite the app holding
@@ -1277,8 +1322,10 @@ Open decisions (founder):
     live charge (Doc 4 EC-07…EC-10).
 
 Still open from the original Week 4/5 checklist: Sentry DSN live-fired,
-Uptime Robot monitor, remaining staff accounts, live RLS pass for
-Tutor, load test, manual pre-launch checklist, final go-live.
+Uptime Robot monitor, remaining staff accounts, load test, manual pre-launch
+checklist, final go-live. (Live RLS pass for Tutor — DONE 2026-08-13: the tier
+is sound; one finding, resolved by revising BR-33 around status-vs-figure.
+Document 16 §11 still needs sign-off for AMOUNTS.)
 
 Feature backlog (lower priority, not yet built): session-days schedule
 (superseded in part by the Live Learning Operations LiveSession model),
