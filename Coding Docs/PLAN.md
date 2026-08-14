@@ -383,8 +383,8 @@ RTC work, and doing them is what keeps the SFU decision cheap to reverse:
 - [ ] P1 Provider adapter: widen `LiveSession.provider` (already a `'zoom'` literal in
       `modules/live-sessions/types.ts`) to a union, add the column, and move `lib/zoom/client.ts`
       behind a `LiveSessionProvider` interface. Required by Document 14 §1 for Teams/Meet anyway
-- [~] P2 Close the Zoom registrant gap — **instrumented and repairable 2026-08-13, not yet run
-      against production.** Nothing was wired wrong: every Paid path does reach
+- [~] P2 Close the Zoom registrant gap — **root cause proven and first real fix landed
+      2026-08-14** (see the resolved block below). Nothing was wired wrong: every Paid path reaches
       `ensureZoomRegistration`, but it threw into callers that only `console.error`-ed, so a
       permanent account-wide failure was indistinguishable from success. It now returns `'failed'`
       and reports to Sentry. Likely root cause is Zoom's `approval_type: 2` ("no registration
@@ -392,14 +392,15 @@ RTC work, and doing them is what keeps the SFU decision cheap to reverse:
       that. New `POST /api/cron/zoom/registrants/backfill` (CRON_SECRET, dry-run by default, not in
       vercel.json) reports `approvalType` for a batch and can register the backlog; enabling
       registration on a live meeting is opt-in only. Doc 7 §9.4, Doc 5 §19
-  - [ ] Run the dry form and read `approvalType`. Batch ids resolved 2026-08-14:
-        ESG2 (free, 2026-08-06) `d513145e-aa95-40a3-bd34-84e6e7b49e11`;
-        IA02 (paid, 2026-07-25) `55d7e0aa-8fcf-4a63-b5b1-7b5da2f2a82e`;
-        July 2026 (in progress) `0b0e203a-e2fd-4897-a289-00e6521e330a`;
-        AUG 2026 (2026-08-15) `98433b5e-18b2-4945-8fe1-3a2db20080d9`.
-        BLOCKED: the local `.env` CRON_SECRET does not match production, and
-        `vercel env pull` returns an 11-char placeholder for it (Sensitive var),
-        so this needs the real production value — every attempt 401s
+  - [x] Read `approvalType` for every batch — **all four were `2` (registration off)**.
+        Account-wide, not a one-off. Batch ids:
+        AUG 2026 (08-15) `98433b5e-18b2-4945-8fe1-3a2db20080d9` / meeting `84968782138`;
+        July 2026 (to 08-16) `0b0e203a-e2fd-4897-a289-00e6521e330a` / `82545109642`;
+        ESG2 (08-06, finished) `d513145e-aa95-40a3-bd34-84e6e7b49e11` / `81420483944`;
+        IA02 (07-25, finished) `55d7e0aa-8fcf-4a63-b5b1-7b5da2f2a82e` / `89951984118`
+        NOTE the local `.env` CRON_SECRET does NOT match production, and `vercel env pull`
+        returns an 11-char placeholder for it (Sensitive var). Runs were done against a
+        local dev server pointed at the production database instead.
 - [x] **2026-08-14: ROOT CAUSE PROVEN.** The meetings have registration switched off, and the
       Zoom app lacks the permission to switch it on. Zoom's own words:
       `{"code":404,"message":"Registration has not been enabled for this meeting"}`.
@@ -407,16 +408,21 @@ RTC work, and doing them is what keeps the SFU decision cheap to reverse:
       `meeting:read:meeting` and `meeting:update:meeting` (Zoom splits create from update).
       So `getMeetingRegistrationState` and `enableMeetingRegistration` are both inert until a
       scope is granted — they now fail loudly rather than pretending. Doc 7 §9.4.1
-- [ ] **FOUNDER ACTION — pick one, both are minutes:**
-      (a) grant `meeting:update:meeting:admin` + `meeting:read:meeting:admin` at
-      marketplace.zoom.us, then run the backfill with `enableRegistration: true`; or
-      (b) tick "Registration: Required" by hand on the meeting in the Zoom web UI, then run
-      the backfill normally — no scope change needed, the registrant scope is already held
-- [ ] Once either is done, run the backfill per batch to issue personal links. Batch ids:
-      AUG 2026 (08-15) `98433b5e-18b2-4945-8fe1-3a2db20080d9` / meeting `84968782138`;
-      July 2026 (in progress) `0b0e203a-e2fd-4897-a289-00e6521e330a` / `82545109642`;
-      ESG2 `d513145e-aa95-40a3-bd34-84e6e7b49e11`; IA02 `55d7e0aa-8fcf-4a63-b5b1-7b5da2f2a82e`
-      (the last two are finished courses — no benefit, skip)
+- [x] **FOUNDER GRANTED the scopes** (`meeting:read:meeting:admin` +
+      `meeting:update:meeting:admin`), verified present in the token's own scope list
+- [x] **AUG 2026 class (08-15) FIXED.** Registration switched `2 → 0` and read back to
+      confirm; 2 of 3 students registered, personal links stored and `zoom_link` emailed —
+      the first rows `zoom_registrants` has ever held
+- [~] 3rd student blocked by a Zoom **429**: add-registrant is capped at **3/day per
+      registrant email**, and that address had been used as the diagnostic probe earlier the
+      same day. **Lesson: never diagnose against a real participant's email.** Resets 00:00
+      UTC; Windows scheduled task `KnowsiaRegisterLateStudent` (00:10 on 08-15, script at
+      `E:\dev\temp\knowsia-ops\register-late-student.ps1`) re-runs the idempotent backfill.
+      Fallback if the machine is off: the student can now self-register from the normal
+      meeting link, and attendance still matches them by email
+- [ ] **FOUNDER DECISION — July 2026 batch** (`0b0e203a…` / `82545109642`), mid-course to
+      08-16. Enabling registration sends students holding the shared link to a sign-up page
+      with two sessions left. The two finished batches gain nothing — leave them
 - [ ] P3 Finish L1's batch schedule generator (already listed above)
 
 Not scheduled, gated behind a budget exception that does not exist yet: Stage 1 (RTC-0..RTC-3,

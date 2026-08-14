@@ -1285,17 +1285,29 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     and say why rather than pretending. Treat `registrationEnabled`/
     `approvalType` = null as UNKNOWN, NEVER as "fine";
     `registrationStateReadable` says which.
-    TWO WAYS OUT, both founder actions: (1) grant
-    `meeting:update:meeting:admin` (+ `meeting:read:meeting:admin` to stop
-    operating blind) at marketplace.zoom.us, then the backfill's
-    enableRegistration path works; or (2) tick "Registration: Required" by hand
-    on the meeting in the Zoom web UI — the app already holds the registrant
-    scope, so the backfill can issue personal links with NO scope change.
-    Option 2 is fastest for an imminent class.
-    Verified against the real class of 2026-08-15 (batch 98433b5e, meeting
-    84968782138, 3 students): dry run reported 3 eligible; the real run
-    registered 0 and failed 3, with NO emails sent (the zoom_link email only
-    fires on success) and no state changed anywhere.
+    RESOLVED SAME DAY — founder granted `meeting:read:meeting:admin` and
+    `meeting:update:meeting:admin` at marketplace.zoom.us. Both verified
+    present in the token's scope list afterwards. Both blocked helpers work now.
+    WITH THE READ SCOPE, ALL FOUR MEETINGS READ BACK approval_type=2 —
+    account-wide, not a one-off: 84968782138 (AUG 2026, class 08-15),
+    82545109642 (July 2026, runs to 08-16), 81420483944 (ESG2, finished),
+    89951984118 (IA02, finished). Every hand-made meeting has registration off,
+    which is exactly why zoom_registrants was empty for a month.
+    FIRST SUCCESSFUL RUN, class of 2026-08-15 (batch 98433b5e): registration
+    switched 2 -> 0 (read back to confirm), 2 of 3 students registered with
+    personal links stored and zoom_link emailed — THE FIRST ROWS
+    zoom_registrants HAS EVER HELD. The 3rd failed on a Zoom 429: the
+    add-registrant limit is 3 PER DAY PER REGISTRANT EMAIL, and that address had
+    been used as the probe while diagnosing the 404 earlier the same day.
+    LESSON: never diagnose against a real participant's email — use a throwaway
+    or an unenrolled meeting. Limit resets 00:00 UTC; a Windows scheduled task
+    `KnowsiaRegisterLateStudent` (00:10 on 08-15, script at
+    E:\dev\temp\knowsia-ops\register-late-student.ps1) re-runs the backfill,
+    which is idempotent so it picks up only whoever still lacks a link.
+    NOT DONE, awaiting founder: the July 2026 batch (82545109642) is MID-COURSE
+    to 08-16 — enabling registration there sends students holding the shared
+    link to a sign-up page with two sessions left. The two finished batches gain
+    nothing and should be left alone.
     REVERSED SAME DAY: a brief rule "never modify an existing Zoom meeting".
     Founder said "the zoom should not be touched" meaning DO NOT REPLACE ZOOM
     with self-hosted video (Document 18) — not this checkbox, which is the one
@@ -1303,9 +1315,8 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     an easy one to repeat, hence this note. `enableMeetingRegistration` is
     live again, wired to the backfill's explicit `enableRegistration` flag,
     ignored on a dry run, human-triggered only.
-    `enableMeetingRegistration` is IDEMPOTENT, which matters more than it looks:
-    since we cannot read the current state, sending it unconditionally is the
-    only reliable move, and it is a no-op when registration is already on.
+    `enableMeetingRegistration` is IDEMPOTENT — a no-op when registration is
+    already on — so it is safe to send without reading first.
     NOTE a real run of the backfill EMAILS every registered student their
     personal join link (`zoom_link` template) — on a large batch that is a mass
     send. Check `eligible` on the dry run first.

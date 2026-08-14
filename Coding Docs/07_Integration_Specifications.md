@@ -419,14 +419,15 @@ directly, rather than inferring from documentation.
 | Capability | Scope | Granted? |
 | --- | --- | --- |
 | Create a meeting | `meeting:write:meeting:admin` | ✅ |
-| **Read** a meeting | `meeting:read:meeting(:admin)` | ❌ |
-| **Update** a meeting | `meeting:update:meeting(:admin)` | ❌ |
+| **Read** a meeting | `meeting:read:meeting:admin` | ✅ **granted 2026-08-14** |
+| **Update** a meeting | `meeting:update:meeting:admin` | ✅ **granted 2026-08-14** |
 | Add a registrant | `meeting:write:registrant:admin` | ✅ |
 | Participant report (attendance) | `dashboard:read:list_meeting_participants:admin` | ✅ |
 
 Zoom splits **create** from **update**: `meeting:write:meeting` does *not* include modifying
-an existing meeting. So the app can build a new meeting correctly but cannot alter one, and
-cannot even look at one.
+an existing meeting. That distinction is why the app could build a new meeting correctly and
+still be unable to alter one — the two missing scopes were granted on 2026-08-14 and both
+paths now work.
 
 **And the meetings themselves have registration off.** Asked directly, Zoom answers:
 
@@ -439,29 +440,52 @@ That is the whole month-old mystery, in one line. Not a code bug, not a wiring b
 meetings were created by hand with registration off, and the app has no permission to turn
 it on.
 
-**Two consequences for anyone reading this code:**
+Still keep `registrationEnabled` / `approvalType` of `null` meaning **UNKNOWN, never
+"fine"** — `registrationStateReadable` says which it is. The read can still fail for other
+reasons (a deleted meeting, an outage), and an unknown state must not be mistaken for a
+working one.
 
-1. `getMeetingRegistrationState` **cannot work** as things stand — it was written against a
-   read permission the app does not hold. Treat `registrationEnabled` / `approvalType` of
-   `null` as **UNKNOWN, never as "fine"**; `registrationStateReadable` says which it is.
-2. `enableMeetingRegistration` **cannot work** either, for the same reason (missing
-   `meeting:update:meeting`). It fails cleanly and reports, rather than pretending.
+### 9.4.1a Confirmed once the read scope landed — every meeting was off
 
-**To fix, either:**
+With `meeting:read:meeting:admin` granted, all four live/recent meetings were read directly.
+**Every one returned `approval_type: 2`** — registration off:
 
-- **Grant the scopes** at marketplace.zoom.us — `meeting:update:meeting:admin` (required to
-  let the app switch registration on) and `meeting:read:meeting:admin` (so it can see state
-  instead of guessing). Then the backfill's `enableRegistration` path works. **Or**
-- **Tick "Registration: Required" by hand** on the meeting in the Zoom web UI. The app
-  already holds the registrant scope, so the backfill can then issue personal links with no
-  scope change at all. Fastest route for a class that is imminent.
+| Batch | Meeting | Before |
+| --- | --- | --- |
+| AUG 2026 — Enterprise Risk Management (class 08-15) | `84968782138` | `2` → **now `0`** |
+| July 2026 — ESG & Sustainability Reporting (to 08-16) | `82545109642` | `2` |
+| ESG2 — Understanding ESG (08-06, finished) | `81420483944` | `2` |
+| IA02 — Global Internal Audit Standards (07-25, finished) | `89951984118` | `2` |
+
+Account-wide, not a one-off. Every meeting made by hand has this, which is exactly why
+`zoom_registrants` was empty for a month.
+
+### 9.4.1b First successful run — 2026-08-14
+
+Registration was switched on for the 08-15 class and the backfill run against its batch:
+
+- `approval_type` `2 → 0`, confirmed by reading the meeting back
+- **2 of 3 students registered**, personal links stored in `zoom_registrants` and emailed
+  (`zoom_link`) — **the first rows that table has ever held**
+- 1 student failed on a Zoom **rate limit**, not a bug:
+
+```
+429 {"code":429,"message":"You have exceeded the daily rate limit of (3) for Add meeting
+registrant API requests for the registrant (…). You can resume at GMT 00:00:00."}
+```
+
+> **Operational lesson worth keeping.** That address hit its cap because it had been used as
+> the probe while diagnosing the 404 earlier the same day. Zoom's add-registrant limit is
+> **3 per day per registrant email**. Never diagnose against a real participant's address —
+> use a throwaway, or a meeting nobody is enrolled on. The cost here was one student's
+> automated email; it resets at 00:00 UTC and the backfill is idempotent, so a re-run picks
+> up only whoever is still missing a link.
 
 ### 9.4.2 Turning registration on
 
 `enableMeetingRegistration` PATCHes a meeting to `approval_type: 0, registration_type: 1`.
-It is **idempotent**, which matters more than it looks: since we usually cannot read the
-current state, sending it unconditionally is the only reliable move, and it is a no-op when
-registration is already on.
+It is **idempotent** — a no-op when registration is already on — so it is safe to send
+without checking first. Verified working against a live meeting on 2026-08-14 (§9.4.1b).
 
 It is **human-triggered only** — the backfill's explicit `enableRegistration` flag, ignored
 on a dry run. Turning registration on changes what the meeting's existing **shared** join
