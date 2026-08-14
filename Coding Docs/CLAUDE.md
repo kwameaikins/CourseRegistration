@@ -1263,6 +1263,33 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     sign. Both tests assert the presigned call is NEVER reached on refusal,
     which is the property that actually matters.
 
+  STANDING RULE — never modify an existing Zoom meeting (2026-08-14).
+    Founder: "the zoom should not be touched, it should be maintained forever."
+    No endpoint, job or service may PATCH a meeting's settings. This is a rule,
+    not a preference — do not add one, and do not wire anything to
+    `enableMeetingRegistration`, which remains in lib/zoom/client.ts as
+    RESERVED, UNCALLED code (kept only because it is the sole repair should the
+    decision ever reverse).
+    Consequences, accepted knowingly rather than discovered later: a meeting at
+    approval_type 2 can never accept registrants, so those batches never issue
+    personal join links, ensureZoomRegistration returns 'failed' for every
+    registrant on them, and their attendance rests on DISPLAY-NAME MATCHING
+    FOREVER — including the loosened one-shared-token tier accepted for ESG2 on
+    2026-08-06. On a FREE batch an attendance row is what makes a certificate
+    issuable, so some certificates will keep resting on inferred rows. That is
+    the trade the founder took.
+    UNAFFECTED, and the reason this does not get worse: meetings the app
+    CREATES set approval_type 0 / registration_type 1 at creation
+    (createCourseMeeting, createBatchClassroomMeeting). Creating a new meeting
+    correctly is not "touching" an existing one, and founder confirmed
+    auto-create stays as-is — so future batches get personal links and exact
+    attendance with nothing existing altered.
+    The backfill endpoint's `enableRegistration` flag was REMOVED (not merely
+    documented) the same day it was added: a standing "never" alongside a live
+    parameter that does it anyway is how the never gets broken by accident. A
+    test pins that no path through the backfill reaches the PATCH, including a
+    stale caller still sending the removed flag.
+
   Zoom registrant gap — INSTRUMENTED AND REPAIRABLE (2026-08-13). The
     longest-standing open item: `ensureZoomRegistration` had never written a
     single `zoom_registrants` row account-wide despite the app holding

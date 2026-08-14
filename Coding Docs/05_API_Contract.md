@@ -618,15 +618,15 @@ apply here.
 deliberately absent from `vercel.json`'s cron list. Diagnoses and repairs a Batch whose settled
 registrants never received a personal Zoom join link. Full runbook in Document 7 §9.4.
 
-Body: `{ batchId: string, dryRun?: boolean, enableRegistration?: boolean }`
+Body: `{ batchId: string, dryRun?: boolean }`
 
 The response's `registrationEnabled` / `approvalType` are the diagnosis and are populated even on
 a dry run — `approval_type: 2` ("no registration required", the default for a meeting created by
 hand in the Zoom console) means no registrant can ever be added, whatever scopes the app holds.
 
-`enableRegistration` is opt-in **and ignored on a dry run**. It changes what the meeting's existing
-shared join link does for everyone already holding it, so it is never applied as a side effect of a
-repair.
+The route **reads** Zoom meeting settings and **writes** registrants. It has no parameter that can
+modify a meeting, by standing rule (Document 7 §9.4): this application never alters an existing
+Zoom meeting. A batch whose meeting has registration disabled is reported as such and left alone.
 
 This joins the two existing manual-trigger repair endpoints — `POST /api/cron/attendance/backfill`
 and `POST /api/cron/registrations/auto-lapse` — which share the same posture: `CRON_SECRET`, dry-run

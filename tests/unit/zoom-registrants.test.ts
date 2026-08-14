@@ -171,49 +171,40 @@ describe('runZoomRegistrantBackfill', () => {
     expect(result.registered).toBe(0);
   });
 
-  // Turning registration on changes what an existing shared join link does for
-  // a cohort that may be mid-course, so it must never happen implicitly.
-  it('never enables registration on a dry run, even when asked', async () => {
+  // Founder decision 2026-08-14: an existing Zoom meeting is never modified by
+  // this application. There is no parameter to ask for it any more — these pin
+  // that no path through the backfill can reach the PATCH, whatever it is
+  // handed, including a stale caller still sending the removed flag.
+  it('never modifies the meeting, even against a registration-disabled one', async () => {
     zoomClientMock.getMeetingRegistrationState.mockResolvedValue({
       registrationEnabled: false,
       approvalType: 2,
       registrationType: null,
     });
 
-    await runZoomRegistrantBackfill({ batchId: BATCH_ID, enableRegistration: true });
+    for (const params of [
+      { batchId: BATCH_ID },
+      { batchId: BATCH_ID, dryRun: false },
+      // A caller still sending the removed flag must be inert, not honoured.
+      { batchId: BATCH_ID, dryRun: false, enableRegistration: true } as never,
+    ]) {
+      await runZoomRegistrantBackfill(params);
+    }
 
     expect(zoomClientMock.enableMeetingRegistration).not.toHaveBeenCalled();
   });
 
-  it('never enables registration unless explicitly asked', async () => {
+  it('explains that a disabled meeting stays that way, rather than offering a repair', async () => {
     zoomClientMock.getMeetingRegistrationState.mockResolvedValue({
       registrationEnabled: false,
       approvalType: 2,
       registrationType: null,
     });
 
-    await runZoomRegistrantBackfill({ batchId: BATCH_ID, dryRun: false });
+    const result = await runZoomRegistrantBackfill({ batchId: BATCH_ID, dryRun: false });
 
-    expect(zoomClientMock.enableMeetingRegistration).not.toHaveBeenCalled();
-  });
-
-  it('enables registration then registers, when explicitly asked on a real run', async () => {
-    zoomClientMock.getMeetingRegistrationState.mockResolvedValue({
-      registrationEnabled: false,
-      approvalType: 2,
-      registrationType: null,
-    });
-    zoomClientMock.enableMeetingRegistration.mockResolvedValue(undefined);
-
-    const result = await runZoomRegistrantBackfill({
-      batchId: BATCH_ID,
-      dryRun: false,
-      enableRegistration: true,
-    });
-
-    expect(zoomClientMock.enableMeetingRegistration).toHaveBeenCalledWith(MEETING_ID);
-    expect(result.registrationEnabledByThisRun).toBe(true);
-    expect(result.registered).toBe(1);
+    expect(result.errors.join(' ')).toContain('does not modify existing Zoom meetings');
+    expect(result.registered).toBe(0);
   });
 
   it('counts failures without aborting the rest of the batch', async () => {

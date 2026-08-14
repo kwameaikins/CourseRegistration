@@ -409,22 +409,44 @@ accept registrants. Meetings this app creates itself (`createCourseMeeting`,
 unaffected; the exposure is meetings created before auto-create existed, or pasted in from
 the console.
 
-**Diagnose and repair:** `POST /api/cron/zoom/registrants/backfill`
+### STANDING RULE — this application never modifies an existing Zoom meeting
+
+**Founder decision, 2026-08-14.** No endpoint, job, or service may PATCH a meeting's
+settings. Existing meetings are left exactly as they are, permanently.
+
+What that locks in, stated plainly so nobody rediscovers it as a surprise:
+
+- A meeting at `approval_type: 2` **can never accept registrants**, so it will never issue
+  personal join links. `ensureZoomRegistration` returns `'failed'` for every registrant on
+  that batch (loudly now, rather than silently — but it still fails).
+- Attendance for those batches relies on **display-name matching forever**, including the
+  loosened one-shared-token tier accepted for ESG2 on 2026-08-06. On a **free** Batch an
+  attendance row is what makes a certificate issuable, so some certificates will continue to
+  rest on inferred rows. This is an accepted trade, not an oversight.
+- `enableMeetingRegistration` remains in `lib/zoom/client.ts` **as reserved, uncalled code**.
+  It was kept rather than deleted because it is the only repair should the decision ever
+  reverse. Nothing reaches it, and nothing should be wired to it.
+
+**Meetings the app creates itself are unaffected and continue as before.**
+`createCourseMeeting` and `createBatchClassroomMeeting` set `approval_type: 0,
+registration_type: 1` **at creation** — that is not modifying an existing meeting, it is how
+a new one is made. Future batches using auto-create therefore get personal join links and
+exact attendance, with nothing existing ever touched. This is the path by which the problem
+stops growing.
+
+**Diagnose:** `POST /api/cron/zoom/registrants/backfill`
 (`CRON_SECRET`-gated, **dry-run by default**, deliberately absent from `vercel.json`).
 
 ```
-{ "batchId": "<uuid>" }                                     # diagnose only
-{ "batchId": "<uuid>", "dryRun": false }                    # register the backlog
-{ "batchId": "<uuid>", "dryRun": false, "enableRegistration": true }
+{ "batchId": "<uuid>" }                    # diagnose only, writes nothing
+{ "batchId": "<uuid>", "dryRun": false }   # register the backlog, IF the meeting allows it
 ```
 
-Run the dry form first: the `registrationEnabled` / `approvalType` fields in the response
-are usually the whole answer and cost nothing to read.
-
-`enableRegistration` is opt-in and ignored on a dry run. It is **never** applied
-automatically, because turning registration on changes what the meeting's existing
-**shared** join link does for everyone already holding it — for a cohort mid-course that is
-a live behaviour change, and it belongs to a human with the schedule in front of them.
+Run the dry form first: `registrationEnabled` / `approvalType` in the response are usually
+the whole answer and cost nothing to read. The route reads meeting settings and writes
+registrants; it has no parameter that can alter a meeting. An earlier version accepted an
+`enableRegistration` flag — removed rather than documented, because a standing "never"
+alongside a live parameter that does it anyway is how the never gets broken by accident.
 
 **Why this went unnoticed:** `ensureZoomRegistration` threw into callers that only
 `console.error`-ed, so a permanent account-wide failure and a success were

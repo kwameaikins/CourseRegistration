@@ -10,7 +10,8 @@
 //     carries the exact email we registered).
 import {
   denyMeetingRegistrant,
-  enableMeetingRegistration,
+  // enableMeetingRegistration is deliberately NOT imported — an existing Zoom
+  // meeting is never modified by this application (Document 7 §9.4).
   getMeetingParticipantsOn,
   getMeetingRegistrationState,
   isZoomConfigured,
@@ -260,7 +261,6 @@ export interface ZoomRegistrantBackfillResult {
   // scope-granting makes POST /registrants work against one.
   registrationEnabled: boolean | null;
   approvalType: number | null;
-  registrationEnabledByThisRun: boolean;
   eligible: number;
   registered: number;
   failed: number;
@@ -279,13 +279,17 @@ export interface ZoomRegistrantBackfillResult {
 // investigation found the identical shape one layer over.
 //
 // Manual trigger only (deliberately absent from vercel.json), CRON_SECRET-gated
-// and DRY-RUN BY DEFAULT — the enableRegistration option changes how a live
-// cohort's existing shared join link behaves, which is a decision for a human
-// with the schedule in front of them, not a side effect of a repair job.
+// and DRY-RUN BY DEFAULT.
+//
+// This function READS Zoom and WRITES registrants; it never modifies a meeting.
+// Founder decision 2026-08-14: an existing Zoom meeting is never altered by this
+// application, full stop. An earlier version of this took an enableRegistration
+// flag that would have PATCHed the meeting — removed rather than left in place,
+// because a standing "never" plus a live parameter that does it anyway is how
+// the never eventually gets broken by accident.
 export async function runZoomRegistrantBackfill(params: {
   batchId: string;
   dryRun?: boolean;
-  enableRegistration?: boolean;
 }): Promise<ZoomRegistrantBackfillResult> {
   const dryRun = params.dryRun !== false;
   const errors: string[] = [];
@@ -295,7 +299,6 @@ export async function runZoomRegistrantBackfill(params: {
     dryRun,
     registrationEnabled: null,
     approvalType: null,
-    registrationEnabledByThisRun: false,
     eligible: 0,
     registered: 0,
     failed: 0,
@@ -329,16 +332,6 @@ export async function runZoomRegistrantBackfill(params: {
     errors.push(`Could not read meeting settings: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  if (result.registrationEnabled === false && params.enableRegistration && !dryRun) {
-    try {
-      await enableMeetingRegistration(batch.zoom_meeting_id);
-      result.registrationEnabled = true;
-      result.registrationEnabledByThisRun = true;
-    } catch (err) {
-      errors.push(`Could not enable registration: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-
   const pending = await attendanceRepository.selectRegistrationsMissingZoomRegistrant(params.batchId);
   result.eligible = pending.length;
 
@@ -346,7 +339,7 @@ export async function runZoomRegistrantBackfill(params: {
   // once per participant and tell us nothing new — stop with the diagnosis.
   if (result.registrationEnabled === false) {
     errors.push(
-      'Meeting has registration DISABLED (approval_type 2). No registrant can be added until it is enabled — re-run with { "enableRegistration": true, "dryRun": false }, noting that this changes what the existing shared join link does for anyone already holding it.',
+      'Meeting has registration DISABLED (approval_type 2), so no registrant can ever be added to it. This application does not modify existing Zoom meetings (founder decision 2026-08-14), so this batch keeps display-name attendance matching permanently. Meetings created by the app for future batches set registration on at creation and are unaffected.',
     );
     return result;
   }

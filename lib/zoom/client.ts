@@ -185,14 +185,18 @@ export async function getMeetingRegistrationState(meetingId: string): Promise<{
   };
 }
 
-// Turns registration ON for a meeting that already exists — the counterpart to
-// enableCloudRecording, and the repair for a meeting sitting at approval_type 2.
+// Turns registration ON for a meeting that already exists.
 //
-// DELIBERATELY NEVER CALLED AUTOMATICALLY. Enabling registration changes what
-// the meeting's plain shared join link does for everyone who already has it,
-// which for a cohort mid-course is a live behaviour change nobody asked for.
-// It is opt-in from the backfill endpoint so a human decides, per Batch, with
-// the cohort's schedule in front of them.
+// ⚠️ RESERVED — NOT CALLED BY ANYTHING, BY FOUNDER DECISION (2026-08-14).
+// An existing Zoom meeting is never modified by this application. No endpoint,
+// job, or service reaches this function, and none should be added: enabling
+// registration changes what a meeting's plain shared join link does for
+// everyone already holding it, and these are live classrooms.
+//
+// It is kept, rather than deleted, because the capability is the only repair
+// for a meeting at approval_type 2 and the decision could reverse. If it ever
+// does, reintroduce it as an explicit human-triggered action — see
+// Coding Docs/07_Integration_Specifications.md §9.4.
 //
 // PATCH /meetings/{id} answers 204 with an empty body, so it cannot go through
 // zoomFetch's response.json().

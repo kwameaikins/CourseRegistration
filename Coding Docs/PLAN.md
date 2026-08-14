@@ -392,7 +392,17 @@ RTC work, and doing them is what keeps the SFU decision cheap to reverse:
       that. New `POST /api/cron/zoom/registrants/backfill` (CRON_SECRET, dry-run by default, not in
       vercel.json) reports `approvalType` for a batch and can register the backlog; enabling
       registration on a live meeting is opt-in only. Doc 7 §9.4, Doc 5 §19
-  - [ ] Run the dry form on ESG2 and IA02 — `{"batchId":"<uuid>"}` — and read `approvalType`
+  - [ ] Run the dry form and read `approvalType`. Batch ids resolved 2026-08-14:
+        ESG2 (free, 2026-08-06) `d513145e-aa95-40a3-bd34-84e6e7b49e11`;
+        IA02 (paid, 2026-07-25) `55d7e0aa-8fcf-4a63-b5b1-7b5da2f2a82e`;
+        July 2026 (in progress) `0b0e203a-e2fd-4897-a289-00e6521e330a`;
+        AUG 2026 (2026-08-15) `98433b5e-18b2-4945-8fe1-3a2db20080d9`.
+        BLOCKED: the local `.env` CRON_SECRET does not match production, and
+        `vercel env pull` returns an 11-char placeholder for it (Sensitive var),
+        so this needs the real production value — every attempt 401s
+- [x] **Standing rule (2026-08-14): never modify an existing Zoom meeting.** Diagnosis only;
+      `enableRegistration` removed from the backfill. Meetings the app CREATES keep setting
+      registration on at creation, so future batches still get personal links. Doc 7 §9.4
 - [ ] P3 Finish L1's batch schedule generator (already listed above)
 
 Not scheduled, gated behind a budget exception that does not exist yet: Stage 1 (RTC-0..RTC-3,
