@@ -409,44 +409,60 @@ accept registrants. Meetings this app creates itself (`createCourseMeeting`,
 unaffected; the exposure is meetings created before auto-create existed, or pasted in from
 the console.
 
-### STANDING RULE — this application never modifies an existing Zoom meeting
+### 9.4.1 The app cannot READ a meeting — verified 2026-08-14
 
-**Founder decision, 2026-08-14.** No endpoint, job, or service may PATCH a meeting's
-settings. Existing meetings are left exactly as they are, permanently.
+The Server-to-Server OAuth app's granted scopes were dumped from the token itself. It holds:
 
-What that locks in, stated plainly so nobody rediscovers it as a surprise:
+- `meeting:write:meeting:admin` — create and **update** meetings
+- `meeting:write:registrant:admin` — add registrants
+- `dashboard:read:list_meeting_participants:admin` — the attendance fallback
 
-- A meeting at `approval_type: 2` **can never accept registrants**, so it will never issue
-  personal join links. `ensureZoomRegistration` returns `'failed'` for every registrant on
-  that batch (loudly now, rather than silently — but it still fails).
-- Attendance for those batches relies on **display-name matching forever**, including the
-  loosened one-shared-token tier accepted for ESG2 on 2026-08-06. On a **free** Batch an
-  attendance row is what makes a certificate issuable, so some certificates will continue to
-  rest on inferred rows. This is an accepted trade, not an oversight.
-- `enableMeetingRegistration` remains in `lib/zoom/client.ts` **as reserved, uncalled code**.
-  It was kept rather than deleted because it is the only repair should the decision ever
-  reverse. Nothing reaches it, and nothing should be wired to it.
+and **no meeting *read* scope of any kind**. So `GET /meetings/{id}` returns 400, and
+`getMeetingRegistrationState` cannot work. Any code reading `registrationEnabled` /
+`approvalType` must treat `null` as **UNKNOWN, not "fine"** — `registrationStateReadable`
+in the backfill response says which it is.
 
-**Meetings the app creates itself are unaffected and continue as before.**
-`createCourseMeeting` and `createBatchClassroomMeeting` set `approval_type: 0,
-registration_type: 1` **at creation** — that is not modifying an existing meeting, it is how
-a new one is made. Future batches using auto-create therefore get personal join links and
-exact attendance, with nothing existing ever touched. This is the path by which the problem
-stops growing.
+This is a real gap in the diagnostic shipped on 2026-08-13, found only by asking Zoom for
+the token's own scope list rather than trusting the documented setup.
 
-**Diagnose:** `POST /api/cron/zoom/registrants/backfill`
+**To close it:** grant `meeting:read:meeting:admin` (or the classic `meeting:read`) to the
+Server-to-Server app at marketplace.zoom.us. Not required to *fix* anything — the write path
+works without it — but without it we are operating blind.
+
+### 9.4.2 Turning registration on
+
+`enableMeetingRegistration` PATCHes a meeting to `approval_type: 0, registration_type: 1`.
+It is **idempotent**, which matters more than it looks: since we usually cannot read the
+current state, sending it unconditionally is the only reliable move, and it is a no-op when
+registration is already on.
+
+It is **human-triggered only** — the backfill's explicit `enableRegistration` flag, ignored
+on a dry run. Turning registration on changes what the meeting's existing **shared** join
+link does for everyone already holding it. For a cohort mid-course that is a live behaviour
+change for real students, so it belongs to a person with the schedule in front of them, not
+to a job.
+
+> A brief rule on 2026-08-14 forbade this outright and was reversed the same day. The
+> instruction "don't touch Zoom" had been about not *replacing* Zoom with self-hosted video
+> (Document 18) — not about this checkbox, which is the very thing that makes attendance
+> exact. Recorded because the misreading is an easy one to repeat.
+
+**Meetings the app creates are already correct.** `createCourseMeeting` and
+`createBatchClassroomMeeting` set `approval_type: 0, registration_type: 1` at creation, so
+future batches get personal join links without anything existing being altered.
+
+**Diagnose and repair:** `POST /api/cron/zoom/registrants/backfill`
 (`CRON_SECRET`-gated, **dry-run by default**, deliberately absent from `vercel.json`).
 
 ```
-{ "batchId": "<uuid>" }                    # diagnose only, writes nothing
-{ "batchId": "<uuid>", "dryRun": false }   # register the backlog, IF the meeting allows it
+{ "batchId": "<uuid>" }                                              # inspect, writes nothing
+{ "batchId": "<uuid>", "dryRun": false }                             # register the backlog
+{ "batchId": "<uuid>", "dryRun": false, "enableRegistration": true } # turn registration on, then register
 ```
 
-Run the dry form first: `registrationEnabled` / `approvalType` in the response are usually
-the whole answer and cost nothing to read. The route reads meeting settings and writes
-registrants; it has no parameter that can alter a meeting. An earlier version accepted an
-`enableRegistration` flag — removed rather than documented, because a standing "never"
-alongside a live parameter that does it anyway is how the never gets broken by accident.
+Registering a backlog also **emails each student their personal join link** (the `zoom_link`
+template), so a real run on a large batch is a mass send. Check `eligible` on the dry run
+first to see how many.
 
 **Why this went unnoticed:** `ensureZoomRegistration` threw into callers that only
 `console.error`-ed, so a permanent account-wide failure and a success were

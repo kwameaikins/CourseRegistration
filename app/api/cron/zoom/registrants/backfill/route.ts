@@ -7,20 +7,20 @@ import * as attendanceService from '@/modules/attendance/service';
 // Manual trigger only (deliberately absent from vercel.json's cron list), same
 // CRON_SECRET trust boundary as the attendance backfill it sits beside.
 //
-// Body: { batchId: string, dryRun?: boolean }
+// Body: { batchId: string, dryRun?: boolean, enableRegistration?: boolean }
 //
-// dryRun defaults to TRUE. Run it that way FIRST: the response's
-// registrationEnabled/approvalType fields are usually the entire diagnosis, and
-// they cost nothing to read. approval_type 2 means the meeting does not accept
-// registrants at all, which is the state a meeting created by hand in the Zoom
-// console defaults to — and no scope grant changes it.
+// dryRun defaults to TRUE.
 //
-// This route READS Zoom meeting settings and WRITES registrants. It cannot
-// modify a meeting: an existing Zoom meeting is never altered by this
-// application (founder decision 2026-08-14). An earlier version accepted an
-// enableRegistration flag that would have PATCHed the meeting; it was removed
-// rather than documented, because a standing "never" alongside a live parameter
-// that does it anyway is how the never gets broken by accident.
+// IMPORTANT: registrationEnabled/approvalType are usually UNKNOWN (null), not
+// because the meeting is fine but because this app has no Zoom `meeting:read`
+// scope — GET /meetings/{id} 400s. `registrationStateReadable: false` says so
+// explicitly. Do not read a null as "registration is on".
+//
+// enableRegistration turns registration on for the meeting. Opt-in, ignored on
+// a dry run, and idempotent (safe when it is already on — which is just as well,
+// since we usually cannot check). It changes what the meeting's existing SHARED
+// join link does for anyone already holding it, so on a cohort mid-course it is
+// a live behaviour change for real students.
 export async function POST(request: Request) {
   const authorization = request.headers.get('authorization');
   if (!process.env.CRON_SECRET || authorization !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -31,6 +31,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       batchId?: string;
       dryRun?: boolean;
+      enableRegistration?: boolean;
     };
     if (!body.batchId) {
       return errorResponse({ code: 'VALIDATION_ERROR', message: 'batchId is required.' }, 400);
@@ -39,6 +40,7 @@ export async function POST(request: Request) {
     const result = await attendanceService.runZoomRegistrantBackfill({
       batchId: body.batchId,
       dryRun: body.dryRun,
+      enableRegistration: body.enableRegistration,
     });
     if (result.errors.length > 0) {
       captureToSentry(

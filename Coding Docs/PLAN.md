@@ -400,9 +400,13 @@ RTC work, and doing them is what keeps the SFU decision cheap to reverse:
         BLOCKED: the local `.env` CRON_SECRET does not match production, and
         `vercel env pull` returns an 11-char placeholder for it (Sensitive var),
         so this needs the real production value — every attempt 401s
-- [x] **Standing rule (2026-08-14): never modify an existing Zoom meeting.** Diagnosis only;
-      `enableRegistration` removed from the backfill. Meetings the app CREATES keep setting
-      registration on at creation, so future batches still get personal links. Doc 7 §9.4
+- [x] **2026-08-14: the Zoom app has no meeting READ scope.** Verified from the token's own
+      scope list. `GET /meetings/{id}` 400s, so the state is UNKNOWN — never read a null
+      `approvalType` as "fine". The WRITE path (update meeting, add registrant) works.
+      A brief "never modify a Zoom meeting" rule was reversed the same day — the instruction
+      had been about not replacing Zoom, not about this setting. Doc 7 §9.4.1–9.4.2
+- [ ] Grant `meeting:read:meeting:admin` at marketplace.zoom.us — not required to fix
+      anything, but without it we cannot see a meeting's state at all
 - [ ] P3 Finish L1's batch schedule generator (already listed above)
 
 Not scheduled, gated behind a budget exception that does not exist yet: Stage 1 (RTC-0..RTC-3,

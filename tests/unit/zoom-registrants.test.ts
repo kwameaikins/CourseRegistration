@@ -171,40 +171,98 @@ describe('runZoomRegistrantBackfill', () => {
     expect(result.registered).toBe(0);
   });
 
-  // Founder decision 2026-08-14: an existing Zoom meeting is never modified by
-  // this application. There is no parameter to ask for it any more — these pin
-  // that no path through the backfill can reach the PATCH, whatever it is
-  // handed, including a stale caller still sending the removed flag.
-  it('never modifies the meeting, even against a registration-disabled one', async () => {
+  // Enabling registration changes what an existing shared join link does for a
+  // cohort that may be mid-course, so it must never happen implicitly.
+  it('never enables registration on a dry run, even when asked', async () => {
     zoomClientMock.getMeetingRegistrationState.mockResolvedValue({
       registrationEnabled: false,
       approvalType: 2,
       registrationType: null,
     });
 
-    for (const params of [
-      { batchId: BATCH_ID },
-      { batchId: BATCH_ID, dryRun: false },
-      // A caller still sending the removed flag must be inert, not honoured.
-      { batchId: BATCH_ID, dryRun: false, enableRegistration: true } as never,
-    ]) {
-      await runZoomRegistrantBackfill(params);
-    }
+    await runZoomRegistrantBackfill({ batchId: BATCH_ID, enableRegistration: true });
 
     expect(zoomClientMock.enableMeetingRegistration).not.toHaveBeenCalled();
   });
 
-  it('explains that a disabled meeting stays that way, rather than offering a repair', async () => {
+  it('never enables registration unless explicitly asked', async () => {
     zoomClientMock.getMeetingRegistrationState.mockResolvedValue({
       registrationEnabled: false,
       approvalType: 2,
       registrationType: null,
     });
 
+    await runZoomRegistrantBackfill({ batchId: BATCH_ID, dryRun: false });
+
+    expect(zoomClientMock.enableMeetingRegistration).not.toHaveBeenCalled();
+  });
+
+  it('enables registration then registers, when explicitly asked on a real run', async () => {
+    zoomClientMock.getMeetingRegistrationState.mockResolvedValue({
+      registrationEnabled: false,
+      approvalType: 2,
+      registrationType: null,
+    });
+    zoomClientMock.enableMeetingRegistration.mockResolvedValue(undefined);
+
+    const result = await runZoomRegistrantBackfill({
+      batchId: BATCH_ID,
+      dryRun: false,
+      enableRegistration: true,
+    });
+
+    expect(zoomClientMock.enableMeetingRegistration).toHaveBeenCalledWith(MEETING_ID);
+    expect(result.registrationEnabledByThisRun).toBe(true);
+    expect(result.registered).toBe(1);
+  });
+
+  // The real-world case: this app has no Zoom `meeting:read` scope, so the
+  // state read 400s and we know NOTHING about the meeting. Unknown must not be
+  // silently treated as "registration is on", and it must not block the attempt
+  // either — attempting is how we find out, and failures now report themselves.
+  it('reports an unreadable meeting state as unknown, and still proceeds', async () => {
+    zoomClientMock.getMeetingRegistrationState.mockRejectedValue(
+      new Error('Zoom API GET /meetings/1 failed 400: no meeting:read scope'),
+    );
+
     const result = await runZoomRegistrantBackfill({ batchId: BATCH_ID, dryRun: false });
 
-    expect(result.errors.join(' ')).toContain('does not modify existing Zoom meetings');
+    expect(result.registrationStateReadable).toBe(false);
+    expect(result.registrationEnabled).toBeNull();
+    expect(result.errors.join(' ')).toContain('UNKNOWN');
+    // Not blocked by the unknown — the registration attempt still happened.
+    expect(result.registered).toBe(1);
+  });
+
+  it('can enable registration even when the state cannot be read first', async () => {
+    zoomClientMock.getMeetingRegistrationState.mockRejectedValue(new Error('400 no scope'));
+    zoomClientMock.enableMeetingRegistration.mockResolvedValue(undefined);
+
+    const result = await runZoomRegistrantBackfill({
+      batchId: BATCH_ID,
+      dryRun: false,
+      enableRegistration: true,
+    });
+
+    // Idempotent PATCH is what makes this safe without a prior read.
+    expect(zoomClientMock.enableMeetingRegistration).toHaveBeenCalledWith(MEETING_ID);
+    expect(result.registrationEnabledByThisRun).toBe(true);
+    expect(result.registered).toBe(1);
+  });
+
+  it('stops if enabling registration itself fails', async () => {
+    zoomClientMock.getMeetingRegistrationState.mockRejectedValue(new Error('400 no scope'));
+    zoomClientMock.enableMeetingRegistration.mockRejectedValue(new Error('403 forbidden'));
+
+    const result = await runZoomRegistrantBackfill({
+      batchId: BATCH_ID,
+      dryRun: false,
+      enableRegistration: true,
+    });
+
+    expect(result.errors.join(' ')).toContain('Could not enable registration');
     expect(result.registered).toBe(0);
+    expect(zoomClientMock.tryAddMeetingRegistrant).not.toHaveBeenCalled();
   });
 
   it('counts failures without aborting the rest of the batch', async () => {

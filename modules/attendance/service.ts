@@ -10,8 +10,7 @@
 //     carries the exact email we registered).
 import {
   denyMeetingRegistrant,
-  // enableMeetingRegistration is deliberately NOT imported — an existing Zoom
-  // meeting is never modified by this application (Document 7 §9.4).
+  enableMeetingRegistration,
   getMeetingParticipantsOn,
   getMeetingRegistrationState,
   isZoomConfigured,
@@ -255,12 +254,16 @@ export interface ZoomRegistrantBackfillResult {
   batchId: string;
   meetingId: string | null;
   dryRun: boolean;
-  // The diagnosis. Zoom's approval_type is the authority on whether the
-  // meeting accepts registrants at all, and approval_type 2 ("no registration
-  // required") is the state a hand-made meeting defaults to — no amount of
-  // scope-granting makes POST /registrants work against one.
+  // Zoom's approval_type: 0/1 = registration on, 2 = no registration (personal
+  // links impossible). NULL means UNKNOWN, not "fine" — reading a meeting needs
+  // a `meeting:read` scope the Server-to-Server app has never been granted, so
+  // GET /meetings/{id} 400s. See registrationStateReadable below.
   registrationEnabled: boolean | null;
   approvalType: number | null;
+  // False when Zoom refused to tell us the meeting's state. Callers must not
+  // treat an unknown state as a working one.
+  registrationStateReadable: boolean;
+  registrationEnabledByThisRun: boolean;
   eligible: number;
   registered: number;
   failed: number;
@@ -281,15 +284,18 @@ export interface ZoomRegistrantBackfillResult {
 // Manual trigger only (deliberately absent from vercel.json), CRON_SECRET-gated
 // and DRY-RUN BY DEFAULT.
 //
-// This function READS Zoom and WRITES registrants; it never modifies a meeting.
-// Founder decision 2026-08-14: an existing Zoom meeting is never altered by this
-// application, full stop. An earlier version of this took an enableRegistration
-// flag that would have PATCHed the meeting — removed rather than left in place,
-// because a standing "never" plus a live parameter that does it anyway is how
-// the never eventually gets broken by accident.
+// enableRegistration turns a meeting's registration on so personal links can be
+// issued. It is opt-in and only acts on a real run, because it changes what the
+// meeting's existing SHARED join link does for anyone already holding it — a
+// live change for a cohort mid-course, so a human decides per Batch.
+//
+// (A brief 2026-08-14 rule forbidding this outright was reversed the same day:
+// it had been read as "don't replace Zoom", when the actual subject was one
+// checkbox per meeting — the very thing that makes attendance exact.)
 export async function runZoomRegistrantBackfill(params: {
   batchId: string;
   dryRun?: boolean;
+  enableRegistration?: boolean;
 }): Promise<ZoomRegistrantBackfillResult> {
   const dryRun = params.dryRun !== false;
   const errors: string[] = [];
@@ -299,6 +305,8 @@ export async function runZoomRegistrantBackfill(params: {
     dryRun,
     registrationEnabled: null,
     approvalType: null,
+    registrationStateReadable: false,
+    registrationEnabledByThisRun: false,
     eligible: 0,
     registered: 0,
     failed: 0,
@@ -322,24 +330,49 @@ export async function runZoomRegistrantBackfill(params: {
   }
   result.meetingId = batch.zoom_meeting_id;
 
-  // Diagnose before touching anything. Reported even on a dry run, because
-  // this single field is usually the whole answer.
+  // Try to read the meeting's state first. This USUALLY FAILS on the current
+  // Zoom app: GET /meetings/{id} needs a `meeting:read` scope that the
+  // Server-to-Server app has never been granted (verified 2026-08-14 against
+  // the token's own scope list — it holds meeting:write:meeting and
+  // meeting:write:registrant, but no meeting read scope at all). An unreadable
+  // state is reported as UNKNOWN and must never be mistaken for "fine".
   try {
     const state = await getMeetingRegistrationState(batch.zoom_meeting_id);
     result.registrationEnabled = state.registrationEnabled;
     result.approvalType = state.approvalType;
+    result.registrationStateReadable = true;
   } catch (err) {
-    errors.push(`Could not read meeting settings: ${err instanceof Error ? err.message : String(err)}`);
+    result.registrationStateReadable = false;
+    errors.push(
+      `Could not read meeting settings (this app has no Zoom 'meeting:read' scope, so the state is UNKNOWN, not necessarily fine): ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  // Turning registration ON. Safe to send even if it is already on — Zoom
+  // merges settings, so this is idempotent, which matters precisely because we
+  // usually cannot read the current state to check first.
+  if (params.enableRegistration && !dryRun) {
+    try {
+      await enableMeetingRegistration(batch.zoom_meeting_id);
+      result.registrationEnabled = true;
+      result.registrationEnabledByThisRun = true;
+    } catch (err) {
+      errors.push(
+        `Could not enable registration: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return result;
+    }
   }
 
   const pending = await attendanceRepository.selectRegistrationsMissingZoomRegistrant(params.batchId);
   result.eligible = pending.length;
 
-  // Registering against a meeting that does not accept registrants would fail
-  // once per participant and tell us nothing new — stop with the diagnosis.
+  // Only stop when Zoom has POSITIVELY told us registration is off. An unknown
+  // state is not a reason to refuse — attempting is how we find out, and each
+  // attempt now reports its own failure rather than vanishing.
   if (result.registrationEnabled === false) {
     errors.push(
-      'Meeting has registration DISABLED (approval_type 2), so no registrant can ever be added to it. This application does not modify existing Zoom meetings (founder decision 2026-08-14), so this batch keeps display-name attendance matching permanently. Meetings created by the app for future batches set registration on at creation and are unaffected.',
+      'Meeting has registration DISABLED (approval_type 2), so no registrant can be added to it. Re-run with { "enableRegistration": true, "dryRun": false } to turn it on — note that this changes what the existing shared join link does for anyone already holding it.',
     );
     return result;
   }
