@@ -409,25 +409,52 @@ accept registrants. Meetings this app creates itself (`createCourseMeeting`,
 unaffected; the exposure is meetings created before auto-create existed, or pasted in from
 the console.
 
-### 9.4.1 The app cannot READ a meeting — verified 2026-08-14
+### 9.4.1 The root cause, proven end to end — 2026-08-14
 
-The Server-to-Server OAuth app's granted scopes were dumped from the token itself. It holds:
+Established by dumping the Server-to-Server token's own scope list and then calling Zoom
+directly, rather than inferring from documentation.
 
-- `meeting:write:meeting:admin` — create and **update** meetings
-- `meeting:write:registrant:admin` — add registrants
-- `dashboard:read:list_meeting_participants:admin` — the attendance fallback
+**What the app is allowed to do:**
 
-and **no meeting *read* scope of any kind**. So `GET /meetings/{id}` returns 400, and
-`getMeetingRegistrationState` cannot work. Any code reading `registrationEnabled` /
-`approvalType` must treat `null` as **UNKNOWN, not "fine"** — `registrationStateReadable`
-in the backfill response says which it is.
+| Capability | Scope | Granted? |
+| --- | --- | --- |
+| Create a meeting | `meeting:write:meeting:admin` | ✅ |
+| **Read** a meeting | `meeting:read:meeting(:admin)` | ❌ |
+| **Update** a meeting | `meeting:update:meeting(:admin)` | ❌ |
+| Add a registrant | `meeting:write:registrant:admin` | ✅ |
+| Participant report (attendance) | `dashboard:read:list_meeting_participants:admin` | ✅ |
 
-This is a real gap in the diagnostic shipped on 2026-08-13, found only by asking Zoom for
-the token's own scope list rather than trusting the documented setup.
+Zoom splits **create** from **update**: `meeting:write:meeting` does *not* include modifying
+an existing meeting. So the app can build a new meeting correctly but cannot alter one, and
+cannot even look at one.
 
-**To close it:** grant `meeting:read:meeting:admin` (or the classic `meeting:read`) to the
-Server-to-Server app at marketplace.zoom.us. Not required to *fix* anything — the write path
-works without it — but without it we are operating blind.
+**And the meetings themselves have registration off.** Asked directly, Zoom answers:
+
+```
+POST /meetings/84968782138/registrants
+{"code":404,"message":"Registration has not been enabled for this meeting: 84968782138."}
+```
+
+That is the whole month-old mystery, in one line. Not a code bug, not a wiring bug — the
+meetings were created by hand with registration off, and the app has no permission to turn
+it on.
+
+**Two consequences for anyone reading this code:**
+
+1. `getMeetingRegistrationState` **cannot work** as things stand — it was written against a
+   read permission the app does not hold. Treat `registrationEnabled` / `approvalType` of
+   `null` as **UNKNOWN, never as "fine"**; `registrationStateReadable` says which it is.
+2. `enableMeetingRegistration` **cannot work** either, for the same reason (missing
+   `meeting:update:meeting`). It fails cleanly and reports, rather than pretending.
+
+**To fix, either:**
+
+- **Grant the scopes** at marketplace.zoom.us — `meeting:update:meeting:admin` (required to
+  let the app switch registration on) and `meeting:read:meeting:admin` (so it can see state
+  instead of guessing). Then the backfill's `enableRegistration` path works. **Or**
+- **Tick "Registration: Required" by hand** on the meeting in the Zoom web UI. The app
+  already holds the registrant scope, so the backfill can then issue personal links with no
+  scope change at all. Fastest route for a class that is imminent.
 
 ### 9.4.2 Turning registration on
 

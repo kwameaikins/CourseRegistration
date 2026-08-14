@@ -400,13 +400,23 @@ RTC work, and doing them is what keeps the SFU decision cheap to reverse:
         BLOCKED: the local `.env` CRON_SECRET does not match production, and
         `vercel env pull` returns an 11-char placeholder for it (Sensitive var),
         so this needs the real production value — every attempt 401s
-- [x] **2026-08-14: the Zoom app has no meeting READ scope.** Verified from the token's own
-      scope list. `GET /meetings/{id}` 400s, so the state is UNKNOWN — never read a null
-      `approvalType` as "fine". The WRITE path (update meeting, add registrant) works.
-      A brief "never modify a Zoom meeting" rule was reversed the same day — the instruction
-      had been about not replacing Zoom, not about this setting. Doc 7 §9.4.1–9.4.2
-- [ ] Grant `meeting:read:meeting:admin` at marketplace.zoom.us — not required to fix
-      anything, but without it we cannot see a meeting's state at all
+- [x] **2026-08-14: ROOT CAUSE PROVEN.** The meetings have registration switched off, and the
+      Zoom app lacks the permission to switch it on. Zoom's own words:
+      `{"code":404,"message":"Registration has not been enabled for this meeting"}`.
+      Scopes held: create meeting, add registrant, dashboard participants. Scopes MISSING:
+      `meeting:read:meeting` and `meeting:update:meeting` (Zoom splits create from update).
+      So `getMeetingRegistrationState` and `enableMeetingRegistration` are both inert until a
+      scope is granted — they now fail loudly rather than pretending. Doc 7 §9.4.1
+- [ ] **FOUNDER ACTION — pick one, both are minutes:**
+      (a) grant `meeting:update:meeting:admin` + `meeting:read:meeting:admin` at
+      marketplace.zoom.us, then run the backfill with `enableRegistration: true`; or
+      (b) tick "Registration: Required" by hand on the meeting in the Zoom web UI, then run
+      the backfill normally — no scope change needed, the registrant scope is already held
+- [ ] Once either is done, run the backfill per batch to issue personal links. Batch ids:
+      AUG 2026 (08-15) `98433b5e-18b2-4945-8fe1-3a2db20080d9` / meeting `84968782138`;
+      July 2026 (in progress) `0b0e203a-e2fd-4897-a289-00e6521e330a` / `82545109642`;
+      ESG2 `d513145e-aa95-40a3-bd34-84e6e7b49e11`; IA02 `55d7e0aa-8fcf-4a63-b5b1-7b5da2f2a82e`
+      (the last two are finished courses — no benefit, skip)
 - [ ] P3 Finish L1's batch schedule generator (already listed above)
 
 Not scheduled, gated behind a budget exception that does not exist yet: Stage 1 (RTC-0..RTC-3,
