@@ -1383,10 +1383,20 @@ Open decisions (founder):
     real batch — the `approvalType` it reports is probably the whole answer.
     Until personal join links actually issue, every session still depends on
     display-name inference.
-  - Exposed legacy Supabase service_role key still needs rotation.
-  - .env holds Paystack LIVE keys; Week 2 gate wants a TEST-mode
-    end-to-end run first — get test keys or accept a deliberate small
-    live charge (Doc 4 EC-07…EC-10).
+  - ~~Exposed legacy Supabase service_role key needs rotation.~~ ROTATED
+    2026-08-14, founder confirmed .env carries the new key. Production verified
+    still reading the database afterwards.
+  - ~~Paystack TEST-mode end-to-end run (Week 2 gate).~~ CLOSED 2026-08-14 —
+    NOT NEEDED, and the gate is satisfied by production rather than by a test.
+    Checked against live data: 71 payments carry a Paystack transaction_id, and
+    payment_method values of 'Paystack Card'/'MTN MoMo' are DERIVED BY THE
+    WEBHOOK HANDLER ITSELF (paystack-webhook-handler.ts), so manual staff entry
+    cannot produce them — those 71 went through checkout and the webhook. Both
+    channels proven (card and MoMo), both terminal states proven (Paid and Part
+    Payment), most recent GHS 469 on 2026-08-14. There are no sk_test_ keys
+    anywhere; running "the test" with the live keys would have been a real
+    charge, real money and a real production record. Do not do that — the thing
+    the gate was protecting has already happened, hundreds of times, for real.
 
 Still open from the original Week 4/5 checklist: Sentry DSN live-fired,
 Uptime Robot monitor, remaining staff accounts, load test, manual pre-launch
@@ -1398,7 +1408,12 @@ Feature backlog (lower priority, not yet built): session-days schedule
 (superseded in part by the Live Learning Operations LiveSession model),
 dashboard attendance/feedback/certificate metrics.
 
-Pivot-or-persevere gate status: Not yet reached (needs live Paystack test)
+Pivot-or-persevere gate status: PASSED IN PRACTICE (2026-08-14). It was recorded
+as blocked on "needs live Paystack test", which was written pre-launch and has
+been stale for weeks: the system is live, taking real money through Paystack on
+both card and MoMo, with the webhook deriving payment method and status
+unaided. 71 transactions. Nothing is waiting on a test any more — the remaining
+Week 4/5 items below are operational hardening, not gates.
 ```
 
 ---

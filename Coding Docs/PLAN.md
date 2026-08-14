@@ -42,14 +42,21 @@ actionable version of that document, meant to be edited as work happens, not jus
 - [x] Paystack checkout initiation implemented (`components/PaystackCheckout.tsx`), `metadata.registration_id` present in the setup config — confirm in live payload
 - [x] Paystack webhook handler implemented — signature validation (BR-13)
 - [x] Paystack webhook handler implemented — idempotency check (BR-14)
-- [ ] **Live Paystack test-mode payment run end-to-end (T-INT-01, T-INT-02)** *(external — needs Paystack keys + deployed URL)*
-- [ ] Any issues from the live test fixed
+- [x] **Live Paystack payment run end-to-end (T-INT-01, T-INT-02)** — satisfied by PRODUCTION,
+      not by a test-mode run (2026-08-14). 71 payments carry a Paystack `transaction_id`, and
+      `payment_method` of `Paystack Card` / `MTN MoMo` is derived by the webhook handler itself,
+      so manual entry cannot produce those rows. Both channels and both terminal states (Paid,
+      Part Payment) proven against real money. No `sk_test_` keys exist — running "the test" on
+      the live keys would have been a real charge
+- [x] Any issues from the live run fixed — none surfaced; the chain has been running for weeks
 - [x] Webhook idempotency unit-tested (T-BR14-01 logic — `tests/unit/paystack-webhook-handler.test.ts`); repeat live once deployed
 
-**⚠️ Week 2 gate — PIVOT-OR-PERSEVERE CHECKPOINT**
+**✅ Week 2 gate — PIVOT-OR-PERSEVERE CHECKPOINT — PASSED 2026-08-14**
 (`/docs/10_Implementation_Plan.md`, Section 4)
 
-- [ ] Live Paystack payment updates the Registration correctly end-to-end
+- [x] Live Paystack payment updates the Registration correctly end-to-end — passed in
+      production rather than in test mode. The gate wording was written pre-launch and had
+      been stale for weeks: the system is live and taking real money on both card and MoMo
 
 **If NOT passing by end of Week 2:** Pre-approved fallback — launch with 100% manual
 payment verification (Finance marks all payments Paid manually, referencing the Paystack
@@ -330,9 +337,9 @@ the other's half.** Ownership table in Document 19 §3. This costs nothing and a
       ship working here
 - [ ] Record which Supabase project(s) each system uses — needed before the account link is designed
 
-Integration seams, in the founder's chosen order. **None of these start before this repo clears
-its Paystack test-mode gate and goes live** — the work is small but it is not more urgent than
-taking the first real payment:
+Integration seams, in the founder's chosen order. The original condition — "none of these start
+before this repo clears its Paystack gate and goes live" — **is now met** (gate passed 2026-08-14;
+the system has been taking real payments for weeks), so these are unblocked whenever you want them:
 
 - [~] I — Account link + handoff token. **Registration half built 2026-08-13.** Opaque single-use
       token (`knowsia_app_handoff_tokens`, 60s) + `participants.knowsia_app_user_id`, three routes
@@ -365,8 +372,10 @@ They are different concepts and must not be merged before that question is answe
 Authoritative design: `Coding Docs/18_Knowsia_Live_RTC.md`. Source analysis:
 `Coding Docs/knowsia-live-mediasoup-engineering-plan.md`.
 
-**Founder decision 2026-08-13: do not build this now.** The product has not launched (Paystack
-test-mode gate unreached, pivot-or-persevere gate unreached), Live Learning L1 is itself
+**Founder decision 2026-08-13: do not build this now.** *(One premise has since changed: the
+Paystack/pivot-or-persevere gate was found already passed on 2026-08-14 — the product IS live and
+taking real money. The decision still stands on its other grounds, below, and above all on the
+unresolved egress cost.)* Live Learning L1 is itself
 incomplete, and the plan's headline benefit — exact attendance identity — was largely delivered by
 the 2026-08-06 Zoom attendance work. Zoom remains the classroom provider. The one budget question
 that would unblock a build (~EUR 50-150/month bare metal; four figures per session on any metered-
