@@ -69,13 +69,15 @@ your summary of it.
 - **Admin assistant:** Anthropic Claude API (approved 2026-07-19; pay-per-use — accepted budget exception)
 - **Knowsia Insights news pipeline:** same Anthropic Claude API / `ANTHROPIC_API_KEY`, but continuous (not bounded pay-per-use like the assistant) — founder-approved 2026-08-02 as its own accepted budget exception given the different cost shape. See `Coding Docs/17_News_Insights_Operations.md` §7 for the (currently zero, since no source is configured) real cost.
 - **Voice calls:** Vapi (approved 2026-07-19; ~$0.05–0.15/min, targeted triggers only — accepted budget exception)
+- **Tutorial voice-over:** ElevenLabs (founder-approved 2026-08-16; accepted budget exception). Unlike every other exception here it is **build tooling, not runtime** — nothing the deployed app serves ever calls it. It is used only by `scripts/tutorial` when someone builds a tutorial video, so the cost is per video built, not per user. `ELEVENLABS_API_KEY` lives in `.env` locally and, if the tutorial workflow is ever run, as a GitHub repository secret; it is deliberately **not** a Vercel variable, because production has no use for it. The pipeline falls back to an offline Windows voice when the key is absent, so the key is a quality upgrade rather than a dependency.
 - **Payments:** Paystack (Card + MTN MoMo)
 - **File storage:** Cloudflare R2 (founder-directed 2026-08-02, payment slip uploads only; free tier at this scale) — accessed via `lib/r2/client.ts` using `aws4fetch`, not the AWS SDK
 - **UI:** Shadcn/ui + Tailwind CSS (components copied in via CLI, not npm-installed)
 - **Hosting:** Vercel (including Vercel Cron for scheduled jobs)
 - **Monitoring:** Uptime Robot (uptime) + Sentry (errors)
 - **Budget constraint: $0/month — for THIS repo.** Do not introduce any paid service without
-  asking first. Every approved exception so far (Arkesel, Vapi, Anthropic) is small and metered.
+  asking first. Every approved exception so far (Arkesel, Vapi, Anthropic, ElevenLabs) is small and
+  metered — and ElevenLabs is build tooling only, never called by the deployed app.
   KnowsiaApp runs its own already-accepted infrastructure budget (Railway, Supabase Pro, Upstash,
   Cloudflare Stream, PostHog); that is not licence to spend here, and neither repo may commit the
   other to spend. See `Coding Docs/19_Platform_Convergence.md` §6. A self-hosted
