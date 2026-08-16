@@ -81,6 +81,7 @@ export const NAV_ITEMS_BY_ROLE: Record<
     { href: '/editorial', label: 'Knowsia Insights', section: 'Communication' },
     { href: '/payments', label: 'Payments', section: 'Finance' },
     { href: '/courses', label: 'Courses', section: 'Operations' },
+    { href: '/courses/content', label: 'Course Content', section: 'Operations' },
     { href: '/tutors', label: 'Tutors', section: 'Operations' },
     { href: '/attendance', label: 'Attendance', section: 'Operations' },
     { href: '/live-sessions', label: 'Live Sessions', section: 'Operations' },

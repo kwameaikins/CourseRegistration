@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import type { CoursePublicContent } from '@/modules/courses/public-content';
+
 export interface Course {
   id: string;
   courseCode: string;
@@ -279,5 +281,73 @@ export const batchUpdateSchema = z
 export type CourseInput = z.infer<typeof courseInputSchema>;
 export type BatchInput = z.infer<typeof batchInputSchema>;
 export type BatchUpdate = z.infer<typeof batchUpdateSchema>;
+
+// ---------------------------------------------------------------------------
+// Staff-editable course copy (2026-08-16)
+// ---------------------------------------------------------------------------
+// course_content.body is jsonb and the database does not constrain its shape,
+// so this schema IS the constraint. It is annotated with the interface the
+// programme page actually renders (CoursePublicContent), which means the two
+// cannot drift: change the rendered shape without changing this and the
+// annotation stops compiling.
+//
+// Deliberately permissive about emptiness. Every optional section on the
+// programme page is guarded by a `.length > 0` check, and an empty array is a
+// real editorial choice ("this course has no prerequisites"), not a mistake.
+// Only the fields the page renders unconditionally are required to be
+// non-empty.
+
+const trimmedLine = z.string().trim().min(1);
+
+const courseCurriculumSessionSchema = z.object({
+  heading: trimmedLine,
+  title: trimmedLine,
+  points: z.array(trimmedLine),
+  practical: trimmedLine.optional(),
+});
+
+export const courseContentBodySchema: z.ZodType<CoursePublicContent> = z.object({
+  briefSlug: z.string().trim(),
+  tagline: trimmedLine,
+  heroImage: z.string().trim().nullable(),
+  overview: z.array(trimmedLine),
+  idealFor: z.string().trim(),
+  primaryAudience: z.array(trimmedLine),
+  alsoSuitableFor: z.array(trimmedLine),
+  outcomesLabel: trimmedLine,
+  outcomes: z.array(trimmedLine),
+  curriculum: z.array(courseCurriculumSessionSchema),
+  format: z.array(z.object({ label: trimmedLine, value: trimmedLine })),
+  prerequisites: z.array(trimmedLine),
+  // The one list the page renders without a guard, so it must not be empty.
+  includes: z.array(trimmedLine).min(1),
+  facilitator: z.object({
+    name: z.string().trim(),
+    credentials: z.string().trim().nullable(),
+  }),
+  faq: z.array(z.object({ question: trimmedLine, answer: trimmedLine })),
+  corporateNote: z.string().trim().nullable(),
+});
+
+export const courseContentSaveSchema = z.object({
+  body: courseContentBodySchema,
+  // Null clears the override and returns the course to the code map's order.
+  displayOrder: z.number().int().min(0).max(9999).nullable().optional(),
+});
+
+export type CourseContentSave = z.infer<typeof courseContentSaveSchema>;
+
+export interface CourseContentRecord {
+  courseId: string;
+  courseCode: string;
+  courseName: string;
+  body: CoursePublicContent;
+  displayOrder: number | null;
+  updatedAt: string | null;
+  // Null when the course has no row yet and is still rendering from the
+  // hard-coded map — the editor shows this as "from code" so staff can tell
+  // the difference between copy nobody has ever edited and copy someone saved.
+  source: 'database' | 'code' | 'none';
+}
 
 

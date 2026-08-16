@@ -9,6 +9,7 @@
 // worse than a slower page.
 import { effectiveCourseFee } from '@/lib/utils';
 import * as coursesRepository from '@/modules/courses/repository';
+import { getResolvedCourseContentByCourseIdSystem } from '@/modules/courses/content-resolver';
 import {
   COURSE_PUBLIC_CONTENT,
   contentForCourseCode,
@@ -41,6 +42,9 @@ export interface PublicCatalogCourse {
   certificateHours: number;
   cpdCredit: string;
   content: CoursePublicContent | null;
+  // Staff-set catalogue position (course_content.display_order), or null to
+  // keep the position the code map implies. Drives ordering only.
+  displayOrder: number | null;
   sessions: PublicCatalogSession[];
   nextSession: PublicCatalogSession | null;
   // True when every upcoming session is free — drives "Register for the free
@@ -52,17 +56,44 @@ export interface PublicCatalogCourse {
 // declares; anything else follows alphabetically. Without this the catalogue
 // would order by course_name and bury the flagship programme behind whatever
 // happens to start with 'A'.
+//
+// Since 2026-08-16 staff can override this per course from the Course Content
+// screen (course_content.display_order). An explicit order always wins; a
+// course without one keeps the code map's position exactly as before, so
+// turning the editor on changed no existing page.
 function contentRank(courseCode: string): number {
   const order = Object.keys(COURSE_PUBLIC_CONTENT);
   const index = order.indexOf(courseCode);
   return index === -1 ? order.length : index;
 }
 
+function compareCatalogOrder(
+  a: { courseCode: string; courseName: string; displayOrder: number | null },
+  b: { courseCode: string; courseName: string; displayOrder: number | null },
+): number {
+  // Explicitly ordered courses come first, in their chosen order.
+  if (a.displayOrder !== null && b.displayOrder !== null) {
+    if (a.displayOrder !== b.displayOrder) return a.displayOrder - b.displayOrder;
+  } else if (a.displayOrder !== null) {
+    return -1;
+  } else if (b.displayOrder !== null) {
+    return 1;
+  }
+  const rankDiff = contentRank(a.courseCode) - contentRank(b.courseCode);
+  if (rankDiff !== 0) return rankDiff;
+  return a.courseName.localeCompare(b.courseName);
+}
+
 export async function getPublicCourseCatalog(): Promise<PublicCatalogCourse[]> {
   const rows = await coursesRepository.selectPublicCourseCatalogSystem();
-  const registrationCounts = await coursesRepository.countRegistrationsByBatchIdsSystem(
-    rows.flatMap((row) => row.batches.map((batch) => batch.id)),
-  );
+  const [registrationCounts, editedContent] = await Promise.all([
+    coursesRepository.countRegistrationsByBatchIdsSystem(
+      rows.flatMap((row) => row.batches.map((batch) => batch.id)),
+    ),
+    // One extra query for the whole catalogue. Staff-edited copy wins over the
+    // code map; a course nobody has edited is unaffected.
+    getResolvedCourseContentByCourseIdSystem(),
+  ]);
   const todayIso = new Date().toISOString().slice(0, 10);
 
   const courses = rows.map((row) => {
@@ -97,12 +128,15 @@ export async function getPublicCourseCatalog(): Promise<PublicCatalogCourse[]> {
       };
     });
 
+    const edited = editedContent.get(row.course.id) ?? null;
+
     return {
       courseCode: row.course.course_code,
       courseName: row.course.course_name,
       certificateHours: row.course.certificate_hours,
       cpdCredit: row.course.cpd_credit,
-      content: contentForCourseCode(row.course.course_code),
+      content: edited?.body ?? contentForCourseCode(row.course.course_code),
+      displayOrder: edited?.displayOrder ?? null,
       sessions,
       // Prefer a session someone can still join; fall back to the soonest so a
       // fully-booked programme still shows a date and a waitlist route.
@@ -111,11 +145,7 @@ export async function getPublicCourseCatalog(): Promise<PublicCatalogCourse[]> {
     };
   });
 
-  return courses.sort((a, b) => {
-    const rankDiff = contentRank(a.courseCode) - contentRank(b.courseCode);
-    if (rankDiff !== 0) return rankDiff;
-    return a.courseName.localeCompare(b.courseName);
-  });
+  return courses.sort(compareCatalogOrder);
 }
 
 export async function getPublicCourseByCode(

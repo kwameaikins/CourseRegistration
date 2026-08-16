@@ -9,6 +9,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const coursesRepositoryMock = {
   selectPublicCourseCatalogSystem: vi.fn(),
   countRegistrationsByBatchIdsSystem: vi.fn(),
+  // Staff-editable copy (2026-08-16). Defaults to empty in beforeEach, so
+  // every test below describes the fallback-to-code behaviour that predates
+  // the editor; the tests that care about an override set it explicitly.
+  selectAllCourseContentSystem: vi.fn(),
 };
 
 vi.mock('@/modules/courses/repository', () => coursesRepositoryMock);
@@ -50,6 +54,7 @@ function batchRow(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   coursesRepositoryMock.countRegistrationsByBatchIdsSystem.mockResolvedValue(new Map());
+  coursesRepositoryMock.selectAllCourseContentSystem.mockResolvedValue([]);
 });
 
 describe('getPublicCourseCatalog — pricing shown to visitors', () => {
@@ -289,6 +294,122 @@ describe('getPublicCourseCatalog — copy matching and ordering', () => {
     const catalog = await getPublicCourseCatalog();
 
     expect(catalog.map((course) => course.courseCode)).toEqual(['AI05', 'ZZZ9']);
+  });
+});
+
+// Staff-editable copy (2026-08-16). The whole point of the fallback design is
+// that turning the editor on changed nothing for a course nobody has edited,
+// and that a bad saved row degrades to the code copy instead of taking the
+// public catalogue down.
+describe('getPublicCourseCatalog — staff-edited copy', () => {
+  function editedBody(overrides: Record<string, unknown> = {}) {
+    return {
+      briefSlug: '',
+      tagline: 'Edited by staff',
+      heroImage: null,
+      overview: ['An edited paragraph.'],
+      idealFor: 'Everyone',
+      primaryAudience: [],
+      alsoSuitableFor: [],
+      outcomesLabel: 'What you will learn',
+      outcomes: [],
+      curriculum: [],
+      format: [],
+      prerequisites: [],
+      includes: ['A live session'],
+      facilitator: { name: '', credentials: null },
+      faq: [],
+      corporateNote: null,
+      ...overrides,
+    };
+  }
+
+  it('prefers a saved row over the copy held in code', async () => {
+    coursesRepositoryMock.selectPublicCourseCatalogSystem.mockResolvedValue([
+      { course: courseRow({ id: 'course-1', course_code: 'AI05' }), batches: [] },
+    ]);
+    coursesRepositoryMock.selectAllCourseContentSystem.mockResolvedValue([
+      { course_id: 'course-1', body: editedBody(), display_order: null },
+    ]);
+
+    const [course] = await getPublicCourseCatalog();
+
+    expect(course.content?.tagline).toBe('Edited by staff');
+    expect(course.content?.overview).toEqual(['An edited paragraph.']);
+  });
+
+  it('gives a course with no saved row the copy held in code', async () => {
+    coursesRepositoryMock.selectPublicCourseCatalogSystem.mockResolvedValue([
+      { course: courseRow({ id: 'course-1', course_code: 'AI05' }), batches: [] },
+    ]);
+    coursesRepositoryMock.selectAllCourseContentSystem.mockResolvedValue([
+      // A row for a DIFFERENT course must not leak onto this one.
+      { course_id: 'course-other', body: editedBody(), display_order: null },
+    ]);
+
+    const [course] = await getPublicCourseCatalog();
+
+    expect(course.content?.tagline).not.toBe('Edited by staff');
+    expect(course.content?.outcomes.length).toBeGreaterThan(0);
+  });
+
+  // The page must not 500 because one course's saved document predates a shape
+  // change — it falls back, exactly like an absent row.
+  it('falls back to code when a saved row fails validation', async () => {
+    coursesRepositoryMock.selectPublicCourseCatalogSystem.mockResolvedValue([
+      { course: courseRow({ id: 'course-1', course_code: 'AI05' }), batches: [] },
+    ]);
+    coursesRepositoryMock.selectAllCourseContentSystem.mockResolvedValue([
+      { course_id: 'course-1', body: { tagline: 'half a document' }, display_order: null },
+    ]);
+
+    const [course] = await getPublicCourseCatalog();
+
+    expect(course.content).not.toBeNull();
+    expect(course.content?.tagline).not.toBe('half a document');
+    expect(course.content?.outcomes.length).toBeGreaterThan(0);
+  });
+
+  // Deploy-order insurance: the code can reach production before migration
+  // 202608160062 is applied, and a marketing page must not 500 over its copy.
+  it('renders the whole catalogue from code when the content read fails', async () => {
+    coursesRepositoryMock.selectPublicCourseCatalogSystem.mockResolvedValue([
+      { course: courseRow({ id: 'course-1', course_code: 'AI05' }), batches: [batchRow()] },
+    ]);
+    coursesRepositoryMock.selectAllCourseContentSystem.mockRejectedValue(
+      new Error('relation "course_content" does not exist'),
+    );
+
+    const catalog = await getPublicCourseCatalog();
+
+    expect(catalog).toHaveLength(1);
+    expect(catalog[0].content?.outcomes.length).toBeGreaterThan(0);
+    expect(catalog[0].sessions).toHaveLength(1);
+  });
+
+  it('lets an explicit display order overtake the order the code map implies', async () => {
+    coursesRepositoryMock.selectPublicCourseCatalogSystem.mockResolvedValue([
+      { course: courseRow({ id: 'c-ai', course_code: 'AI05' }), batches: [] },
+      { course: courseRow({ id: 'c-erm', course_code: 'ERM1', course_name: 'ERM' }), batches: [] },
+    ]);
+    coursesRepositoryMock.selectAllCourseContentSystem.mockResolvedValue([
+      { course_id: 'c-erm', body: editedBody(), display_order: 0 },
+    ]);
+
+    const catalog = await getPublicCourseCatalog();
+
+    expect(catalog.map((course) => course.courseCode)).toEqual(['ERM1', 'AI05']);
+  });
+
+  it('keeps the code map order when no course sets an explicit position', async () => {
+    coursesRepositoryMock.selectPublicCourseCatalogSystem.mockResolvedValue([
+      { course: courseRow({ id: 'c-erm', course_code: 'ERM1', course_name: 'ERM' }), batches: [] },
+      { course: courseRow({ id: 'c-ai', course_code: 'AI05' }), batches: [] },
+    ]);
+
+    const catalog = await getPublicCourseCatalog();
+
+    expect(catalog.map((course) => course.courseCode)).toEqual(['AI05', 'ERM1']);
   });
 });
 
