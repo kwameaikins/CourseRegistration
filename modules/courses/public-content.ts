@@ -5,6 +5,7 @@
 //   AI02/AI05 → ai-powered-financial-reporting-analysis-modelling-automation.md
 //   ESG1      → esg-sustainability-reporting-training.md
 //   ERM1      → enterprise-risk-management-risk-based-auditing.md
+//   TAX1      → preparing-for-tax-audit.md
 // Those documents and this file must not drift. When a brief is edited, edit
 // the matching entry here in the same change.
 //
@@ -584,6 +585,301 @@ export const COURSE_PUBLIC_CONTENT: Record<string, CoursePublicContent> = {
     ],
     corporateNote:
       'Companies registering four or more participants receive a 15% discount, plus a Corporate Portal to track attendance, download certificates, and manage employees from one account.',
+  },
+
+  // TAX1 is confirmed, not a placeholder: verified against courses.course_code
+  // in production 2026-08-16 (course_name 'Preparing For Tax Audit').
+  TAX1: {
+    briefSlug: 'preparing-for-tax-audit',
+    tagline:
+      'Walk into a tax audit already prepared, with records, reconciliations and responses in order.',
+    heroImage: null,
+    overview: [
+      'A tax audit rarely goes badly because of a single wrong number. It goes badly because the records cannot be produced, the returns do not reconcile to the ledger, and nobody has decided who answers the auditor. All of that is fixable — but only before the notification arrives.',
+      'This practical programme equips finance professionals, accountants, tax practitioners, internal auditors, business owners and management teams with the knowledge and skills required to prepare effectively for a tax audit. It focuses on identifying potential tax exposures before an audit begins, maintaining appropriate documentation, responding professionally to tax authority enquiries, managing audit findings, and strengthening internal tax compliance processes.',
+      'The course combines tax compliance principles with practical audit-readiness techniques — document reviews, risk assessments, reconciliations and case-based exercises — across twelve modules, each closing with a practical exercise rather than a summary.',
+      'The programme ends with a full simulation: a fictional organisation, a real audit notification, and every stage worked end to end, from the health check through to the post-audit improvement plan.',
+    ],
+    idealFor:
+      'Finance professionals, accountants, tax practitioners, internal auditors, business owners and management teams.',
+    primaryAudience: [
+      'Finance professionals and accountants responsible for tax compliance',
+      'Tax practitioners advising organisations on tax matters',
+      'Internal auditors reviewing tax processes and exposures',
+    ],
+    alsoSuitableFor: [
+      'Business owners responsible for their organisation’s tax position',
+      'Management teams accountable for tax governance and audit outcomes',
+    ],
+    outcomesLabel: 'What you will be able to do',
+    outcomes: [
+      'Understand the purpose, scope, and stages of a tax audit',
+      'Identify major areas of tax risk within an organisation',
+      'Conduct an internal tax health check before a tax audit',
+      'Prepare and organise records and supporting documentation required for a tax audit',
+      'Reconcile tax returns with accounting records and financial statements',
+      'Identify inconsistencies that may attract the attention of tax authorities',
+      'Respond appropriately to tax audit queries and information requests',
+      'Manage tax audit meetings, correspondence, findings, and assessments',
+      'Develop practical controls for improving ongoing tax compliance',
+      'Prepare an organisation for future tax audits and regulatory reviews',
+    ],
+    curriculum: [
+      {
+        heading: 'Module 1',
+        title: 'Understanding the Tax Audit Process',
+        points: [
+          'Meaning and objectives of a tax audit',
+          'Tax audit versus tax investigation',
+          'Reasons organisations may be selected for audit',
+          'Types of tax audits and reviews',
+          'Scope and coverage of a tax audit',
+          'Rights and responsibilities of taxpayers',
+          'Responsibilities of management during a tax audit',
+          'Typical stages of the tax audit process',
+          'Understanding tax audit notifications and information requests',
+        ],
+        practical:
+          'Reviewing a sample tax audit notification and developing an initial response plan.',
+      },
+      {
+        heading: 'Module 2',
+        title: 'Tax Audit Risk Assessment',
+        points: [
+          'Understanding tax risk',
+          'Identifying high-risk transactions',
+          'Common causes of tax exposures',
+          'Assessing tax compliance across different tax categories',
+          'Reviewing previous tax audit findings',
+          'Identifying unusual movements and inconsistencies in tax accounts',
+          'Tax risk ranking and prioritisation',
+          'Developing a tax risk register',
+        ],
+        practical:
+          'Preparing a tax risk register and classifying identified risks according to likelihood and potential financial impact.',
+      },
+      {
+        heading: 'Module 3',
+        title: 'Conducting a Pre-Audit Tax Health Check',
+        points: [
+          'Purpose of a tax health check',
+          'Reviewing tax returns before an audit',
+          'Comparing tax returns with financial statements',
+          'Reviewing general ledger accounts',
+          'Identifying unreported or incorrectly reported transactions',
+          'Reviewing tax computations',
+          'Identifying outstanding tax obligations',
+          'Reviewing prior-year tax adjustments',
+          'Assessing penalties and interest exposure',
+        ],
+        practical:
+          'Conducting a simulated tax health check using accounting and tax records.',
+      },
+      {
+        heading: 'Module 4',
+        title: 'Preparing Tax Documentation and Records',
+        points: [
+          'Importance of proper tax documentation',
+          'Developing a tax audit document checklist',
+          'Organising accounting and tax records',
+          'Supporting documentation for income and expenses',
+          'Maintaining invoices, receipts, contracts, schedules, and reconciliations',
+          'Payroll and employee tax documentation',
+          'Asset and capital expenditure documentation',
+          'Related-party transaction documentation',
+          'Electronic records and document management',
+          'Creating a tax audit working file',
+        ],
+        practical:
+          'Preparing a structured tax audit documentation file from a sample company dataset.',
+      },
+      {
+        heading: 'Module 5',
+        title: 'Tax Reconciliations',
+        points: [
+          'Reconciling revenue reported for tax purposes with accounting revenue',
+          'Reconciling tax returns with general ledger balances',
+          'Payroll reconciliation',
+          'Withholding tax reconciliation',
+          'VAT or consumption tax reconciliation',
+          'Corporate income tax reconciliation',
+          'Reconciling tax payments with tax liabilities',
+          'Identifying unexplained differences',
+          'Documenting and resolving reconciliation items',
+        ],
+        practical:
+          'Participants prepare selected tax reconciliations and investigate identified discrepancies.',
+      },
+      {
+        heading: 'Module 6',
+        title: 'Key Areas Commonly Reviewed During Tax Audits',
+        points: [
+          'Revenue recognition and completeness',
+          'Business expenses and deductibility',
+          'Payroll and employee-related taxes',
+          'Withholding taxes',
+          'Indirect taxes',
+          'Capital allowances and fixed assets',
+          'Related-party transactions',
+          'Loans and financing arrangements',
+          'Director and shareholder transactions',
+          'Foreign transactions',
+          'Tax incentives and exemptions',
+          'Tax losses and carry-forward positions',
+          'Unusual, exceptional, and non-recurring transactions',
+        ],
+        practical:
+          'Identifying potential tax audit issues from a company’s trial balance and financial statements.',
+      },
+      {
+        heading: 'Module 7',
+        title: 'Managing the Tax Audit',
+        points: [
+          'Establishing an internal tax audit response team',
+          'Appointing a tax audit coordinator',
+          'Managing communication with tax authorities',
+          'Responding to information requests',
+          'Preparing for tax audit meetings',
+          'Managing interviews and explanations',
+          'Maintaining an audit query tracker',
+          'Reviewing documents before submission',
+          'Controlling information provided during the audit',
+          'Maintaining professional communication and documentation',
+          'Escalating complex tax issues to specialists',
+        ],
+        practical:
+          'Simulation of a tax audit meeting between company representatives and tax auditors.',
+      },
+      {
+        heading: 'Module 8',
+        title: 'Responding to Tax Audit Queries',
+        points: [
+          'Understanding the tax authority’s query',
+          'Gathering supporting evidence',
+          'Preparing clear and professional responses',
+          'Explaining accounting and tax treatments',
+          'Managing disputed transactions',
+          'Avoiding inconsistent responses',
+          'Maintaining records of correspondence',
+          'Responding within required timelines',
+          'Managing follow-up queries',
+        ],
+        practical: 'Drafting responses to sample tax audit queries.',
+      },
+      {
+        heading: 'Module 9',
+        title: 'Managing Tax Audit Findings and Assessments',
+        points: [
+          'Understanding preliminary audit findings',
+          'Reviewing proposed adjustments',
+          'Quantifying potential tax exposure',
+          'Challenging incorrect assumptions',
+          'Preparing supporting arguments and evidence',
+          'Resolving factual disagreements',
+          'Managing additional assessments',
+          'Understanding penalties and interest',
+          'Managing negotiations and settlement discussions',
+          'Internal reporting of tax audit findings',
+        ],
+        practical:
+          'Reviewing a simulated tax audit findings report and preparing management’s response.',
+      },
+      {
+        heading: 'Module 10',
+        title: 'Objections, Disputes and Post-Audit Actions',
+        points: [
+          'Understanding tax dispute procedures',
+          'Reviewing tax assessments',
+          'Preparing objections',
+          'Supporting objections with documentation',
+          'Managing discussions with tax authorities',
+          'Escalating unresolved tax disputes',
+          'Implementing agreed audit adjustments',
+          'Correcting tax records and returns',
+          'Monitoring agreed payment arrangements',
+          'Closing the tax audit internally',
+        ],
+        practical: 'Preparing a structured response to a disputed tax assessment.',
+      },
+      {
+        heading: 'Module 11',
+        title: 'Strengthening Tax Governance After the Audit',
+        points: [
+          'Learning from tax audit findings',
+          'Performing root-cause analysis',
+          'Strengthening tax controls',
+          'Improving tax documentation',
+          'Establishing tax compliance calendars',
+          'Assigning tax responsibilities',
+          'Periodic internal tax reviews',
+          'Tax risk reporting to management',
+          'Developing tax policies and procedures',
+          'Building continuous tax audit readiness',
+        ],
+        practical: 'Developing a post-audit tax improvement action plan.',
+      },
+      {
+        heading: 'Module 12',
+        title: 'Practical Tax Audit Simulation',
+        points: [
+          'Reviewing the tax audit notification',
+          'Conducting a tax health check',
+          'Identifying tax risks',
+          'Reviewing financial statements and tax returns',
+          'Performing key reconciliations',
+          'Preparing supporting documentation',
+          'Responding to tax audit queries',
+          'Reviewing proposed audit adjustments',
+          'Preparing management responses',
+          'Developing a post-audit improvement plan',
+        ],
+        practical:
+          'A comprehensive case study involving a fictional organisation preparing for a tax audit, covering every stage above end to end.',
+      },
+    ],
+    format: [
+      { label: 'Delivery', value: 'Live, instructor-led via Zoom' },
+      { label: 'Structure', value: 'Twelve modules, each with a practical exercise' },
+      { label: 'Certification', value: 'Verifiable Certificate of Completion' },
+      {
+        label: 'Learner portal',
+        value: 'Personal portal for the meeting link, resources, and course materials',
+      },
+    ],
+    prerequisites: [
+      'Participants should be working in a finance, accounting, tax or audit role — for example as an accountant, CFO, finance manager, internal or external auditor, or tax practitioner.',
+    ],
+    // Only what the platform actually delivers on every live course. The brief's
+    // ten templates are deliberately NOT here: it words them as "participants
+    // *may* receive" under "*Recommended* Course Deliverables", and this list
+    // renders under the heading "What your registration includes", which reads as
+    // a promise. Move them across once the founder confirms they ship.
+    includes: [
+      'Live, instructor-led sessions across twelve structured modules',
+      'A practical exercise in every module',
+      'A full end-to-end tax audit simulation',
+      'Course resources and materials',
+      'Access to a personal learner portal',
+      'A verifiable Certificate of Completion',
+    ],
+    // Same facilitator as ESG1. The credential string is deliberately spelled
+    // identically to the ESG1 entry — the founder's note and batches
+    // .facilitator_name for SEP-2026 both read "CMIT" and "GCMA", which appear
+    // to be transpositions: CGMA is the designation that pairs with ACMA, and
+    // the Chartered Institute of Taxation grades are MCIT/FCIT. Awaiting
+    // confirmation; if the other spelling is right, ESG1 and the batch row
+    // need changing too, not just this entry.
+    facilitator: { name: 'Mr. Francis Agyen', credentials: 'CA, MCIT, CGMA, ACMA, CGEM, ACIB, MBA' },
+    // Empty on purpose: the page falls back to the shared CATALOG_FAQ, which is
+    // the documented intent. Add entries here only for questions specific to
+    // this programme.
+    faq: [],
+    // 15% confirmed by the founder. The THRESHOLD was not given and is genuinely
+    // per-course (ERM1 four or more, AI/ESG1 five or more) — "five or more" is
+    // taken from ESG1, the closest analogue: same facilitator, same GHS 800 fee.
+    // Change here if it should be four.
+    corporateNote:
+      'Companies registering five or more participants receive a 15% discount, plus a Corporate Portal to track attendance, download certificates, and manage employees from one account.',
   },
 };
 
