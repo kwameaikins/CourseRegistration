@@ -9,16 +9,22 @@
 //
 // TWO SAFETY DECISIONS, both deliberate:
 //
-// 1. The Paystack button is HIGHLIGHTED AND NARRATED BUT NEVER CLICKED, and
-//    the recorder additionally blocks js.paystack.co outright. The Paystack
-//    keys in this project are LIVE — there is no test key anywhere in the
-//    repo — so an automated script must never be able to open a real checkout
-//    against the production key. What happens inside Paystack's own window is
-//    also Paystack's UI, not ours, and it changes without us.
+// 1. The Paystack checkout is opened for real, but ONLY because the recorder
+//    refuses to load js.paystack.co unless NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY is
+//    a pk_test_ key (see record.mjs). With a live key the request is aborted
+//    and this step records nothing rather than opening a real checkout. The
+//    guard is on the environment, not on this file, so it cannot be defeated
+//    by editing the flow.
 //
 // 2. Every response is mocked, so no payment submission row is created and no
 //    real participant's balance appears on screen. Same reasoning as the
 //    portal walkthrough.
+//
+// WHY PAYSTACK COMES LAST: the submissions mock is a sequence (empty, then
+// pending), so any reload or revisit mid-flow would consume an entry early and
+// show "awaiting confirmation" before the submission happens. Opening the
+// checkout at the end needs no reload — and it lands as the closing call to
+// action rather than a detour.
 
 const REGISTRATION_ID = '00000000-0000-4000-8000-000000000001';
 
@@ -125,22 +131,6 @@ const payingFlow = {
       },
     },
     {
-      id: 'paystack',
-      does: 'Highlights the "Pay now — Card or Mobile Money" button without clicking it. Pressing it opens a secure Paystack window for card or MTN Mobile Money.',
-      narrate:
-        'The quickest way is Pay Now. That opens a secure window where you pay by card or MTN Mobile Money.',
-      async run(ui) {
-        // The portal's own button reads "Pay GHS 680.00 now — Card or Mobile
-        // Money", so match on the stable half of the label rather than the
-        // amount, which changes with the balance.
-        const payButton = 'button:has-text("Card or Mobile Money")';
-        await ui.moveTo(payButton);
-        await ui.highlight(payButton);
-        await ui.pause(1400);
-        await ui.clearHighlight();
-      },
-    },
-    {
       id: 'manual',
       does: 'Clicks "I have already paid via MoMo or bank transfer", which opens a short form for telling Knowsia about a payment made outside the system.',
       narrate:
@@ -197,6 +187,39 @@ const payingFlow = {
         await ui.clearHighlight();
         await ui.page.waitForSelector('.confirming-note', { timeout: 20_000 });
         await ui.pause(1400);
+      },
+    },
+    {
+      id: 'paystack',
+      does: 'Clicks the Pay now button, which opens the secure Paystack checkout window showing the amount and offering card or MTN Mobile Money.',
+      narrate:
+        'Not paid yet? Pay Now opens a secure window for card or Mobile Money, and your balance clears straight away.',
+      async run(ui) {
+        // Two stages. The portal's own button reads "Pay GHS 680.00 now — Card
+        // or Mobile Money" and only REVEALS the checkout component; that
+        // component then renders its own "Pay now — Card or Mobile Money"
+        // button, which is the one that opens Paystack. Matching on the stable
+        // half of the first label keeps this working when the balance changes.
+        await ui.click('button:has-text("Card or Mobile Money")');
+        await ui.pause(700);
+        await ui.click('button:has-text("Pay now")');
+
+        // Wait for the iframe to attach — measured at ~330ms and reliable —
+        // then hold a FIXED pause for its contents to paint.
+        //
+        // A fixed pause is the right tool here, having tried the alternatives:
+        // waiting on the iframe alone captured a spinner, and waiting on text
+        // Paystack renders (`getByText('Mobile Money')`) never resolved, most
+        // likely because the checkout nests frames inside the popup. Chasing a
+        // readiness signal inside a third-party surface couples this recording
+        // to markup that can change without notice, for no real gain: nothing
+        // is being asserted here, we are only filming. Six seconds is generous
+        // for a modal that paints in about two.
+        await ui.page
+          .waitForSelector('iframe[src*="checkout.paystack.com"]', { timeout: 15_000 })
+          .catch(() => {});
+        await ui.clearHighlight();
+        await ui.pause(6000);
       },
     },
   ],

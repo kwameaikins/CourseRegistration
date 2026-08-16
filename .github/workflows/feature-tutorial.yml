@@ -21,7 +21,11 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Recording happens in real time, so the job length tracks the video
+    # length. 25 minutes was comfortable for a 60-second walkthrough and would
+    # be tight for a five-minute one once npm ci, the Playwright download and
+    # the Next build are counted.
+    timeout-minutes: 45
 
     env:
       # Recording needs a running app, which needs the app's own configuration.
