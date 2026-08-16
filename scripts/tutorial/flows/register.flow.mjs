@@ -18,6 +18,12 @@ const registerFlow = {
   subtitle: 'Knowsia · Course Registration',
   path: '/register',
 
+  // Don't start recording until the Course dropdown holds at least one real
+  // batch, or the opening frames catch an empty form. `attached` rather than
+  // the default `visible`: an <option> inside a closed <select> is never
+  // "visible" to Playwright, so `visible` would always time out here.
+  ready: { selector: '#batchId option:nth-child(2)', state: 'attached' },
+
   // The recording must never write to the real database, send a real email,
   // or touch Paystack. Intercepting the one POST that mutates state is enough:
   // everything up to it is genuine, read-only page behaviour against real

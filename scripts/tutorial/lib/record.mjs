@@ -44,6 +44,27 @@ async function recordWith(browser, { flow, baseUrl, holdMs, outDir }) {
 
   await installOverlay(context);
 
+  // The dev server compiles routes lazily, so the first client-side navigation
+  // to another page mid-flow sits on "Loading…" for several seconds — a dead
+  // stretch in the finished video with narration playing over an empty screen.
+  // Visiting those routes first forces the compile up front.
+  //
+  // Done on a throwaway page deliberately: Playwright records one video per
+  // page, so warming up here leaves the recorded page's own video untouched
+  // rather than opening with a few seconds of the wrong screen.
+  // The flow's own entry path is always warmed, not just the extra routes a
+  // flow declares. Recording starts the moment the page is created, so a cold
+  // entry page means the video opens on however many seconds of blank screen
+  // the compile takes — 20 of them, when this was first built.
+  const warmup = await context.newPage();
+  for (const warmPath of [flow.path, ...(flow.prewarm ?? [])]) {
+    await warmup
+      .goto(new URL(warmPath, baseUrl).toString(), { waitUntil: 'domcontentloaded' })
+      .catch(() => {});
+    await warmup.waitForTimeout(1500);
+  }
+  await warmup.close();
+
   const page = await context.newPage();
   const startedAt = Date.now();
 
@@ -51,14 +72,15 @@ async function recordWith(browser, { flow, baseUrl, holdMs, outDir }) {
     waitUntil: 'domcontentloaded',
   });
   // The Next dev server holds an HMR socket open, so networkidle never
-  // settles. Wait on the thing the flow actually needs instead: a Course
-  // dropdown with at least one real batch in it. `attached` rather than the
-  // default `visible` — an <option> inside a closed <select> never counts as
-  // visible, so the default state would always time out here.
-  await page.waitForSelector('#batchId option:nth-child(2)', {
-    state: 'attached',
-    timeout: 30_000,
-  });
+  // settles. Each flow therefore declares its own readiness condition — the
+  // recorder cannot know what "loaded" means for an arbitrary page, and
+  // without it the opening frames can catch a half-populated form.
+  if (flow.ready) {
+    await page.waitForSelector(flow.ready.selector, {
+      state: flow.ready.state ?? 'visible',
+      timeout: 30_000,
+    });
+  }
   await page.waitForTimeout(LEAD_IN_MS);
 
   const ui = makeUi(page);
