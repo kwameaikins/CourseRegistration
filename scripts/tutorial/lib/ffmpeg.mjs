@@ -89,22 +89,53 @@ export async function buildNarrationTrack(clips, totalMs, output) {
   return output;
 }
 
-// Title card + body in a single encode. Concat demuxer would need both
-// segments pre-encoded identically; the concat filter just needs matching
-// scale/fps/format, which is cheaper to guarantee.
-export async function assemble({ titlePng, titleSeconds, videoIn, audioIn, output }) {
+// Title card + walkthrough + outro card in a single encode. Concat demuxer
+// would need every segment pre-encoded identically; the concat filter just
+// needs matching scale/fps/format, which is cheaper to guarantee.
+//
+// Transitions are per-segment fades to black rather than xfade. xfade overlaps
+// its inputs and therefore SHORTENS the timeline by the fade duration, which
+// would silently shift every narration clip and caption out of step — the one
+// property this pipeline exists to guarantee. Fading each segment in and out
+// leaves all three durations exactly as measured.
+const FADE_SECONDS = 0.35;
+
+function segment(input, label, seconds) {
+  const fadeOutAt = Math.max(0, seconds - FADE_SECONDS).toFixed(3);
+  return (
+    `[${input}:v]scale=1280:720,setsar=1,fps=30,format=yuv420p,` +
+    `fade=t=in:st=0:d=${FADE_SECONDS},fade=t=out:st=${fadeOutAt}:d=${FADE_SECONDS}[${label}]`
+  );
+}
+
+export async function assemble({
+  titlePng,
+  titleSeconds,
+  outroPng,
+  outroSeconds,
+  videoIn,
+  bodySeconds,
+  audioIn,
+  output,
+}) {
+  const silence = 'anullsrc=channel_layout=stereo:sample_rate=44100';
+
   await ffmpeg([
     '-y',
-    '-loop', '1', '-t', String(titleSeconds), '-i', titlePng,
-    '-f', 'lavfi', '-t', String(titleSeconds),
-    '-i', 'anullsrc=channel_layout=stereo:sample_rate=44100',
-    '-i', videoIn,
-    '-i', audioIn,
+    '-loop', '1', '-t', String(titleSeconds), '-i', titlePng, // 0
+    '-f', 'lavfi', '-t', String(titleSeconds), '-i', silence, // 1
+    '-i', videoIn, // 2
+    '-i', audioIn, // 3
+    '-loop', '1', '-t', String(outroSeconds), '-i', outroPng, // 4
+    '-f', 'lavfi', '-t', String(outroSeconds), '-i', silence, // 5
     '-filter_complex',
-    '[0:v]scale=1280:720,setsar=1,fps=30,format=yuv420p[tv];' +
-      '[2:v]scale=1280:720,setsar=1,fps=30,format=yuv420p[bv];' +
-      '[3:a]aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[ba];' +
-      '[tv][1:a][bv][ba]concat=n=2:v=1:a=1[v][a]',
+    [
+      segment(0, 'tv', titleSeconds),
+      segment(2, 'bv', bodySeconds),
+      segment(4, 'ov', outroSeconds),
+      '[3:a]aformat=sample_fmts=fltp:sample_rates=44100:channel_layouts=stereo[ba]',
+      '[tv][1:a][bv][ba][ov][5:a]concat=n=3:v=1:a=1[v][a]',
+    ].join(';'),
     '-map', '[v]', '-map', '[a]',
     '-c:v', 'libx264', '-preset', 'medium', '-crf', '20',
     '-c:a', 'aac', '-b:a', '160k',

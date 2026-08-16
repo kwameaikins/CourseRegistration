@@ -13,7 +13,7 @@ Output lands in `scripts/tutorial/out/<flow>/`:
 
 | File            | What it is                                        |
 | --------------- | ------------------------------------------------- |
-| `<flow>.mp4`    | The tutorial — title card, walkthrough, voice-over |
+| `<flow>.mp4`    | Title card, walkthrough with voice-over, outro card |
 | `<flow>.srt`    | Caption track (exact timings, not transcribed)     |
 | `narration.json`| Cached narration; delete or `--refresh` to redo    |
 | `manifest.json` | Per-step timings, for debugging sync               |
@@ -37,6 +37,24 @@ any state-changing request. The registration flow intercepts `POST
 /api/registrations`, so no row is written, no email is sent, and Paystack is
 never called — but every screen up to and including the confirmation is the
 real component rendering real markup.
+
+## Title and outro cards
+
+Both are rendered as HTML in the same browser the pipeline already drives, then
+screenshotted — so restyling them is CSS in `CARD_CSS`
+([lib/record.mjs](lib/record.mjs)), not image editing.
+
+The outro's URL and contact details are read from the same environment
+variables the application uses, with the same defaults
+(`NEXT_PUBLIC_APP_URL`, `RESEND_FROM_EMAIL`, plus `TUTORIAL_CONTACT_WHATSAPP`
+and `TUTORIAL_CONTACT_PHONE`). Deliberately not hard-coded a second time: a
+video quoting a number the website no longer uses is worse than no video.
+
+Transitions are per-segment fades to black, **not** `xfade`. xfade overlaps its
+inputs and so shortens the timeline by each fade's duration, which would shift
+every narration clip and caption out of step — the one property this pipeline
+exists to guarantee. Fading each segment in and out leaves all three durations
+exactly as measured.
 
 ## Adding a flow
 

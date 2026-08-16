@@ -22,10 +22,13 @@ import { pathToFileURL } from 'node:url';
 import { loadEnv } from './lib/env.mjs';
 import { assemble, buildNarrationTrack, durationMs } from './lib/ffmpeg.mjs';
 import { generateNarration } from './lib/narrate.mjs';
-import { record, renderTitleCard } from './lib/record.mjs';
+import { record, renderCards } from './lib/record.mjs';
 import { pickProvider, synth } from './lib/voice.mjs';
 
 const TITLE_SECONDS = 3;
+// Longer than the title card on purpose: the outro carries a URL and three
+// contact details, and a viewer has to be able to read or screenshot them.
+const OUTRO_SECONDS = 5;
 // Breathing room after each line so steps do not run into one another.
 const STEP_GAP_MS = 650;
 
@@ -150,11 +153,18 @@ async function main() {
 
   // 5 — assemble -----------------------------------------------------------
   console.log('\n[5/5] Assembling');
-  const titlePng = await renderTitleCard({ flow, outPath: path.join(workDir, 'title.png') });
+  const { titlePath, outroPath } = await renderCards({
+    flow,
+    titlePath: path.join(workDir, 'title.png'),
+    outroPath: path.join(workDir, 'outro.png'),
+  });
   const mp4 = await assemble({
-    titlePng,
+    titlePng: titlePath,
     titleSeconds: TITLE_SECONDS,
+    outroPng: outroPath,
+    outroSeconds: OUTRO_SECONDS,
     videoIn: videoPath,
+    bodySeconds: videoMs / 1000,
     audioIn: narrationWav,
     output: path.join(outDir, `${flow.id}.mp4`),
   });
@@ -192,8 +202,8 @@ async function main() {
     ),
   );
 
-  const total = (TITLE_SECONDS + videoMs / 1000).toFixed(1);
-  console.log(`\nDone — ${total}s\n  ${mp4}\n  ${srt}`);
+  const total = (TITLE_SECONDS + videoMs / 1000 + OUTRO_SECONDS).toFixed(1);
+  console.log(`\nDone — ${total}s (${provider} voice)\n  ${mp4}\n  ${srt}`);
 }
 
 main().catch((err) => {
