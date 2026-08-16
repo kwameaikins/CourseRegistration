@@ -32,14 +32,44 @@ async function recordWith(browser, { flow, baseUrl, holdMs, outDir }) {
     recordVideo: { dir: outDir, size: VIEWPORT },
   });
 
+  // Paystack is allowed to load ONLY when the configured public key is a test
+  // key. Registered first so a flow could in principle override it.
+  //
+  // This is keyed on the environment rather than hard-coded so it cannot rot:
+  // add a pk_test_ key and recording the checkout starts working, swap back to
+  // pk_live_ and it stops, with no code change and nothing for anyone to
+  // remember. A recording must never be able to open a real checkout against
+  // the production key, whatever a flow's steps happen to click.
+  const paystackKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY ?? '';
+  if (!paystackKey.startsWith('pk_test_')) {
+    await context.route('https://js.paystack.co/**', (route) => route.abort());
+    console.log(
+      `  (Paystack blocked — key is ${paystackKey.slice(0, 8) || 'unset'}, not pk_test_)`,
+    );
+  }
+
+  // Mocks are registered in declaration order, and Playwright checks the LAST
+  // registered first. A method-specific mock must therefore come AFTER the
+  // general one for the same URL — see the payment flow, where the submissions
+  // list and the submission itself share a path.
+  //
+  // `sequence` returns each response in turn and then repeats the last, which
+  // is what lets a flow show a list before an action and a changed list after
+  // it without any real writes.
   for (const mock of flow.mocks ?? []) {
-    await context.route(mock.url, (route) =>
-      route.fulfill({
+    const queue = Array.isArray(mock.sequence) ? [...mock.sequence] : null;
+    await context.route(mock.url, async (route, request) => {
+      if (mock.method && request.method() !== mock.method) {
+        await route.fallback();
+        return;
+      }
+      const body = queue ? (queue.length > 1 ? queue.shift() : queue[0]) : mock.json;
+      await route.fulfill({
         status: mock.status ?? 200,
         contentType: 'application/json',
-        body: JSON.stringify(mock.json),
-      }),
-    );
+        body: JSON.stringify(body),
+      });
+    });
   }
 
   await installOverlay(context);
