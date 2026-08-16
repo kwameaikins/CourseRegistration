@@ -3,6 +3,8 @@ import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
 import type { Database } from '@/lib/supabase/database.types';
 
+type Json = Database['public']['Tables']['course_content']['Row']['body'];
+type CourseContentRow = Database['public']['Tables']['course_content']['Row'];
 type CourseRow = Database['public']['Tables']['courses']['Row'];
 type BatchRow = Database['public']['Tables']['batches']['Row'];
 type BatchInsert = Database['public']['Tables']['batches']['Insert'];
@@ -294,4 +296,51 @@ export async function selectBatchByIdSystem(batchId: string): Promise<BatchRow |
     .maybeSingle();
   if (error) throw error;
   return data;
+}
+
+// --- Staff-editable course copy (2026-08-16) -------------------------------
+
+// One query for the whole catalogue rather than one per course: the catalogue
+// read already resolves every course's copy in a single pass, and doing it
+// per-course would turn one page render into N round trips.
+export async function selectAllCourseContentSystem(): Promise<CourseContentRow[]> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase.from('course_content').select('*');
+  if (error) throw error;
+  return data;
+}
+
+export async function selectCourseContent(): Promise<CourseContentRow[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.from('course_content').select('*');
+  if (error) throw error;
+  return data;
+}
+
+// Upsert rather than insert-or-update: the editor always sends the whole
+// document, and whether a row already exists is not something the caller
+// should have to know or race on.
+export async function upsertCourseContent(row: {
+  course_id: string;
+  body: Json;
+  display_order: number | null;
+  updated_by: string | null;
+}): Promise<CourseContentRow> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase
+    .from('course_content')
+    .upsert(
+      { ...row, updated_at: new Date().toISOString() },
+      { onConflict: 'course_id' },
+    )
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteCourseContent(courseId: string): Promise<void> {
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase.from('course_content').delete().eq('course_id', courseId);
+  if (error) throw error;
 }

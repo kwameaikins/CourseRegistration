@@ -19,11 +19,18 @@ import {
   createZoomMeeting,
   isZoomMeetingCreateConfigured,
 } from '@/lib/zoom/client';
+import { courseContentBodySchema } from '@/modules/courses/types';
+import {
+  contentForCourseCode,
+  type CoursePublicContent,
+} from '@/modules/courses/public-content';
 import type {
   Batch,
   BatchInput,
   BatchUpdate,
   Course,
+  CourseContentRecord,
+  CourseContentSave,
   CourseInput,
   CourseUpdate,
   PublicBatchOption,
@@ -472,5 +479,134 @@ export function isPostgresUniqueViolation(err: unknown): boolean {
     'code' in err &&
     (err as { code: unknown }).code === '23505'
   );
+}
+
+// --- Staff-editable course copy (2026-08-16) -------------------------------
+//
+// Resolution order everywhere is DATABASE FIRST, THEN THE CODE MAP. A course
+// nobody has edited keeps rendering from public-content.ts exactly as it did
+// before this table existed, so shipping the editor required no data
+// migration and cannot leave a programme page blank.
+
+// The system-context resolver lives in content-resolver.ts so the public
+// catalogue can use it without importing this module's dependency graph.
+export { getResolvedCourseContentByCourseIdSystem } from '@/modules/courses/content-resolver';
+export type { ResolvedCourseContent } from '@/modules/courses/content-resolver';
+
+export async function getCourseContentRecords(): Promise<CourseContentRecord[]> {
+  await usersService.requireRole([...COURSE_READ_ROLES]);
+  const [courses, contentRows] = await Promise.all([
+    coursesRepository.selectCourses(),
+    coursesRepository.selectCourseContent(),
+  ]);
+  const byCourseId = new Map(contentRows.map((row) => [row.course_id, row]));
+
+  return courses.map((course) => {
+    const row = byCourseId.get(course.id);
+    const parsed = row ? courseContentBodySchema.safeParse(row.body) : null;
+    const fromCode = contentForCourseCode(course.course_code);
+
+    if (parsed?.success) {
+      return {
+        courseId: course.id,
+        courseCode: course.course_code,
+        courseName: course.course_name,
+        body: parsed.data,
+        displayOrder: row?.display_order ?? null,
+        updatedAt: row?.updated_at ?? null,
+        source: 'database' as const,
+      };
+    }
+
+    return {
+      courseId: course.id,
+      courseCode: course.course_code,
+      courseName: course.course_name,
+      // A course with neither a row nor code copy gets a blank document to
+      // start editing, not an error — that is the normal state for a course
+      // whose copy has never been written.
+      body: fromCode ?? emptyCourseContent(),
+      displayOrder: null,
+      updatedAt: null,
+      source: fromCode ? ('code' as const) : ('none' as const),
+    };
+  });
+}
+
+export function emptyCourseContent(): CoursePublicContent {
+  return {
+    briefSlug: '',
+    tagline: '',
+    heroImage: null,
+    overview: [],
+    idealFor: '',
+    primaryAudience: [],
+    alsoSuitableFor: [],
+    outcomesLabel: 'What you will learn',
+    outcomes: [],
+    curriculum: [],
+    format: [],
+    prerequisites: [],
+    includes: [],
+    facilitator: { name: '', credentials: null },
+    faq: [],
+    corporateNote: null,
+  };
+}
+
+export async function saveCourseContent(
+  courseCode: string,
+  input: CourseContentSave,
+): Promise<CourseContentRecord> {
+  await usersService.requireRole([...COURSE_WRITE_ROLES]);
+  const course = await findCourseByCode(courseCode);
+  const staffUser = await usersService.getCurrentStaffUser();
+
+  const row = await coursesRepository.upsertCourseContent({
+    course_id: course.id,
+    body: input.body as unknown as Database['public']['Tables']['course_content']['Row']['body'],
+    display_order: input.displayOrder ?? null,
+    updated_by: staffUser?.id ?? null,
+  });
+
+  return {
+    courseId: course.id,
+    courseCode: course.course_code,
+    courseName: course.course_name,
+    body: input.body,
+    displayOrder: row.display_order,
+    updatedAt: row.updated_at,
+    source: 'database',
+  };
+}
+
+// Reverting is a real editorial action, not a destructive one: it drops the
+// saved override so the course renders from public-content.ts again. Kept
+// separate from saving an empty document, which would blank the page instead.
+export async function resetCourseContentToCode(courseCode: string): Promise<CourseContentRecord> {
+  await usersService.requireRole([...COURSE_WRITE_ROLES]);
+  const course = await findCourseByCode(courseCode);
+  await coursesRepository.deleteCourseContent(course.id);
+
+  const fromCode = contentForCourseCode(course.course_code);
+  return {
+    courseId: course.id,
+    courseCode: course.course_code,
+    courseName: course.course_name,
+    body: fromCode ?? emptyCourseContent(),
+    displayOrder: null,
+    updatedAt: null,
+    source: fromCode ? 'code' : 'none',
+  };
+}
+
+async function findCourseByCode(courseCode: string) {
+  const wanted = courseCode.trim().toUpperCase();
+  const courses = await coursesRepository.selectCourses();
+  const course = courses.find((row) => row.course_code.toUpperCase() === wanted);
+  if (!course) {
+    throw new AppError('NOT_FOUND', `No course with code ${courseCode}.`, 404);
+  }
+  return course;
 }
 

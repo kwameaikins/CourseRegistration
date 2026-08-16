@@ -1350,6 +1350,48 @@ export type Database = {
           },
         ]
       }
+      course_content: {
+        Row: {
+          body: Json
+          course_id: string
+          created_at: string
+          display_order: number | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          body: Json
+          course_id: string
+          created_at?: string
+          display_order?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          body?: Json
+          course_id?: string
+          created_at?: string
+          display_order?: number | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_content_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: true
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_content_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "staff_users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       courses: {
         Row: {
           certificate_description: string

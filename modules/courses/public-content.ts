@@ -9,8 +9,21 @@
 // Those documents and this file must not drift. When a brief is edited, edit
 // the matching entry here in the same change.
 //
-// WHY THIS IS A CODE FILE, NOT DATABASE COLUMNS
-// ---------------------------------------------
+// THIS FILE IS NOW THE FALLBACK, NOT THE ONLY SOURCE (2026-08-16)
+// ---------------------------------------------------------------
+// Staff can edit this copy from /courses/content, which writes a JSONB
+// document to the course_content table (migration 202608160062). Resolution
+// order is DATABASE FIRST, THEN THIS MAP — see
+// modules/courses/content-resolver.ts. A course nobody has edited renders from
+// here exactly as it always has, which is why the editor shipped without a
+// data migration.
+//
+// So: editing an entry here still works, but it only affects courses with no
+// saved row. Check the Course Content screen before assuming a change here
+// will show up — if the course reads "Edited here", the database wins.
+//
+// WHY THIS WAS A CODE FILE IN THE FIRST PLACE
+// -------------------------------------------
 // The courses table carries no marketing copy at all — course_code,
 // course_name, the certificate fields and the Zoom fields, nothing else.
 // (certificate_description is the wording printed on the certificate, not a
