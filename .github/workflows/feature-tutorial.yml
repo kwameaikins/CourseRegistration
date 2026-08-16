@@ -1,0 +1,71 @@
+name: Feature tutorial
+
+# Produces a DRAFT tutorial video and attaches it to the run for review.
+# It deliberately does not publish anywhere: auto-published tutorials are
+# reliably mediocre, and this is user-facing brand surface. A human watches the
+# artifact and decides whether it ships.
+
+on:
+  workflow_dispatch:
+    inputs:
+      flow:
+        description: Flow id under scripts/tutorial/flows
+        required: true
+        default: register
+      note:
+        description: What changed (passed to the narration model as context)
+        required: false
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    env:
+      # Recording needs a running app, which needs the app's own configuration.
+      # These are read-only for the flows that ship today (the public catalogue
+      # and the registration form); state-changing requests are mocked inside
+      # the flow definition, so no production write can happen here.
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      # Linux has no SAPI fallback, so CI runs require a real TTS key.
+      ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # ffmpeg and ffprobe arrive with npm ci (ffmpeg-static / ffprobe-static),
+      # so there is no system package to install here.
+      - run: npx playwright install --with-deps chromium
+
+      - run: npm run build
+
+      - name: Start app
+        run: |
+          npm start &
+          npx wait-on http://localhost:3000/register --timeout 120000
+
+      - name: Build tutorial
+        run: |
+          npm run tutorial -- \
+            --flow "${{ inputs.flow || 'register' }}" \
+            --note "${{ inputs.note || github.event.release.name }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tutorial-${{ inputs.flow || 'register' }}
+          path: |
+            scripts/tutorial/out/**/*.mp4
+            scripts/tutorial/out/**/*.srt
+          if-no-files-found: error
