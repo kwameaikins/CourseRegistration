@@ -28,8 +28,11 @@ export const FEEDBACK_RECOMMEND_OPTIONS = ['Yes', 'Maybe', 'No'] as const;
 export const FEEDBACK_OTHER_COURSE_LABEL =
   'Which other course would you like Knowsia to offer?';
 
+// States the consequence rather than asking for "permission" in the abstract:
+// the person is agreeing that their words AND their name appear on a public
+// website. Someone who says yes should not be able to be surprised later.
 export const FEEDBACK_TESTIMONIAL_LABEL =
-  'May we quote your feedback as a testimonial, with your name?';
+  'May we publish your feedback and your name on our website?';
 // Yes/No only (founder decision 2026-08-17). An unattributed quote is weak
 // proof — "Anonymous participant" persuades nobody — so the choice is now
 // simply whether we may quote you by name.
