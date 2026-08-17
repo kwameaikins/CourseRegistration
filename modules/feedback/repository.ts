@@ -207,7 +207,12 @@ export async function countPaidRegistrationsForBatch(batchId: string): Promise<n
 //     not just anonymise the byline.
 // Job title is deliberately not returned: consent was asked for the name, not
 // for the employer-identifying detail alongside it.
-export async function selectPublishableTestimonialsSystem(limit: number): Promise<
+// Returns CANDIDATES, not the final list. Which of these is fit to publish is a
+// judgement (how short is too short, what rating is too low to quote in
+// marketing) and judgement belongs in the service — see
+// selectPublishableTestimonials there. This function's only filtering is data
+// integrity: consent given, text present, participant not deleted.
+export async function selectPublishableTestimonialsSystem(maxCandidates: number): Promise<
   Array<{
     quote: string;
     attributedName: string | null;
@@ -223,7 +228,7 @@ export async function selectPublishableTestimonialsSystem(limit: number): Promis
     .in('testimonial_choice', ['Named', 'Anonymous'])
     .not('most_valuable_text', 'is', null)
     .order('submitted_at', { ascending: false })
-    .limit(limit * 4); // headroom for the deleted/blank filtering below
+    .limit(maxCandidates);
   if (error) throw error;
   if (!rows || rows.length === 0) return [];
 
@@ -282,7 +287,6 @@ export async function selectPublishableTestimonialsSystem(limit: number): Promis
       courseName: courseNameByBatchId.get(registration.batch_id) ?? '',
       overallRating: row.overall_rating,
     });
-    if (testimonials.length >= limit) break;
   }
 
   return testimonials;

@@ -28,9 +28,19 @@ export const FEEDBACK_RECOMMEND_OPTIONS = ['Yes', 'Maybe', 'No'] as const;
 export const FEEDBACK_OTHER_COURSE_LABEL =
   'Which other course would you like Knowsia to offer?';
 
-export const FEEDBACK_TESTIMONIAL_LABEL = 'May we use your feedback as a testimonial?';
+export const FEEDBACK_TESTIMONIAL_LABEL =
+  'May we quote your feedback as a testimonial, with your name?';
+// Yes/No only (founder decision 2026-08-17). An unattributed quote is weak
+// proof — "Anonymous participant" persuades nobody — so the choice is now
+// simply whether we may quote you by name.
+//
+// "Yes" still STORES 'Named', which is why this needed no migration and no
+// change to the testimonial_choice CHECK constraint (202607270035). The stored
+// vocabulary keeps three values because history has three: 22 existing rows say
+// 'Anonymous', and those people consented to publication WITHOUT their name.
+// They keep being published exactly that way. Retroactively attributing them
+// would publish a name each of them explicitly declined to give.
 export const FEEDBACK_TESTIMONIAL_OPTIONS = [
-  { value: 'Named', label: 'Yes, with my name' },
-  { value: 'Anonymous', label: 'Yes, anonymously' },
+  { value: 'Named', label: 'Yes' },
   { value: 'No', label: 'No' },
 ] as const;

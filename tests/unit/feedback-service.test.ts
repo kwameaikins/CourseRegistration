@@ -8,6 +8,7 @@ const repositoryMock = {
   selectAttendedRegistrationIdsForBatch: vi.fn(),
   selectFeedbackForBatch: vi.fn(),
   countPaidRegistrationsForBatch: vi.fn(),
+  selectPublishableTestimonialsSystem: vi.fn(),
 };
 const sendEmailOnceMock = vi.fn();
 const certificatesServiceMock = {
@@ -23,6 +24,8 @@ vi.mock('@/modules/certificates/service', () => certificatesServiceMock);
 
 const {
   feedbackRequestDateFor,
+  getPublishableTestimonials,
+  isPublishableTestimonial,
   runFeedbackRequestDispatch,
   runFeedbackRequestForAttendees,
   submitFeedback,
@@ -246,5 +249,103 @@ describe('submitFeedback', () => {
       expect(repositoryMock.insertFeedback).toHaveBeenCalled();
       expect(result).toEqual({ certificateIssued: false, certificateDownloadUrl: null });
     });
+  });
+});
+
+// Consent alone was never enough to make an answer worth quoting. A real
+// participant answered "what was most valuable?" with "NA", consented to
+// publication, and it rendered as a testimonial on the live home page.
+describe('isPublishableTestimonial', () => {
+  const good = {
+    quote: 'I learnt that ESG is the future, and how it applies to financial reporting.',
+    overallRating: 5,
+  };
+
+  it('publishes a substantial, well-rated answer', () => {
+    expect(isPublishableTestimonial(good)).toBe(true);
+  });
+
+  it('rejects the placeholder answers people actually type', () => {
+    for (const quote of ['NA', 'N/A', 'n/a', 'None', 'nil', 'Nothing', '-', '...', '  NA  ']) {
+      expect(isPublishableTestimonial({ quote, overallRating: 5 })).toBe(false);
+    }
+  });
+
+  it('rejects fragments too short to read as a testimonial', () => {
+    expect(isPublishableTestimonial({ quote: 'The reporting frameworks', overallRating: 5 })).toBe(
+      false,
+    );
+    expect(isPublishableTestimonial({ quote: 'Building the ERM Register', overallRating: 5 })).toBe(
+      false,
+    );
+  });
+
+  // Quoting a two-star review as marketing is both odd and a little dishonest.
+  it('rejects a well-written answer attached to a poor rating', () => {
+    expect(isPublishableTestimonial({ ...good, overallRating: 3 })).toBe(false);
+    expect(isPublishableTestimonial({ ...good, overallRating: 2 })).toBe(false);
+  });
+
+  // The placeholder pattern is anchored precisely so this survives.
+  it('does not reject a real testimonial that merely begins with a placeholder word', () => {
+    expect(
+      isPublishableTestimonial({
+        quote: 'No other course has explained sustainability reporting this clearly to me.',
+        overallRating: 5,
+      }),
+    ).toBe(true);
+  });
+});
+
+describe('getPublishableTestimonials', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('drops junk and puts named quotes first', async () => {
+    repositoryMock.selectPublishableTestimonialsSystem.mockResolvedValue([
+      { quote: 'NA', attributedName: null, courseName: 'ERM', overallRating: 5 },
+      {
+        quote: 'The entire presentation was exceptionally helpful and well paced.',
+        attributedName: null,
+        courseName: 'ESG',
+        overallRating: 5,
+      },
+      {
+        quote: 'Regulated entities must report on sustainability from 2027 onwards.',
+        attributedName: 'Ama Boateng',
+        courseName: 'ESG',
+        overallRating: 5,
+      },
+    ]);
+
+    const testimonials = await getPublishableTestimonials(6);
+
+    expect(testimonials.map((t) => t.attributedName)).toEqual(['Ama Boateng', null]);
+    expect(testimonials.some((t) => t.quote === 'NA')).toBe(false);
+  });
+
+  // An 'Anonymous' row is someone who consented to publication but declined
+  // attribution. It stays publishable, and stays unnamed.
+  it('still publishes consented anonymous quotes, without inventing a name', async () => {
+    repositoryMock.selectPublishableTestimonialsSystem.mockResolvedValue([
+      {
+        quote: 'Understanding the importance of S1 and S2 in financial reporting.',
+        attributedName: null,
+        courseName: 'ESG',
+        overallRating: 5,
+      },
+    ]);
+
+    const [testimonial] = await getPublishableTestimonials(6);
+
+    expect(testimonial.attributedName).toBeNull();
+    expect(testimonial.quote).toContain('S1 and S2');
+  });
+
+  it('asks for more candidates than it needs, since most rules reject', async () => {
+    repositoryMock.selectPublishableTestimonialsSystem.mockResolvedValue([]);
+    await getPublishableTestimonials(3);
+    expect(repositoryMock.selectPublishableTestimonialsSystem).toHaveBeenCalledWith(60);
   });
 });

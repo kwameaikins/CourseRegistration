@@ -275,8 +275,52 @@ export interface PublishableTestimonial {
 // hides the section entirely rather than showing placeholder quotes. Fabricated
 // social proof on a page selling professional certification is not a
 // placeholder problem, it's a credibility problem.
+// PUBLISHING RULES (founder-directed 2026-08-17, after a quote reading "NA"
+// appeared on the live home page).
+//
+// The quote is the participant's answer to "what was most valuable?" — a
+// feedback question, not a testimonial box. Most answers are usable; some are
+// "NA", a three-word fragment, or attached to a two-star rating. The staff
+// feedback screen should show every one of them. A marketing page should not.
+// Consent alone was never enough to make an answer worth quoting.
+const MIN_TESTIMONIAL_LENGTH = 40;
+const MIN_TESTIMONIAL_RATING = 4;
+
+// Answers that mean "I have nothing to say", not praise. Anchored so it can
+// only ever match a whole answer — a real testimonial beginning with the word
+// "No" must survive.
+const PLACEHOLDER_ANSWER = /^(n\/?a|none|nil|nothing|no comment|no|-+|\.+)$/i;
+
+export function isPublishableTestimonial(candidate: {
+  quote: string;
+  overallRating: number;
+}): boolean {
+  const quote = candidate.quote.trim();
+  if (quote.length < MIN_TESTIMONIAL_LENGTH) return false;
+  if (PLACEHOLDER_ANSWER.test(quote)) return false;
+  // Quoting a two-star review as marketing is both odd and a little dishonest.
+  if (candidate.overallRating < MIN_TESTIMONIAL_RATING) return false;
+  return true;
+}
+
 export async function getPublishableTestimonials(
   limit = 6,
 ): Promise<PublishableTestimonial[]> {
-  return feedbackRepository.selectPublishableTestimonialsSystem(limit);
+  // Ask for far more than we need: the rules below reject a good proportion,
+  // and asking for exactly `limit` would leave the page short.
+  const candidates = await feedbackRepository.selectPublishableTestimonialsSystem(60);
+
+  return candidates
+    .filter(isPublishableTestimonial)
+    .sort((a, b) => {
+      // Named quotes first. An attributed testimonial is real proof;
+      // "Anonymous participant" persuades nobody, and we hold 10 named ones.
+      const byAttribution =
+        Number(Boolean(b.attributedName)) - Number(Boolean(a.attributedName));
+      if (byAttribution !== 0) return byAttribution;
+      return b.overallRating - a.overallRating;
+      // Sort is stable, so equal-ranked quotes keep the repository's
+      // most-recent-first order.
+    })
+    .slice(0, limit);
 }
