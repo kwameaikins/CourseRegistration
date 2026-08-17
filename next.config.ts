@@ -3,6 +3,16 @@ import { withSentryConfig } from '@sentry/nextjs';
 
 // Retiring /programmes in favour of knowsia.com (founder decision 2026-08-05).
 //
+// ⚠️ AMENDED 2026-08-17 — THIS PROJECT IS PAUSED AND THE FLAG MUST STAY OFF.
+// The founder decided reg.knowsia.com gets its own public home page while
+// knowsia.com waits for the question bank and AI tutor. `app/page.tsx` is now a
+// marketing home page whose primary call to action points at /programmes, so
+// enabling this redirect would bounce visitors off the domain the moment they
+// click it — and into a 404, since the WordPress side is still undeployed. The
+// line below about this app keeping "only the transactional surface" no longer
+// holds; see the Amendment at the top of
+// Coding Docs/course-catalog-integration-plan.md.
+//
 // knowsia.com becomes the canonical home for programme content; this app keeps
 // only the transactional surface (/register and onward). Rather than deleting
 // the pages, the redirect is gated behind an env flag so it can be switched on

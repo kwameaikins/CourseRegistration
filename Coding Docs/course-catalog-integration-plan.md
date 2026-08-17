@@ -1,5 +1,42 @@
 # Project: Live Course Catalog Integration (reg.knowsia.com → knowsia.com)
 
+> ## ⚠️ AMENDMENT — 2026-08-17. This project is PAUSED.
+>
+> **Founder decision: reg.knowsia.com gets its own public home page, and the
+> knowsia.com migration waits.** The reason is sequencing, not a reversal —
+> knowsia.com is to be reworked once the question bank and the AI tutor are
+> finished, and doing the catalogue migration now would mean doing it twice.
+>
+> **What changed**
+>
+> - `app/page.tsx` is now a public marketing home page. It used to redirect
+>   anonymous visitors to the staff sign-in. Staff behaviour is unchanged —
+>   a signed-in staff member still lands on their role's default screen.
+> - This app therefore no longer keeps "only the transactional surface". The
+>   sentence to that effect in `next.config.ts` is superseded by this note.
+>
+> **What this forces, and must not be forgotten**
+>
+> 1. **`RETIRE_PROGRAMMES_REDIRECT` must stay OFF.** `/programmes` is now the
+>    home page's primary destination. Switching the 301 on would bounce every
+>    visitor who clicks the main call to action off the domain — and into a 404
+>    while the WordPress side is undeployed. The flag was already gated for a
+>    different reason; it now has two.
+> 2. **The duplicate-content question is deferred, not answered.** knowsia.com
+>    still has its own home page. Two live home pages on two domains compete for
+>    the same brand queries. That was acceptable to the founder for now because
+>    knowsia.com is being reworked anyway, but it is the first thing to settle
+>    when this project resumes.
+> 3. **The WordPress plugin stays written and undeployed.** Nothing about it
+>    changes; `wordpress/knowsia-programmes/` is still correct and still the
+>    intended destination. It simply waits.
+>
+> **When this project resumes**, decide the canonical home page first, then the
+> catalogue. The cutover sequence at the end of this document is unaffected and
+> still applies.
+>
+> ---
+>
 > **BUILD STATUS — 2026-08-05.** Founder decision: **knowsia.com becomes the canonical
 > catalogue, and reg.knowsia.com/programmes is retired via 301 redirect.**
 >
