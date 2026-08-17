@@ -1,0 +1,16 @@
+name = "knowsia-cron"
+main = "worker.js"
+compatibility_date = "2026-08-17"
+
+# Matches the schedule the two GitHub Actions workflows used, so nothing about
+# reminder timing or pipeline throughput changes on cutover.
+[triggers]
+crons = ["*/15 * * * *"]
+
+# Not a secret — just the deployed origin. Override here if the domain changes.
+[vars]
+APP_BASE_URL = "https://reg.knowsia.com"
+
+# CRON_SECRET is NOT set here. It is a Worker secret, set once with:
+#   npx wrangler secret put CRON_SECRET
+# Putting it in this file would commit it to git, which rule 7 forbids.
