@@ -10,6 +10,13 @@
 import { effectiveCourseFee } from '@/lib/utils';
 import * as coursesRepository from '@/modules/courses/repository';
 import { getResolvedCourseContentByCourseIdSystem } from '@/modules/courses/content-resolver';
+// Permitted cross-module read: feedback owns the ratings and exposes them
+// through its own module. This is the light entry point (repository only), not
+// feedback/service.ts, which drags in communications and certificates.
+import {
+  getPublishableCourseRatingsByCourseIdSystem,
+  type CourseRating,
+} from '@/modules/feedback/course-ratings';
 import {
   COURSE_PUBLIC_CONTENT,
   contentForCourseCode,
@@ -45,6 +52,10 @@ export interface PublicCatalogCourse {
   // Staff-set catalogue position (course_content.display_order), or null to
   // keep the position the code map implies. Drives ordering only.
   displayOrder: number | null;
+  // Averaged participant rating, or null when too few people have answered to
+  // publish one honestly. Null is a real state, not missing data — see
+  // MIN_RATINGS_TO_PUBLISH.
+  rating: CourseRating | null;
   sessions: PublicCatalogSession[];
   nextSession: PublicCatalogSession | null;
   // True when every upcoming session is free — drives "Register for the free
@@ -86,13 +97,14 @@ function compareCatalogOrder(
 
 export async function getPublicCourseCatalog(): Promise<PublicCatalogCourse[]> {
   const rows = await coursesRepository.selectPublicCourseCatalogSystem();
-  const [registrationCounts, editedContent] = await Promise.all([
+  const [registrationCounts, editedContent, ratings] = await Promise.all([
     coursesRepository.countRegistrationsByBatchIdsSystem(
       rows.flatMap((row) => row.batches.map((batch) => batch.id)),
     ),
     // One extra query for the whole catalogue. Staff-edited copy wins over the
     // code map; a course nobody has edited is unaffected.
     getResolvedCourseContentByCourseIdSystem(),
+    getPublishableCourseRatingsByCourseIdSystem(),
   ]);
   const todayIso = new Date().toISOString().slice(0, 10);
 
@@ -137,6 +149,7 @@ export async function getPublicCourseCatalog(): Promise<PublicCatalogCourse[]> {
       cpdCredit: row.course.cpd_credit,
       content: edited?.body ?? contentForCourseCode(row.course.course_code),
       displayOrder: edited?.displayOrder ?? null,
+      rating: ratings.get(row.course.id) ?? null,
       sessions,
       // Prefer a session someone can still join; fall back to the soonest so a
       // fully-booked programme still shows a date and a waitlist route.

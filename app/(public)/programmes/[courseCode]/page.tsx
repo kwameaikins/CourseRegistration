@@ -3,6 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+import { CourseRating } from '@/app/(public)/programmes/CourseRating';
 import { CourseSessionSummary } from '@/app/(public)/programmes/CourseSessionSummary';
 import { MARKETING_STYLES, MarketingIcons } from '@/components/marketing/marketing-design-system';
 import { formatDate, formatGhs } from '@/lib/utils';
@@ -11,6 +12,8 @@ import { getPublicCourseByCode } from '@/modules/courses/public-catalog';
 import { CATALOG_FAQ } from '@/modules/courses/public-content';
 
 export const dynamic = 'force-dynamic';
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com';
 
 const WHATSAPP_CONTACT_URL =
   process.env.NEXT_PUBLIC_CONTACT_WHATSAPP_URL ?? 'https://wa.me/233530531328';
@@ -64,10 +67,51 @@ export default async function ProgrammeDetailPage({
   // about it; the generic catalogue FAQ is the fallback, not an addition.
   const faq = content && content.faq.length > 0 ? content.faq : CATALOG_FAQ;
 
+  // Course structured data, so Google can show this programme — and its star
+  // rating — as a rich result rather than a plain blue link.
+  //
+  // aggregateRating is attached ONLY when a rating is actually rendered on the
+  // page above. Marking up a rating a visitor cannot see is a structured-data
+  // policy violation and risks a manual action, not just a lost rich result.
+  // Because `course.rating` is null below the response threshold, the markup
+  // and the visible rating are driven by the same value and cannot drift.
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Course',
+    name: course.courseName,
+    description: content?.tagline ?? `${course.courseName} — live professional training.`,
+    provider: {
+      '@type': 'Organization',
+      name: 'Knowsia',
+      url: APP_URL,
+    },
+    ...(course.rating
+      ? {
+          aggregateRating: {
+            '@type': 'AggregateRating',
+            ratingValue: course.rating.average,
+            // ratingCount, NOT reviewCount — these are scores from the
+            // post-course feedback form, not written reviews. Declaring 31
+            // reviews when 31 people moved a star slider overstates what we
+            // hold, which is the exact claim this feature exists to avoid.
+            ratingCount: course.rating.responses,
+            bestRating: 5,
+            worstRating: 1,
+          },
+        }
+      : {}),
+  };
+
   return (
     <div className="mk">
       <style>{MARKETING_STYLES}</style>
       <MarketingIcons />
+      <script
+        type="application/ld+json"
+        // Serialised rather than interpolated so a quote or an angle bracket in
+        // a course name cannot break out of the script tag.
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <a href="#detail" className="skip">
         Skip to programme details
       </a>
@@ -95,6 +139,12 @@ export default async function ProgrammeDetailPage({
           </p>
           <h1 style={{ maxWidth: '22ch' }}>{course.courseName}</h1>
           {content && <p className="lede">{content.tagline}</p>}
+
+          {course.rating && (
+            <div style={{ marginTop: 18 }}>
+              <CourseRating rating={course.rating} size="lg" />
+            </div>
+          )}
 
           <div className="trust">
             {next && (

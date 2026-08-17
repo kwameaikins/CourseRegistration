@@ -168,6 +168,26 @@ export const MARKETING_STYLES = `${BRAND_TOKENS}
 .mk .facts-more { padding: 9px 16px; border-top: 1px solid var(--line); font-size: 13px; color: var(--ink-muted); }
 .mk .facts-empty { padding: 16px; font-size: 14px; color: var(--ink-muted); }
 
+/* ---------- participant rating ----------
+   The response count sits beside the score at the same visual weight on
+   purpose: "4.8" alone is the part that misleads, "4.8 from 22" is a claim a
+   reader can weigh. */
+.mk .rating { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mk .rating .stars { display: inline-flex; gap: 2px; }
+/* Each star is an empty track with a filled copy clipped over it, so a 4.5
+   shows half a star rather than rounding up to five full ones. */
+.mk .rating .stars .star { position: relative; display: block; width: 15px; height: 15px; color: var(--line); }
+.mk .rating .stars .star .fill { position: absolute; top: 0; bottom: 0; left: 0; overflow: hidden; color: var(--rail-accent); }
+.mk .rating .stars .star svg { display: block; width: 15px; height: 15px; fill: currentColor; stroke: none; }
+.mk .rating .score { font-weight: 700; font-size: 15px; color: var(--ink); }
+.mk .rating .count { font-size: 13px; color: var(--ink-muted); }
+.mk .rating-lg .stars .star, .mk .rating-lg .stars .star svg { width: 19px; height: 19px; }
+.mk .rating-lg .score { font-size: 18px; }
+/* On the navy hero the light-surface ink colours are close to unreadable. */
+.mk .hero .rating .score { color: var(--rail-fg); }
+.mk .hero .rating .count { color: var(--rail-fg-muted); }
+.mk .hero .rating .stars .star { color: rgba(255,255,255,0.26); }
+
 /* ---------- feature grid ---------- */
 .mk .grid-3 { display: grid; gap: 26px; grid-template-columns: 1fr; }
 @media (min-width: 720px) { .mk .grid-3 { grid-template-columns: repeat(2, 1fr); } }

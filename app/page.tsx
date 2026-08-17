@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
+import { CourseRating } from '@/app/(public)/programmes/CourseRating';
 import { CourseSessionSummary } from '@/app/(public)/programmes/CourseSessionSummary';
 import {
   MARKETING_STYLES,
@@ -254,6 +255,8 @@ export default async function HomePage() {
                           <span className="tag tag-code">{course.courseCode}</span>
                         )}
                       </div>
+
+                      <CourseRating rating={course.rating} />
 
                       {course.content ? (
                         <>

@@ -17,6 +17,16 @@ import type {
   PublicFeedbackContext,
 } from '@/modules/feedback/types';
 
+// Public star ratings are re-exported so this module stays the one door into
+// feedback, but they LIVE in course-ratings.ts — a light module importing only
+// the repository. The catalogue reads them on every public page render and must
+// not drag in communications, certificates and users to draw five stars.
+export {
+  getPublishableCourseRatingsByCourseIdSystem,
+  MIN_RATINGS_TO_PUBLISH,
+} from '@/modules/feedback/course-ratings';
+export type { CourseRating } from '@/modules/feedback/course-ratings';
+
 export async function getPublicFeedbackContext(
   registrationId: string,
 ): Promise<PublicFeedbackContext> {
@@ -275,6 +285,7 @@ export interface PublishableTestimonial {
 // hides the section entirely rather than showing placeholder quotes. Fabricated
 // social proof on a page selling professional certification is not a
 // placeholder problem, it's a credibility problem.
+//
 // PUBLISHING RULES (founder-directed 2026-08-17, after a quote reading "NA"
 // appeared on the live home page).
 //

@@ -193,6 +193,67 @@ export async function countPaidRegistrationsForBatch(batchId: string): Promise<n
   return (await selectPaidRegistrationIdsForBatch(batchId)).length;
 }
 
+// Every overall rating, tagged with the course it belongs to, for the public
+// star ratings on the catalogue (2026-08-17). Service-role because these pages
+// have no session.
+//
+// Returns raw ratings rather than an average: averaging, and deciding how few
+// responses is too few to publish, are judgements and live in the service —
+// same split as getBatchFeedbackSummary, which also averages there.
+//
+// No consent filter, deliberately, and the distinction matters. A testimonial
+// publishes a person's words and possibly their name, so it needs explicit
+// permission. A star rating publishes no personal data at all — it is one
+// number folded into an average across a whole course. Soft-deleted
+// participants are still dropped (BR-16), so an erasure request removes every
+// trace of that person from the public site either way.
+export async function selectCourseRatingsSystem(): Promise<
+  Array<{ courseId: string; overallRating: number }>
+> {
+  const supabase = createSupabaseServiceRoleClient();
+
+  const { data: rows, error } = await supabase
+    .from('feedback')
+    .select('registration_id, overall_rating');
+  if (error) throw error;
+  if (!rows || rows.length === 0) return [];
+
+  const { data: registrations, error: registrationsError } = await supabase
+    .from('registrations')
+    .select('id, participant_id, batch_id')
+    .in('id', rows.map((row) => row.registration_id));
+  if (registrationsError) throw registrationsError;
+  if (!registrations || registrations.length === 0) return [];
+
+  const [{ data: participants }, { data: batches }] = await Promise.all([
+    supabase
+      .from('participants')
+      .select('id, deleted_at')
+      .in('id', registrations.map((registration) => registration.participant_id)),
+    supabase
+      .from('batches')
+      .select('id, course_id')
+      .in('id', registrations.map((registration) => registration.batch_id)),
+  ]);
+
+  const erased = new Set(
+    (participants ?? []).filter((p) => p.deleted_at !== null).map((p) => p.id),
+  );
+  const courseIdByBatchId = new Map((batches ?? []).map((batch) => [batch.id, batch.course_id]));
+  const registrationById = new Map(registrations.map((r) => [r.id, r]));
+
+  const ratings: Array<{ courseId: string; overallRating: number }> = [];
+  for (const row of rows) {
+    const registration = registrationById.get(row.registration_id);
+    if (!registration || erased.has(registration.participant_id)) continue;
+    const courseId = courseIdByBatchId.get(registration.batch_id);
+    if (!courseId) continue;
+    ratings.push({ courseId, overallRating: row.overall_rating });
+  }
+
+  return ratings;
+}
+
 // Consented testimonials for the public course catalogue (2026-08-03).
 // Service-role because this renders on a page with no session at all.
 //

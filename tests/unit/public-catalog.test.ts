@@ -17,6 +17,11 @@ const coursesRepositoryMock = {
 
 vi.mock('@/modules/courses/repository', () => coursesRepositoryMock);
 
+// The catalogue reads participant ratings through modules/feedback. Mocked so
+// these tests never reach for a Supabase client; ratings have their own tests.
+const feedbackRepositoryMock = { selectCourseRatingsSystem: vi.fn() };
+vi.mock('@/modules/feedback/repository', () => feedbackRepositoryMock);
+
 const { getPublicCourseCatalog, getPublicCourseByCode } = await import(
   '@/modules/courses/public-catalog'
 );
@@ -55,6 +60,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   coursesRepositoryMock.countRegistrationsByBatchIdsSystem.mockResolvedValue(new Map());
   coursesRepositoryMock.selectAllCourseContentSystem.mockResolvedValue([]);
+  feedbackRepositoryMock.selectCourseRatingsSystem.mockResolvedValue([]);
 });
 
 describe('getPublicCourseCatalog — pricing shown to visitors', () => {

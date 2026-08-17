@@ -79,6 +79,19 @@ export interface CatalogApiCourse {
   cpdCredit: string;
   currency: string;
   isFreeProgramme: boolean;
+  /**
+   * Averaged participant rating, or NULL when too few people have rated the
+   * programme to publish one honestly (see MIN_RATINGS_TO_PUBLISH). Null is a
+   * real state, not missing data — render nothing, never a zero or "no reviews".
+   *
+   * `responses` is not optional decoration. A consumer showing `average` must
+   * show it too: "4.8" alone invites the reader to imagine hundreds.
+   *
+   * Google's structured-data policy only permits `aggregateRating` markup for a
+   * rating that is VISIBLE on the same page. Emit the JSON-LD only where the
+   * stars are actually rendered.
+   */
+  rating: { average: number; responses: number } | null;
   sessions: CatalogApiSession[];
 }
 
@@ -116,6 +129,7 @@ function toCourse(course: PublicCatalogCourse): CatalogApiCourse {
     cpdCredit: course.cpdCredit,
     currency: CURRENCY,
     isFreeProgramme: course.isFreeProgramme,
+    rating: course.rating,
     sessions: course.sessions.map(toSession),
   };
 }

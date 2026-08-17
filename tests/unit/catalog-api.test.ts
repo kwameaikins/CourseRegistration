@@ -210,12 +210,16 @@ describe('leak surface', () => {
     }
   });
 
+  // Adding a key here must be a deliberate act — this payload leaves the
+  // building. `rating` was added 2026-08-17: an average and a response count
+  // across a whole course, which carries no personal data about any individual
+  // participant.
   it('exposes only the agreed top-level keys', async () => {
     publicCatalogMock.getPublicCourseCatalog.mockResolvedValue([course()]);
     const [result] = await getCatalogApiCourses();
     expect(Object.keys(result).sort()).toEqual([
       'certificateHours', 'courseCode', 'courseName', 'cpdCredit',
-      'currency', 'heroImage', 'isFreeProgramme', 'sessions', 'summary',
+      'currency', 'heroImage', 'isFreeProgramme', 'rating', 'sessions', 'summary',
     ]);
   });
 });

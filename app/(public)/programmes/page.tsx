@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 
+import { CourseRating } from '@/app/(public)/programmes/CourseRating';
 import { CourseSessionSummary } from '@/app/(public)/programmes/CourseSessionSummary';
 import {
   MARKETING_STYLES,
@@ -152,6 +153,8 @@ export default async function ProgrammesPage() {
                         <span className="tag tag-code">{course.courseCode}</span>
                       )}
                     </div>
+
+                    <CourseRating rating={course.rating} />
 
                     {course.content ? (
                       <>
