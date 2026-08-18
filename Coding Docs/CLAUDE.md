@@ -546,10 +546,18 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     applied to production 2026-08-03. The 11 new tables in
     `lib/supabase/database.types.ts` were hand-written, then verified field-by-field
     against `npx supabase gen types typescript --linked` output — they match. Do NOT
-    wholesale-replace that file with generated output: the current generated types
+    wholesale-replace that file with generated output: ~~the current generated types
     declare `fn_delete_registration_immediately`/`fn_delete_participant_immediately`
     with a non-nullable `reason`, which breaks `modules/registrations/repository.ts`
-    (it passes `string | null`). Pre-existing, unrelated to this module, still open.
+    (it passes `string | null`). Pre-existing, unrelated to this module, still open.~~
+    **RESOLVED — this specific blocker no longer applies (verified 2026-08-18).**
+    `repository.ts` now casts `reason as string` at both call sites, with a comment
+    explaining why: the SQL parameter is a plain `reason text` which accepts NULL, but
+    `supabase gen types` models every argument without a default as non-nullable, and
+    coercing NULL to `''` would falsify `manual_deletion_log.reason`. The checked-in
+    types already say `reason: string`, matching generated output, so there is no drift
+    and `tsc` is clean. Regenerating still deserves a diff review — that is ordinary
+    care, not this specific hazard.
 
   Knowsia Insights hardening from the first real run (2026-08-03) — four bugs that only
     surfaced against live sources, all found by running the pipeline rather than by
@@ -1436,6 +1444,39 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     whole `Coding Docs` suite — including this file, which is a candid list of
     known unfixed weaknesses. Recommend private once the cron rotation above is
     verified.
+
+  Registration search only searched the newest 200 rows (2026-08-18) — the third
+    instance of the post-slice filtering defect, and the one still live. `search`
+    matches full_name/email/phone, which are on `participants` and joined AFTER
+    the page cut, so `applyPostJoinFilters` could only ever search whatever
+    survived the slice. With the 267 free ESG sign-ups filling the newest-200
+    window, searching for anyone who registered earlier returned NOTHING — and
+    `total` reported the unsearched count beside the empty result, so the screen
+    looked authoritative while being wrong. Identical in shape to the
+    paymentStatus defect fixed 2026-08-06 (27 of 35 outstanding balances hidden),
+    one table over; the repository's own comment had recorded it as a known gap
+    "intentionally left alone" since 2026-07-24.
+    `selectRegistrationList` now queries `participants` first and narrows on
+    `participant_id` BEFORE ordering and ranging, exactly as the paymentStatus fix
+    does, short-circuiting to an empty result when nothing matches. Because the
+    narrowing is now server-side, `total` is correct for a search too.
+    The pre-narrow deliberately does NOT escape the LIKE wildcards `%` and `_` —
+    leaving them makes it a SUPERSET, and `applyPostJoinFilters` still does the
+    exact `includes()` comparison afterwards. PostgREST's own syntax characters
+    ARE escaped (values wrapped in double quotes, `"` and `\` escaped), because an
+    unescaped comma or bracket in a search term would corrupt the `or()`
+    expression rather than merely miss.
+    `tests/unit/registration-list-search.test.ts` (4 tests) pins the property that
+    actually matters — the narrowing precedes the range call. Verified
+    non-vacuous: it fails against the pre-fix code and passes after.
+    ALSO FIXED: the Registrations screen displayed `{total} total` beside a table
+    capped at 200 rows, i.e. "267 total" while showing 200 — worse than showing
+    nothing, because the number implies completeness. It now shows
+    "Showing 200 of 267" plus the same amber truncation warning and Export CSV
+    escape hatch the Payments screen has carried since 2026-08-06.
+    STILL NOT DONE: there is still no pagination UI on either screen. The
+    truncation is now visible and the CSV export is unfiltered by paging, which
+    is what makes a partial view safe rather than complete.
 
 Open decisions (founder):
   - Knowsia Live budget exception (~EUR 50-150/month bare metal). Not needed

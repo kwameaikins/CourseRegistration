@@ -165,6 +165,33 @@ export async function selectRegistrationList(filters: RegistrationListFilters): 
     if (paymentRegistrationIds.length === 0) return { rows: [], total: 0 };
   }
 
+  // Same defect, same fix, one table over. `search` matches full_name/email/
+  // phone, which live on `participants` and are joined AFTER the page slice —
+  // so applyPostJoinFilters could only ever search the 200 most recent
+  // registrations. With 267 free ESG sign-ups filling that window on a single
+  // day, searching for anyone who registered earlier returned nothing at all,
+  // and `total` reported the unsearched count on top.
+  //
+  // Deliberately NOT escaping the LIKE wildcards % and _: leaving them makes
+  // this pre-narrow match a SUPERSET, and applyPostJoinFilters still does the
+  // exact `includes()` comparison afterwards. PostgREST's own syntax
+  // characters must be escaped though, or a search containing a comma or a
+  // bracket would corrupt the or() expression rather than just miss.
+  let searchParticipantIds: string[] | null = null;
+  if (filters.search) {
+    const quoted = filters.search.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const pattern = `"%${quoted}%"`;
+    const { data: matchingParticipants, error: searchError } = await supabase
+      .from('participants')
+      .select('id')
+      .or(
+        `full_name.ilike.${pattern},email.ilike.${pattern},phone.ilike.${pattern}`,
+      );
+    if (searchError) throw searchError;
+    searchParticipantIds = (matchingParticipants ?? []).map((row) => row.id);
+    if (searchParticipantIds.length === 0) return { rows: [], total: 0 };
+  }
+
   let query = supabase
     .from('registrations')
     .select('*', { count: 'exact' })
@@ -183,6 +210,7 @@ export async function selectRegistrationList(filters: RegistrationListFilters): 
   if (filters.leadSource) query = query.eq('lead_source', filters.leadSource);
   if (filters.dateFrom) query = query.gte('registered_at', `${filters.dateFrom}T00:00:00Z`);
   if (filters.dateTo) query = query.lte('registered_at', `${filters.dateTo}T23:59:59Z`);
+  if (searchParticipantIds) query = query.in('participant_id', searchParticipantIds);
 
   const offset = (filters.page - 1) * filters.limit;
   query = query.range(offset, offset + filters.limit - 1);
@@ -259,11 +287,14 @@ export async function selectRegistrationList(filters: RegistrationListFilters): 
 
 // CSV export (system review, 2026-07-24) — same join shape/filters as
 // selectRegistrationList above, but deliberately unpaginated: fetches every
-// matching row rather than one page. That makes it the correct place to
-// filter, not a follow-on quirk — selectRegistrationList's paymentStatus/
-// search filters apply after its 200-row page cut (a separate, pre-existing
-// gap, intentionally left alone here rather than fixed as a side effect of
-// building export).
+// matching row rather than one page, so post-join filtering is exact here by
+// construction.
+//
+// That used to be the only place it WAS exact: selectRegistrationList applied
+// paymentStatus and search after its 200-row page cut. Both are now narrowed
+// before the slice there too — paymentStatus on 2026-08-06 (after it hid 27 of
+// 35 outstanding balances) and search on 2026-08-18 — so the two functions
+// finally agree about what a filter means.
 export async function selectAllRegistrationsForExport(
   filters: Omit<RegistrationListFilters, 'page' | 'limit'>,
 ): Promise<{
