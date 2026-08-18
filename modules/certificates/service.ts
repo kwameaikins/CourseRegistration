@@ -3,11 +3,10 @@
 // Numbering: KNS-<COURSECODE>-<YEAR>-<NNNN>, serial per course code per
 // year, continuing the legacy registry's shape. The unique constraint on
 // certificate_number is the collision guard — generation retries on a race.
-// Eligibility for batch issuance: Paid + feedback submitted (the promise in
-// the post-course email); attendance is surfaced for admin judgment, and the
-// admin explicitly selects who gets issued (admin-approved, auto-computed).
-// On a free event (2026-08-03) the paid half of that rule is replaced by
-// attendance — see isCertificateEligible.
+// Eligibility for batch issuance (revised 2026-08-18): on a paid Batch, Paid
+// is the whole rule; on a free Batch, attendance OR feedback. Attendance is
+// surfaced for admin judgment either way, and the admin explicitly selects who
+// gets issued (admin-approved, auto-computed). See isCertificateEligible.
 import { generateCertificatePdf } from '@/lib/certificates/pdf';
 import { sendTransactionalEmail } from '@/lib/resend/client';
 import { AppError } from '@/lib/errors';
@@ -42,14 +41,28 @@ const CERTIFICATE_STAFF_ROLES = ['admin'] as const;
 
 // The one eligibility rule, shared by auto-issue and the batch screen.
 //
-// On a paid Batch, payment is the proof of commitment and the rule is
-// unchanged: Paid + feedback submitted.
+// REVISED 2026-08-18 (founder): payment alone earns a certificate on a paid
+// Batch, and either attendance or feedback earns one on a free Batch.
+//
+// On a paid Batch the rule is now simply `paid`. Feedback used to be a second
+// condition — the post-course email's "once your feedback is received" — but
+// withholding something a customer has already paid for until they fill in a
+// survey is a hostage, not an incentive. Feedback still TRIGGERS issuance (see
+// issueCertificateIfEligible, called on feedback submission); it just no
+// longer gates it. Note the consequence: a paid participant who never submits
+// feedback is now eligible but nothing auto-delivers to them, so the admin
+// batch-issue screen is the route for those.
 //
 // On a free event, payment proves nothing — since 202608030048 a zero-fee
 // registration settles to 'Paid' the instant it is created, so `paid` is true
-// for everyone who filled in the form and would hand a certificate to people
-// who never turned up. Attendance replaces it as the participation signal.
-// This is an ADDITIONAL gate, not a swap of one true condition for another.
+// for everyone who merely filled in the form. Participation has to be proved
+// some other way, and either signal now suffices: they turned up, or they told
+// us what they thought. Both are things only a real participant does.
+//
+// The OR is deliberately loose but not exploitable in practice: on a free Batch
+// the feedback request is only ever mailed to attendees
+// (runFeedbackRequestDispatch, 2026-08-06), so a non-attendee is not handed a
+// link in the ordinary course of events.
 //
 // Attendance comes from the Zoom sync (modules/attendance). totalSessions is
 // 0 until that sync has run at least once for the batch, which correctly
@@ -60,17 +73,13 @@ const CERTIFICATE_STAFF_ROLES = ['admin'] as const;
 // MIN_ATTENDANCE_RATIO — see certificates/repository.ts for why that was
 // reversed. The threshold still exists and is still reported; it just no
 // longer decides who gets a certificate.
-//
-// Attendance therefore only proves the person turned up at all. The real
-// gate on a free event is feedback, and feedback is only ever requested from
-// attendees — so the two conditions reinforce each other rather than
-// duplicating.
 function isCertificateEligible(
   candidate: { paid: boolean; feedbackSubmitted: boolean; attendedSessions: number },
   batchIsFree: boolean,
 ): boolean {
-  if (!candidate.feedbackSubmitted) return false;
-  return batchIsFree ? candidate.attendedSessions > 0 : candidate.paid;
+  return batchIsFree
+    ? candidate.attendedSessions > 0 || candidate.feedbackSubmitted
+    : candidate.paid;
 }
 
 export function verifyUrlFor(certificateNumber: string): string {

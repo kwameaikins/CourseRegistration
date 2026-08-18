@@ -1478,6 +1478,44 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     truncation is now visible and the CSV export is unfiltered by paging, which
     is what makes a partial view safe rather than complete.
 
+  Certificate eligibility relaxed on both sides (2026-08-18, founder: "make it
+    available for all paid participant... for free courses, only those who
+    attended or submitted feedback"). BR-46 in Document 4 is now the written
+    rule; `isCertificateEligible` in modules/certificates/service.ts is still
+    the single place it is decided, shared by auto-issue and the batch screen.
+    WAS: `if (!feedbackSubmitted) return false;` then paid-vs-attended by batch
+    type — i.e. feedback was mandatory for EVERYONE, and a paid customer who
+    ignored the survey never received the certificate they had paid for.
+    NOW: paid Batch -> `paid`, full stop. Free Batch -> `attendedSessions > 0
+    || feedbackSubmitted`.
+    The paid-side change is the substantive one: withholding something already
+    paid for until a survey is completed is a hostage, not an incentive.
+    Feedback still TRIGGERS issuance, it just no longer gates it.
+    The free-side OR is deliberately loose — someone who never attended but did
+    give feedback now qualifies. Low risk in practice because on a free Batch
+    the feedback request is only ever mailed to attendees (2026-08-06), so a
+    non-attendee is not handed a link in the ordinary course of events. Someone
+    who did NEITHER is still refused, which is the whole point of the rule
+    existing on free batches at all (zero-fee registrations auto-settle to
+    'Paid', so payment is not a signal there).
+    CONSEQUENCE, NOT YET ADDRESSED — eligibility is not delivery. The only
+    automatic trigger is feedback submission (modules/feedback/service.ts is the
+    sole caller of issueCertificateIfEligible). A paid participant who never
+    submits feedback is now eligible but NOTHING delivers to them; the admin
+    batch-issue screen is the only route. If "all paid participants
+    automatically receive it" is the actual intent, that needs its own trigger —
+    most naturally on the paid transition or at batch end. Flagged, not built.
+    Also expect paid-course feedback response rates to fall, since the gate was
+    the incentive. The post_training_thankyou copy still says the certificate
+    follows feedback; that is now an invitation rather than a condition, and is
+    worth rewording on the Messaging screen.
+    Tests updated and extended (certificates-service.test.ts, 30 passing): the
+    two old assertions that pinned the mandatory-feedback rule now assert the
+    opposite, plus new cases for paid-without-feedback, free-with-feedback-only,
+    free-with-attendance-only, and free-with-neither. Doc 4 EC-14's stale claim
+    about MIN_ATTENDANCE_RATIO gating free-batch eligibility corrected in
+    passing.
+
 Open decisions (founder):
   - Knowsia Live budget exception (~EUR 50-150/month bare metal). Not needed
     while the answer is "don't build"; revisit only once the product has

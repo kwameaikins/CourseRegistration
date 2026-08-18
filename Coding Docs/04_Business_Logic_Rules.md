@@ -520,7 +520,7 @@ step the `ad_hoc` call type needed.
 | EC-11 | *(Added 2026-08-09, BR-35–BR-41)* A participant pays via Paystack against a Registration that has already been written off | Recorded normally — real money must never be discarded. BR-06's guard clause means the trigger leaves the status at `'Lapsed'`, producing a visible Lapsed + Paid anomaly (the same shape BR-06 already documents for Cancelled + Paid). Resolution is `reinstateRegistration`, which restores `'Confirmed'` since the fee is now settled. The portal's *other* payment paths (installment plan, payment-proof submission, coupon) refuse a lapsed Registration outright — only Paystack, which is client-initiated and webhook-reconciled, can reach this state. |
 | EC-12 | *(Added 2026-08-09, BR-38)* A Registration is written off, then the Batch's `end_date` is edited forward, or the Batch is reactivated | The sweep re-reads `end_date` live and skips anything with `lapsed_at` set, so nothing is re-processed and nothing is silently reopened. A Registration that should be back in play needs an explicit `reinstateRegistration` — the same "a person decides" posture as the part-payment exclusion. |
 | EC-13 | *(Added 2026-08-09, BR-38)* A part-paid no-show is never closed by the sweep and so accumulates in receivables indefinitely | Accepted and deliberate (founder decision, 2026-08-09). The manual write-off action is what closes these, case by case, after a human has decided between refund, credit and chase. This makes `lapseRegistration` load-bearing rather than a convenience — without it, this population has no ending. |
-| EC-14 | *(Added 2026-08-12, BR-19)* A Participant registers for a Batch that is already part-way through its run | Permitted since 2026-08-12 — this is the late-registration window, not an edge case to be blocked. They join at the current point in the course, having missed the sessions already delivered; the form says so before they submit. Certificate eligibility is unaffected in its own terms but harder to earn in practice on a free Batch, where it depends on attendance rows clearing `MIN_ATTENDANCE_RATIO` and only the remaining sessions can produce any. |
+| EC-14 | *(Added 2026-08-12, BR-19)* A Participant registers for a Batch that is already part-way through its run | Permitted since 2026-08-12 — this is the late-registration window, not an edge case to be blocked. They join at the current point in the course, having missed the sessions already delivered; the form says so before they submit. Certificate eligibility is unaffected in its own terms. *(Updated 2026-08-18: this line previously said eligibility was harder to earn on a free Batch because it depended on attendance rows clearing `MIN_ATTENDANCE_RATIO`. That threshold stopped deciding eligibility on 2026-08-08, and BR-46 now accepts attendance OR feedback on a free Batch, so a late joiner who attends any remaining session — or simply gives feedback — qualifies.)* |
 | EC-15 | *(Added 2026-08-12, BR-19)* A Batch's `end_date` is edited backwards to a past date while it is still listed on the public form | The window is re-read live on every form render and re-checked in `createRegistration`, so the Batch disappears and further registrations are refused from that moment — no cached list and no stored "is open" flag to go stale. Registrations already taken are untouched, exactly as EC-04 leaves `start_date` edits alone. |
 
 ---
@@ -811,3 +811,35 @@ rule that keeps the two systems' responsibilities apart:
   one KnowsiaApp user mapped to at most one Participant. The token table is RLS-enabled with zero
   policies — service-role only, matching both existing token tables. Dormant until
   `KNOWSIA_APP_URL` and `KNOWSIA_APP_SERVICE_KEY` are both set.
+
+---
+
+### BR-46 — Certificate eligibility: payment on a paid Batch, participation on a free one
+
+Founder decision, 2026-08-18. One function decides this for both the auto-issue path and the
+admin batch-issue screen: `isCertificateEligible` in `modules/certificates/service.ts`.
+
+- **Paid Batch — `payment_status = 'Paid'` is the whole rule.** Nothing else is required.
+  Feedback was previously a second condition, on the strength of the post-course email's "once
+  your feedback is received". That is withdrawn: making someone fill in a survey to receive
+  something they have already paid for is a hostage, not an incentive.
+- **Free Batch — attendance OR feedback.** Payment proves nothing here, because a zero-fee
+  registration settles to `'Paid'` the instant it is created (see the BR-04 consequence note), so
+  `paid` is true for everyone who merely filled in the form. Either signal is accepted as proof of
+  participation: they turned up, or they told us what they thought. Both are things only a real
+  participant does. Neither signal means no certificate — that population is exactly what the rule
+  exists to exclude.
+- **Attendance counts any appearance, however brief.** `MIN_ATTENDANCE_RATIO` is still computed
+  and still displayed, but has not decided eligibility since 2026-08-08. Do not reintroduce it
+  here without reversing that decision explicitly.
+- **Already-issued and soft-deleted Participants are excluded** regardless of Batch type.
+
+**Consequence worth knowing:** eligibility is not delivery. The only automatic trigger is feedback
+submission (`modules/feedback/service.ts` → `issueCertificateIfEligible`). A paid participant who
+never submits feedback is now *eligible* but has nothing to deliver their certificate, so the
+admin batch-issue screen is the route for those. If automatic issuance for all paid participants
+is wanted, it needs its own trigger — most naturally on the paid transition or at Batch end.
+
+**Consequence for feedback rates:** feedback was the incentive on paid Batches, and removing the
+gate will reduce response rates. Accepted deliberately; the post-course email copy still invites
+feedback, it simply no longer withholds anything.

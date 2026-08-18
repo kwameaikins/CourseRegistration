@@ -142,7 +142,10 @@ describe('certificate numbering', () => {
 });
 
 describe('batch issuance', () => {
-  it('marks eligibility as Paid + feedback + not already issued', async () => {
+  // Revised 2026-08-18 (founder): on a paid Batch, payment is the WHOLE rule.
+  // Feedback used to be a second condition; withholding something already paid
+  // for until a survey is filled in is a hostage, not an incentive.
+  it('marks eligibility as Paid + not already issued, regardless of feedback', async () => {
     repositoryMock.selectBatchIssueContext.mockResolvedValue({
       courseCode: 'ESG1',
       courseTitle: 'ESG and Sustainability Reporting',
@@ -162,26 +165,36 @@ describe('batch issuance', () => {
     expect(eligibility).toEqual({
       'reg-1': true,
       'reg-2': false,
-      'reg-3': false,
+      // Paid but no feedback — eligible now, where it was not before.
+      'reg-3': true,
       'reg-4': false,
     });
     expect(context!.candidates[0].attendancePercent).toBe(80);
   });
 
-  // Free events (2026-08-03): a zero-fee registration settles to 'Paid' the
-  // instant it is created, so `paid` is true for everyone who filled in the
-  // form. Attendance replaces it as the participation signal — otherwise a
-  // certificate would go to people who never turned up.
-  it('requires attendance instead of payment on a free batch', async () => {
+  // Free events: a zero-fee registration settles to 'Paid' the instant it is
+  // created, so `paid` is true for everyone who merely filled in the form.
+  // Participation has to be proved some other way, and since 2026-08-18 either
+  // signal suffices — they turned up, or they told us what they thought.
+  it('accepts attendance OR feedback on a free batch, and neither is not enough', async () => {
     repositoryMock.selectBatchIssueContext.mockResolvedValue({
       courseCode: 'ESG1',
       courseTitle: 'ESG and Sustainability Reporting',
       batchIsFree: true,
       candidates: [
+        // Attended and gave feedback.
         candidate(),
-        // Registered and "paid" (at zero) but never attended — must NOT qualify.
+        // Never attended, but gave feedback — qualifies on the feedback arm.
         candidate({ registrationId: 'reg-2', attendedSessions: 0 }),
+        // Attended, no feedback — qualifies on the attendance arm.
         candidate({ registrationId: 'reg-3', feedbackSubmitted: false }),
+        // Signed up and did nothing else. Still must NOT qualify, which is the
+        // whole reason payment cannot be the gate on a free batch.
+        candidate({
+          registrationId: 'reg-4',
+          attendedSessions: 0,
+          feedbackSubmitted: false,
+        }),
       ],
     });
 
@@ -189,7 +202,12 @@ describe('batch issuance', () => {
     const eligibility = Object.fromEntries(
       context!.candidates.map((c) => [c.registrationId, c.eligible]),
     );
-    expect(eligibility).toEqual({ 'reg-1': true, 'reg-2': false, 'reg-3': false });
+    expect(eligibility).toEqual({
+      'reg-1': true,
+      'reg-2': true,
+      'reg-3': true,
+      'reg-4': false,
+    });
   });
 
   it('still ignores attendance on a paid batch, where payment is the gate', async () => {
@@ -297,7 +315,13 @@ describe('issueCertificateIfEligible — feedback auto-issue (2026-07-27)', () =
     repositoryMock.selectBatchIssueContext.mockResolvedValue(batchIssueContext());
   });
 
-  it('does not auto-issue on a free batch until attendance has been recorded', async () => {
+  // CHANGED 2026-08-18. This used to assert the opposite — no auto-issue on a
+  // free batch until attendance was recorded. Under "attended OR gave
+  // feedback" that guard is gone by design: this path only ever runs because
+  // feedback was just submitted, so the feedback arm is satisfied by
+  // definition. Someone who never attended but did tell us what they thought
+  // now gets their certificate.
+  it('auto-issues on a free batch from feedback alone, with no attendance recorded', async () => {
     repositoryMock.selectBatchIssueContext.mockResolvedValue(
       batchIssueContext({
         batchIsFree: true,
@@ -305,11 +329,37 @@ describe('issueCertificateIfEligible — feedback auto-issue (2026-07-27)', () =
       }),
     );
 
+    expect(await issueCertificateIfEligible('reg-1')).not.toBeNull();
+    expect(repositoryMock.insertCertificate).toHaveBeenCalled();
+  });
+
+  // The one thing a free batch still refuses: no attendance and no feedback.
+  // Not reachable through the feedback trigger itself, but it is the rule, and
+  // the batch-issue screen shares this exact function.
+  it('does not issue on a free batch with neither attendance nor feedback', async () => {
+    repositoryMock.selectBatchIssueContext.mockResolvedValue(
+      batchIssueContext({
+        batchIsFree: true,
+        candidates: [candidate({ attendedSessions: 0, feedbackSubmitted: false })],
+      }),
+    );
+
     expect(await issueCertificateIfEligible('reg-1')).toBeNull();
     expect(repositoryMock.insertCertificate).not.toHaveBeenCalled();
   });
 
-  it('issues a certificate with issued_by null when Paid + feedback submitted', async () => {
+  // Paid batch: payment is the whole rule, so a paid registration with no
+  // feedback is eligible. It simply has no automatic trigger to deliver it —
+  // the admin batch-issue screen is the route for those.
+  it('issues on a paid batch even when feedback was never submitted', async () => {
+    repositoryMock.selectBatchIssueContext.mockResolvedValue(
+      batchIssueContext({ candidates: [candidate({ feedbackSubmitted: false })] }),
+    );
+
+    expect(await issueCertificateIfEligible('reg-1')).not.toBeNull();
+  });
+
+  it('issues a certificate with issued_by null when Paid', async () => {
     const result = await issueCertificateIfEligible('reg-1');
 
     expect(result).not.toBeNull();
