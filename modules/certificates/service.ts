@@ -3,13 +3,15 @@
 // Numbering: KNS-<COURSECODE>-<YEAR>-<NNNN>, serial per course code per
 // year, continuing the legacy registry's shape. The unique constraint on
 // certificate_number is the collision guard — generation retries on a race.
-// Eligibility for batch issuance (revised 2026-08-18): on a paid Batch, Paid
-// is the whole rule; on a free Batch, attendance OR feedback. Attendance is
-// surfaced for admin judgment either way, and the admin explicitly selects who
-// gets issued (admin-approved, auto-computed). See isCertificateEligible.
+// Eligibility for batch issuance (BR-46, revised 2026-08-18): entitlement plus
+// participation. On a paid Batch entitlement is `paid`; on a free Batch there
+// is none to check. Participation is attendance OR feedback OR an assignment
+// submission — any one suffices, because a paying participant may watch the
+// recordings rather than attend live. See isCertificateEligible.
 import { generateCertificatePdf } from '@/lib/certificates/pdf';
 import { sendTransactionalEmail } from '@/lib/resend/client';
 import { AppError } from '@/lib/errors';
+import * as assignmentsService from '@/modules/assignments/service';
 import * as certificatesRepository from '@/modules/certificates/repository';
 import * as usersService from '@/modules/users/service';
 import {
@@ -39,47 +41,76 @@ const APP_URL = () => process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.co
 // modules/tutors). Those keep the boundary appropriate to their own caller.
 const CERTIFICATE_STAFF_ROLES = ['admin'] as const;
 
-// The one eligibility rule, shared by auto-issue and the batch screen.
+// The one eligibility rule, shared by auto-issue, completion issuance and the
+// batch screen. BR-46.
 //
-// REVISED 2026-08-18 (founder): payment alone earns a certificate on a paid
-// Batch, and either attendance or feedback earns one on a free Batch.
+// Two independent halves (founder, 2026-08-18):
 //
-// On a paid Batch the rule is now simply `paid`. Feedback used to be a second
-// condition — the post-course email's "once your feedback is received" — but
-// withholding something a customer has already paid for until they fill in a
-// survey is a hostage, not an incentive. Feedback still TRIGGERS issuance (see
-// issueCertificateIfEligible, called on feedback submission); it just no
-// longer gates it. Note the consequence: a paid participant who never submits
-// feedback is now eligible but nothing auto-delivers to them, so the admin
-// batch-issue screen is the route for those.
+//   ENTITLEMENT — on a paid Batch, `paid`. On a free Batch, nothing, because
+//   payment proves nothing there: since 202608030048 a zero-fee registration
+//   settles to 'Paid' the instant it is created, so `paid` is true for
+//   everyone who merely filled in the form.
 //
-// On a free event, payment proves nothing — since 202608030048 a zero-fee
-// registration settles to 'Paid' the instant it is created, so `paid` is true
-// for everyone who merely filled in the form. Participation has to be proved
-// some other way, and either signal now suffices: they turned up, or they told
-// us what they thought. Both are things only a real participant does.
+//   PARTICIPATION — at least one of: attended a session, submitted feedback,
+//   or submitted an assignment. ANY ONE is enough.
 //
-// The OR is deliberately loose but not exploitable in practice: on a free Batch
-// the feedback request is only ever mailed to attendees
-// (runFeedbackRequestDispatch, 2026-08-06), so a non-attendee is not handed a
-// link in the ordinary course of events.
+// The participation half is an OR rather than a list of requirements because a
+// paying participant may legitimately never appear in the attendance data —
+// they can watch the recordings instead. Attendance is then the wrong and only
+// proxy for "did they take the course", so feedback and assignment submission
+// stand alongside it as equally valid evidence. Someone who paid and then did
+// none of the three has no evidence of participation at all, and that is the
+// only case this refuses.
 //
-// Attendance comes from the Zoom sync (modules/attendance). totalSessions is
-// 0 until that sync has run at least once for the batch, which correctly
-// holds certificates back rather than issuing them early.
+// Assignment submission QUALIFIES, it does not gate: no grade is consulted.
+// Requiring a grade would make certificate delivery wait on tutor marking
+// turnaround, which has no SLA and no reminder — a silent stall of exactly the
+// kind this codebase has been bitten by three times.
 //
-// attendedSessions counts every session the participant joined, however
-// briefly (founder decision 2026-08-08). It was briefly thresholded on
-// MIN_ATTENDANCE_RATIO — see certificates/repository.ts for why that was
-// reversed. The threshold still exists and is still reported; it just no
-// longer decides who gets a certificate.
+// QUIZZES are not represented here and cannot be: the question bank and mock
+// exams belong to KnowsiaApp (Document 19 §3), which this system deliberately
+// does not read. If quiz completion should count as participation, it arrives
+// through the Seam III entitlement work, not from a table here.
+//
+// Attendance comes from the Zoom sync (modules/attendance) and counts every
+// session the participant joined, however briefly (founder decision
+// 2026-08-08). It was briefly thresholded on MIN_ATTENDANCE_RATIO — see
+// certificates/repository.ts for why that was reversed. The threshold still
+// exists and is still reported; it just does not decide who gets a certificate.
 function isCertificateEligible(
-  candidate: { paid: boolean; feedbackSubmitted: boolean; attendedSessions: number },
+  candidate: {
+    paid: boolean;
+    feedbackSubmitted: boolean;
+    attendedSessions: number;
+    assignmentSubmitted: boolean;
+  },
   batchIsFree: boolean,
 ): boolean {
-  return batchIsFree
-    ? candidate.attendedSessions > 0 || candidate.feedbackSubmitted
-    : candidate.paid;
+  const participated =
+    candidate.attendedSessions > 0 ||
+    candidate.feedbackSubmitted ||
+    candidate.assignmentSubmitted;
+  return batchIsFree ? participated : candidate.paid && participated;
+}
+
+// Certificate eligibility needs assignment submission, which lives in another
+// module. Repositories never cross module lines (CLAUDE.md rule 1), so the
+// join happens here — one extra read per batch, merged onto the candidates the
+// repository built. Every caller goes through this rather than the repository
+// directly, so the three issue paths cannot drift apart on what "eligible"
+// means.
+async function loadIssueContext(batchId: string) {
+  const context = await certificatesRepository.selectBatchIssueContext(batchId);
+  if (!context) return null;
+  const submitted =
+    await assignmentsService.getRegistrationIdsWithSubmissionsForBatchSystem(batchId);
+  return {
+    ...context,
+    candidates: context.candidates.map((candidate) => ({
+      ...candidate,
+      assignmentSubmitted: submitted.has(candidate.registrationId),
+    })),
+  };
 }
 
 export function verifyUrlFor(certificateNumber: string): string {
@@ -207,7 +238,7 @@ export async function issueCertificateIfEligible(
   const batchId = await certificatesRepository.selectBatchIdForRegistration(registrationId);
   if (!batchId) return null;
 
-  const context = await certificatesRepository.selectBatchIssueContext(batchId);
+  const context = await loadIssueContext(batchId);
   if (!context) return null;
 
   const candidate = context.candidates.find((c) => c.registrationId === registrationId);
@@ -245,6 +276,98 @@ export async function issueCertificateIfEligible(
     console.error('[certificate auto-issue email]', err);
   }
   return toView(row);
+}
+
+// Completion issuance (BR-46, founder 2026-08-18): "when the course completes,
+// their certificate should be available so they can download it."
+//
+// Runs from the daily 07:00 cron against batches that ended yesterday — the
+// same tick and the same target date as the feedback request, so the two agree
+// about when a course is over.
+//
+// DELIBERATELY DOES NOT EMAIL. That is the whole distinction from
+// issueCertificateIfEligible: completing the course makes the certificate
+// available to download in the student portal, whereas submitting feedback
+// sends it to the person directly. Issuing here and emailing as well would
+// make the feedback route meaningless and mail everyone twice.
+//
+// Idempotent by construction: `alreadyIssued` skips anyone who has one, and
+// certificates.registration_id is unique, so a second run — or a race with the
+// feedback path — inserts nothing and lands as DUPLICATE_CERTIFICATE, which is
+// swallowed as "already issued" rather than failing the run.
+//
+// One participant's failure never stops the batch, and one batch's failure
+// never stops the tick; both are collected into `errors` and reported by the
+// caller, because a cron that returns a silent 200 while writing nothing is
+// the single most repeated failure in this codebase.
+export async function runCompletedBatchCertificateIssuance(
+  now = new Date(),
+): Promise<{
+  date: string;
+  batchesEvaluated: number;
+  issued: number;
+  skipped: number;
+  errors: string[];
+}> {
+  const yesterday = new Date(now);
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  const targetEndDate = yesterday.toISOString().slice(0, 10);
+
+  const summary = {
+    date: targetEndDate,
+    batchesEvaluated: 0,
+    issued: 0,
+    skipped: 0,
+    errors: [] as string[],
+  };
+
+  const batchIds = await certificatesRepository.selectBatchIdsEndedOn(targetEndDate);
+  for (const batchId of batchIds) {
+    summary.batchesEvaluated += 1;
+    try {
+      const context = await loadIssueContext(batchId);
+      if (!context) continue;
+
+      for (const candidate of context.candidates) {
+        if (candidate.participantDeleted || candidate.alreadyIssued) {
+          summary.skipped += 1;
+          continue;
+        }
+        if (!isCertificateEligible(candidate, context.batchIsFree)) {
+          summary.skipped += 1;
+          continue;
+        }
+        try {
+          await insertWithNumberRetry(
+            {
+              registration_id: candidate.registrationId,
+              recipient_name: candidate.participantName,
+              course_title: context.courseTitle,
+              description: context.defaultDescription,
+              hours: context.defaultHours,
+              cpd_credit: context.defaultCpdCredit,
+              facilitator_name: context.facilitatorName,
+              issued_date: new Date().toISOString().slice(0, 10),
+              issued_by: null,
+              recipient_email: candidate.participantEmail || null,
+            },
+            context.courseCode,
+          );
+          summary.issued += 1;
+        } catch (err) {
+          if (err instanceof AppError && err.code === 'DUPLICATE_CERTIFICATE') {
+            summary.skipped += 1;
+            continue;
+          }
+          summary.errors.push(`${candidate.registrationId}: ${String(err)}`);
+        }
+      }
+    } catch (err) {
+      summary.errors.push(`batch ${batchId}: ${String(err)}`);
+    }
+  }
+
+  return summary;
 }
 
 export async function listCertificates(
@@ -297,7 +420,7 @@ export async function getBatchIssueContextSystem(batchId: string): Promise<{
   batchIsFree: boolean;
   candidates: BatchIssueCandidate[];
 } | null> {
-  const context = await certificatesRepository.selectBatchIssueContext(batchId);
+  const context = await loadIssueContext(batchId);
   if (!context) return null;
   return {
     courseCode: context.courseCode,
@@ -318,6 +441,7 @@ export async function getBatchIssueContextSystem(batchId: string): Promise<{
           candidate.totalSessions > 0
             ? Math.round((candidate.attendedSessions / candidate.totalSessions) * 100)
             : null,
+        assignmentSubmitted: candidate.assignmentSubmitted,
         alreadyIssued: candidate.alreadyIssued,
         eligible:
           isCertificateEligible(candidate, context.batchIsFree) && !candidate.alreadyIssued,
@@ -330,7 +454,7 @@ export async function issueForBatch(
   issuedByStaffId: string,
 ): Promise<BatchIssueResult> {
   await usersService.requireRole([...CERTIFICATE_STAFF_ROLES]);
-  const context = await certificatesRepository.selectBatchIssueContext(input.batchId);
+  const context = await loadIssueContext(input.batchId);
   if (!context) {
     throw new AppError('NOT_FOUND', 'Batch not found.', 404);
   }

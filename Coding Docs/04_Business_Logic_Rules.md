@@ -814,32 +814,60 @@ rule that keeps the two systems' responsibilities apart:
 
 ---
 
-### BR-46 — Certificate eligibility: payment on a paid Batch, participation on a free one
+### BR-46 — Certificate eligibility is entitlement plus participation; delivery is download or email
 
-Founder decision, 2026-08-18. One function decides this for both the auto-issue path and the
-admin batch-issue screen: `isCertificateEligible` in `modules/certificates/service.ts`.
+Founder decision, 2026-08-18. One function decides eligibility for all three issue paths —
+completion issuance, feedback auto-issue, and the admin batch screen: `isCertificateEligible` in
+`modules/certificates/service.ts`.
 
-- **Paid Batch — `payment_status = 'Paid'` is the whole rule.** Nothing else is required.
-  Feedback was previously a second condition, on the strength of the post-course email's "once
-  your feedback is received". That is withdrawn: making someone fill in a survey to receive
-  something they have already paid for is a hostage, not an incentive.
-- **Free Batch — attendance OR feedback.** Payment proves nothing here, because a zero-fee
-  registration settles to `'Paid'` the instant it is created (see the BR-04 consequence note), so
-  `paid` is true for everyone who merely filled in the form. Either signal is accepted as proof of
-  participation: they turned up, or they told us what they thought. Both are things only a real
-  participant does. Neither signal means no certificate — that population is exactly what the rule
-  exists to exclude.
-- **Attendance counts any appearance, however brief.** `MIN_ATTENDANCE_RATIO` is still computed
-  and still displayed, but has not decided eligibility since 2026-08-08. Do not reintroduce it
-  here without reversing that decision explicitly.
-- **Already-issued and soft-deleted Participants are excluded** regardless of Batch type.
+**Eligibility — two independent halves, both required.**
 
-**Consequence worth knowing:** eligibility is not delivery. The only automatic trigger is feedback
-submission (`modules/feedback/service.ts` → `issueCertificateIfEligible`). A paid participant who
-never submits feedback is now *eligible* but has nothing to deliver their certificate, so the
-admin batch-issue screen is the route for those. If automatic issuance for all paid participants
-is wanted, it needs its own trigger — most naturally on the paid transition or at Batch end.
+1. **Entitlement.** On a paid Batch, `payment_status = 'Paid'`. On a free Batch, nothing to check:
+   a zero-fee registration settles to `'Paid'` the instant it is created (see the BR-04
+   consequence note), so `paid` is true for everyone who merely filled in the form and proves
+   nothing at all.
+2. **Participation — ANY ONE of:** attended a session, submitted feedback, or submitted an
+   assignment.
 
-**Consequence for feedback rates:** feedback was the incentive on paid Batches, and removing the
-gate will reduce response rates. Accepted deliberately; the post-course email copy still invites
-feedback, it simply no longer withholds anything.
+The participation half is an OR, not a checklist, because **a paying participant may never appear
+in the attendance data and still have taken the course** — they can watch the recordings. Attendance
+is therefore the wrong sole proxy for "did they take this course", and feedback and assignment
+submission stand alongside it as equally valid evidence. The only case refused is someone who paid
+and then did none of the three, leaving no evidence of participation whatsoever.
+
+**Assignment submission qualifies; it does not gate.** No grade is consulted. Requiring one would
+make certificate delivery wait on tutor marking, which has no SLA and no reminder — a silent stall
+of exactly the kind recorded three times already in this codebase. This is also the single
+deliberate link between `modules/assignments` and completion rules; that module's header otherwise
+states it is not a gradebook and has no link to certificates. It is kept to one boolean per
+registration, read through
+`assignmentsService.getRegistrationIdsWithSubmissionsForBatchSystem`, never by touching
+`assignment_submissions` from `modules/certificates`.
+
+**Quizzes cannot be represented here.** The question bank and mock exams belong to KnowsiaApp
+(Document 19 §3), which this system deliberately does not read. If quiz completion should count as
+participation, it arrives through the Seam III entitlement work, not from a table in this repo.
+
+**Attendance counts any appearance, however brief.** `MIN_ATTENDANCE_RATIO` is still computed and
+displayed but has not decided eligibility since 2026-08-08. Do not reintroduce it without
+reversing that decision explicitly.
+
+**Already-issued and soft-deleted Participants are excluded** regardless of Batch type.
+
+**Delivery — two routes, deliberately distinct.**
+
+| Trigger | What happens | Where it lives |
+| --- | --- | --- |
+| The Batch ends | Certificate is **issued, not emailed** — it is waiting in the student portal to download | `runCompletedBatchCertificateIssuance`, daily 07:00 cron |
+| Participant submits feedback | Certificate is issued **and emailed** to them directly | `issueCertificateIfEligible`, called from `modules/feedback/service.ts` |
+| Admin selects on the batch screen | Issued and emailed | `issueForBatch` |
+
+Completion issuance targets batches that ended *yesterday* — the same tick and the same target
+date as the feedback request, so the two can never disagree about when a course is over. It is
+idempotent: `certificates.registration_id` is unique, so a re-run, or a race with the feedback
+path, inserts nothing and is skipped rather than failing. One participant's failure never stops
+the batch and one batch's never stops the tick; both are collected into `errors` and returned, so
+the run cannot report success while writing nothing.
+
+Emailing on completion as well as on feedback would mail everyone twice and make the feedback
+route meaningless — that separation is the point, not an oversight.

@@ -1478,43 +1478,65 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     truncation is now visible and the CSV export is unfiltered by paging, which
     is what makes a partial view safe rather than complete.
 
-  Certificate eligibility relaxed on both sides (2026-08-18, founder: "make it
-    available for all paid participant... for free courses, only those who
-    attended or submitted feedback"). BR-46 in Document 4 is now the written
-    rule; `isCertificateEligible` in modules/certificates/service.ts is still
-    the single place it is decided, shared by auto-issue and the batch screen.
+  Certificate eligibility and delivery reworked (2026-08-18, founder). BR-46 in
+    Document 4 is the written rule; `isCertificateEligible` in
+    modules/certificates/service.ts is still the single place it is decided,
+    now shared by THREE issue paths (completion, feedback, admin batch screen).
     WAS: `if (!feedbackSubmitted) return false;` then paid-vs-attended by batch
-    type — i.e. feedback was mandatory for EVERYONE, and a paid customer who
-    ignored the survey never received the certificate they had paid for.
-    NOW: paid Batch -> `paid`, full stop. Free Batch -> `attendedSessions > 0
-    || feedbackSubmitted`.
-    The paid-side change is the substantive one: withholding something already
-    paid for until a survey is completed is a hostage, not an incentive.
-    Feedback still TRIGGERS issuance, it just no longer gates it.
-    The free-side OR is deliberately loose — someone who never attended but did
-    give feedback now qualifies. Low risk in practice because on a free Batch
-    the feedback request is only ever mailed to attendees (2026-08-06), so a
-    non-attendee is not handed a link in the ordinary course of events. Someone
-    who did NEITHER is still refused, which is the whole point of the rule
-    existing on free batches at all (zero-fee registrations auto-settle to
-    'Paid', so payment is not a signal there).
-    CONSEQUENCE, NOT YET ADDRESSED — eligibility is not delivery. The only
-    automatic trigger is feedback submission (modules/feedback/service.ts is the
-    sole caller of issueCertificateIfEligible). A paid participant who never
-    submits feedback is now eligible but NOTHING delivers to them; the admin
-    batch-issue screen is the only route. If "all paid participants
-    automatically receive it" is the actual intent, that needs its own trigger —
-    most naturally on the paid transition or at batch end. Flagged, not built.
-    Also expect paid-course feedback response rates to fall, since the gate was
-    the incentive. The post_training_thankyou copy still says the certificate
-    follows feedback; that is now an invitation rather than a condition, and is
-    worth rewording on the Messaging screen.
-    Tests updated and extended (certificates-service.test.ts, 30 passing): the
-    two old assertions that pinned the mandatory-feedback rule now assert the
-    opposite, plus new cases for paid-without-feedback, free-with-feedback-only,
-    free-with-attendance-only, and free-with-neither. Doc 4 EC-14's stale claim
-    about MIN_ATTENDANCE_RATIO gating free-batch eligibility corrected in
-    passing.
+    type — feedback was mandatory for EVERYONE, so a paid customer who ignored
+    the survey never received the certificate they had paid for.
+    NOW: entitlement (paid Batch -> `paid`; free Batch -> nothing, since
+    zero-fee registrations auto-settle to 'Paid' and prove nothing) AND
+    participation (attended OR feedback OR assignment submitted — any one).
+    The OR is the substantive design point, and it came from the founder's own
+    reasoning: a paying participant may never appear in the attendance data and
+    still have taken the course, because they can watch the recordings.
+    Attendance is therefore the wrong SOLE proxy for participation. Only
+    someone who paid and then did none of the three is refused.
+    Assignment submission QUALIFIES, it does not gate — no grade is consulted.
+    The founder initially answered "submitted AND graded" to a direct question,
+    then immediately described assignments as a qualifying signal; the later,
+    more specific statement was taken. Requiring a grade would have made
+    delivery wait on tutor marking, which has no SLA or reminder — a silent
+    stall of the exact kind recorded three times in this file.
+    This is the one deliberate link between modules/assignments and completion
+    rules, against that module's own header ("not a gradebook... no link to
+    certificates"). Kept to one boolean per registration via
+    getRegistrationIdsWithSubmissionsForBatchSystem; modules/certificates never
+    touches assignment_submissions.
+    QUIZZES CANNOT BE WIRED HERE — the question bank belongs to KnowsiaApp
+    (Doc 19 §3). If quiz completion should count, it comes through Seam III.
+    DELIVERY IS NOW TWO ROUTES, deliberately distinct:
+      batch ends      -> issued, NOT emailed; waiting in the portal to download
+                         (runCompletedBatchCertificateIssuance, 07:00 cron)
+      feedback given  -> issued AND emailed directly (issueCertificateIfEligible)
+    Completion issuance targets batches that ended YESTERDAY, the same target
+    date as the feedback dispatch, so the two can never disagree about when a
+    course is over. Idempotent (certificates.registration_id is unique, so a
+    re-run or a race with the feedback path inserts nothing); one participant's
+    failure never stops the batch and one batch's never stops the tick, both
+    collected into `errors` — a cron that reports success while writing nothing
+    is the single most repeated failure in this codebase.
+    BatchIssueCandidate gained `assignmentSubmitted` so the screen can show
+    WHICH signal carried someone: under an OR rule an eligible row showing 0%
+    attendance otherwise looks like a bug.
+    Tests: certificates-service.test.ts 37 passing, including paid-with-no-
+    participation refused, assignment-only accepted on both batch types, and
+    the completion path issuing WITHOUT sending email.
+    NOT DONE: the post_training_thankyou copy still says the certificate
+    follows feedback. That is now only one of two routes and is worth rewording
+    on the Messaging screen. Also unverified — whether the student portal UI
+    renders a download link for an issued certificate; the API
+    (GET /api/certificates/download/[id]) and the portal payload (certificate
+    id per registration) both exist, so if the button is missing it is a UI
+    change only.
+    Doc 4 EC-14's stale claim about MIN_ATTENDANCE_RATIO gating free-batch
+    eligibility corrected in passing.
+    PROCESS NOTE: a PowerShell `Set-Content -Encoding utf8` round-trip on
+    modules/certificates/service.ts re-introduced the BOM + cp1252 mojibake bug
+    this file already warns about (19 mangled em-dashes). Repaired by reversing
+    the double encoding, as the existing note prescribes. Do not edit source
+    files with Get-Content/Set-Content round-trips on this machine.
 
 Open decisions (founder):
   - Knowsia Live budget exception (~EUR 50-150/month bare metal). Not needed

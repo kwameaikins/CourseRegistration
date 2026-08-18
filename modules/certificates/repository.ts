@@ -95,6 +95,26 @@ export async function selectBatchIdForRegistration(
   return data?.batch_id ?? null;
 }
 
+// Batches whose last session ended on `dateIso`. Completion issuance (BR-46)
+// runs the following morning, on the same tick and the same target date as the
+// feedback request, so the two agree about when a course is over.
+//
+// Deliberately a second copy of feedback/repository.ts's selectBatchesEndedOn
+// rather than a cross-module read: a repository never reaches into another
+// module (CLAUDE.md rule 1), and this one already reads `batches` to build the
+// issue context. If the definition of "ended" ever changes, both must move —
+// hence this note in both places.
+export async function selectBatchIdsEndedOn(dateIso: string): Promise<string[]> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('batches')
+    .select('id')
+    .eq('is_active', true)
+    .eq('end_date', dateIso);
+  if (error) throw error;
+  return (data ?? []).map((row) => row.id);
+}
+
 export async function selectCertificateById(id: string): Promise<CertificateRow | null> {
   const supabase = createSupabaseServiceRoleClient();
   const { data, error } = await supabase
