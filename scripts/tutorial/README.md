@@ -95,6 +95,19 @@ The `ui` helper is deliberately small — `moveTo`, `click`, `type`,
 `ui.page` as an escape hatch. Prefer `selectByIndex` over hard-coded option
 values: courses, genders and lead sources are all live data.
 
+## Flows that touch a third party
+
+`certificate-linkedin` clicks **Add to LinkedIn**, which calls `window.open`.
+That step stubs `window.open` for the duration of the click, so the recording
+cannot wander onto `linkedin.com` — a page this pipeline does not control, which
+in a fresh browser shows a sign-in wall rather than the pre-filled form, and
+which would add an unpredictable extra page to the stitched output.
+
+The button, the click and the URL it builds are all real. Only the navigation is
+withheld, and the captured URL is asserted (`name`, `issueYear`, `certUrl`,
+`certId`) so a broken link fails the run rather than quietly recording a button
+that does nothing. Use the same shape for any future step that leaves the app.
+
 ## Voice quality
 
 The voice provider is the one swappable part, because it is the one part with a
