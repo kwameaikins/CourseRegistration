@@ -23,6 +23,7 @@
 | 1.2 | 2026-07-19 | Added Section 9 — Zoom attendance integration; Section 10 — Anthropic (Claude) Admin assistant (both founder-approved scope additions) |
 | 1.3 | 2026-07-19 | Added Section 11 — Vapi agentic voice calls (founder-approved, all six use cases) |
 | 1.4 | 2026-08-17 | Added Section 13 — scheduled jobs, and the Cloudflare Worker that replaces the two GitHub Actions cron workflows so the repository can be made private. Listed Section 12 in the Table of Contents, which had never been added |
+| 1.5 | 2026-08-18 | Section 13 rewritten after checking the Actions API: both cron workflows had failed on **all 742 runs** since 2026-08-02 (`CRON_SECRET` never added as a repository secret), so `class_reminder_2h` had never been sent. Both workflows deleted. Added §13.3 (the secret is Sensitive and must be rotated, not recovered) and §13.4 (Knowsia Insights decommissioned — route now 410) |
 
 ---
 
@@ -677,16 +678,17 @@ Zoom remains the first classroom provider. The LiveSession module will create/li
 
 ## 13. Scheduled Jobs — Vercel Cron and the Cloudflare Cron Worker
 
-Four scheduled jobs run against this app, split across two schedulers. The split
-is forced, not a preference: Vercel Hobby allows **two** cron jobs and fires them
-**once a day**, and two of the four routes need sub-hourly granularity.
+Three scheduled jobs run against this app, split across two schedulers. The
+split is forced, not a preference: Vercel Hobby allows **two** cron jobs and
+fires them **once a day**, and the 2-hour class reminder needs sub-hourly
+granularity.
 
 | Route | Schedule | Scheduler |
 |---|---|---|
 | `/api/cron/reminders` | `0 7 * * *` | Vercel Cron (`vercel.json`) |
 | `/api/cron/attendance` | `0 21 * * *` | Vercel Cron (`vercel.json`) |
-| `/api/cron/class-reminders-frequent` | `*/15 * * * *` | Cloudflare Worker |
-| `/api/cron/news-pipeline-advance` | `*/15 * * * *` | Cloudflare Worker |
+| `/api/cron/class-reminders-frequent` | `*/15 * * * *` | Cloudflare Worker `knowsia-cron` |
+| ~~`/api/cron/news-pipeline-advance`~~ | — | **Decommissioned 2026-08-18** (§13.4) |
 
 All four authenticate the same way: `Authorization: Bearer <CRON_SECRET>`.
 
@@ -695,15 +697,46 @@ Manually-triggered cron routes (`/api/cron/attendance/backfill`,
 `/api/cron/feedback/attendees`) are deliberately **not** in either scheduler and
 are dry-run by default. Nothing here changes that.
 
-### 13.1 Why the `*/15` pair moved off GitHub Actions (2026-08-17)
+### 13.1 The GitHub Actions workflows never worked — 742 failed runs (2026-08-18)
 
-They originally ran as two GitHub Actions workflows. That is free only while the
-repository is **public**. On the Free plan a **private** repository gets 2,000
-Actions-minutes/month, and GitHub bills every job rounded up to a full minute —
-so two workflows × 96 runs/day is roughly **5,760 minutes/month**. The allowance
-would be exhausted in about ten days and both crons would then stop, with no
-failure any human would see: class reminders and the Insights pipeline would go
-quiet while everything else kept working.
+The `*/15` jobs originally ran as two GitHub Actions workflows. Checked against
+the Actions API on 2026-08-18:
+
+| Workflow | Runs | Successes | Failures | Since |
+|---|---|---|---|---|
+| `class-reminders-frequent.yml` | 414 | **0** | 414 | 2026-08-02 |
+| `news-pipeline-advance.yml` | 328 | **0** | 328 | 2026-08-03 |
+
+**Root cause:** the repository secret `CRON_SECRET` was never added — it was
+still an unchecked `*(external)*` item in PLAN.md, annotated "Workflow won't run
+without it". With the secret absent, `${{ secrets.CRON_SECRET }}` expands to an
+empty string, `curl` sends `Authorization: Bearer `, the route returns 401, and
+`curl --fail` exits non-zero. Job setup succeeded on every run; only the single
+curl step failed.
+
+**Impact:** `class_reminder_2h` had never been sent once. That precision window
+is the only reason the workflow existed, and `/api/cron/class-reminders-frequent`
+is its only caller. The 24h reminder was unaffected — `/api/cron/reminders`
+calls the same `runClassReminderDispatch()` daily and 24h is date-level. The
+Insights pipeline never advanced on a schedule either, though that is now moot
+(§13.4).
+
+This is the third instance of the same failure shape in this codebase, after the
+Zoom attendance sync writing nothing for a month and its cron returning a silent
+200. **The lesson is consistent: a scheduled job that fails where nobody looks is
+indistinguishable from one that works.** The worker's guard clause — logging
+loudly and skipping when `CRON_SECRET` is unset, rather than firing requests that
+all 401 — exists specifically because of this.
+
+A secondary reason for moving: GitHub Actions is free only while the repository
+is **public**. On the Free plan a private repository gets 2,000
+Actions-minutes/month with every job billed rounded up to a full minute, so two
+workflows × 96 runs/day is roughly **5,760 minutes/month**. Going private would
+have exhausted it in about ten days.
+
+Both workflow files were deleted rather than fixed. Neither had ever produced a
+successful run, so there was nothing to preserve and no cutover window to
+protect.
 
 Cloudflare was chosen over a third-party scheduler (cron-job.org and similar)
 because R2 is already in use there, so `CRON_SECRET` stays in infrastructure the
@@ -730,19 +763,44 @@ full setup, cutover and rollback runbook. Three properties worth preserving:
 the existing Vercel environment variable exactly. It is never committed;
 `wrangler.toml` holds only `APP_BASE_URL`.
 
-### 13.3 Cutover order (do not reverse)
+### 13.3 The secret cannot be recovered — it must be rotated
 
-Both routes are safe to call more often than needed and safe to overlap — every
-send is deduped by its log-table unique constraint, and `pipeline_jobs.stage`
-only ever moves forward. That is what makes an overlap window safe, and a hard
-switch unnecessary.
+`CRON_SECRET` is marked **Sensitive** in Vercel, which makes it write-only: the
+dashboard will not reveal it and `vercel env pull` returns an 11-character
+placeholder (recorded in PLAN.md during the 2026-08-14 Zoom work). The GitHub
+secret is write-only by design and was never set. The copy in the local `.env`
+is stale — probing production with it returns 401.
 
-1. Deploy the worker while the GitHub workflows are **still running**.
-2. Watch one 15-minute cycle: `npx wrangler tail` shows `run complete — 2/2 ok`.
-3. Confirm the **app** agrees — a new reminder-log row, or a pipeline job that
-   advanced a stage. A 200 from Cloudflare only proves the route was called.
-4. Only then remove `schedule:` from the two workflow files, keeping
-   `workflow_dispatch` so both can still be fired by hand.
-5. Only then set the repository to Private.
+So the value is genuinely unrecoverable, and the fix is rotation rather than
+retrieval. That is cheap here precisely because nothing currently authenticates
+with it: the only successful consumer is Vercel Cron, which reads the variable
+at request time and picks up a new value automatically.
 
-Removing the schedules before step 3 leaves a window with no scheduler at all.
+Rotation order:
+
+1. Vercel → Settings → Environment Variables → `CRON_SECRET` → Edit, new value,
+   Production scope.
+2. **Redeploy.** A Vercel environment change does not reach a running deployment
+   until the next deploy.
+3. `npx wrangler secret put CRON_SECRET` with the same value, then
+   `npx wrangler deploy`.
+4. Verify: a `GET` to `/api/cron/class-reminders-frequent` with the new bearer
+   token must return 200, and `npx wrangler tail` must show
+   `run complete — 1/1 ok`.
+
+### 13.4 Knowsia Insights decommissioned (2026-08-18)
+
+Founder decision. `/api/cron/news-pipeline-advance` now returns **410** and no
+longer imports `modules/news-insights/pipeline/orchestrator`, so no HTTP path
+reaches `runPipelineAdvance()` at all. Its workflow was deleted and the worker
+deliberately does not list the path.
+
+The hard block matters because each advance spends real Anthropic credit
+(~$0.05/story measured) and nothing ever bounded daily volume — the recorded
+theoretical ceiling was ~768 drafts/day. A merely-unscheduled route would have
+left that one stray call away.
+
+**Not removed:** `modules/news-insights`, the `/editorial` dashboard, the public
+`/news` pages and all 11 tables are intact, and `/news` still serves its
+already-published articles. Removing those is a separate decision — the public
+pages are live and indexed, and dropping the tables is irreversible.

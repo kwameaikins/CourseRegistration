@@ -639,8 +639,21 @@ Migration `202608010042_reminder_upsell_whatsapp_invite_types.sql`.
 - [x] New `app/api/cron/class-reminders-frequent` route + `.github/workflows/
       class-reminders-frequent.yml` — a free external scheduler (every 15 min) for the 2h-before
       precision Vercel Hobby's cron can't hit, since both its 2 allowed job slots are already used
-- [ ] *(external)* Add `CRON_SECRET` as a GitHub Actions repository secret (Settings → Secrets and
-      variables → Actions) — same value as the Vercel env var. Workflow won't run without it
+- [x] ~~*(external)* Add `CRON_SECRET` as a GitHub Actions repository secret~~ — **OBSOLETE
+      2026-08-18, and it cost sixteen days of silent breakage.** It was never done, and the
+      consequence was exactly what this line predicted: `class-reminders-frequent.yml` failed on
+      **all 414 runs** from 2026-08-02, and `news-pipeline-advance.yml` on **all 328** from
+      2026-08-03 — 742 failures, zero successes. An empty secret makes `curl` send
+      `Authorization: Bearer `, every request 401s, and `curl --fail` exits non-zero. So
+      `class_reminder_2h` had never once been sent. Nobody saw it because a red X on the Actions
+      tab is not somewhere anyone looks — the same failure shape as the Zoom attendance sync
+      writing nothing for a month.
+      Both workflows are now DELETED, not fixed: neither had ever produced a successful run.
+      The 2h reminder moved to the Cloudflare worker `knowsia-cron` (`scripts/cron-worker`), and
+      Knowsia Insights was decommissioned outright. Doc 7 §13.
+      NOTE the secret cannot be recovered — the Vercel var is Sensitive (write-only), the GitHub
+      one was never set, and the local `.env` copy is stale (probed: 401). It has to be ROTATED.
+      Doc 7 §13.3 carries the order.
 - [ ] *(external)* The 4 new WhatsApp sends need Meta Business Manager templates created + approved
       (`course_class_reminder_24h`, `course_class_reminder_2h`, `course_upsell_pitch`,
       `course_whatsapp_group_invite` — positional params documented in the migration header) before

@@ -1368,6 +1368,75 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     nothing; run it on ESG2/IA02 first, since that single field is probably the
     whole answer. Doc 7 §9.4 has the full runbook.
 
+  BOTH CRON WORKFLOWS HAD NEVER WORKED — 742 FAILED RUNS (2026-08-18). Found
+    while preparing to make this repo private. Checked against the GitHub
+    Actions API: `class-reminders-frequent.yml` 414 runs / 0 successes since
+    2026-08-02, `news-pipeline-advance.yml` 328 runs / 0 successes since
+    2026-08-03. Root cause was the unchecked `*(external)*` line in PLAN.md that
+    had predicted it verbatim — the `CRON_SECRET` repository secret was never
+    added, so `${{ secrets.CRON_SECRET }}` expanded to empty, curl sent
+    `Authorization: Bearer `, every route 401'd and `curl --fail` exited
+    non-zero. Job setup succeeded every time; only the curl step failed.
+    IMPACT: `class_reminder_2h` had NEVER BEEN SENT — that precision window is
+    the entire reason the workflow exists and the route has no other caller. The
+    24h reminder was never affected (`/api/cron/reminders` calls the same
+    runClassReminderDispatch daily; 24h is date-level). Third instance of this
+    exact shape after the Zoom attendance sync and its silently-200 cron: a
+    scheduled job failing where nobody looks is indistinguishable from one that
+    works.
+    FIX: both workflow files DELETED rather than repaired — neither had ever
+    produced a successful run, so there was nothing to preserve and no cutover
+    window to protect. The 2h reminder now runs from a Cloudflare Worker,
+    `knowsia-cron` (`scripts/cron-worker`, deployed, `*/15`), chosen over a
+    third-party cron service because R2 is already on Cloudflare so CRON_SECRET
+    stays in infrastructure we control. £0 — free-plan cron triggers, ~2,880
+    requests/month against 100k/day. Also removes the reason the repo had to stay
+    public: private repos get 2,000 Actions-minutes/month with every job billed
+    rounded up to a minute, and 2 workflows x 96 runs/day is ~5,760.
+    The worker logs loudly and skips when CRON_SECRET is unset rather than firing
+    requests that all 401 — written specifically so this failure cannot recur
+    silently. It exposes NO HTTP surface (404s everything, acts only on its
+    trigger).
+    STILL BLOCKED, founder action required: the worker is deployed but
+    `wrangler secret list` returns `[]`, so it is inert. CRON_SECRET CANNOT BE
+    RECOVERED — Vercel's copy is marked Sensitive (write-only, `vercel env pull`
+    gives an 11-char placeholder), GitHub's was never set, and the local `.env`
+    copy is stale (probed against production: 401). It must be ROTATED: new value
+    into Vercel + redeploy, same value via `wrangler secret put`, then verify a
+    200 and `run complete — 1/1 ok`. Doc 7 §13.3.
+
+  KNOWSIA INSIGHTS DECOMMISSIONED (2026-08-18, founder: "kill the news
+    insight"). `/api/cron/news-pipeline-advance` now returns 410 and no longer
+    imports the orchestrator, so no HTTP path reaches `runPipelineAdvance()`.
+    Its workflow is deleted and the Cloudflare worker deliberately omits the
+    path. The hard block is deliberate: each advance spends ~$0.05/story of
+    Anthropic credit and nothing ever bounded daily volume (recorded ceiling
+    ~768 drafts/day), so merely unscheduling it would have left it one stray
+    call away.
+    NOT REMOVED: `modules/news-insights`, `/editorial`, the public `/news` pages
+    and all 11 tables are intact, and `/news` still serves its published
+    articles (verified live, 200). Whether to tear those down is a separate
+    founder decision — the pages are public and indexed, and dropping the tables
+    is irreversible.
+
+  Repo hygiene (2026-08-17/18) — the Knovidia video pipeline had been sitting
+    untracked inside this working tree, where this repo's tsconfig (`**/*.ts`)
+    and eslint picked it up and broke `npm run lint` (exit 1) for reasons
+    unrelated to this codebase. Same class as the KnowsiaApp nesting incident on
+    2026-08-13, milder. Moved out to `C:\Users\user\Knowsia_Video_Production`,
+    given its own git repo, and pushed to `github.com/kwameaikins/Knovidia`
+    (private). Lint and tsc both green afterwards; `git status` clean.
+    THIS REPO IS STILL PUBLIC (`kwameaikins/CourseRegistration`, since
+    2026-07-18). Scanned the full history for leaked credentials and found NONE:
+    the only env file ever committed is `.env.local.example`, every flagged
+    pattern resolved to a placeholder (`your-service-role-key` etc.), and there
+    are zero hits for real-format Supabase JWTs, Anthropic/Paystack keys, AWS
+    key ids, Google OAuth secrets or private key blocks. So nothing needs
+    rotating on that account. What IS exposed is the source, schema, and the
+    whole `Coding Docs` suite — including this file, which is a candid list of
+    known unfixed weaknesses. Recommend private once the cron rotation above is
+    verified.
+
 Open decisions (founder):
   - Knowsia Live budget exception (~EUR 50-150/month bare metal). Not needed
     while the answer is "don't build"; revisit only once the product has
