@@ -300,28 +300,31 @@ export async function issueCertificateIfEligible(
 // never stops the tick; both are collected into `errors` and reported by the
 // caller, because a cron that returns a silent 200 while writing nothing is
 // the single most repeated failure in this codebase.
-export async function runCompletedBatchCertificateIssuance(
-  now = new Date(),
-): Promise<{
+export interface CompletionIssuanceSummary {
   date: string;
+  dryRun: boolean;
   batchesEvaluated: number;
   issued: number;
   skipped: number;
   errors: string[];
-}> {
-  const yesterday = new Date(now);
-  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-  const targetEndDate = yesterday.toISOString().slice(0, 10);
+}
 
-  const summary = {
-    date: targetEndDate,
+// Shared by the daily run and the backfill so the two can never disagree about
+// who qualifies. `dryRun` reports exactly what a real run would write without
+// writing any of it — the same posture as the attendance and Zoom backfills.
+async function issueForCompletedBatches(
+  batchIds: string[],
+  options: { dryRun: boolean; date: string },
+): Promise<CompletionIssuanceSummary> {
+  const summary: CompletionIssuanceSummary = {
+    date: options.date,
+    dryRun: options.dryRun,
     batchesEvaluated: 0,
     issued: 0,
     skipped: 0,
-    errors: [] as string[],
+    errors: [],
   };
 
-  const batchIds = await certificatesRepository.selectBatchIdsEndedOn(targetEndDate);
   for (const batchId of batchIds) {
     summary.batchesEvaluated += 1;
     try {
@@ -335,6 +338,10 @@ export async function runCompletedBatchCertificateIssuance(
         }
         if (!isCertificateEligible(candidate, context.batchIsFree)) {
           summary.skipped += 1;
+          continue;
+        }
+        if (options.dryRun) {
+          summary.issued += 1;
           continue;
         }
         try {
@@ -368,6 +375,55 @@ export async function runCompletedBatchCertificateIssuance(
   }
 
   return summary;
+}
+
+export async function runCompletedBatchCertificateIssuance(
+  now = new Date(),
+): Promise<CompletionIssuanceSummary> {
+  const yesterday = new Date(now);
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  const targetEndDate = yesterday.toISOString().slice(0, 10);
+  const batchIds = await certificatesRepository.selectBatchIdsEndedOn(targetEndDate);
+  return issueForCompletedBatches(batchIds, { dryRun: false, date: targetEndDate });
+}
+
+// Backfill for courses that finished BEFORE completion issuance existed
+// (2026-08-18). The daily run deliberately looks at a single day, so every
+// earlier cohort's certificates were never issued — which is why a student who
+// completed a course months ago still sees "Certificate will appear here once
+// the course is complete" with no download button.
+//
+// ADMIN-TRIGGERED, not CRON_SECRET-gated like the attendance and Zoom
+// backfills beside it. Those predate the discovery that CRON_SECRET cannot be
+// recovered (Doc 7 §13.3); gating this the same way would make it unusable
+// until that rotation happens, and this is the thing unblocking students today.
+// requireRole is therefore the whole boundary, and it runs on the service-role
+// client like every other certificate write.
+//
+// DRY RUN BY DEFAULT. A real run over the full history issues the entire
+// backlog in one pass and burns that many certificate serial numbers, which is
+// not something to discover afterwards.
+//
+// Sends NO email, matching the daily completion run: the certificate becomes
+// available to download in the portal, and emailing is what submitting
+// feedback earns. That also avoids a retroactive mass send to everyone who
+// ever completed a course.
+export async function runCertificateBackfill(input: {
+  dryRun?: boolean;
+  batchId?: string;
+  now?: Date;
+}): Promise<CompletionIssuanceSummary> {
+  await usersService.requireRole([...CERTIFICATE_STAFF_ROLES]);
+  const now = input.now ?? new Date();
+  const today = now.toISOString().slice(0, 10);
+  const batchIds = input.batchId
+    ? [input.batchId]
+    : await certificatesRepository.selectBatchIdsEndedOnOrBefore(today);
+  return issueForCompletedBatches(batchIds, {
+    // Opt IN to writing. An omitted flag must never mean "write".
+    dryRun: input.dryRun !== false,
+    date: today,
+  });
 }
 
 export async function listCertificates(

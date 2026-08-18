@@ -115,6 +115,25 @@ export async function selectBatchIdsEndedOn(dateIso: string): Promise<string[]> 
   return (data ?? []).map((row) => row.id);
 }
 
+// Every batch that has already finished, oldest first. Only the backfill uses
+// this: the daily run deliberately looks at a single day, so courses that
+// ended before completion issuance existed (2026-08-18) were never swept.
+//
+// Deliberately NOT filtered on is_active, unlike selectBatchIdsEndedOn. A
+// finished cohort is routinely deactivated, and those are exactly the ones
+// carrying the unissued backlog — filtering them out would make the backfill
+// skip most of what it exists to fix.
+export async function selectBatchIdsEndedOnOrBefore(dateIso: string): Promise<string[]> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('batches')
+    .select('id')
+    .lte('end_date', dateIso)
+    .order('end_date', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((row) => row.id);
+}
+
 export async function selectCertificateById(id: string): Promise<CertificateRow | null> {
   const supabase = createSupabaseServiceRoleClient();
   const { data, error } = await supabase

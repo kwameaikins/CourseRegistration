@@ -871,3 +871,19 @@ the run cannot report success while writing nothing.
 
 Emailing on completion as well as on feedback would mail everyone twice and make the feedback
 route meaningless — that separation is the point, not an oversight.
+
+**Backfill.** Completion issuance looks at a single day, so every cohort that finished before it
+existed (2026-08-18) has no certificates and its students see a placeholder with no download
+button. `POST /api/certificates/backfill` closes that, sharing the same eligibility rule and the
+same no-email behaviour:
+
+- **Admin-triggered, not `CRON_SECRET`-gated** — unlike the attendance and Zoom backfills beside
+  it. Those predate the discovery that `CRON_SECRET` cannot be recovered (Document 7 §13.3);
+  gating this the same way would leave it unusable until that rotation happens, and it is the
+  thing unblocking students now. `requireRole(['admin'])` in the service is the whole boundary.
+- **Dry run by default.** `{}` reports what a real run would issue and writes nothing; only
+  `{"dryRun": false}` writes. An omitted flag never means "write".
+- **`{"batchId": "<uuid>"}` scopes it to one cohort**, which is how to start — the unscoped form
+  issues the entire historical backlog in one pass and consumes that many certificate serials.
+- **Sends no email**, so it cannot become a retroactive mass send to everyone who has ever
+  completed a course.

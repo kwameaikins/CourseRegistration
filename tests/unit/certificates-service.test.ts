@@ -11,6 +11,7 @@ const repositoryMock = {
   selectBatchIssueContext: vi.fn(),
   selectBatchIdForRegistration: vi.fn(),
   selectBatchIdsEndedOn: vi.fn(),
+  selectBatchIdsEndedOnOrBefore: vi.fn(),
 };
 const sendTransactionalEmailMock = vi.fn();
 // The staff-facing certificate actions gate on requireRole; mocking the users
@@ -37,6 +38,7 @@ const {
   getCertificatePdf,
   issueCertificateIfEligible,
   runCompletedBatchCertificateIssuance,
+  runCertificateBackfill,
   issueForBatch,
   issueManual,
   listCertificates,
@@ -67,6 +69,7 @@ beforeEach(() => {
     new Set<string>(),
   );
   repositoryMock.selectBatchIdsEndedOn.mockResolvedValue([]);
+  repositoryMock.selectBatchIdsEndedOnOrBefore.mockResolvedValue([]);
   repositoryMock.selectMaxSerialForCourseYear.mockResolvedValue(35);
   repositoryMock.selectCourseSerialFloor.mockResolvedValue(0);
   repositoryMock.insertCertificate.mockImplementation(async (row) => ({
@@ -671,5 +674,74 @@ describe('runCompletedBatchCertificateIssuance', () => {
     expect(summary.errors).toHaveLength(1);
     expect(summary.errors[0]).toContain('reg-1');
     expect(summary.issued).toBe(1);
+  });
+});
+
+// The backlog fix: courses that finished before completion issuance existed
+// were never swept, which is why a student who completed months ago still sees
+// a placeholder and no download button.
+describe('runCertificateBackfill', () => {
+  beforeEach(() => {
+    repositoryMock.selectBatchIdsEndedOnOrBefore.mockResolvedValue(['batch-1']);
+    repositoryMock.selectBatchIssueContext.mockResolvedValue({
+      courseCode: 'ESG1',
+      courseTitle: 'ESG and Sustainability Reporting',
+      defaultHours: 20,
+      defaultDescription: 'focused on ESG reporting.',
+      defaultCpdCredit: 'TBD',
+      batchIsFree: false,
+      candidates: [candidate()],
+    });
+  });
+
+  // The property that matters most: an omitted flag must never mean "write".
+  it('is a dry run by default and writes nothing', async () => {
+    const summary = await runCertificateBackfill({});
+
+    expect(summary.dryRun).toBe(true);
+    expect(summary.issued).toBe(1); // reported as WOULD-issue
+    expect(repositoryMock.insertCertificate).not.toHaveBeenCalled();
+    expect(sendTransactionalEmailMock).not.toHaveBeenCalled();
+  });
+
+  it('writes only when dryRun is explicitly false, and still sends no email', async () => {
+    const summary = await runCertificateBackfill({ dryRun: false });
+
+    expect(summary.dryRun).toBe(false);
+    expect(summary.issued).toBe(1);
+    expect(repositoryMock.insertCertificate).toHaveBeenCalledTimes(1);
+    // Backfilling must not retroactively mail everyone who ever finished a
+    // course — the portal download is the delivery here.
+    expect(sendTransactionalEmailMock).not.toHaveBeenCalled();
+  });
+
+  it('scopes to one cohort when a batchId is given', async () => {
+    await runCertificateBackfill({ dryRun: false, batchId: 'batch-9' });
+
+    expect(repositoryMock.selectBatchIdsEndedOnOrBefore).not.toHaveBeenCalled();
+    expect(repositoryMock.selectBatchIssueContext).toHaveBeenCalledWith('batch-9');
+  });
+
+  it('is admin-gated', async () => {
+    usersServiceMock.requireRole.mockRejectedValue(new Error('forbidden'));
+    await expect(runCertificateBackfill({})).rejects.toThrow('forbidden');
+    expect(repositoryMock.insertCertificate).not.toHaveBeenCalled();
+  });
+
+  it('applies the same eligibility rule, so no-participation rows are skipped', async () => {
+    repositoryMock.selectBatchIssueContext.mockResolvedValue({
+      courseCode: 'ESG1',
+      courseTitle: 'ESG and Sustainability Reporting',
+      defaultHours: 20,
+      defaultDescription: 'focused on ESG reporting.',
+      defaultCpdCredit: 'TBD',
+      batchIsFree: false,
+      candidates: [candidate({ attendedSessions: 0, feedbackSubmitted: false })],
+    });
+
+    const summary = await runCertificateBackfill({ dryRun: false });
+
+    expect(summary.issued).toBe(0);
+    expect(summary.skipped).toBe(1);
   });
 });

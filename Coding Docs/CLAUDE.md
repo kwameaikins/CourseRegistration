@@ -1523,13 +1523,30 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     Tests: certificates-service.test.ts 37 passing, including paid-with-no-
     participation refused, assignment-only accepted on both batch types, and
     the completion path issuing WITHOUT sending email.
+    PORTAL DOWNLOAD BUTTON — CHECKED, NOT BROKEN (2026-08-18). Founder reported
+    "the download button for certificates is still not showing". The portal
+    already renders it: app/(public)/portal/page.tsx line ~1564 links each
+    certificate to /api/certificates/download/<id>, and that route is public,
+    UUID-validated and regenerates the PDF on demand. The cards the founder saw
+    were the PLACEHOLDERS for registrations with no certificate row
+    ("Certificate will appear here once the course is complete"). Nothing was
+    broken; the certificates had simply never been issued, because completion
+    issuance only sweeps batches that ended YESTERDAY and every earlier cohort
+    predates it. Fixed by the backfill below rather than by touching the UI.
+    CERTIFICATE BACKFILL (2026-08-18) — POST /api/certificates/backfill closes
+    the historical backlog. Shares issueForCompletedBatches with the daily run,
+    so the two can never disagree about who qualifies. ADMIN-GATED rather than
+    CRON_SECRET-gated, deliberately breaking with the attendance/Zoom backfills
+    beside it: those predate the discovery that CRON_SECRET is unrecoverable
+    (Doc 7 §13.3), and gating this the same way would leave it unusable until
+    that rotation happens. DRY RUN BY DEFAULT — `{}` reports and writes
+    nothing, only `{"dryRun": false}` writes, and `{"batchId": "<uuid>"}` scopes
+    it to one cohort, which is how to start: the unscoped form issues the whole
+    backlog in one pass and consumes that many certificate serials. Sends NO
+    email, so it cannot become a retroactive mass send.
     NOT DONE: the post_training_thankyou copy still says the certificate
-    follows feedback. That is now only one of two routes and is worth rewording
-    on the Messaging screen. Also unverified — whether the student portal UI
-    renders a download link for an issued certificate; the API
-    (GET /api/certificates/download/[id]) and the portal payload (certificate
-    id per registration) both exist, so if the button is missing it is a UI
-    change only.
+    follows feedback. Founder reviewed and confirmed it is fine as-is
+    (2026-08-18), so this is closed rather than outstanding.
     Doc 4 EC-14's stale claim about MIN_ATTENDANCE_RATIO gating free-batch
     eligibility corrected in passing.
     PROCESS NOTE: a PowerShell `Set-Content -Encoding utf8` round-trip on
