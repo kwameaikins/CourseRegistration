@@ -144,6 +144,29 @@ export async function getAssignmentsForBatchSystem(
   });
 }
 
+// Certificate gating (BR-46, 2026-08-18). Which registrations on this batch
+// have submitted at least one assignment.
+//
+// This is the one deliberate link between assignments and completion rules —
+// the module header says it is NOT a gradebook and has "no link to
+// certificates", which held until the founder asked for exactly that. It is
+// kept as narrow as possible: a boolean per registration, derived here, with
+// modules/certificates reading it through this function rather than touching
+// assignment_submissions. No grade is consulted, so a certificate never waits
+// on tutor marking turnaround.
+//
+// Returns the ids that HAVE submitted; absence means no submission.
+export async function getRegistrationIdsWithSubmissionsForBatchSystem(
+  batchId: string,
+): Promise<Set<string>> {
+  const assignments = await assignmentsRepository.selectAssignmentsForBatchSystem(batchId);
+  if (assignments.length === 0) return new Set();
+  const submissions = await assignmentsRepository.selectSubmissionsForAssignmentIdsSystem(
+    assignments.map((row) => row.id),
+  );
+  return new Set(submissions.map((row) => row.registration_id));
+}
+
 // Staff-facing read (RLS enforces admin/management, matching /live-sessions).
 // Stats still come from the service-role read: the submissions table's own
 // RLS grants management SELECT, but admin-vs-management divergence here would

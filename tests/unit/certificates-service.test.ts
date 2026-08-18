@@ -10,14 +10,23 @@ const repositoryMock = {
   updateCertificate: vi.fn(),
   selectBatchIssueContext: vi.fn(),
   selectBatchIdForRegistration: vi.fn(),
+  selectBatchIdsEndedOn: vi.fn(),
 };
 const sendTransactionalEmailMock = vi.fn();
 // The staff-facing certificate actions gate on requireRole; mocking the users
 // service keeps these tests off lib/supabase (and out of a request scope).
 const usersServiceMock = { requireRole: vi.fn() };
+// BR-46 made assignment submission a participation signal, so loadIssueContext
+// reads it from modules/assignments. Default: nobody has submitted, which
+// keeps every pre-existing case exercising the attendance/feedback arms
+// exactly as before. Tests about the assignment arm set it explicitly.
+const assignmentsServiceMock = {
+  getRegistrationIdsWithSubmissionsForBatchSystem: vi.fn(),
+};
 
 vi.mock('@/modules/certificates/repository', () => repositoryMock);
 vi.mock('@/modules/users/service', () => usersServiceMock);
+vi.mock('@/modules/assignments/service', () => assignmentsServiceMock);
 vi.mock('@/lib/resend/client', () => ({
   sendTransactionalEmail: (...args: unknown[]) => sendTransactionalEmailMock(...args),
 }));
@@ -27,6 +36,7 @@ const {
   getBatchIssueContextSystem,
   getCertificatePdf,
   issueCertificateIfEligible,
+  runCompletedBatchCertificateIssuance,
   issueForBatch,
   issueManual,
   listCertificates,
@@ -53,6 +63,10 @@ function candidate(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   usersServiceMock.requireRole.mockResolvedValue({ id: 'staff-1', role: 'admin' });
+  assignmentsServiceMock.getRegistrationIdsWithSubmissionsForBatchSystem.mockResolvedValue(
+    new Set<string>(),
+  );
+  repositoryMock.selectBatchIdsEndedOn.mockResolvedValue([]);
   repositoryMock.selectMaxSerialForCourseYear.mockResolvedValue(35);
   repositoryMock.selectCourseSerialFloor.mockResolvedValue(0);
   repositoryMock.insertCertificate.mockImplementation(async (row) => ({
@@ -142,7 +156,10 @@ describe('certificate numbering', () => {
 });
 
 describe('batch issuance', () => {
-  it('marks eligibility as Paid + feedback + not already issued', async () => {
+  // Revised 2026-08-18 (founder): on a paid Batch, payment is the WHOLE rule.
+  // Feedback used to be a second condition; withholding something already paid
+  // for until a survey is filled in is a hostage, not an incentive.
+  it('marks eligibility as Paid + not already issued, regardless of feedback', async () => {
     repositoryMock.selectBatchIssueContext.mockResolvedValue({
       courseCode: 'ESG1',
       courseTitle: 'ESG and Sustainability Reporting',
@@ -162,26 +179,36 @@ describe('batch issuance', () => {
     expect(eligibility).toEqual({
       'reg-1': true,
       'reg-2': false,
-      'reg-3': false,
+      // Paid but no feedback — eligible now, where it was not before.
+      'reg-3': true,
       'reg-4': false,
     });
     expect(context!.candidates[0].attendancePercent).toBe(80);
   });
 
-  // Free events (2026-08-03): a zero-fee registration settles to 'Paid' the
-  // instant it is created, so `paid` is true for everyone who filled in the
-  // form. Attendance replaces it as the participation signal — otherwise a
-  // certificate would go to people who never turned up.
-  it('requires attendance instead of payment on a free batch', async () => {
+  // Free events: a zero-fee registration settles to 'Paid' the instant it is
+  // created, so `paid` is true for everyone who merely filled in the form.
+  // Participation has to be proved some other way, and since 2026-08-18 either
+  // signal suffices — they turned up, or they told us what they thought.
+  it('accepts attendance OR feedback on a free batch, and neither is not enough', async () => {
     repositoryMock.selectBatchIssueContext.mockResolvedValue({
       courseCode: 'ESG1',
       courseTitle: 'ESG and Sustainability Reporting',
       batchIsFree: true,
       candidates: [
+        // Attended and gave feedback.
         candidate(),
-        // Registered and "paid" (at zero) but never attended — must NOT qualify.
+        // Never attended, but gave feedback — qualifies on the feedback arm.
         candidate({ registrationId: 'reg-2', attendedSessions: 0 }),
+        // Attended, no feedback — qualifies on the attendance arm.
         candidate({ registrationId: 'reg-3', feedbackSubmitted: false }),
+        // Signed up and did nothing else. Still must NOT qualify, which is the
+        // whole reason payment cannot be the gate on a free batch.
+        candidate({
+          registrationId: 'reg-4',
+          attendedSessions: 0,
+          feedbackSubmitted: false,
+        }),
       ],
     });
 
@@ -189,15 +216,77 @@ describe('batch issuance', () => {
     const eligibility = Object.fromEntries(
       context!.candidates.map((c) => [c.registrationId, c.eligible]),
     );
-    expect(eligibility).toEqual({ 'reg-1': true, 'reg-2': false, 'reg-3': false });
+    expect(eligibility).toEqual({
+      'reg-1': true,
+      'reg-2': true,
+      'reg-3': true,
+      'reg-4': false,
+    });
   });
 
-  it('still ignores attendance on a paid batch, where payment is the gate', async () => {
+  // A paying participant may watch the recordings rather than attend live, so
+  // attendance is not required on its own — but SOME participation is.
+  it('accepts a paid participant who never attended but gave feedback', async () => {
     repositoryMock.selectBatchIssueContext.mockResolvedValue({
       courseCode: 'ESG1',
       courseTitle: 'ESG and Sustainability Reporting',
       batchIsFree: false,
       candidates: [candidate({ attendedSessions: 0 })],
+    });
+
+    const context = await getBatchIssueContextSystem('batch-1');
+    expect(context!.candidates[0].eligible).toBe(true);
+  });
+
+  // The case the participation half exists to refuse: paid, then nothing at
+  // all. Before BR-46 gained the participation requirement this read eligible.
+  it('refuses a paid participant with no attendance, no feedback and no assignment', async () => {
+    repositoryMock.selectBatchIssueContext.mockResolvedValue({
+      courseCode: 'ESG1',
+      courseTitle: 'ESG and Sustainability Reporting',
+      batchIsFree: false,
+      candidates: [candidate({ attendedSessions: 0, feedbackSubmitted: false })],
+    });
+
+    const context = await getBatchIssueContextSystem('batch-1');
+    expect(context!.candidates[0].eligible).toBe(false);
+  });
+
+  // The assignment arm, on both batch types. Submission alone qualifies — no
+  // grade is consulted, so a certificate never waits on tutor marking.
+  it('accepts an assignment submission as the only participation signal', async () => {
+    assignmentsServiceMock.getRegistrationIdsWithSubmissionsForBatchSystem.mockResolvedValue(
+      new Set(['reg-1']),
+    );
+    repositoryMock.selectBatchIssueContext.mockResolvedValue({
+      courseCode: 'ESG1',
+      courseTitle: 'ESG and Sustainability Reporting',
+      batchIsFree: false,
+      candidates: [
+        candidate({ attendedSessions: 0, feedbackSubmitted: false }),
+        candidate({ registrationId: 'reg-2', attendedSessions: 0, feedbackSubmitted: false }),
+      ],
+    });
+
+    const context = await getBatchIssueContextSystem('batch-1');
+    const eligibility = Object.fromEntries(
+      context!.candidates.map((c) => [c.registrationId, c.eligible]),
+    );
+    // reg-1 submitted; reg-2 did nothing at all.
+    expect(eligibility).toEqual({ 'reg-1': true, 'reg-2': false });
+    expect(context!.candidates[0].assignmentSubmitted).toBe(true);
+    expect(context!.candidates[1].assignmentSubmitted).toBe(false);
+  });
+
+  it('accepts an assignment submission on a free batch too', async () => {
+    assignmentsServiceMock.getRegistrationIdsWithSubmissionsForBatchSystem.mockResolvedValue(
+      new Set(['reg-1']),
+    );
+    repositoryMock.selectBatchIssueContext.mockResolvedValue({
+      courseCode: 'ESG1',
+      courseTitle: 'ESG and Sustainability Reporting',
+      batchIsFree: true,
+      candidates: [candidate({ attendedSessions: 0, feedbackSubmitted: false })],
     });
 
     const context = await getBatchIssueContextSystem('batch-1');
@@ -297,7 +386,13 @@ describe('issueCertificateIfEligible — feedback auto-issue (2026-07-27)', () =
     repositoryMock.selectBatchIssueContext.mockResolvedValue(batchIssueContext());
   });
 
-  it('does not auto-issue on a free batch until attendance has been recorded', async () => {
+  // CHANGED 2026-08-18. This used to assert the opposite — no auto-issue on a
+  // free batch until attendance was recorded. Under "attended OR gave
+  // feedback" that guard is gone by design: this path only ever runs because
+  // feedback was just submitted, so the feedback arm is satisfied by
+  // definition. Someone who never attended but did tell us what they thought
+  // now gets their certificate.
+  it('auto-issues on a free batch from feedback alone, with no attendance recorded', async () => {
     repositoryMock.selectBatchIssueContext.mockResolvedValue(
       batchIssueContext({
         batchIsFree: true,
@@ -305,11 +400,37 @@ describe('issueCertificateIfEligible — feedback auto-issue (2026-07-27)', () =
       }),
     );
 
+    expect(await issueCertificateIfEligible('reg-1')).not.toBeNull();
+    expect(repositoryMock.insertCertificate).toHaveBeenCalled();
+  });
+
+  // The one thing a free batch still refuses: no attendance and no feedback.
+  // Not reachable through the feedback trigger itself, but it is the rule, and
+  // the batch-issue screen shares this exact function.
+  it('does not issue on a free batch with neither attendance nor feedback', async () => {
+    repositoryMock.selectBatchIssueContext.mockResolvedValue(
+      batchIssueContext({
+        batchIsFree: true,
+        candidates: [candidate({ attendedSessions: 0, feedbackSubmitted: false })],
+      }),
+    );
+
     expect(await issueCertificateIfEligible('reg-1')).toBeNull();
     expect(repositoryMock.insertCertificate).not.toHaveBeenCalled();
   });
 
-  it('issues a certificate with issued_by null when Paid + feedback submitted', async () => {
+  // Paid batch: payment is the whole rule, so a paid registration with no
+  // feedback is eligible. It simply has no automatic trigger to deliver it —
+  // the admin batch-issue screen is the route for those.
+  it('issues on a paid batch even when feedback was never submitted', async () => {
+    repositoryMock.selectBatchIssueContext.mockResolvedValue(
+      batchIssueContext({ candidates: [candidate({ feedbackSubmitted: false })] }),
+    );
+
+    expect(await issueCertificateIfEligible('reg-1')).not.toBeNull();
+  });
+
+  it('issues a certificate with issued_by null when Paid', async () => {
     const result = await issueCertificateIfEligible('reg-1');
 
     expect(result).not.toBeNull();
@@ -470,5 +591,85 @@ describe('authorization — the staff-facing certificate actions', () => {
     repositoryMock.selectCertificateByNumber.mockResolvedValue(null);
     await expect(verifyCertificate('KNS-2026-0001')).resolves.toEqual({ status: 'not_found' });
     expect(usersServiceMock.requireRole).not.toHaveBeenCalled();
+  });
+});
+
+// BR-46 delivery: completing the course makes the certificate available to
+// DOWNLOAD; submitting feedback is what sends it by EMAIL. The two routes must
+// stay distinct, or everyone gets mailed twice and the feedback route stops
+// meaning anything.
+describe('runCompletedBatchCertificateIssuance', () => {
+  beforeEach(() => {
+    repositoryMock.selectBatchIdsEndedOn.mockResolvedValue(['batch-1']);
+    repositoryMock.selectBatchIssueContext.mockResolvedValue({
+      courseCode: 'ESG1',
+      courseTitle: 'ESG and Sustainability Reporting',
+      defaultHours: 20,
+      defaultDescription: 'focused on ESG reporting.',
+      defaultCpdCredit: 'TBD',
+      batchIsFree: false,
+      candidates: [candidate()],
+    });
+  });
+
+  it('issues to eligible participants WITHOUT emailing them', async () => {
+    const summary = await runCompletedBatchCertificateIssuance(new Date('2026-08-18T07:00:00Z'));
+
+    expect(summary.issued).toBe(1);
+    expect(repositoryMock.insertCertificate).toHaveBeenCalledWith(
+      expect.objectContaining({ registration_id: 'reg-1', issued_by: null }),
+    );
+    // The whole point of this path.
+    expect(sendTransactionalEmailMock).not.toHaveBeenCalled();
+  });
+
+  it('targets batches that ended YESTERDAY, matching the feedback dispatch', async () => {
+    await runCompletedBatchCertificateIssuance(new Date('2026-08-18T07:00:00Z'));
+    expect(repositoryMock.selectBatchIdsEndedOn).toHaveBeenCalledWith('2026-08-17');
+  });
+
+  it('skips the ineligible and the already-issued rather than failing', async () => {
+    repositoryMock.selectBatchIssueContext.mockResolvedValue({
+      courseCode: 'ESG1',
+      courseTitle: 'ESG and Sustainability Reporting',
+      defaultHours: 20,
+      defaultDescription: 'focused on ESG reporting.',
+      defaultCpdCredit: 'TBD',
+      batchIsFree: false,
+      candidates: [
+        candidate({ registrationId: 'reg-2', alreadyIssued: true }),
+        // Paid but zero participation — the case BR-46 refuses.
+        candidate({ registrationId: 'reg-3', attendedSessions: 0, feedbackSubmitted: false }),
+        candidate({ registrationId: 'reg-4', participantDeleted: true }),
+      ],
+    });
+
+    const summary = await runCompletedBatchCertificateIssuance(new Date('2026-08-18T07:00:00Z'));
+
+    expect(summary.issued).toBe(0);
+    expect(summary.skipped).toBe(3);
+    expect(repositoryMock.insertCertificate).not.toHaveBeenCalled();
+  });
+
+  // A cron that reports success while writing nothing is the single most
+  // repeated failure in this codebase — one bad row must be reported, not
+  // swallowed, and must not stop the rest.
+  it('collects a per-participant failure and still issues the others', async () => {
+    repositoryMock.selectBatchIssueContext.mockResolvedValue({
+      courseCode: 'ESG1',
+      courseTitle: 'ESG and Sustainability Reporting',
+      defaultHours: 20,
+      defaultDescription: 'focused on ESG reporting.',
+      defaultCpdCredit: 'TBD',
+      batchIsFree: false,
+      candidates: [candidate(), candidate({ registrationId: 'reg-2' })],
+    });
+    repositoryMock.insertCertificate.mockRejectedValueOnce(new Error('db down'));
+
+    const summary = await runCompletedBatchCertificateIssuance(new Date('2026-08-18T07:00:00Z'));
+
+    expect(summary.errors).toHaveLength(1);
+    expect(summary.errors[0]).toContain('reg-1');
+    expect(summary.issued).toBe(1);
   });
 });

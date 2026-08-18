@@ -546,10 +546,18 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     applied to production 2026-08-03. The 11 new tables in
     `lib/supabase/database.types.ts` were hand-written, then verified field-by-field
     against `npx supabase gen types typescript --linked` output — they match. Do NOT
-    wholesale-replace that file with generated output: the current generated types
+    wholesale-replace that file with generated output: ~~the current generated types
     declare `fn_delete_registration_immediately`/`fn_delete_participant_immediately`
     with a non-nullable `reason`, which breaks `modules/registrations/repository.ts`
-    (it passes `string | null`). Pre-existing, unrelated to this module, still open.
+    (it passes `string | null`). Pre-existing, unrelated to this module, still open.~~
+    **RESOLVED — this specific blocker no longer applies (verified 2026-08-18).**
+    `repository.ts` now casts `reason as string` at both call sites, with a comment
+    explaining why: the SQL parameter is a plain `reason text` which accepts NULL, but
+    `supabase gen types` models every argument without a default as non-nullable, and
+    coercing NULL to `''` would falsify `manual_deletion_log.reason`. The checked-in
+    types already say `reason: string`, matching generated output, so there is no drift
+    and `tsc` is clean. Regenerating still deserves a diff review — that is ordinary
+    care, not this specific hazard.
 
   Knowsia Insights hardening from the first real run (2026-08-03) — four bugs that only
     surfaced against live sources, all found by running the pipeline rather than by
@@ -1367,6 +1375,168 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     (`{"batchId":"<uuid>"}`) reports registrationEnabled/approvalType and costs
     nothing; run it on ESG2/IA02 first, since that single field is probably the
     whole answer. Doc 7 §9.4 has the full runbook.
+
+  BOTH CRON WORKFLOWS HAD NEVER WORKED — 742 FAILED RUNS (2026-08-18). Found
+    while preparing to make this repo private. Checked against the GitHub
+    Actions API: `class-reminders-frequent.yml` 414 runs / 0 successes since
+    2026-08-02, `news-pipeline-advance.yml` 328 runs / 0 successes since
+    2026-08-03. Root cause was the unchecked `*(external)*` line in PLAN.md that
+    had predicted it verbatim — the `CRON_SECRET` repository secret was never
+    added, so `${{ secrets.CRON_SECRET }}` expanded to empty, curl sent
+    `Authorization: Bearer `, every route 401'd and `curl --fail` exited
+    non-zero. Job setup succeeded every time; only the curl step failed.
+    IMPACT: `class_reminder_2h` had NEVER BEEN SENT — that precision window is
+    the entire reason the workflow exists and the route has no other caller. The
+    24h reminder was never affected (`/api/cron/reminders` calls the same
+    runClassReminderDispatch daily; 24h is date-level). Third instance of this
+    exact shape after the Zoom attendance sync and its silently-200 cron: a
+    scheduled job failing where nobody looks is indistinguishable from one that
+    works.
+    FIX: both workflow files DELETED rather than repaired — neither had ever
+    produced a successful run, so there was nothing to preserve and no cutover
+    window to protect. The 2h reminder now runs from a Cloudflare Worker,
+    `knowsia-cron` (`scripts/cron-worker`, deployed, `*/15`), chosen over a
+    third-party cron service because R2 is already on Cloudflare so CRON_SECRET
+    stays in infrastructure we control. £0 — free-plan cron triggers, ~2,880
+    requests/month against 100k/day. Also removes the reason the repo had to stay
+    public: private repos get 2,000 Actions-minutes/month with every job billed
+    rounded up to a minute, and 2 workflows x 96 runs/day is ~5,760.
+    The worker logs loudly and skips when CRON_SECRET is unset rather than firing
+    requests that all 401 — written specifically so this failure cannot recur
+    silently. It exposes NO HTTP surface (404s everything, acts only on its
+    trigger).
+    STILL BLOCKED, founder action required: the worker is deployed but
+    `wrangler secret list` returns `[]`, so it is inert. CRON_SECRET CANNOT BE
+    RECOVERED — Vercel's copy is marked Sensitive (write-only, `vercel env pull`
+    gives an 11-char placeholder), GitHub's was never set, and the local `.env`
+    copy is stale (probed against production: 401). It must be ROTATED: new value
+    into Vercel + redeploy, same value via `wrangler secret put`, then verify a
+    200 and `run complete — 1/1 ok`. Doc 7 §13.3.
+
+  KNOWSIA INSIGHTS DECOMMISSIONED (2026-08-18, founder: "kill the news
+    insight"). `/api/cron/news-pipeline-advance` now returns 410 and no longer
+    imports the orchestrator, so no HTTP path reaches `runPipelineAdvance()`.
+    Its workflow is deleted and the Cloudflare worker deliberately omits the
+    path. The hard block is deliberate: each advance spends ~$0.05/story of
+    Anthropic credit and nothing ever bounded daily volume (recorded ceiling
+    ~768 drafts/day), so merely unscheduling it would have left it one stray
+    call away.
+    NOT REMOVED: `modules/news-insights`, `/editorial`, the public `/news` pages
+    and all 11 tables are intact, and `/news` still serves its published
+    articles (verified live, 200). Whether to tear those down is a separate
+    founder decision — the pages are public and indexed, and dropping the tables
+    is irreversible.
+
+  Repo hygiene (2026-08-17/18) — the Knovidia video pipeline had been sitting
+    untracked inside this working tree, where this repo's tsconfig (`**/*.ts`)
+    and eslint picked it up and broke `npm run lint` (exit 1) for reasons
+    unrelated to this codebase. Same class as the KnowsiaApp nesting incident on
+    2026-08-13, milder. Moved out to `C:\Users\user\Knowsia_Video_Production`,
+    given its own git repo, and pushed to `github.com/kwameaikins/Knovidia`
+    (private). Lint and tsc both green afterwards; `git status` clean.
+    THIS REPO IS STILL PUBLIC (`kwameaikins/CourseRegistration`, since
+    2026-07-18). Scanned the full history for leaked credentials and found NONE:
+    the only env file ever committed is `.env.local.example`, every flagged
+    pattern resolved to a placeholder (`your-service-role-key` etc.), and there
+    are zero hits for real-format Supabase JWTs, Anthropic/Paystack keys, AWS
+    key ids, Google OAuth secrets or private key blocks. So nothing needs
+    rotating on that account. What IS exposed is the source, schema, and the
+    whole `Coding Docs` suite — including this file, which is a candid list of
+    known unfixed weaknesses. Recommend private once the cron rotation above is
+    verified.
+
+  Registration search only searched the newest 200 rows (2026-08-18) — the third
+    instance of the post-slice filtering defect, and the one still live. `search`
+    matches full_name/email/phone, which are on `participants` and joined AFTER
+    the page cut, so `applyPostJoinFilters` could only ever search whatever
+    survived the slice. With the 267 free ESG sign-ups filling the newest-200
+    window, searching for anyone who registered earlier returned NOTHING — and
+    `total` reported the unsearched count beside the empty result, so the screen
+    looked authoritative while being wrong. Identical in shape to the
+    paymentStatus defect fixed 2026-08-06 (27 of 35 outstanding balances hidden),
+    one table over; the repository's own comment had recorded it as a known gap
+    "intentionally left alone" since 2026-07-24.
+    `selectRegistrationList` now queries `participants` first and narrows on
+    `participant_id` BEFORE ordering and ranging, exactly as the paymentStatus fix
+    does, short-circuiting to an empty result when nothing matches. Because the
+    narrowing is now server-side, `total` is correct for a search too.
+    The pre-narrow deliberately does NOT escape the LIKE wildcards `%` and `_` —
+    leaving them makes it a SUPERSET, and `applyPostJoinFilters` still does the
+    exact `includes()` comparison afterwards. PostgREST's own syntax characters
+    ARE escaped (values wrapped in double quotes, `"` and `\` escaped), because an
+    unescaped comma or bracket in a search term would corrupt the `or()`
+    expression rather than merely miss.
+    `tests/unit/registration-list-search.test.ts` (4 tests) pins the property that
+    actually matters — the narrowing precedes the range call. Verified
+    non-vacuous: it fails against the pre-fix code and passes after.
+    ALSO FIXED: the Registrations screen displayed `{total} total` beside a table
+    capped at 200 rows, i.e. "267 total" while showing 200 — worse than showing
+    nothing, because the number implies completeness. It now shows
+    "Showing 200 of 267" plus the same amber truncation warning and Export CSV
+    escape hatch the Payments screen has carried since 2026-08-06.
+    STILL NOT DONE: there is still no pagination UI on either screen. The
+    truncation is now visible and the CSV export is unfiltered by paging, which
+    is what makes a partial view safe rather than complete.
+
+  Certificate eligibility and delivery reworked (2026-08-18, founder). BR-46 in
+    Document 4 is the written rule; `isCertificateEligible` in
+    modules/certificates/service.ts is still the single place it is decided,
+    now shared by THREE issue paths (completion, feedback, admin batch screen).
+    WAS: `if (!feedbackSubmitted) return false;` then paid-vs-attended by batch
+    type — feedback was mandatory for EVERYONE, so a paid customer who ignored
+    the survey never received the certificate they had paid for.
+    NOW: entitlement (paid Batch -> `paid`; free Batch -> nothing, since
+    zero-fee registrations auto-settle to 'Paid' and prove nothing) AND
+    participation (attended OR feedback OR assignment submitted — any one).
+    The OR is the substantive design point, and it came from the founder's own
+    reasoning: a paying participant may never appear in the attendance data and
+    still have taken the course, because they can watch the recordings.
+    Attendance is therefore the wrong SOLE proxy for participation. Only
+    someone who paid and then did none of the three is refused.
+    Assignment submission QUALIFIES, it does not gate — no grade is consulted.
+    The founder initially answered "submitted AND graded" to a direct question,
+    then immediately described assignments as a qualifying signal; the later,
+    more specific statement was taken. Requiring a grade would have made
+    delivery wait on tutor marking, which has no SLA or reminder — a silent
+    stall of the exact kind recorded three times in this file.
+    This is the one deliberate link between modules/assignments and completion
+    rules, against that module's own header ("not a gradebook... no link to
+    certificates"). Kept to one boolean per registration via
+    getRegistrationIdsWithSubmissionsForBatchSystem; modules/certificates never
+    touches assignment_submissions.
+    QUIZZES CANNOT BE WIRED HERE — the question bank belongs to KnowsiaApp
+    (Doc 19 §3). If quiz completion should count, it comes through Seam III.
+    DELIVERY IS NOW TWO ROUTES, deliberately distinct:
+      batch ends      -> issued, NOT emailed; waiting in the portal to download
+                         (runCompletedBatchCertificateIssuance, 07:00 cron)
+      feedback given  -> issued AND emailed directly (issueCertificateIfEligible)
+    Completion issuance targets batches that ended YESTERDAY, the same target
+    date as the feedback dispatch, so the two can never disagree about when a
+    course is over. Idempotent (certificates.registration_id is unique, so a
+    re-run or a race with the feedback path inserts nothing); one participant's
+    failure never stops the batch and one batch's never stops the tick, both
+    collected into `errors` — a cron that reports success while writing nothing
+    is the single most repeated failure in this codebase.
+    BatchIssueCandidate gained `assignmentSubmitted` so the screen can show
+    WHICH signal carried someone: under an OR rule an eligible row showing 0%
+    attendance otherwise looks like a bug.
+    Tests: certificates-service.test.ts 37 passing, including paid-with-no-
+    participation refused, assignment-only accepted on both batch types, and
+    the completion path issuing WITHOUT sending email.
+    NOT DONE: the post_training_thankyou copy still says the certificate
+    follows feedback. That is now only one of two routes and is worth rewording
+    on the Messaging screen. Also unverified — whether the student portal UI
+    renders a download link for an issued certificate; the API
+    (GET /api/certificates/download/[id]) and the portal payload (certificate
+    id per registration) both exist, so if the button is missing it is a UI
+    change only.
+    Doc 4 EC-14's stale claim about MIN_ATTENDANCE_RATIO gating free-batch
+    eligibility corrected in passing.
+    PROCESS NOTE: a PowerShell `Set-Content -Encoding utf8` round-trip on
+    modules/certificates/service.ts re-introduced the BOM + cp1252 mojibake bug
+    this file already warns about (19 mangled em-dashes). Repaired by reversing
+    the double encoding, as the existing note prescribes. Do not edit source
+    files with Get-Content/Set-Content round-trips on this machine.
 
 Open decisions (founder):
   - Knowsia Live budget exception (~EUR 50-150/month bare metal). Not needed

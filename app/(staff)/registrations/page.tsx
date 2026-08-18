@@ -126,6 +126,13 @@ export default function RegistrationListPage() {
     }
   }
 
+  // rows.length is what the server sent for these filters; total is how many
+  // match. A gap means the 200-row page cut some off. Same guard the Payments
+  // screen has carried since 2026-08-06 — this screen was still reporting the
+  // full total beside a truncated table, which reads as "you are seeing all
+  // 267" when 67 are missing.
+  const hiddenByPaging = Math.max(0, total - rows.length);
+
   const selectClass =
     'h-9 rounded-md border border-input bg-background px-2 text-sm';
 
@@ -144,7 +151,9 @@ export default function RegistrationListPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Registrations</h1>
         <div className="flex items-center gap-3">
-          <p className="text-sm text-muted-foreground">{total} total</p>
+          <p className="text-sm text-muted-foreground">
+            {hiddenByPaging > 0 ? `Showing ${rows.length} of ${total}` : `${total} total`}
+          </p>
           <Button variant="outline" size="sm" asChild>
             <a href={exportHref()} download>
               Export CSV
@@ -335,6 +344,14 @@ export default function RegistrationListPage() {
       )}
 
       {rows.length === 0 && <p className="text-muted-foreground">No registrations found.</p>}
+
+      {hiddenByPaging > 0 && (
+        <p className="text-amber-600 font-medium">
+          Showing {rows.length} of {total} matching registrations — {hiddenByPaging} more
+          are not loaded. Narrow by course, status or date, or use Export CSV to get the
+          full list.
+        </p>
+      )}
     </div>
   );
 }

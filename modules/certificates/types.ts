@@ -55,6 +55,11 @@ export interface BatchIssueCandidate {
   paid: boolean;
   feedbackSubmitted: boolean;
   attendancePercent: number | null;
+  // BR-46: attendance, feedback and an assignment submission are the three
+  // participation signals, any one of which qualifies. All three are surfaced
+  // so the screen can show WHICH one carried someone — with an OR rule, an
+  // eligible row whose attendance reads 0% otherwise looks like a mistake.
+  assignmentSubmitted: boolean;
   alreadyIssued: boolean;
   eligible: boolean;
 }
