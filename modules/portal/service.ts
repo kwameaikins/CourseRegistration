@@ -118,9 +118,21 @@ export async function backfillParticipantAuth(): Promise<{
   return { totalParticipants: participants.length, seeded };
 }
 
-// Every failure branch returns the same generic 'invalid' status — never
-// reveals whether the identifier existed (no username enumeration).
-export async function login(input: PortalLoginInput): Promise<PortalLoginResult> {
+// The shared credential check — identifier lookup, lockout accounting and
+// PIN verification. Used by portal login below (which then opens a portal
+// session) and by the KnowsiaApp PIN sign-in (which then hands over
+// identity). ONE implementation on purpose: both doors must count failed
+// attempts against the same lock, or an attacker just uses whichever door
+// forgot to.
+async function verifyCredentials(input: PortalLoginInput): Promise<
+  | { status: 'invalid' }
+  | { status: 'locked' }
+  | {
+      status: 'ok';
+      participant: { id: string; full_name: string; email: string; phone: string };
+      mustChangePin: boolean;
+    }
+> {
   const participant = await portalRepository.selectParticipantByIdentifier(input.identifier);
   if (!participant || participant.deleted_at !== null) {
     return { status: 'invalid' };
@@ -156,13 +168,50 @@ export async function login(input: PortalLoginInput): Promise<PortalLoginResult>
   }
 
   await portalRepository.recordSuccessfulLogin(participant.id);
+  return { status: 'ok', participant, mustChangePin: auth.must_change_pin };
+}
+
+// Every failure branch returns the same generic 'invalid' status — never
+// reveals whether the identifier existed (no username enumeration).
+export async function login(input: PortalLoginInput): Promise<PortalLoginResult> {
+  const result = await verifyCredentials(input);
+  if (result.status !== 'ok') {
+    return { status: result.status };
+  }
+
   const expiresAt = new Date(Date.now() + SESSION_DURATION_MS).toISOString();
-  const session = await portalRepository.insertSession(participant.id, expiresAt);
+  const session = await portalRepository.insertSession(result.participant.id, expiresAt);
   return {
     status: 'ok',
     sessionId: session.id,
     expiresAt,
-    mustChangePin: auth.must_change_pin,
+    mustChangePin: result.mustChangePin,
+  };
+}
+
+// The KnowsiaApp PIN sign-in (2026-08-23): a cohort student uses their
+// existing portal credentials (email/phone + PIN) directly on the study
+// platform's login screen. Called server-to-server with the shared service
+// key — see app/api/integration/portal-login/verify. Returns identity only,
+// never entitlement, exactly like the handoff redemption (BR-45); no portal
+// session is created.
+export async function verifyCredentialsForKnowsiaApp(input: PortalLoginInput): Promise<
+  { status: 'invalid' } | { status: 'locked' } | { status: 'ok'; identity: KnowsiaAppIdentity }
+> {
+  const result = await verifyCredentials(input);
+  if (result.status !== 'ok') {
+    return { status: result.status };
+  }
+  const link = await portalRepository.selectKnowsiaAppLink(result.participant.id);
+  return {
+    status: 'ok',
+    identity: {
+      participantId: result.participant.id,
+      email: result.participant.email,
+      fullName: result.participant.full_name,
+      phone: result.participant.phone,
+      knowsiaAppUserId: link?.knowsiaAppUserId ?? null,
+    },
   };
 }
 
