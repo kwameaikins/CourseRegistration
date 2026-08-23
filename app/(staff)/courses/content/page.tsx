@@ -15,6 +15,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { apiFetch } from '@/components/api-client';
+import {
+  assessContentShrinkage,
+  type ShrunkenSection,
+} from '@/modules/courses/content-guard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -343,6 +347,10 @@ export default function CourseContentPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // Sections the pending save would shrink on the live page. Non-null blocks
+  // the save behind an explicit confirmation; the server enforces the same
+  // rule (CONTENT_SHRINKAGE), this state is the friendly half of it.
+  const [pendingShrinkage, setPendingShrinkage] = useState<ShrunkenSection[] | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -377,14 +385,31 @@ export default function CourseContentPage() {
     setDisplayOrder(selected.displayOrder === null ? '' : String(selected.displayOrder));
     setMessage(null);
     setErrorMessage(null);
+    setPendingShrinkage(null);
   }, [selected]);
 
   function patch(changes: Partial<ContentBody>) {
     setDraft((current) => (current ? { ...current, ...changes } : current));
+    // Any edit invalidates a pending shrinkage confirmation — the next Save
+    // recomputes it against the new draft.
+    setPendingShrinkage(null);
   }
 
-  async function handleSave() {
+  async function handleSave(acknowledgedKeys?: string[]) {
     if (!selected || !draft) return;
+    // Same check the server enforces, run here first so shrinkage becomes a
+    // visible confirmation instead of a rejected request. selected.body is
+    // exactly what the public page renders now — the loaded record already
+    // resolved database-vs-code — so it is the correct baseline.
+    if (!acknowledgedKeys) {
+      const shrunken = assessContentShrinkage(selected.body, draft);
+      if (shrunken.length > 0) {
+        setPendingShrinkage(shrunken);
+        setMessage(null);
+        setErrorMessage(null);
+        return;
+      }
+    }
     setSaving(true);
     setMessage(null);
     setErrorMessage(null);
@@ -394,8 +419,10 @@ export default function CourseContentPage() {
         body: JSON.stringify({
           body: draft,
           displayOrder: displayOrder.trim() === '' ? null : Number(displayOrder),
+          acknowledgeShrinkage: acknowledgedKeys,
         }),
       });
+      setPendingShrinkage(null);
       await load();
       setMessage('Saved. The public programme page now shows this copy.');
     } catch (err) {
@@ -453,6 +480,47 @@ export default function CourseContentPage() {
           {message}
         </p>
       )}
+      {pendingShrinkage && (
+        <div
+          role="alert"
+          className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+        >
+          <p className="font-medium">
+            Not saved yet — this version shows less on the public page than what is live now:
+          </p>
+          <ul className="list-disc space-y-0.5 pl-5">
+            {pendingShrinkage.map((section) => (
+              <li key={section.key}>
+                {section.label}:{' '}
+                {section.afterItems < section.beforeItems
+                  ? `${section.beforeItems} → ${section.afterItems} ${section.afterItems === 1 ? 'entry' : 'entries'}`
+                  : `same ${section.beforeItems} ${section.beforeItems === 1 ? 'entry' : 'entries'}`}
+                {section.afterChars < section.beforeChars &&
+                  `, text ${Math.round((1 - section.afterChars / Math.max(1, section.beforeChars)) * 100)}% shorter`}
+              </li>
+            ))}
+          </ul>
+          <div className="flex gap-2 pt-1">
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => void handleSave(pendingShrinkage.map((section) => section.key))}
+              disabled={saving}
+            >
+              {saving ? 'Saving…' : 'Save anyway — remove this content'}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setPendingShrinkage(null)}
+              disabled={saving}
+            >
+              Keep editing
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
         <nav className="space-y-1">
@@ -499,7 +567,7 @@ export default function CourseContentPage() {
               >
                 View public page
               </a>
-              <Button type="button" onClick={handleSave} disabled={saving}>
+              <Button type="button" onClick={() => void handleSave()} disabled={saving}>
                 {saving ? 'Saving…' : 'Save'}
               </Button>
               {selected.source === 'database' && (
@@ -661,7 +729,7 @@ export default function CourseContentPage() {
             />
 
             <div className="flex gap-3 border-t pt-4">
-              <Button type="button" onClick={handleSave} disabled={saving}>
+              <Button type="button" onClick={() => void handleSave()} disabled={saving}>
                 {saving ? 'Saving…' : 'Save'}
               </Button>
               <Button

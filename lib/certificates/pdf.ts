@@ -250,7 +250,7 @@ export async function generateCertificatePdf(
     const titleWidth = helvetica.widthOfTextAtSize(title, 10);
     page.drawText(title, { x: centerAt - titleWidth / 2, y: y(537), size: 10, font: helvetica, color: GREY });
   };
-  signatory('Isaac Adjin Bonney (CA,CPFA,CFIP)', 'Board Chair', 235, isaacSignature);
+  signatory('Isaac Adjin Bonney (CA, CPFA, CFIP)', 'Board Chair', 235, isaacSignature);
   signatory('Stephen Kwame Aikins, CA', 'Programme Director', 607, stephenSignature);
 
   // Verification footer.

@@ -255,11 +255,11 @@ describe('getPublicCourseCatalog — copy matching and ordering', () => {
     expect(catalog[0].sessions).toHaveLength(1);
   });
 
-  // CLAUDE.md's Open Decisions records AI05 and AI02 as near-duplicate courses
-  // awaiting a canonical pick, and the founder's brief says AI02 while the
-  // live catalogue has used AI05. Both are registered so the page renders
-  // whichever the database actually holds.
-  it('resolves the AI programme under both AI02 and AI05 while the duplicate is unresolved', async () => {
+  // AI02 and AI05 used to be near-duplicate finance courses sharing one brief.
+  // The founder repurposed AI05 as "AI Security and Safe Use for Business
+  // Professionals" (2026-08-21), so the two codes now carry distinct
+  // programmes and must not resolve to the same copy.
+  it('resolves AI02 to the finance programme and AI05 to the security programme', async () => {
     coursesRepositoryMock.selectPublicCourseCatalogSystem.mockResolvedValue([
       { course: courseRow({ course_code: 'AI02' }), batches: [] },
     ]);
@@ -272,8 +272,9 @@ describe('getPublicCourseCatalog — copy matching and ordering', () => {
 
     expect(viaAi02.content).not.toBeNull();
     expect(viaAi05.content).not.toBeNull();
-    expect(viaAi02.content?.tagline).toBe(viaAi05.content?.tagline);
+    expect(viaAi02.content?.tagline).not.toBe(viaAi05.content?.tagline);
     expect(viaAi02.content?.curriculum).toHaveLength(5);
+    expect(viaAi05.content?.curriculum).toHaveLength(8);
   });
 
   it('carries the full brief through for a course that has one', async () => {

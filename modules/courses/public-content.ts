@@ -2,7 +2,9 @@
 // courses.course_code.
 //
 // SOURCE OF TRUTH: the founder's course briefs in `Coding Docs/`:
-//   AI02/AI05 → ai-powered-financial-reporting-analysis-modelling-automation.md
+//   AI02      → ai-powered-financial-reporting-analysis-modelling-automation.md
+//   AI05      → ai-security-and-safe-use.md
+//   IFRS02    → ifrs-18-presentation-and-disclosure.md
 //   ESG1      → esg-sustainability-reporting-training.md
 //   ERM1      → enterprise-risk-management-risk-based-auditing.md
 //   TAX1      → preparing-for-tax-audit.md
@@ -260,15 +262,467 @@ const AI_FINANCE: CoursePublicContent = {
     'Companies registering five or more participants receive a 15% discount, plus a Corporate Portal to track attendance, download certificates, and manage employees from one account.',
 };
 
+const AI_SECURITY: CoursePublicContent = {
+  briefSlug: 'ai-security-and-safe-use',
+  tagline: 'Know the threats. Verify the output. Own the policy.',
+  heroImage: null,
+  overview: [
+    'Organisations across the globe are adopting AI tools faster than they are putting rules around them. Staff are pasting client data into free chatbots, accepting AI output into reports without checking it, and receiving scam messages that AI has made far more convincing. Most organisations have no policy, no training, and no idea what their exposure is.',
+    'This course closes that gap. It treats AI security (protecting the organisation from AI-enabled threats) and AI safe use (preventing harm from ordinary, well-intentioned use) as two distinct disciplines, then brings them together in a written policy each participant drafts for their own organisation.',
+    'The course is non-technical — no coding, no mathematics, and no prior AI experience required. Across three days, participants move from threats (AI security), to reliability (AI safe use), to governance, and leave with a draft AI acceptable-use policy ready to take to management.',
+  ],
+  idealFor:
+    'Managers, finance and payment-approval staff, HR, compliance and risk officers, and business owners setting AI rules for their teams.',
+  primaryAudience: [
+    'Managers and team leads whose staff are already using AI tools, with or without permission',
+    'Finance, treasury and payment-approval staff exposed to deepfake and email-compromise fraud',
+    'Accountants, auditors, and compliance and risk officers accountable for AI-assisted work and disclosures',
+    'HR professionals using or reviewing AI in recruitment, performance and disciplinary decisions',
+    'Data protection officers, legal and company secretarial staff responsible for Act 843 compliance',
+  ],
+  alsoSuitableFor: [
+    "Executives and directors who will approve the organisation's AI policy",
+    'IT managers and administrators who will own the approved-tools list — no technical background needed',
+    'Marketing, communications and customer service teams using AI in daily client-facing work',
+    'Procurement and vendor-management officers vetting AI features in third-party software',
+    'Anyone whose organisation is adopting AI tools, regardless of function',
+  ],
+  outcomesLabel: 'On completion, participants will be able to',
+  outcomes: [
+    'Explain in plain language how generative AI systems work and why they fail.',
+    'Distinguish AI security threats from AI safe-use risks, and recognise where the two overlap.',
+    'Identify the main AI-enabled attack methods targeting organisations, including deepfake and social-engineering fraud.',
+    'Classify organisational data and decide what may and may not be entered into an AI tool.',
+    'Detect hallucination, fabrication and silent error in AI output, and apply proportionate verification.',
+    'Assess the fairness and legality of AI-assisted decisions affecting individuals.',
+    "Apply Ghana's data protection framework to AI use in their organisation.",
+    'Draft and implement an AI acceptable-use policy.',
+  ],
+  curriculum: [
+    {
+      heading: 'Module 1',
+      title: "Understanding AI: what it is and what it isn't",
+      points: [
+        'Generative AI in plain language: prediction, not retrieval',
+        'Why AI produces confident, fluent, wrong answers — the structural reason',
+        'Types of deployment: consumer chatbots, enterprise/business tiers, embedded AI features, agents that take actions',
+        'What "the AI is learning from my data" does and does not mean',
+        'Where AI genuinely adds value in business work, and where it is a poor fit',
+        'The three terms people confuse: AI security, AI safe use, AI safety (alignment research)',
+      ],
+      practical:
+        'Activity: Tool audit — participants list every AI tool already in use in their organisation, including embedded features they had not counted as AI.\n\nOutcome: Participants can explain to a colleague why an AI tool cannot be trusted the way a calculator can.',
+    },
+    {
+      heading: 'Module 2',
+      title: 'The AI threat landscape',
+      points: [
+        'Prompt injection: hidden instructions in documents, emails and web pages that hijack an AI assistant',
+        'Jailbreaking and misuse of company-deployed tools',
+        'Data poisoning and model manipulation (overview level)',
+        'Credential and API key exposure',
+        'AI-enabled fraud: deepfake audio and video, cloned-voice payment instructions, AI-generated phishing and business email compromise, synthetic identity and document forgery, and investment and romance scams at scale',
+        "Shadow AI: unapproved tools staff use without IT's knowledge",
+        "Third-party and vendor risk: what your software provider's AI feature does with your data",
+      ],
+      practical:
+        'Activity: Live demonstration of prompt injection against a document-reading assistant, followed by a deepfake detection exercise using local case examples.\n\nOutcome: Participants can name the attack methods most likely to target their organisation and describe at least one control for each.',
+    },
+    {
+      heading: 'Module 3',
+      title: 'Data, confidentiality and tool selection',
+      points: [
+        'Where your data actually goes: hosting, retention, training use, sub-processors',
+        'Consumer versus business versus enterprise tiers — the differences that matter',
+        'Reading the settings that matter: training opt-out, chat history, workspace controls',
+        'Data classification for AI purposes: public / internal / confidential / never',
+        'Special categories: client financial data, personal data, health data, salary and disciplinary records, legally privileged material, unpublished results',
+        'Cross-border data transfer and data sovereignty',
+        'Anonymisation and redaction before use — and its limits',
+        'Selecting and approving tools: a due-diligence checklist',
+      ],
+      practical:
+        'Activity: Data classification workshop — participants sort a set of realistic documents into permitted and prohibited categories, then defend borderline calls.\n\nOutcome: Participants can produce a data classification list for their own function.',
+    },
+    {
+      heading: 'Module 4',
+      title: 'The reliability problem',
+      points: [
+        'Hallucination: what it is, why it cannot be fully eliminated',
+        'Fabricated sources, citations, case law, standards references and statistics',
+        'Silent arithmetic and aggregation errors',
+        'Plausible-but-wrong summarisation: what gets dropped',
+        'Overconfidence and the absence of "I don\'t know"',
+        'Context limits, stale knowledge and cut-off dates',
+        'Automation bias: why people stop checking, and how quickly',
+        'Where errors are cheap and where they are catastrophic',
+      ],
+      practical:
+        'Activity: Error hunt — participants are given AI-generated outputs (a summary, a set of figures, a referenced note) seeded with realistic errors, and must find them under time pressure.\n\nOutcome: Participants have personally experienced being misled by a fluent output.',
+    },
+    {
+      heading: 'Module 5',
+      title: 'Verification and human oversight',
+      points: [
+        'Proportionate verification: matching checking effort to consequence',
+        'Verification techniques: source tracing, independent recomputation, requiring working to be shown, adversarial re-prompting, second-tool cross-check',
+        'Prompting for verifiability rather than fluency',
+        'The human-in-the-loop principle: which tasks may be delegated, which require qualified sign-off',
+        "Professional accountability — the output is the professional's, not the tool's",
+        'Disclosure: when to tell clients, employers, regulators or readers that AI was used',
+        'Record-keeping and audit trail for AI-assisted work',
+        'Over-reliance and skill erosion in junior staff',
+      ],
+      practical:
+        'Activity: Participants take a flawed AI output from Module 4 and design a verification procedure for that class of task, sized to its risk.\n\nOutcome: Participants can define a review standard for AI-assisted work in their own team.',
+    },
+    {
+      heading: 'Module 6',
+      title: 'Bias, fairness and decisions about people',
+      points: [
+        'How bias enters AI systems: training data, proxies, feedback loops',
+        'High-risk use cases: recruitment screening, promotion and performance review, credit and loan decisions, customer risk scoring, disciplinary matters',
+        'Why "the system decided" is not a defence',
+        'Explainability: can you tell the affected person why?',
+        'The right to human review of automated decisions',
+        'Local relevance: bias against African names, languages, contexts and data',
+        'Accessibility and inclusion in AI-assisted service delivery',
+      ],
+      practical:
+        'Activity: Case analysis — an AI-assisted recruitment shortlist that has quietly excluded a category of candidates. Participants identify the failure and design the control.\n\nOutcome: Participants can identify which decisions in their organisation must not be automated without human accountability.',
+    },
+    {
+      heading: 'Module 7',
+      title: 'The Ghana legal and regulatory position',
+      points: [
+        'Data Protection Act, 2012 (Act 843) — the operative law today: scope, core obligations, data subject rights, and registration of data controllers',
+        'No AI exemption — the Act applies as written, including to processing by AI systems',
+        'Cybersecurity Act, 2020 (Act 1038) and the Cyber Security Authority — incident reporting and protected systems',
+        'The National AI Strategy, the proposed Responsible AI Office, and what they signal for regulated sectors',
+        'What is coming: a new Data Protection Bill covering AI, automated decision-making and cross-border transfers, and a draft Emerging Technologies Bill',
+        'Sector overlays: BoG directives for financial institutions, ICAG and professional body expectations, GRA and record-keeping implications',
+        'Where cross-border rules bite: using a US-hosted AI tool on Ghanaian personal data',
+        'Practical compliance steps: lawful basis, notices, DPIAs for high-risk use, vendor contracts',
+      ],
+      practical:
+        'Activity: Compliance gap check — participants assess one AI use case in their organisation against Act 843.\n\nOutcome: Participants can state, for a given AI use case, whether personal data is being processed and what that requires of them.',
+    },
+    {
+      heading: 'Module 8',
+      title: "Building your organisation's AI policy",
+      points: [
+        'Anatomy of an AI acceptable-use policy',
+        'Approved tools list and the approval process for new tools',
+        'Data classification rules and the short, absolute list of prohibited uses',
+        'Review and sign-off requirements by task risk',
+        'Disclosure requirements — internal and client-facing',
+        'Incident reporting: what counts as an AI incident and who is told',
+        'Training, onboarding and periodic refresh',
+        'Roles: who owns AI governance, and where it sits relative to IT, risk and compliance',
+        'Monitoring adoption without policing staff into shadow AI',
+        'Getting the policy approved: making the business case to leadership',
+      ],
+      practical:
+        'Activity: Guided policy build using a supplied template — participants work on their own organisation, present a two-minute summary, and receive peer and facilitator critique.\n\nOutcome: A completed draft AI acceptable-use policy ready to take to management.',
+    },
+  ],
+  format: [
+    { label: 'Delivery', value: 'Live online via Zoom' },
+    { label: 'Duration', value: 'Three days, 9:00 AM – 3:00 PM with a 30-minute break' },
+    { label: 'Total training', value: '16 contact hours' },
+    { label: 'Class size', value: 'Maximum 30 participants' },
+    { label: 'Assessment', value: 'Continuous exercises plus a final policy deliverable' },
+    { label: 'Support', value: 'Cohort WhatsApp group with the facilitator' },
+    { label: 'Learner portal', value: 'Personal portal for meeting links and materials' },
+  ],
+  prerequisites: [
+    'None — the course is non-technical, with no coding, mathematics or prior AI experience required',
+    'Participants should have used an AI chatbot at least once',
+  ],
+  includes: [
+    'Live, instructor-led training across three days',
+    'Course workbook with all slides and exercise sheets',
+    'Editable AI acceptable-use policy template',
+    'Data classification worksheet and AI tool due-diligence checklist',
+    'Verification procedure templates by task type',
+    'Ghana AI regulation reference sheet and a curated further-reading list',
+    'Access to a personal learner portal',
+    'A cohort WhatsApp support group with the facilitator',
+    'A verifiable certificate of completion',
+  ],
+  facilitator: { name: 'Mr. Stephen Kwame Aikins', credentials: 'CA' },
+  faq: [
+    {
+      question: 'Do I need previous AI experience?',
+      answer:
+        'No. The course is non-technical — no coding, no mathematics, and no prior AI experience required. You should simply have used an AI chatbot at least once.',
+    },
+    {
+      question: 'How will the training be delivered?',
+      answer:
+        'Live online via Zoom across three days, 9:00 AM to 3:00 PM with a 30-minute break each day.',
+    },
+    {
+      question: 'How is the course assessed?',
+      answer:
+        'Through continuous exercises across the modules — including an error-hunt exercise and a compliance gap check — plus a final AI acceptable-use policy that you draft and present.',
+    },
+    {
+      question: 'Will I receive a certificate?',
+      answer:
+        'Yes. Participants scoring 70% or above receive a verifiable certificate of completion.',
+    },
+    {
+      question: 'What will I take back to my organisation?',
+      answer:
+        'A completed draft AI acceptable-use policy for your own organisation, plus the templates, worksheets and checklists used to build it.',
+    },
+    {
+      question: 'Will I receive learning support?',
+      answer:
+        'Yes. Participants receive access to a learner portal and a cohort WhatsApp group with the facilitator.',
+    },
+    {
+      question: 'Is there a shorter version for executives?',
+      answer:
+        'Yes. A condensed one-day executive version is available for corporate groups — contact us to arrange it.',
+    },
+  ],
+  corporateNote:
+    'Companies registering five or more participants receive a 15% discount, plus a Corporate Portal to track attendance, download certificates, and manage employees from one account.',
+};
+
+const IFRS_18: CoursePublicContent = {
+  briefSlug: 'ifrs-18-presentation-and-disclosure',
+  tagline: 'Your 2027 accounts begin with your 2026 numbers.',
+  heroImage: null,
+  overview: [
+    'IFRS 18 is effective for annual reporting periods beginning on or after 1 January 2027, replacing IAS 1 — and it applies retrospectively. For an entity with a 31 December year end, the first IFRS 18 financial statements are FY2027, and the comparative period is FY2026, which is already running. Entities that have not begun categorising income and expenses on an IFRS 18 basis will be reconstructing the comparative year backwards from records built on IAS 1 logic.',
+    'IFRS 18 does not change recognition or measurement — profit is the same number. What changes is how performance is structured, subtotalled, disaggregated and explained, and for entities that rely on alternative performance measures, what must now be disclosed and reconciled.',
+    'Across two live days, participants move from understanding what changed to restating a real set of accounts in a hands-on implementation workshop — leaving with restated primary statements, a management-defined performance measures note, a documented judgement file, and a dated transition plan for their own entity.',
+  ],
+  idealFor:
+    'Financial accountants and controllers, reporting managers, auditors, CFOs and finance directors — particularly in listed entities, banks and insurers.',
+  primaryAudience: [
+    'Financial accountants, controllers and reporting managers who will prepare the first IFRS 18 statements and restate the FY2026 comparatives',
+    'External and internal auditors who will review classification judgements and MPM disclosures',
+    'CFOs and finance directors accountable for adjusted performance measures reported to lenders and investors',
+    'Preparers in regulated sectors — listed entities, banks, rural banks and insurers, where main-business-activity classification bites hardest',
+    'Audit committee members who must challenge the transition plan and the measures management retains',
+  ],
+  alsoSuitableFor: [
+    'Finance teams of subsidiaries assessing the IFRS 19 reduced-disclosure regime',
+    'Consultants and advisers supporting clients through the IAS 1 to IFRS 18 transition',
+    'Any entity that reports adjusted performance measures to lenders or investors',
+  ],
+  outcomesLabel: 'On completion, participants will be able to',
+  outcomes: [
+    'Explain what IFRS 18 changes and, equally important, what it does not.',
+    'Classify income and expenses into the five categories and present the two required subtotals.',
+    'Determine whether an entity has a specified main business activity and apply the consequent classification.',
+    'Identify management-defined performance measures and prepare the required note.',
+    'Apply the aggregation and disaggregation principles to primary statements and notes.',
+    'Apply the consequential amendments to IAS 7, IAS 8, IAS 33 and related standards.',
+    'Execute retrospective transition, including restatement of comparatives and the required reconciliation.',
+    'Produce a transition plan and timetable for their own entity.',
+  ],
+  curriculum: [
+    {
+      heading: 'Module 1',
+      title: 'Why IFRS 18 exists, and what it does not change',
+      points: [
+        'The Primary Financial Statements project and the investor concerns behind it: incomparable operating profit, unexplained adjusted measures, unhelpful aggregation',
+        'What IFRS 18 replaces and what it retains from IAS 1',
+        'The critical framing point: recognition and measurement are unchanged — net profit is identical',
+        'The three pillars: defined subtotals, MPM disclosure, enhanced aggregation and disaggregation',
+        'The complete set of financial statements, and the third statement of financial position after retrospective adjustment',
+        'Effective date, early adoption, and the Ghana position',
+        'Why this is urgent now: the comparative-period arithmetic for a 31 December year end, worked through on screen',
+      ],
+      practical:
+        'Activity: Participants map their own year end to the IFRS 18 timeline and identify the date by which comparative-period categorisation must be complete.',
+    },
+    {
+      heading: 'Module 2',
+      title: 'The five categories and the two required subtotals',
+      points: [
+        'The five categories: operating, investing, financing, income taxes, discontinued operations',
+        'The two required subtotals: operating profit, and profit before financing and income taxes',
+        'Operating as the residual category — operating profit is now a defined figure, not a management choice',
+        'What sits in investing and financing, including interest and interest-rate effects on lease and pension liabilities',
+        'Operating expenses by nature, by function, or mixed — and the required nature information in the notes where a function presentation is used',
+        'Additional subtotals: permitted, but consistent with the category structure and faithfully labelled',
+        'Other comprehensive income — what remains unchanged',
+      ],
+      practical:
+        'Activity: Category sort — participants classify 30 income and expense line items from a realistic set of accounts, including deliberately borderline items, then debrief on where the group split.',
+    },
+    {
+      heading: 'Module 3',
+      title: 'Main business activity and classification judgement',
+      points: [
+        'Main business activities — the concept, and why it determines classification',
+        'The two specified activities: investing in assets, and providing financing to customers',
+        'How classification shifts: income and expenses that would otherwise sit in investing or financing move to operating',
+        'Entities with more than one main business activity, and cases where the answer is genuinely arguable',
+        'Ghana application: banks and rural banks, insurance companies, investment holding structures, entities with in-house customer credit',
+        'Foreign exchange differences and derivatives: classified by reference to the items they relate to',
+        'Documenting the judgement — what the auditor will ask for',
+      ],
+      practical:
+        'Activity: One entity scenario with an ambiguous main business activity — participants determine the classification and articulate the reasoning they would put in the file.',
+    },
+    {
+      heading: 'Module 4',
+      title: 'Management-defined performance measures',
+      points: [
+        "The MPM definition — a subtotal used in public communications outside the financial statements, communicating management's view of performance — and the subtotals specifically excluded",
+        'What counts as public communications: annual report narrative, investor presentations, press releases, lender reporting, social media',
+        'Measures likely to become MPMs: adjusted EBITDA, underlying profit, profit before exceptional items, normalised earnings, adjusted operating profit',
+        'The single-note requirement: why the measure is useful, how it is calculated, reconciliation to the most comparable IFRS subtotal, and the tax and non-controlling-interest effect of each reconciling item',
+        'The governance consequence: a measure the board has used loosely in investor material now carries audited disclosure obligations',
+        'The practical decision: keep the measure and disclose it properly, or stop using it',
+      ],
+      practical:
+        'Activity: MPM identification — participants review an annual report narrative and investor deck for a sample entity and list every measure that would become an MPM. Most groups miss several; that is the lesson.',
+    },
+    {
+      heading: 'Module 5',
+      title: 'Aggregation, disaggregation and labelling',
+      points: [
+        'The principles: aggregate items sharing characteristics; disaggregate items that do not',
+        'The distinct roles of the primary financial statements and the notes — useful structured summary versus material detail',
+        'Labelling: items must be described in a way that faithfully represents their characteristics',
+        'The "other" problem: where a residual line is labelled "other", its composition must be explained — most existing financial statements fail this on first review',
+        'Interaction with IFRS 8 segment reporting, and what IAS 34 requires of condensed interim statements',
+      ],
+      practical:
+        'Application is folded into the Day 2 implementation workshop, where participants review and correct the labelling and disaggregation of their own statements.',
+    },
+    {
+      heading: 'Module 6',
+      title: 'Consequential amendments',
+      points: [
+        'IAS 7: the indirect-method reconciliation now begins with operating profit; dividends paid presented as financing, interest paid generally classified within financing',
+        'Cash generation is unaffected — but presentation, trend analysis, covenant calculations and historical trend data are',
+        'IAS 8 renamed Basis of Preparation of Financial Statements, with paragraphs relocated from IAS 1',
+        'IAS 33: additional EPS metrics only where the numerator is an IFRS 18 total or subtotal, or an MPM',
+        'IFRS 19 Subsidiaries without Public Accountability — the reduced disclosure regime, also effective 1 January 2027, and who may use it',
+      ],
+      practical:
+        'Activity: Cash flow restatement — participants convert an indirect-method cash flow statement to the new starting point, reclassify interest and dividends, and identify which loan covenants would be affected.',
+    },
+    {
+      heading: 'Module 7',
+      title: 'Transition planning',
+      points: [
+        'Retrospective application under IAS 8, with restatement of comparatives',
+        'The relief: the IAS 8 quantitative disclosures are not required; the requirement: a reconciliation between restated comparative amounts and the amounts previously presented under IAS 1',
+        'Early adoption, and the disclosure of expected effects that auditors and regulators will look for in FY2026 statements',
+        'Building the plan: impact assessment, the main-business-activity judgement, MPM inventory and board decisions, chart-of-accounts tagging, system and reporting-pack changes, consolidation implications, and communication with lenders and the audit committee',
+        'Working backwards from 31 December 2027 to a dated task list',
+      ],
+      practical:
+        'Activity: Participants draft a transition timetable for their own entity, with owners and dates.\n\nOutcome: A transition plan they can take to their CFO on Monday.',
+    },
+    {
+      heading: 'Module 8',
+      title: 'Implementation workshop (3 hours)',
+      points: [
+        'Map the chart of accounts to the five IFRS 18 categories, flagging every item requiring judgement',
+        'Determine main business activity and apply any consequent reclassification',
+        'Build the statement of profit or loss with both required subtotals and an appropriate expense presentation',
+        'Restate the cash flow statement on the new basis',
+        'Prepare the MPM note, including reconciliation, tax effect and non-controlling-interest effect',
+        'Review labelling and disaggregation, correcting non-compliant line items',
+        'Prepare the transition reconciliation and compile the judgement memorandum documenting each significant classification decision',
+      ],
+      practical:
+        'Capstone: working from your own trial balance (or the supplied dataset), produce a restated set of primary statements, an MPM note and a documented judgement file — then present one difficult classification judgement and defend it to the room.',
+    },
+  ],
+  format: [
+    { label: 'Delivery', value: 'Live online via Zoom' },
+    { label: 'Duration', value: 'Two days, 9:00 AM – 3:00 PM with a 30-minute break' },
+    { label: 'Total training', value: '12 hours' },
+    { label: 'CPD', value: '12' },
+    { label: 'Class size', value: 'Maximum 30 participants — required for the Day 2 workshop to function' },
+    { label: 'Assessment', value: 'Scored exercises, a submitted transition plan, and the workshop output with judgement defence' },
+    { label: 'Certification', value: 'Certificate of Competence' },
+    { label: 'Support', value: 'Cohort WhatsApp group with the facilitator' },
+    { label: 'Learner portal', value: 'Personal portal for meeting links and materials' },
+  ],
+  prerequisites: [
+    'Working knowledge of IFRS financial statement preparation — familiarity with IAS 1 is assumed',
+    'Bring a trial balance or set of financial statements from your own entity for the Day 2 workshop; a supplied dataset is available for those who genuinely cannot',
+  ],
+  includes: [
+    'Two days of live, instructor-led training',
+    'Course workbook with worked examples',
+    'IFRS 18 category classification decision tree',
+    'MPM identification checklist and note template',
+    'Transition plan template with dated task list',
+    'Cash flow restatement and judgement memorandum templates',
+    'Before-and-after model financial statements (IAS 1 to IFRS 18)',
+    'Access to a personal learner portal',
+    'A cohort WhatsApp support group with the facilitator',
+    'A Certificate of Competence recording 12 CPD hours, for participants scoring 70% or above',
+  ],
+  facilitator: { name: 'Mr. Stephen Kwame Aikins', credentials: 'CA' },
+  faq: [
+    {
+      question: 'Does IFRS 18 change my profit?',
+      answer:
+        'No. Recognition and measurement are unchanged and net profit is identical. What changes is how performance is structured, subtotalled, disaggregated and explained — and what must be disclosed about alternative performance measures.',
+    },
+    {
+      question: 'Why attend now rather than closer to 2027?',
+      answer:
+        'IFRS 18 applies retrospectively. For a 31 December year end, the comparative period in your first IFRS 18 accounts is FY2026 — which is already running. Categorisation decisions need to be made before the comparative year closes, not after.',
+    },
+    {
+      question: 'What prior knowledge do I need?',
+      answer:
+        'A working knowledge of IFRS financial statement preparation. Familiarity with IAS 1 is assumed.',
+    },
+    {
+      question: 'What must I bring?',
+      answer:
+        'A trial balance or set of financial statements from your own entity, for the Day 2 implementation workshop. This is a firm registration requirement — a supplied dataset is available for those who genuinely cannot bring their own.',
+    },
+    {
+      question: 'How will the training be delivered?',
+      answer:
+        'Live online via Zoom across two days, 9:00 AM to 3:00 PM with a 30-minute break each day.',
+    },
+    {
+      question: 'How is the course assessed?',
+      answer:
+        'Scored category-sort and MPM-identification exercises, a submitted transition plan, and the implementation workshop output with a judgement defence. Participants scoring 70% or above receive a Certificate of Competence recording 12 CPD hours.',
+    },
+    {
+      question: 'What will I take back to my organisation?',
+      answer:
+        'A restated set of primary statements, an MPM note, a documented judgement file, and a dated transition plan for your own entity — built from your own numbers during the Day 2 workshop.',
+    },
+    {
+      question: 'Will I receive learning support?',
+      answer:
+        'Yes. Participants receive access to a learner portal and a cohort WhatsApp group with the facilitator.',
+    },
+  ],
+  corporateNote:
+    'Companies registering five or more participants receive a 15% discount, plus a Corporate Portal to track attendance, download certificates, and manage employees from one account.',
+};
+
 export const COURSE_PUBLIC_CONTENT: Record<string, CoursePublicContent> = {
-  // Both codes map to the same brief on purpose. CLAUDE.md's Open Decisions
-  // records AI05 ("...Reporting and Modeling") and AI02 ("...Reporting and
-  // Analysis") as near-duplicate courses awaiting a canonical pick, and the
-  // brief's own frontmatter says AI02 while the live catalogue has been using
-  // AI05. Registering both means the page renders correctly whichever one the
-  // database actually holds. Delete the loser once the founder decides.
+  // AI02 and AI05 used to be near-duplicate finance courses sharing one brief
+  // (CLAUDE.md's Open Decisions). The founder resolved that on 2026-08-21 by
+  // repurposing AI05 as "AI Security and Safe Use for Business Professionals",
+  // so the two codes now carry genuinely different programmes.
   AI02: AI_FINANCE,
-  AI05: AI_FINANCE,
+  AI05: AI_SECURITY,
+  IFRS02: IFRS_18,
 
   ESG1: {
     briefSlug: 'esg-sustainability-reporting-training',

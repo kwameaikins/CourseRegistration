@@ -20,6 +20,7 @@ import {
   isZoomMeetingCreateConfigured,
 } from '@/lib/zoom/client';
 import { courseContentBodySchema } from '@/modules/courses/types';
+import { assessContentShrinkage, describeShrinkage } from '@/modules/courses/content-guard';
 import {
   contentForCourseCode,
   type CoursePublicContent,
@@ -560,6 +561,36 @@ export async function saveCourseContent(
 ): Promise<CourseContentRecord> {
   await usersService.requireRole([...COURSE_WRITE_ROLES]);
   const course = await findCourseByCode(courseCode);
+
+  // Shrinkage gate (see content-guard.ts): a save that would make the live
+  // page smaller must acknowledge each shrunken section. The editor runs the
+  // same check before submitting and collects the acknowledgment, so hitting
+  // this error means either an API caller that skipped the check or a
+  // baseline that moved after the editor loaded (someone else saved) — both
+  // cases where refusing is the right answer. The baseline is whatever the
+  // public page currently renders: the saved row when one exists and still
+  // parses, else the code map, mirroring content-resolver.ts.
+  const contentRows = await coursesRepository.selectCourseContent();
+  const existingRow = contentRows.find((row) => row.course_id === course.id);
+  const parsedExisting = existingRow ? courseContentBodySchema.safeParse(existingRow.body) : null;
+  const baseline = parsedExisting?.success
+    ? parsedExisting.data
+    : contentForCourseCode(course.course_code);
+  if (baseline) {
+    const acknowledged = new Set(input.acknowledgeShrinkage ?? []);
+    const shrunken = assessContentShrinkage(baseline, input.body).filter(
+      (section) => !acknowledged.has(section.key),
+    );
+    if (shrunken.length > 0) {
+      throw new AppError(
+        'CONTENT_SHRINKAGE',
+        `This save would remove content from the live page — ${describeShrinkage(shrunken)}. ` +
+          'Confirm the removal in the editor, or reload if someone else edited this course since you opened it.',
+        409,
+      );
+    }
+  }
+
   const staffUser = await usersService.getCurrentStaffUser();
 
   const row = await coursesRepository.upsertCourseContent({

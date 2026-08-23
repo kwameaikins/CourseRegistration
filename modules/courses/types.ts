@@ -333,6 +333,11 @@ export const courseContentSaveSchema = z.object({
   body: courseContentBodySchema,
   // Null clears the override and returns the course to the code map's order.
   displayOrder: z.number().int().min(0).max(9999).nullable().optional(),
+  // Section keys whose shrinkage the caller has explicitly confirmed — see
+  // modules/courses/content-guard.ts. A save that shrinks a guarded section
+  // not named here is refused. Plain strings rather than an enum so adding a
+  // guarded section never turns an in-flight save into a validation error.
+  acknowledgeShrinkage: z.array(z.string().trim().min(1)).optional(),
 });
 
 export type CourseContentSave = z.infer<typeof courseContentSaveSchema>;
