@@ -178,6 +178,12 @@ export function RegistrationDetailDialog(props: {
 
   const [confirmingLapse, setConfirmingLapse] = useState(false);
   const [lapseReason, setLapseReason] = useState('');
+  // Recorded-course access grant (founder rule 2026-08-23: time-boxed, never
+  // automatic with a live seat).
+  const [grantDays, setGrantDays] = useState('30');
+  const [granting, setGranting] = useState(false);
+  const [grantError, setGrantError] = useState<string | null>(null);
+  const [grantSuccess, setGrantSuccess] = useState<string | null>(null);
   const [lapsing, setLapsing] = useState(false);
   const [lapseError, setLapseError] = useState<string | null>(null);
 
@@ -649,6 +655,54 @@ export function RegistrationDetailDialog(props: {
                 </Button>
               </Section>
             )}
+
+            <Section title="Recorded course access">
+              <p className="mb-2 text-sm text-muted-foreground">
+                Give this participant the self-paced recordings of this course on the study
+                platform, for a stated period. A live seat does not include recordings —
+                this grant is the deliberate exception, and granting again restates the
+                period from today.
+              </p>
+              {grantSuccess && (
+                <p className="mb-2 rounded bg-emerald-50 p-2 text-sm text-emerald-700">
+                  {grantSuccess}
+                </p>
+              )}
+              {grantError && <p className="mb-2 text-sm text-destructive">{grantError}</p>}
+              <div className="flex items-center gap-2">
+                <Input
+                  className="w-24"
+                  inputMode="numeric"
+                  value={grantDays}
+                  onChange={(event) => setGrantDays(event.target.value.replace(/[^\d]/g, ''))}
+                  aria-label="Days of access"
+                />
+                <span className="text-sm text-muted-foreground">days</span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={granting || !grantDays || Number(grantDays) < 1}
+                  onClick={async () => {
+                    setGranting(true);
+                    setGrantError(null);
+                    setGrantSuccess(null);
+                    try {
+                      await apiFetch(`/api/registrations/${props.registrationId}/lms-access`, {
+                        method: 'POST',
+                        body: JSON.stringify({ days: Number(grantDays) }),
+                      });
+                      setGrantSuccess(`Granted — recorded access for ${grantDays} days.`);
+                    } catch (err) {
+                      setGrantError(err instanceof Error ? err.message : 'Could not grant access.');
+                    } finally {
+                      setGranting(false);
+                    }
+                  }}
+                >
+                  {granting ? 'Granting…' : 'Grant recorded access'}
+                </Button>
+              </div>
+            </Section>
 
             {/* Write-off (2026-08-09). Sits above the danger zone on purpose:
                 for an unpaid no-show this is the action staff should reach for,

@@ -21,9 +21,6 @@ import * as couponsService from '@/modules/coupons/service';
 // only reports that a payment landed. The dependency is deliberately one-way
 // — access-grants never imports payments.
 import * as accessGrantsService from '@/modules/access-grants/service';
-// Seam III (2026-08-23): a settled enrollment grants self-paced course access
-// on KnowsiaApp. One-way dependency, fire-and-forget, no-op until configured.
-import * as knowsiaAppService from '@/modules/knowsia-app/service';
 import type {
   Installment,
   Payment,
@@ -186,14 +183,11 @@ async function runSettledEnrollmentSideEffects(registrationId: string): Promise<
   } catch (err) {
     console.error('[payment_confirmation lead status sync]', err);
   }
-  // Seam III (2026-08-23): a settled enrollment also opens the matching
-  // self-paced course on KnowsiaApp. No-op until KNOWSIA_APP_API_URL and
-  // KNOWSIA_APP_SERVICE_KEY are configured; idempotent on the other side.
-  try {
-    await knowsiaAppService.grantLmsAccessSystem(registrationId);
-  } catch (err) {
-    console.error('[knowsia app lms grant]', err);
-  }
+  // DELIBERATELY ABSENT: no automatic self-paced course grant. Founder rule
+  // (2026-08-23, reversing the same-day Seam III wiring): a live-cohort seat
+  // and recorded-course access are SEPARATE commercial decisions. Staff grant
+  // recorded access explicitly, time-boxed, via
+  // POST /api/registrations/[id]/lms-access → knowsia-app/service.ts.
 }
 
 // Shared write+comms body for a manual payment update. Exported (unlike

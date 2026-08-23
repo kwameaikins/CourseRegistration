@@ -1,15 +1,17 @@
-// Seam III of platform convergence (Coding Docs/19_Platform_Convergence.md §4,
-// 2026-08-23): a registration reaching Paid here grants the person access to
-// the matching self-paced course on KnowsiaApp. This module is the caller
-// side — one fire-and-forget HTTP call, idempotent over there, non-throwing
-// here, wired into runSettledEnrollmentSideEffects like every other
-// paid-transition consequence.
+// Seam III of platform convergence (Coding Docs/19_Platform_Convergence.md §4):
+// granting a participant access to the matching self-paced course on
+// KnowsiaApp. NOT automatic (founder rule 2026-08-23, reversing the same-day
+// auto-grant wiring): a live-cohort seat and recorded-course access are
+// separate commercial decisions, so this fires only when STAFF deliberately
+// grant it — normally time-boxed via accessDays. Idempotent over there;
+// re-granting restates the access period.
 //
 // Configuration posture matches Zoom's: both env vars unset → the feature
 // simply does not exist yet, and every call is a cheap no-op. That keeps the
 // deploy order forgiving — this code can ship before KnowsiaApp is live.
-import { captureToSentry } from '@/lib/errors';
+import { AppError, captureToSentry } from '@/lib/errors';
 import * as knowsiaAppRepository from '@/modules/knowsia-app/repository';
+import * as usersService from '@/modules/users/service';
 
 export function isKnowsiaAppLmsConfigured(): boolean {
   return Boolean(process.env.KNOWSIA_APP_API_URL && process.env.KNOWSIA_APP_SERVICE_KEY);
@@ -22,7 +24,12 @@ export type LmsGrantOutcome =
   | 'skipped_no_matching_course'
   | 'failed';
 
-export async function grantLmsAccessSystem(registrationId: string): Promise<LmsGrantOutcome> {
+export async function grantLmsAccessSystem(
+  registrationId: string,
+  // Days of access. Omitted = permanent — reserve that for outright purchases,
+  // not courtesy grants to live participants.
+  accessDays?: number,
+): Promise<LmsGrantOutcome> {
   if (!isKnowsiaAppLmsConfigured()) return 'skipped_not_configured';
 
   const context = await knowsiaAppRepository.selectLmsGrantContextSystem(registrationId);
@@ -43,6 +50,7 @@ export async function grantLmsAccessSystem(registrationId: string): Promise<LmsG
         phone: context.participantPhone,
         participant_id: context.participantId,
         course_code: context.courseCode,
+        access_days: accessDays ?? null,
       }),
     });
   } catch (err) {
@@ -74,4 +82,38 @@ export async function grantLmsAccessSystem(registrationId: string): Promise<LmsG
     return 'failed';
   }
   return 'granted';
+}
+
+// The staff-facing entry: role-checked and THROWING, because a human pressed
+// a button and must see why it did not work — the opposite posture from the
+// non-throwing System caller above. Days are required: staff grants to live
+// participants are time-boxed by rule; permanent access is a purchase, not a
+// grant.
+export async function grantLmsAccess(
+  registrationId: string,
+  accessDays: number,
+): Promise<{ outcome: 'granted'; accessDays: number }> {
+  await usersService.requireRole(['admin', 'management']);
+
+  const outcome = await grantLmsAccessSystem(registrationId, accessDays);
+  switch (outcome) {
+    case 'granted':
+      return { outcome: 'granted', accessDays };
+    case 'skipped_not_configured':
+      throw new AppError(
+        'NOT_CONFIGURED',
+        'The study platform connection is not configured on this deployment.',
+        503,
+      );
+    case 'skipped_gated':
+      throw new AppError('NOT_FOUND', 'No such registration, or the participant was removed.', 404);
+    case 'skipped_no_matching_course':
+      throw new AppError(
+        'NO_MATCHING_COURSE',
+        'No self-paced course exists for this programme yet — import its videos in the study platform first.',
+        409,
+      );
+    default:
+      throw new AppError('UPSTREAM_ERROR', 'The study platform rejected the grant. Try again.', 502);
+  }
 }
