@@ -56,8 +56,21 @@ const LEARN_REWRITE_ENABLED = /^https:\/\/[a-z0-9.-]+$/i.test(KNOWSIA_APP_FRONTE
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   async redirects() {
-    if (!RETIRE_PROGRAMMES) return [];
+    const rules = [];
+    // Bare /learn must never be proxied: the exact-path external rewrite came
+    // back as a 308 to itself in production (ERR_TOO_MANY_REDIRECTS,
+    // 2026-08-23). Send it straight into the catalogue, which the /learn/*
+    // rewrite serves correctly.
+    if (LEARN_REWRITE_ENABLED) {
+      rules.push({
+        source: '/learn',
+        destination: '/learn/catalogue',
+        permanent: false,
+      });
+    }
+    if (!RETIRE_PROGRAMMES) return rules;
     return [
+      ...rules,
       {
         source: '/programmes',
         destination: `${MARKETING_SITE}${MARKETING_PATH}`,
@@ -81,10 +94,6 @@ const nextConfig: NextConfig = {
       {
         source: '/learn/:path*',
         destination: `${KNOWSIA_APP_FRONTEND_URL}/learn/:path*`,
-      },
-      {
-        source: '/learn',
-        destination: `${KNOWSIA_APP_FRONTEND_URL}/learn`,
       },
     ];
   },
