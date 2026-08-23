@@ -44,7 +44,14 @@ const MARKETING_PATH = (process.env.MARKETING_PROGRAMMES_PATH ?? '/programmes').
 // about the other. Gated on the env var so nothing changes until the
 // KnowsiaApp frontend is actually deployed; set it to that deployment's URL
 // (e.g. https://knowsia-study.vercel.app) in Vercel to switch it on.
-const KNOWSIA_APP_FRONTEND_URL = (process.env.KNOWSIA_APP_FRONTEND_URL ?? '').replace(/\/+$/, '');
+// Aggressively sanitised, and validated before use: a malformed value (a
+// stray CR from a Windows pipe took the whole production build down on
+// 2026-08-23 with "Invalid rewrites found") must degrade to "no rewrites",
+// never to a failed deploy.
+const KNOWSIA_APP_FRONTEND_URL = (process.env.KNOWSIA_APP_FRONTEND_URL ?? '')
+  .replace(/\s+/g, '')
+  .replace(/\/+$/, '');
+const LEARN_REWRITE_ENABLED = /^https:\/\/[a-z0-9.-]+$/i.test(KNOWSIA_APP_FRONTEND_URL);
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -64,7 +71,7 @@ const nextConfig: NextConfig = {
     ];
   },
   async rewrites() {
-    if (!KNOWSIA_APP_FRONTEND_URL) return [];
+    if (!LEARN_REWRITE_ENABLED) return [];
     return [
       {
         source: '/learn',
