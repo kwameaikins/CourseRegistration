@@ -131,16 +131,21 @@ link conflict (409). Dormant until `COURSE_REG_API_URL` +
 `COURSE_REG_SERVICE_KEY` are set over there and `KNOWSIA_APP_URL` +
 `KNOWSIA_APP_SERVICE_KEY` here.
 
-**Seam III BUILT on both sides 2026-08-23:** `runSettledEnrollmentSideEffects`
-gained a non-blocking `grantLmsAccessSystem` side effect
-(`modules/knowsia-app/service.ts`) that POSTs
-`{email, name, phone, participant_id, course_code}` to KnowsiaApp's
-`POST /api/v1/service/lms/enrolments` (X-Service-Key). Course matching is by
-m2 course slug == course_code lowercased — the Knovidia import script
-(`scripts/import_knovidia_course.py` over there) creates courses on that
-contract. A 404 means the course has no imported videos yet: logged as a
-content-readiness warning, not an error. No-op until the same two env vars
-are configured.
+**Seam III BUILT on both sides 2026-08-23 — and made DELIBERATE, not
+automatic, the same day (founder rule):** a live-cohort seat and
+recorded-course access are separate commercial decisions, so nothing fires
+on the Paid transition. Staff (admin/management) grant a participant the
+recordings explicitly and TIME-BOXED via
+`POST /api/registrations/[id]/lms-access {days}` (button in the
+registration detail dialog) → `grantLmsAccess` in
+`modules/knowsia-app/service.ts` → KnowsiaApp's
+`POST /api/v1/service/lms/enrolments` (X-Service-Key, `access_days` →
+`m2_course_enrolments.expires_at`, enforced at playback; re-granting
+restates the period). Course matching is by m2 course slug == course_code
+lowercased. A 409 back to staff means the course has no imported videos
+yet. Separately, anyone may simply BUY the other mode: the /learn
+storefront routes live CTAs to /register and self-paced CTAs to LMS
+enrolment.
 
 **Seam II wiring in place:** `next.config.ts` rewrites `/learn/:path*` to the
 KnowsiaApp frontend, gated on `KNOWSIA_APP_FRONTEND_URL`.
