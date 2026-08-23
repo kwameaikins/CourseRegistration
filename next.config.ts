@@ -72,14 +72,19 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     if (!LEARN_REWRITE_ENABLED) return [];
+    // The study app serves itself under basePath /learn (its next.config), so
+    // the proxied path is passed through UNCHANGED — pages, /_next assets and
+    // API proxy all resolve inside that app. Stripping the prefix here is what
+    // made the proxied pages load this app's assets and render unstyled
+    // (2026-08-23).
     return [
       {
-        source: '/learn',
-        destination: `${KNOWSIA_APP_FRONTEND_URL}/catalogue`,
+        source: '/learn/:path*',
+        destination: `${KNOWSIA_APP_FRONTEND_URL}/learn/:path*`,
       },
       {
-        source: '/learn/:path*',
-        destination: `${KNOWSIA_APP_FRONTEND_URL}/:path*`,
+        source: '/learn',
+        destination: `${KNOWSIA_APP_FRONTEND_URL}/learn`,
       },
     ];
   },
