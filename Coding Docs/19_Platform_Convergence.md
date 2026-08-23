@@ -68,7 +68,7 @@ Rejected alternatives, for the record:
 | Knowsia Insights (public news) | **Registration** | Document 17 |
 | Question bank, mock exams, attempts | **KnowsiaApp** | M3 |
 | AI tutor, RAG, explanations, institutional facts | **KnowsiaApp** | M4 — permanent separate service, ML models at startup |
-| Self-paced LMS, video lessons, Cloudflare Stream | **KnowsiaApp** | M2 |
+| Self-paced LMS, video lessons | **KnowsiaApp** | M2. Video delivery is **Bunny Stream** (founder decision 2026-08-23) — the Knovidia production pipeline already hosts course video there with a working agent; this supersedes M2's original Cloudflare Stream choice, which was built but never went live. Details in KnowsiaApp's CLAUDE.md §Video hosting |
 | Topic mastery, spaced repetition, study plans, pass-readiness | **KnowsiaApp** | M6 |
 | Essay marking | **KnowsiaApp** | M5 |
 | Subscriptions, trials, tier gating | **KnowsiaApp** | Different commercial model from per-course fees; both can coexist |
@@ -123,10 +123,27 @@ intercepted token alone is worth nothing; a self-contained JWT would have been r
 whole TTL. TTL is 60 seconds. Full rules in BR-45; endpoints in Document 5 §18; schema in
 Document 3 §16.
 
-**KnowsiaApp half still to build:** accept the token at `/auth/handoff`, call
-`/api/integration/handoff/verify`, find-or-create its `m1_users` row, then call
-`/api/integration/handoff/link`. Store its own back-link (`m1_users.knowsia_participant_id`) — each
-side keeps its own copy, neither queries the other's database.
+**KnowsiaApp half BUILT 2026-08-23:** `/auth/handoff` (frontend route sets its
+httpOnly cookies) → `POST /api/v1/auth/handoff` (calls verify with the shared
+key, finds-or-creates `m1_users`, stores `m1_users.knowsia_participant_id`
+(migration auth/008), calls link, issues its normal token pair). Refuses on a
+link conflict (409). Dormant until `COURSE_REG_API_URL` +
+`COURSE_REG_SERVICE_KEY` are set over there and `KNOWSIA_APP_URL` +
+`KNOWSIA_APP_SERVICE_KEY` here.
+
+**Seam III BUILT on both sides 2026-08-23:** `runSettledEnrollmentSideEffects`
+gained a non-blocking `grantLmsAccessSystem` side effect
+(`modules/knowsia-app/service.ts`) that POSTs
+`{email, name, phone, participant_id, course_code}` to KnowsiaApp's
+`POST /api/v1/service/lms/enrolments` (X-Service-Key). Course matching is by
+m2 course slug == course_code lowercased — the Knovidia import script
+(`scripts/import_knovidia_course.py` over there) creates courses on that
+contract. A 404 means the course has no imported videos yet: logged as a
+content-readiness warning, not an error. No-op until the same two env vars
+are configured.
+
+**Seam II wiring in place:** `next.config.ts` rewrites `/learn/:path*` to the
+KnowsiaApp frontend, gated on `KNOWSIA_APP_FRONTEND_URL`.
 
 **II — One domain and shared navigation.** Both frontends are Next.js on Vercel, so path-based
 rewrites give one apparent product without either codebase knowing about the other. Cosmetic, no

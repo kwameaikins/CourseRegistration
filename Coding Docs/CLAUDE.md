@@ -1560,8 +1560,11 @@ Open decisions (founder):
     while the answer is "don't build"; revisit only once the product has
     launched, Live Learning L1-L3 are complete, and Zoom cost or capacity is a
     felt constraint rather than an anticipated one.
-  - AI05 ("...Reporting and Modeling") vs AI02 ("...Reporting and
-    Analysis") are near-duplicate courses — pick a canonical one.
+  - AI05 vs AI02 near-duplicate: RESOLVED 2026-08-21. The founder repurposed
+    AI05 as "AI Security and Safe Use for Business Professionals" (brief:
+    Coding Docs/ai-security-and-safe-use.md); AI02 remains the AI-powered
+    financial reporting course. The two codes now carry distinct copy in
+    public-content.ts and course_content.
   - Grant the Zoom app `report:read:list_meeting_participants:admin`. Not
     required any more (Dashboard fallback covers it) but the report API is the
     only one that returns participant emails, which is what makes matching

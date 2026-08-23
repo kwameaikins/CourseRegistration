@@ -38,6 +38,14 @@ const MARKETING_SITE = process.env.MARKETING_SITE_URL ?? 'https://knowsia.com';
 // indexed) does not have to change with it.
 const MARKETING_PATH = (process.env.MARKETING_PROGRAMMES_PATH ?? '/programmes').replace(/\/$/, '');
 
+// Integration II of platform convergence (Coding Docs/19_Platform_Convergence.md
+// §4): the KnowsiaApp study platform surfaces under this domain at /learn/*,
+// via path rewrites — one apparent product, two codebases, neither knowing
+// about the other. Gated on the env var so nothing changes until the
+// KnowsiaApp frontend is actually deployed; set it to that deployment's URL
+// (e.g. https://knowsia-study.vercel.app) in Vercel to switch it on.
+const KNOWSIA_APP_FRONTEND_URL = (process.env.KNOWSIA_APP_FRONTEND_URL ?? '').replace(/\/+$/, '');
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   async redirects() {
@@ -52,6 +60,19 @@ const nextConfig: NextConfig = {
         source: '/programmes/:courseCode',
         destination: `${MARKETING_SITE}${MARKETING_PATH}/:courseCode`,
         permanent: true,
+      },
+    ];
+  },
+  async rewrites() {
+    if (!KNOWSIA_APP_FRONTEND_URL) return [];
+    return [
+      {
+        source: '/learn',
+        destination: `${KNOWSIA_APP_FRONTEND_URL}/catalogue`,
+      },
+      {
+        source: '/learn/:path*',
+        destination: `${KNOWSIA_APP_FRONTEND_URL}/:path*`,
       },
     ];
   },
