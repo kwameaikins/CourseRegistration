@@ -84,6 +84,66 @@ export async function grantLmsAccessSystem(
   return 'granted';
 }
 
+// One self-paced enrolment as the portal dashboard shows it.
+export interface StudentLmsCourse {
+  courseId: string;
+  title: string;
+  totalLessons: number;
+  progressPercentage: number;
+  status: string;
+  completedAt: string | null;
+  expiresAt: string | null;
+  lastAccessedAt: string | null;
+}
+
+// The study-world summary for the merged portal dashboard (founder
+// direction 2026-08-23: ONE dashboard). Read-only, fail-soft: null hides
+// the whole section — the live half of the dashboard must never wait on or
+// break over the study platform.
+export async function getStudentLmsCoursesSystem(
+  participantId: string,
+): Promise<StudentLmsCourse[] | null> {
+  if (!isKnowsiaAppLmsConfigured()) return null;
+
+  const base = process.env.KNOWSIA_APP_API_URL!.replace(/\/+$/, '');
+  try {
+    const response = await fetch(
+      `${base}/api/v1/service/lms/participants/${encodeURIComponent(participantId)}/enrolments`,
+      {
+        headers: { 'X-Service-Key': process.env.KNOWSIA_APP_SERVICE_KEY! },
+        // The dashboard is interactive; a slow study platform must not hang it.
+        signal: AbortSignal.timeout(4000),
+      },
+    );
+    if (!response.ok) return null;
+    const body = (await response.json()) as {
+      enrolments?: Array<{
+        course_id: string;
+        title: string;
+        total_lessons: number;
+        progress_percentage: number;
+        status: string;
+        completed_at: string | null;
+        expires_at: string | null;
+        last_accessed_at: string | null;
+      }>;
+    };
+    return (body.enrolments ?? []).map((row) => ({
+      courseId: row.course_id,
+      title: row.title,
+      totalLessons: row.total_lessons,
+      progressPercentage: row.progress_percentage,
+      status: row.status,
+      completedAt: row.completed_at,
+      expiresAt: row.expires_at,
+      lastAccessedAt: row.last_accessed_at,
+    }));
+  } catch (err) {
+    console.error('[knowsia app lms courses]', err);
+    return null;
+  }
+}
+
 // The staff-facing entry: role-checked and THROWING, because a human pressed
 // a button and must see why it did not work — the opposite posture from the
 // non-throwing System caller above. Days are required: staff grants to live

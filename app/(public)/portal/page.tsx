@@ -181,11 +181,25 @@ interface Dashboard {
   // below never renders. Same dormant-until-configured pattern as WhatsApp,
   // Arkesel SMS, Vapi and R2 elsewhere in this codebase.
   studyPlatformEnabled: boolean;
+  // The study-world half of the merged dashboard (2026-08-23) — this
+  // participant's self-paced enrolments, or null when the study platform is
+  // off/unreachable (the section simply hides).
+  selfPacedCourses: Array<{
+    courseId: string;
+    title: string;
+    totalLessons: number;
+    progressPercentage: number;
+    status: string;
+    completedAt: string | null;
+    expiresAt: string | null;
+    lastAccessedAt: string | null;
+  }> | null;
 }
 
 type PanelId =
   | 'overview'
   | 'courses'
+  | 'selfpaced'
   | 'payments'
   | 'certificates'
   | 'referrals'
@@ -194,7 +208,8 @@ type PanelId =
 
 const NAV_ITEMS: Array<{ id: PanelId; label: string; icon: string }> = [
   { id: 'overview', label: 'Overview', icon: 'i-grid' },
-  { id: 'courses', label: 'My Courses', icon: 'i-book' },
+  { id: 'courses', label: 'Live Courses', icon: 'i-book' },
+  { id: 'selfpaced', label: 'Self-paced Learning', icon: 'i-book' },
   { id: 'payments', label: 'Payments & Receipts', icon: 'i-card' },
   { id: 'certificates', label: 'Certificates', icon: 'i-award' },
   { id: 'referrals', label: 'Refer & Earn', icon: 'i-compass' },
@@ -357,10 +372,15 @@ export default function PortalDashboardPage() {
   // navigate rather than a plain <a href>: the token is single-use, so a link
   // the browser could prefetch (or the student could middle-click twice) would
   // burn tokens before anyone arrives.
-  const handleStudyPlatformHandoff = useCallback(() => {
+  const handleStudyPlatformHandoff = useCallback((next?: string) => {
     setStudyHandoffPending(true);
     setStudyHandoffError(null);
-    apiFetch<{ url: string; expiresAt: string }>('/api/portal/handoff', { method: 'POST' })
+    apiFetch<{ url: string; expiresAt: string }>('/api/portal/handoff', {
+      method: 'POST',
+      // Optional deep-link: "Continue studying" on a specific course lands
+      // the student on that course, not the generic courses page.
+      body: JSON.stringify(next ? { next } : {}),
+    })
       .then(({ url }) => {
         window.location.href = url;
       })
@@ -976,11 +996,34 @@ export default function PortalDashboardPage() {
                     <button
                       type="button"
                       className="btn btn-primary"
-                      onClick={handleStudyPlatformHandoff}
+                      onClick={() => handleStudyPlatformHandoff()}
                       disabled={studyHandoffPending}
                     >
                       <svg className="icon" style={{ width: 15, height: 15 }}><use href="#i-book" /></svg>
                       {studyHandoffPending ? 'Opening…' : 'Open Knowsia Study'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Merged dashboard (2026-08-23): the study world surfaces on
+                    Overview too — one home for both ways of learning. */}
+                {(dashboard.selfPacedCourses?.length ?? 0) > 0 && (
+                  <div className="feedback-banner">
+                    <div>
+                      <strong>Self-paced learning</strong>
+                      <span>
+                        {dashboard.selfPacedCourses!.length} recorded course
+                        {dashboard.selfPacedCourses!.length === 1 ? '' : 's'} on your account —
+                        pick up where you left off.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => setActivePanel('selfpaced')}
+                    >
+                      <svg className="icon" style={{ width: 15, height: 15 }}><use href="#i-play" /></svg>
+                      My Self-paced Courses
                     </button>
                   </div>
                 )}
@@ -1060,6 +1103,108 @@ export default function PortalDashboardPage() {
                       </div>
                     ))}
                   </>
+                )}
+              </section>
+            )}
+
+            {/* Self-paced Learning (2026-08-23) — the study-world half of the
+                merged dashboard. Data comes summarised from the study
+                platform; null means it was unreachable and the panel says so
+                rather than pretending the student has nothing. */}
+            {activePanel === 'selfpaced' && (
+              <section className="panel active" role="tabpanel">
+                <p className="eyebrow">Self-paced Learning</p>
+                <h2 className="panel-title">
+                  {(dashboard.selfPacedCourses ?? []).length} course
+                  {(dashboard.selfPacedCourses ?? []).length === 1 ? '' : 's'}
+                </h2>
+                <p className="panel-sub">
+                  Recorded courses you can study anytime — your progress is saved as you watch.
+                </p>
+
+                {dashboard.selfPacedCourses === null ? (
+                  <p className="empty-note">
+                    The study platform is not reachable right now — please try again shortly.
+                  </p>
+                ) : dashboard.selfPacedCourses.length === 0 ? (
+                  <>
+                    <p className="empty-note">No self-paced courses on your account yet.</p>
+                    <a className="btn btn-primary" href="/learn" style={{ marginTop: 8 }}>
+                      Browse self-paced courses
+                    </a>
+                  </>
+                ) : (
+                  dashboard.selfPacedCourses.map((course) => {
+                    const expired =
+                      course.expiresAt !== null && new Date(course.expiresAt) < new Date();
+                    const completed = course.status === 'completed' || course.completedAt !== null;
+                    const pct = Math.min(100, Math.round(course.progressPercentage));
+                    return (
+                      <article key={course.courseId} className="course-card">
+                        <div className="head">
+                          <div>
+                            <h4>{course.title}</h4>
+                            <div className="meta">
+                              {course.totalLessons} lesson{course.totalLessons === 1 ? '' : 's'} · Self-paced
+                              {course.expiresAt && !expired
+                                ? ` · Access until ${formatDate(course.expiresAt)}`
+                                : ''}
+                            </div>
+                          </div>
+                          <div className="badges">
+                            {completed ? (
+                              <span className="pill pill-success">Completed</span>
+                            ) : expired ? (
+                              <span className="pill pill-danger">Access expired</span>
+                            ) : (
+                              <span className="pill pill-warning">{pct}% watched</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div
+                          aria-hidden
+                          style={{
+                            marginTop: 12,
+                            height: 6,
+                            borderRadius: 999,
+                            background: 'var(--line)',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: `${pct}%`,
+                              height: '100%',
+                              background: 'var(--accent)',
+                            }}
+                          />
+                        </div>
+
+                        {expired ? (
+                          <p className="empty-note" style={{ marginTop: 12, marginBottom: 0 }}>
+                            Your access period has ended — contact us to renew it.
+                          </p>
+                        ) : (
+                          <button
+                            className="btn btn-primary"
+                            style={{ marginTop: 14 }}
+                            disabled={studyHandoffPending}
+                            onClick={() => handleStudyPlatformHandoff(`/courses/${course.courseId}`)}
+                          >
+                            {studyHandoffPending
+                              ? 'Opening…'
+                              : pct > 0
+                                ? 'Continue studying'
+                                : 'Start studying'}
+                          </button>
+                        )}
+                      </article>
+                    );
+                  })
+                )}
+                {studyHandoffError && (
+                  <p className="empty-note" style={{ marginTop: 10 }}>{studyHandoffError}</p>
                 )}
               </section>
             )}

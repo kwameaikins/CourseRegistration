@@ -122,6 +122,20 @@ export interface PortalDashboard {
   // Server-derived rather than a NEXT_PUBLIC_ mirror so there is exactly one
   // source of truth for whether the integration is live.
   studyPlatformEnabled: boolean;
+  // The study-world half of the merged dashboard (2026-08-23): this
+  // participant's self-paced enrolments, summarised by the study platform.
+  // NULL when the integration is off or unreachable — the section hides,
+  // the live half renders regardless.
+  selfPacedCourses: Array<{
+    courseId: string;
+    title: string;
+    totalLessons: number;
+    progressPercentage: number;
+    status: string;
+    completedAt: string | null;
+    expiresAt: string | null;
+    lastAccessedAt: string | null;
+  }> | null;
 }
 
 // Self-service name correction (founder request, 2026-07-24) — participants

@@ -14,11 +14,20 @@ import { PORTAL_SESSION_COOKIE } from '@/modules/portal/types';
 // There is no participant parameter, by design: who the handoff is for comes
 // from the session cookie alone, so this endpoint cannot be pointed at anyone
 // else. Same rule as POST /api/portal/enrol.
-export async function POST() {
+export async function POST(request: Request) {
   try {
     const cookieStore = await cookies();
     const sessionId = cookieStore.get(PORTAL_SESSION_COOKIE)?.value;
-    const handoff = await portalService.issueKnowsiaAppHandoff(sessionId);
+    // Optional {next} destination for deep-linking into a specific course;
+    // absent/invalid bodies keep the default landing.
+    let next: string | undefined;
+    try {
+      const body = (await request.json()) as { next?: unknown };
+      if (typeof body?.next === 'string') next = body.next;
+    } catch {
+      // no body — fine
+    }
+    const handoff = await portalService.issueKnowsiaAppHandoff(sessionId, next);
     return successResponse({ url: handoff.url, expiresAt: handoff.expiresAt });
   } catch (err) {
     return handleRouteError(err);

@@ -4,6 +4,9 @@
 import { hashPin, lastFourDigits, verifyPin } from '@/lib/portal-auth/pin';
 import { AppError } from '@/lib/errors';
 import * as portalRepository from '@/modules/portal/repository';
+// Permitted cross-module call (2026-08-23) — the merged dashboard shows the
+// participant's self-paced study summary; knowsia-app owns the HTTP seam.
+import * as knowsiaAppService from '@/modules/knowsia-app/service';
 import * as paymentsRepository from '@/modules/payments/repository';
 // Permitted cross-module call (system review, 2026-07-24) — see
 // renameExistingCertificates's doc comment: retroactively fixing the name
@@ -332,9 +335,12 @@ export function hasCourseEnded(endDate: string | null | undefined, now = new Dat
 
 export async function getPortalDashboard(sessionId: string | undefined): Promise<PortalDashboard> {
   const { participantId } = await requirePortalSession(sessionId);
-  const [data, auth] = await Promise.all([
+  const [data, auth, selfPacedCourses] = await Promise.all([
     portalRepository.selectPortalDashboardData(participantId),
     portalRepository.selectParticipantAuth(participantId),
+    // The study-world half of the merged dashboard — fail-soft to null so
+    // the live half never breaks over the other system (4s internal cap).
+    knowsiaAppService.getStudentLmsCoursesSystem(participantId).catch(() => null),
   ]);
   if (!data.participant) {
     throw new AppError('NOT_FOUND', 'Participant not found.', 404);
@@ -379,6 +385,7 @@ export async function getPortalDashboard(sessionId: string | undefined): Promise
     phone: data.participant.phone,
     mustChangePin: auth?.must_change_pin ?? false,
     studyPlatformEnabled: isKnowsiaAppConfigured(),
+    selfPacedCourses,
     registrations: data.registrations.map((row) => ({
       registrationId: row.registration.id,
       courseName: row.course?.course_name ?? '',
@@ -908,6 +915,10 @@ export function isKnowsiaAppConfigured(): boolean {
 // anyone but themselves because there is no parameter with which to try.
 export async function issueKnowsiaAppHandoff(
   sessionId: string | undefined,
+  // Optional in-app destination on the study platform ("Continue studying"
+  // deep-links to the exact course). Internal paths only; anything else is
+  // dropped rather than becoming an open redirect.
+  next?: string,
 ): Promise<KnowsiaAppHandoffResult> {
   const { participantId } = await requirePortalSession(sessionId);
 
@@ -930,9 +941,12 @@ export async function issueKnowsiaAppHandoff(
   const token = await portalRepository.insertKnowsiaAppHandoffToken(participantId, expiresAt);
 
   const base = process.env.KNOWSIA_APP_URL!.replace(/\/+$/, '');
+  const safeNext = next && next.startsWith('/') && !next.startsWith('//') ? next : null;
   return {
     token: token.id,
-    url: `${base}/auth/handoff?token=${encodeURIComponent(token.id)}`,
+    url:
+      `${base}/auth/handoff?token=${encodeURIComponent(token.id)}` +
+      (safeNext ? `&next=${encodeURIComponent(safeNext)}` : ''),
     expiresAt,
   };
 }
