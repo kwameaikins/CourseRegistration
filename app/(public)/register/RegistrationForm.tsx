@@ -362,7 +362,7 @@ export function RegistrationForm({ batchOptions }: { batchOptions: BatchOption[]
               </a>{' '}
               anytime with your email or phone number and PIN (the last 4 digits of your
               phone number) to pay later. You can also pay by bank transfer or MTN Mobile
-              Money (0530531328, or MoMo Pay merchant code 143735) — details are in the
+              Money (0559136464, or MoMo Pay merchant code 354542) — details are in the
               payment instructions email we just sent you.
             </p>
           </div>

@@ -11,8 +11,11 @@ import * as communicationsRepository from '@/modules/communications/repository';
 import type { EmailType } from '@/lib/domain/types';
 
 const CONTACT = 'info.knowsia@gmail.com';
-const MOMO_PERSONAL = '0530531328';
-const MOMO_MERCHANT_CODE = '143735';
+// Business MoMo account registered as "Knowsia Professional Institute"
+// (founder-provided 2026-09-03; replaced the personal number 0530531328 and
+// old merchant code 143735 — existing DB templates were updated the same day).
+const MOMO_PERSONAL = '0559136464';
+const MOMO_MERCHANT_CODE = '354542';
 // Interim bank details (founder-provided 2026-08-01, "for now" — confirm
 // before treating as permanent).
 const BANK_NAME = 'Zenith Bank';
@@ -79,7 +82,7 @@ export const DEFAULT_TEMPLATES: ReadonlyArray<{
 <p><strong>1. Pay online (Card or Mobile Money)</strong><br/>
 Log in to your <a href="${PORTAL_LOGIN_URL}">student portal</a> with your email or phone number and PIN, then tap <em>Pay now</em> — you can do this anytime, and you will receive instant confirmation.</p>
 <p><strong>2. MTN Mobile Money</strong><br/>
-Send to our personal MoMo number <strong>${MOMO_PERSONAL}</strong>, or our MoMo Pay merchant code <strong>${MOMO_MERCHANT_CODE}</strong>.<br/>
+Send to our MoMo number <strong>${MOMO_PERSONAL}</strong>, or our MoMo Pay merchant code <strong>${MOMO_MERCHANT_CODE}</strong> (account name: Knowsia Professional Institute).<br/>
 <em>After paying, send your MoMo transaction reference to ${CONTACT} so we can confirm your payment.</em></p>
 <p><strong>3. Bank transfer</strong><br/>
 Bank: <strong>${BANK_NAME}</strong><br/>

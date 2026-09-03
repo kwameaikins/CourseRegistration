@@ -222,8 +222,8 @@ Organisations enrolling staff receive access to a Corporate Portal that allows H
 
 **Payment method:**  
 MTN MoMo  
-Merchant Code: **143735**  
-MoMo Number: **053 053 1328**
+Merchant Code: **354542**  
+MoMo Number: **055 913 6464** (Knowsia Professional Institute)
 
 [**Register Now**](https://reg.knowsia.com/programmes/ESG1)
 

@@ -781,7 +781,7 @@ export default function PaymentTrackingPage() {
               id="paymentNotes"
               placeholder={
                 confirmTarget && draftFor(confirmTarget).paymentMethod === 'MTN MoMo'
-                  ? 'e.g. Sent to personal number 0530531328 (or MoMo Pay 143735)'
+                  ? 'e.g. Sent to MoMo number 0559136464 (or MoMo Pay 354542)'
                   : 'Confirmed against GCB statement…'
               }
               value={confirmTarget ? draftFor(confirmTarget).paymentNotes : ''}
