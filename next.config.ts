@@ -57,6 +57,20 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   async redirects() {
     const rules = [];
+    // Emergency stopgap (2026-09-03): the WordPress VPS hosting knowsia.com is
+    // down (all ports dead, nameservers with it). knowsia.com's DNS is being
+    // pointed at this Vercel project so marketing traffic lands on the
+    // registration site instead of a connection error. TEMPORARY (307) on
+    // purpose: when the VPS is repaired and DNS reverts, no browser must be
+    // left holding a cached permanent redirect. Path preserved because ads
+    // link to /programmes/{code}, which this app also serves; unknown WP
+    // paths fall to this app's 404, which still beats "site unreachable".
+    rules.push({
+      source: '/:path*',
+      has: [{ type: 'host' as const, value: '(www\\.)?knowsia\\.com' }],
+      destination: 'https://reg.knowsia.com/:path*',
+      permanent: false,
+    });
     // Bare /learn must never be proxied: the exact-path external rewrite came
     // back as a 308 to itself in production (ERR_TOO_MANY_REDIRECTS,
     // 2026-08-23). Send it straight into the catalogue, which the /learn/*
