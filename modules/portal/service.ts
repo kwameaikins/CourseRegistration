@@ -77,6 +77,7 @@ import {
   type PortalReceiptData,
   type PortalResetPinInput,
   type PortalSetUpInstallmentPlanInput,
+  type PortalStatementData,
   type PortalUpdateNameInput,
   type StudentStatusSummary,
 } from '@/modules/portal/types';
@@ -671,6 +672,63 @@ export async function getReceiptDataForStaff(registrationId: string): Promise<Po
   }
   const data = await portalRepository.selectPortalDashboardData(participantId);
   return buildReceiptData(data, registrationId);
+}
+
+// Account statement (2026-09-03) — the account-wide companion to
+// buildReceiptData above: one row per registration, plus totals. A
+// written-off (Lapsed) registration keeps its real balance on its row but
+// is excluded from Balance due — same posture as the portal dashboard's
+// amountPayable, which treats written-off rows as nothing-to-collect.
+function buildStatementData(
+  data: Awaited<ReturnType<typeof portalRepository.selectPortalDashboardData>>,
+  participantId: string,
+): PortalStatementData {
+  if (!data.participant) {
+    throw new AppError('NOT_FOUND', 'Participant not found.', 404);
+  }
+  const rows = data.registrations.map(({ registration, batch, course, payment }) => ({
+    courseName: course?.course_name ?? '',
+    cohortLabel: batch?.cohort_label ?? '',
+    registeredAt: registration.registered_at,
+    courseFee: payment ? Number(payment.course_fee) : 0,
+    discountAmount: payment ? Number(payment.discount_amount) : 0,
+    amountPaid: payment ? Number(payment.amount_paid) : 0,
+    balance: payment ? Number(payment.balance) : 0,
+    paymentStatus: payment?.payment_status ?? 'Unpaid',
+    isFree: batch?.is_free ?? false,
+    writtenOff: registration.registration_status === 'Lapsed',
+  }));
+  return {
+    participantId,
+    participantName: data.participant.full_name,
+    participantEmail: data.participant.email,
+    participantPhone: data.participant.phone,
+    rows,
+    totals: {
+      fees: rows.reduce((sum, row) => sum + row.courseFee, 0),
+      paid: rows.reduce((sum, row) => sum + row.amountPaid, 0),
+      balanceDue: rows.reduce((sum, row) => sum + (row.writtenOff ? 0 : row.balance), 0),
+    },
+  };
+}
+
+export async function getStatementData(
+  sessionId: string | undefined,
+): Promise<PortalStatementData> {
+  const { participantId } = await requirePortalSession(sessionId);
+  const data = await portalRepository.selectPortalDashboardData(participantId);
+  return buildStatementData(data, participantId);
+}
+
+// Staff-facing equivalent — same posture as getReceiptDataForStaff above:
+// no session, the caller must already be staff-authorized (the API route
+// goes through registrationsService.getParticipantStatementForStaff, which
+// does the requireRole check).
+export async function getStatementDataForParticipantSystem(
+  participantId: string,
+): Promise<PortalStatementData> {
+  const data = await portalRepository.selectPortalDashboardData(participantId);
+  return buildStatementData(data, participantId);
 }
 
 // One-shot staff lookup by email or phone (Admin Assistant tools,

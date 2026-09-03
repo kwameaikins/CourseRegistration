@@ -54,6 +54,10 @@ const couponsServiceMock = {
   computeCouponFee: vi.fn(),
   recordCouponRedemptionSystem: vi.fn(),
 };
+const portalServiceMock = {
+  ensureParticipantAuth: vi.fn(),
+  getStatementDataForParticipantSystem: vi.fn(),
+};
 const sendEmailOnceMock = vi.fn();
 const sendWhatsappOnceMock = vi.fn();
 const sendSmsOnceMock = vi.fn();
@@ -71,6 +75,7 @@ vi.mock('@/modules/attendance/service', () => attendanceServiceMock);
 vi.mock('@/modules/waitlist/service', () => waitlistServiceMock);
 vi.mock('@/modules/partners/service', () => partnersServiceMock);
 vi.mock('@/modules/coupons/service', () => couponsServiceMock);
+vi.mock('@/modules/portal/service', () => portalServiceMock);
 vi.mock('@/modules/communications/service', () => ({
   sendEmailOnce: (...args: unknown[]) => sendEmailOnceMock(...args),
   sendWhatsappOnce: (...args: unknown[]) => sendWhatsappOnceMock(...args),
@@ -98,6 +103,7 @@ const {
   transferRegistration,
   exportRegistrationsCsv,
   listRegistrations,
+  getParticipantStatementForStaff,
   getRegistrationContact,
   sendSmsToRegistration,
   sendEmailToRegistration,
@@ -1873,5 +1879,79 @@ describe('Standalone coupons at registration (2026-08-07)', () => {
     await expect(
       createRegistration({ ...validInput(), couponCode: 'NEWYEAR25' }),
     ).resolves.toBeDefined();
+  });
+});
+
+// Account statement for staff (2026-09-03) — the role gate lives here; the
+// data assembly itself is portal's and is tested in portal-service.test.ts.
+describe('getParticipantStatementForStaff', () => {
+  it('requires admin or finance, then delegates to the portal assembly', async () => {
+    usersServiceMock.requireRole.mockResolvedValue({
+      id: 'staff-1',
+      fullName: 'Jane Mensah',
+      role: 'finance',
+    });
+    portalServiceMock.getStatementDataForParticipantSystem.mockResolvedValue({
+      participantId: 'participant-1',
+      participantName: 'Ama Owusu',
+      rows: [],
+      totals: { fees: 0, paid: 0, balanceDue: 0 },
+    });
+
+    const statement = await getParticipantStatementForStaff('participant-1');
+
+    expect(usersServiceMock.requireRole).toHaveBeenCalledWith(['admin', 'finance']);
+    expect(portalServiceMock.getStatementDataForParticipantSystem).toHaveBeenCalledWith(
+      'participant-1',
+    );
+    expect(statement.participantName).toBe('Ama Owusu');
+  });
+
+  it('never reaches the data assembly when the role check fails', async () => {
+    usersServiceMock.requireRole.mockRejectedValue(
+      new AppError('FORBIDDEN', 'Your role does not permit this action.', 403),
+    );
+
+    await expect(getParticipantStatementForStaff('participant-1')).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    expect(portalServiceMock.getStatementDataForParticipantSystem).not.toHaveBeenCalled();
+  });
+});
+
+// Account statement for staff (2026-09-03) — the role gate lives here; the
+// data assembly itself is portal's and is tested in portal-service.test.ts.
+describe('getParticipantStatementForStaff', () => {
+  it('requires admin or finance, then delegates to the portal assembly', async () => {
+    usersServiceMock.requireRole.mockResolvedValue({
+      id: 'staff-1',
+      fullName: 'Jane Mensah',
+      role: 'finance',
+    });
+    portalServiceMock.getStatementDataForParticipantSystem.mockResolvedValue({
+      participantId: 'participant-1',
+      participantName: 'Ama Owusu',
+      rows: [],
+      totals: { fees: 0, paid: 0, balanceDue: 0 },
+    });
+
+    const statement = await getParticipantStatementForStaff('participant-1');
+
+    expect(usersServiceMock.requireRole).toHaveBeenCalledWith(['admin', 'finance']);
+    expect(portalServiceMock.getStatementDataForParticipantSystem).toHaveBeenCalledWith(
+      'participant-1',
+    );
+    expect(statement.participantName).toBe('Ama Owusu');
+  });
+
+  it('never reaches the data assembly when the role check fails', async () => {
+    usersServiceMock.requireRole.mockRejectedValue(
+      new AppError('FORBIDDEN', 'Your role does not permit this action.', 403),
+    );
+
+    await expect(getParticipantStatementForStaff('participant-1')).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    expect(portalServiceMock.getStatementDataForParticipantSystem).not.toHaveBeenCalled();
   });
 });

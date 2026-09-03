@@ -180,6 +180,31 @@ export interface PortalReceiptData {
   registrationId: string;
 }
 
+// Account statement (student portal + staff, 2026-09-03) — the account-wide
+// companion to PortalReceiptData: one row per registration, plus totals.
+// Same rendered-on-demand posture; never a stored record. Shape mirrors
+// lib/portal/statement-pdf.ts's StatementPdfData minus issuedDate (the
+// route stamps that at render time, same as the receipt).
+export interface PortalStatementData {
+  participantId: string;
+  participantName: string;
+  participantEmail: string;
+  participantPhone: string;
+  rows: Array<{
+    courseName: string;
+    cohortLabel: string;
+    registeredAt: string;
+    courseFee: number;
+    discountAmount: number;
+    amountPaid: number;
+    balance: number;
+    paymentStatus: string;
+    isFree: boolean;
+    writtenOff: boolean;
+  }>;
+  totals: { fees: number; paid: number; balanceDue: number };
+}
+
 // Forgot-PIN (student portal, 2026-07-26) — identical email-or-phone
 // identifier shape as portalLoginSchema.
 export const portalForgotPinSchema = z.object({

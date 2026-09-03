@@ -35,7 +35,14 @@ import * as couponsService from '@/modules/coupons/service';
 import * as waitlistService from '@/modules/waitlist/service';
 // Permitted cross-module call, same posture as communications: every new/
 // returning registrant gets student-portal access (system review, 2026-07-22).
-import { ensureParticipantAuth } from '@/modules/portal/service';
+// getStatementDataForParticipantSystem (2026-09-03): portal owns the
+// account-statement assembly (it is the same data the student's own portal
+// shows); this module only adds the staff role check before delegating.
+import {
+  ensureParticipantAuth,
+  getStatementDataForParticipantSystem,
+} from '@/modules/portal/service';
+import type { PortalStatementData } from '@/modules/portal/types';
 // Permitted cross-module call, same posture as above — batch transfer needs
 // to re-register a Paid participant against the destination Batch's Zoom
 // meeting (system review, 2026-07-24).
@@ -953,6 +960,9 @@ export async function getRegistration360(registrationId: string): Promise<Regist
       (staffUser.role === 'admin' || staffUser.role === 'finance') &&
       data.registration.registration_status !== 'Lapsed' &&
       data.payment?.payment_status !== 'Paid',
+    // Same audience as the payment audit fields (Document 5, Section 3);
+    // getParticipantStatementForStaff re-checks the role itself.
+    canViewStatement: staffUser.role === 'admin' || staffUser.role === 'finance',
     registration: {
       id: data.registration.id,
       registrationStatus: parseRegistrationStatus(data.registration.registration_status),
@@ -965,6 +975,7 @@ export async function getRegistration360(registrationId: string): Promise<Regist
     },
     participant: data.participant
       ? {
+          id: data.participant.id,
           fullName: data.participant.full_name,
           email: data.participant.email,
           phone: data.participant.phone,
@@ -1109,6 +1120,17 @@ function shapeRegistration360ForRole(
   }
 
   return view;
+}
+
+// Account statement for staff (2026-09-03) — admin + finance only, the same
+// audience as the payment audit fields above. The data assembly itself lives
+// in the portal module so the staff download and the student's own portal
+// statement can never drift apart.
+export async function getParticipantStatementForStaff(
+  participantId: string,
+): Promise<PortalStatementData> {
+  await usersService.requireRole(['admin', 'finance']);
+  return getStatementDataForParticipantSystem(participantId);
 }
 
 // Ad-hoc registrant messaging (2026-08-01, Admin Assistant tools) — a

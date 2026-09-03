@@ -51,6 +51,8 @@ export default function StaffUserManagementPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
+  const [participantSearch, setParticipantSearch] = useState('');
+
   const [showAddForm, setShowAddForm] = useState(false);
   const [newUser, setNewUser] = useState({ fullName: '', email: '', role: 'finance' });
   const [saving, setSaving] = useState(false);
@@ -198,6 +200,19 @@ export default function StaffUserManagementPage() {
     }
   }
 
+  // Client-side is enough here: /api/participants is deliberately
+  // unpaginated (selectParticipantsForAdmin), so the full list is already
+  // in hand. Both participant cards below share this one filter.
+  const participantQuery = participantSearch.trim().toLowerCase();
+  const filteredParticipants = participantQuery
+    ? participants.filter(
+        (participant) =>
+          participant.full_name.toLowerCase().includes(participantQuery) ||
+          participant.email.toLowerCase().includes(participantQuery) ||
+          participant.phone.toLowerCase().includes(participantQuery),
+      )
+    : participants;
+
   return (
     <div className="max-w-5xl space-y-8">
       <div className="flex items-center justify-between">
@@ -309,6 +324,21 @@ export default function StaffUserManagementPage() {
         they are created.
       </p>
 
+      <div className="space-y-1">
+        <h2 className="text-lg font-semibold">Registered Participants</h2>
+        <Input
+          placeholder="Search name / email / phone"
+          className="h-9 w-72"
+          value={participantSearch}
+          onChange={(event) => setParticipantSearch(event.target.value)}
+        />
+        {participantQuery && (
+          <p className="text-sm text-muted-foreground">
+            {filteredParticipants.length} of {participants.length} participants match.
+          </p>
+        )}
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
@@ -326,15 +356,17 @@ export default function StaffUserManagementPage() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
+                <TableHead>Phone</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {participants.map((participant) => (
+              {filteredParticipants.map((participant) => (
                 <TableRow key={participant.id}>
                   <TableCell>{participant.full_name}</TableCell>
                   <TableCell>{participant.email}</TableCell>
+                  <TableCell>{participant.phone}</TableCell>
                   <TableCell>
                     {participant.deleted_at ? (
                       <Badge variant="outline">
@@ -345,6 +377,17 @@ export default function StaffUserManagementPage() {
                     )}
                   </TableCell>
                   <TableCell className="text-right">
+                    {!participant.deleted_at && (
+                      <Button variant="outline" size="sm" className="mr-2" asChild>
+                        <a
+                          href={`/api/participants/${participant.id}/statement`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Statement
+                        </a>
+                      </Button>
+                    )}
                     {participant.deleted_at ? (
                       <Button
                         variant="destructive"
@@ -390,7 +433,7 @@ export default function StaffUserManagementPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {participants.map((participant) => (
+              {filteredParticipants.map((participant) => (
                 <TableRow key={participant.id}>
                   <TableCell>{participant.full_name}</TableCell>
                   <TableCell>{participant.email}</TableCell>

@@ -247,6 +247,10 @@ export interface Registration360 {
   // (2026-08-09) — computed server-side so the dialog can show the right
   // action without guessing; lapseRegistration re-checks both itself.
   canLapse: boolean;
+  // Admin + finance (2026-09-03) — the roles that may download a
+  // participant's account statement (same audience as the payment audit
+  // fields); the statement API re-checks the role itself.
+  canViewStatement: boolean;
   registration: {
     id: string;
     registrationStatus: RegistrationStatus;
@@ -258,6 +262,9 @@ export interface Registration360 {
     lapsedReason: string | null;
   };
   participant: {
+    // id (2026-09-03) — lets the staff UI link to the participant-scoped
+    // account-statement download.
+    id: string;
     fullName: string;
     email: string;
     phone: string;

@@ -26,6 +26,7 @@ import { formatDate, formatGhs } from '@/lib/utils';
 interface Registration360 {
   canDelete: boolean;
   canLapse: boolean;
+  canViewStatement: boolean;
   registration: {
     id: string;
     registrationStatus: string;
@@ -37,6 +38,7 @@ interface Registration360 {
     lapsedReason: string | null;
   };
   participant: {
+    id: string;
     fullName: string;
     email: string;
     phone: string;
@@ -522,6 +524,19 @@ export function RegistrationDetailDialog(props: {
                     </>
                   )}
                 </div>
+                {data.canViewStatement && data.participant && (
+                  <div className="mt-3">
+                    <Button variant="outline" size="sm" asChild>
+                      <a
+                        href={`/api/participants/${data.participant.id}/statement`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Download account statement
+                      </a>
+                    </Button>
+                  </div>
+                )}
               </Section>
             )}
 

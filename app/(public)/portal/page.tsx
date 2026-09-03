@@ -1602,6 +1602,14 @@ export default function PortalDashboardPage() {
                 <h2 className="panel-title">Payment history</h2>
                 <p className="panel-sub">One receipt per course, generated fresh each time so it always reflects your latest payment.</p>
 
+                {payableRegistrations.length > 0 && (
+                  <p style={{ marginBottom: 16 }}>
+                    <a className="btn btn-ghost btn-sm" href="/api/portal/statement" target="_blank" rel="noreferrer">
+                      <svg className="icon" style={{ width: 14, height: 14 }}><use href="#i-download" /></svg>Account statement
+                    </a>
+                  </p>
+                )}
+
                 {/* Outstanding balances first (2026-08-07). This panel used to
                     show only history, so someone who came here to settle a
                     balance saw what they owed and had no way to pay it — the

@@ -81,7 +81,9 @@ export async function generateReceiptPdf(data: ReceiptPdfData): Promise<Uint8Arr
 
   cursorTop += 20;
   const columns = { desc: 48, fee: 420, paid: 500 };
-  page.drawRectangle({ x: 48, y: y(cursorTop) - 4, width: width - 96, height: 22, color: INK });
+  // The bar must cover the label baselines drawn at cursorTop+12 below —
+  // anchored any higher it leaves white-on-white, invisible labels.
+  page.drawRectangle({ x: 48, y: y(cursorTop + 18), width: width - 96, height: 22, color: INK });
   page.drawText('Description', { x: columns.desc + 6, y: y(cursorTop + 12), size: 10, font: bold, color: rgb(1, 1, 1) });
   page.drawText('Fee', { x: columns.fee, y: y(cursorTop + 12), size: 10, font: bold, color: rgb(1, 1, 1) });
   page.drawText('Paid', { x: columns.paid, y: y(cursorTop + 12), size: 10, font: bold, color: rgb(1, 1, 1) });

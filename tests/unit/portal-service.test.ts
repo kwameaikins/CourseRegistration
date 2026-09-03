@@ -65,6 +65,8 @@ const {
   updateName,
   getReceiptData,
   getReceiptDataForStaff,
+  getStatementData,
+  getStatementDataForParticipantSystem,
   getStudentStatusForStaff,
   getOtherCourses,
   hasCourseEnded,
@@ -845,6 +847,183 @@ describe('getReceiptDataForStaff', () => {
       code: 'NOT_FOUND',
     });
     expect(repositoryMock.selectPortalDashboardData).not.toHaveBeenCalled();
+  });
+});
+
+// Account statement (2026-09-03) — the account-wide companion to the receipt.
+function statementDashboardRow(overrides: Record<string, unknown> = {}) {
+  return receiptDashboardRow({
+    registration: {
+      id: 'reg-1',
+      batch_id: 'batch-1',
+      registered_at: '2026-07-01T09:00:00Z',
+      registration_status: 'Attended',
+    },
+    batch: { cohort_label: 'JUL-2026', start_date: '2026-08-01', is_free: false },
+    payment: {
+      course_fee: '1200.00',
+      amount_paid: '1200.00',
+      balance: '0.00',
+      discount_amount: '0.00',
+      payment_status: 'Paid',
+      payment_method: 'Mobile Money',
+      transaction_id: 'TXN-123',
+      payment_date: '2026-07-20',
+    },
+    ...overrides,
+  });
+}
+
+describe('getStatementData / getStatementDataForParticipantSystem', () => {
+  beforeEach(() => {
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [statementDashboardRow()],
+    });
+  });
+
+  it('returns one row per registration with grand totals', async () => {
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [
+        statementDashboardRow(),
+        statementDashboardRow({
+          registration: {
+            id: 'reg-2',
+            batch_id: 'batch-2',
+            registered_at: '2026-08-01T09:00:00Z',
+            registration_status: 'Confirmed',
+          },
+          batch: { cohort_label: 'AUG-2026', start_date: '2026-09-01', is_free: false },
+          course: { course_name: 'ICAG Level 2 Prep', course_code: 'ICAG-L2' },
+          payment: {
+            course_fee: '1900.00',
+            amount_paid: '500.00',
+            balance: '1400.00',
+            discount_amount: '100.00',
+            payment_status: 'Part Payment',
+            payment_method: null,
+            transaction_id: null,
+            payment_date: null,
+          },
+        }),
+      ],
+    });
+
+    const statement = await getStatementData('session-1');
+
+    expect(statement).toMatchObject({
+      participantId: 'participant-1',
+      participantName: 'Ama Owusu',
+      participantEmail: 'ama@example.com',
+      participantPhone: '0245121941',
+    });
+    expect(statement.rows).toEqual([
+      expect.objectContaining({
+        courseName: 'ICAG Level 1 Prep',
+        cohortLabel: 'JUL-2026',
+        courseFee: 1200,
+        amountPaid: 1200,
+        balance: 0,
+        paymentStatus: 'Paid',
+        isFree: false,
+        writtenOff: false,
+      }),
+      expect.objectContaining({
+        courseName: 'ICAG Level 2 Prep',
+        courseFee: 1900,
+        discountAmount: 100,
+        amountPaid: 500,
+        balance: 1400,
+        paymentStatus: 'Part Payment',
+      }),
+    ]);
+    expect(statement.totals).toEqual({ fees: 3100, paid: 1700, balanceDue: 1400 });
+  });
+
+  it('keeps a written-off row (with its real balance) but excludes it from Balance due', async () => {
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [
+        statementDashboardRow({
+          registration: {
+            id: 'reg-1',
+            batch_id: 'batch-1',
+            registered_at: '2026-07-01T09:00:00Z',
+            registration_status: 'Lapsed',
+          },
+          payment: {
+            course_fee: '1200.00',
+            amount_paid: '200.00',
+            balance: '1000.00',
+            discount_amount: '0.00',
+            payment_status: 'Part Payment',
+            payment_method: null,
+            transaction_id: null,
+            payment_date: null,
+          },
+        }),
+      ],
+    });
+
+    const statement = await getStatementData('session-1');
+    expect(statement.rows[0]).toMatchObject({ writtenOff: true, balance: 1000 });
+    expect(statement.totals.balanceDue).toBe(0);
+  });
+
+  it('flags free-event rows', async () => {
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [
+        statementDashboardRow({
+          batch: { cohort_label: 'JUL-2026', start_date: '2026-08-01', is_free: true },
+          payment: {
+            course_fee: '0.00',
+            amount_paid: '0.00',
+            balance: '0.00',
+            discount_amount: '0.00',
+            payment_status: 'Paid',
+            payment_method: null,
+            transaction_id: null,
+            payment_date: null,
+          },
+        }),
+      ],
+    });
+
+    const statement = await getStatementData('session-1');
+    expect(statement.rows[0]).toMatchObject({ isFree: true, courseFee: 0 });
+  });
+
+  it('still produces a statement for an account with no registrations', async () => {
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [],
+    });
+
+    const statement = await getStatementData('session-1');
+    expect(statement.rows).toEqual([]);
+    expect(statement.totals).toEqual({ fees: 0, paid: 0, balanceDue: 0 });
+  });
+
+  it('rejects when the session is missing or expired', async () => {
+    repositoryMock.selectSession.mockResolvedValue(null);
+    await expect(getStatementData('session-1')).rejects.toMatchObject({
+      code: 'UNAUTHENTICATED',
+    });
+  });
+
+  it('staff variant needs no session but rejects an unknown participant', async () => {
+    const statement = await getStatementDataForParticipantSystem('participant-1');
+    expect(statement.participantName).toBe('Ama Owusu');
+
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: null,
+      registrations: [],
+    });
+    await expect(getStatementDataForParticipantSystem('participant-missing')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
   });
 });
 
