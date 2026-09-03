@@ -8,6 +8,7 @@ import * as accessGrantsService from '@/modules/access-grants/service';
 import * as registrationsService from '@/modules/registrations/service';
 import * as certificatesService from '@/modules/certificates/service';
 import * as sequencesService from '@/modules/sequences/service';
+import * as agentsService from '@/modules/agents/service';
 
 // GET /api/cron/reminders — F1.07 (E03–E06), triggered daily at 07:00 UTC by
 // Vercel Cron (BR-17). Also dispatches post-course feedback requests for
@@ -72,6 +73,11 @@ export async function GET(request: Request) {
     // step of every ACTIVE sequence; opt-outs honoured per send. Bundled here
     // for the same Vercel Hobby two-cron-job cap reason as everything above.
     const sequences = await sequencesService.runSequenceDispatch();
+    // Autonomous agents (Agentic layer, 2026-09-03) — each env-gated and
+    // internally isolated; a model failure reports as 'failed' in the
+    // summary, never as a failed cron. Bundled here for the same Vercel
+    // Hobby two-cron-job cap reason as everything above.
+    const agents = await agentsService.runAgentDispatch();
     return successResponse({
       ...summary,
       installments,
@@ -85,6 +91,7 @@ export async function GET(request: Request) {
       autoLapse,
       certificateIssuance,
       sequences,
+      agents,
     });
   } catch (err) {
     // A failed cron run affects many participants at once — must be visible

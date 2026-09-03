@@ -347,6 +347,67 @@ export async function sendEmailToLead(
   await logActivity(leadId, 'message_sent', `Email sent: "${subject.slice(0, 200)}"`, null);
 }
 
+// Agentic layer (2026-09-03): system entry points for the autonomous agents.
+// A suggestion is an activity plus a due-now follow-up (only where no
+// schedule exists), so it surfaces in the /follow-up queue — the agent's one
+// output channel to a human. Agents never send or change status through this.
+export async function recordAgentSuggestionSystem(
+  leadId: string,
+  description: string,
+): Promise<void> {
+  await logActivity(leadId, 'agent_suggestion', description.slice(0, 2000), null);
+  const lead = await leadsRepository.selectLeadById(leadId);
+  if (lead && !lead.next_follow_up_at) {
+    await leadsRepository.updateLead(leadId, {
+      next_follow_up_at: new Date().toISOString(),
+    });
+  }
+}
+
+export async function recentAgentSuggestionLeadIdsSystem(days: number): Promise<Set<string>> {
+  const sinceIso = new Date(Date.now() - days * 86_400_000).toISOString();
+  return leadsRepository.selectRecentAgentSuggestionLeadIds(sinceIso);
+}
+
+// Bounded, reasoned score adjustment from the triage agent. The clamp lives
+// HERE, not in the agent: whatever the model says, a single run can never
+// move a score more than 15 points, and the reason is always on the timeline.
+export async function applyAgentScoreAdjustmentSystem(
+  leadId: string,
+  adjustment: number,
+  reason: string,
+): Promise<void> {
+  const lead = await leadsRepository.selectLeadById(leadId);
+  if (!lead) return;
+  const bounded = Math.max(-15, Math.min(15, Math.round(adjustment)));
+  if (bounded === 0) return;
+  const next = Math.max(0, Math.min(100, lead.score + bounded));
+  if (next === lead.score) return;
+  await leadsRepository.updateLead(leadId, { score: next });
+  await logActivity(
+    leadId,
+    'score_changed',
+    `Score changed from ${lead.score} to ${next} by the triage agent: ${reason.slice(0, 400)}`,
+    null,
+  );
+}
+
+export async function scheduleAgentFollowUpSystem(
+  leadId: string,
+  days: number,
+  reason: string,
+): Promise<void> {
+  const bounded = Math.max(1, Math.min(30, Math.round(days)));
+  const at = new Date(Date.now() + bounded * 86_400_000).toISOString();
+  await leadsRepository.updateLead(leadId, { next_follow_up_at: at });
+  await logActivity(
+    leadId,
+    'follow_up_scheduled',
+    `Follow-up scheduled for ${at.slice(0, 10)} by the triage agent: ${reason.slice(0, 400)}`,
+    null,
+  );
+}
+
 // Voice-call → lead timeline bridge (Revenue OS Phase 2): call_log is
 // registration-scoped, so until now calls never appeared on the lead. Called
 // from the Vapi webhook after a call completes; fail-soft there.

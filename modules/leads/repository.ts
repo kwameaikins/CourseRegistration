@@ -165,6 +165,19 @@ export async function insertLeadActivity(input: {
   if (error) throw error;
 }
 
+// Agent dedup (Agentic layer, 2026-09-03): which leads already got an agent
+// suggestion recently, so a nightly run never nags the same lead twice.
+export async function selectRecentAgentSuggestionLeadIds(sinceIso: string): Promise<Set<string>> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('lead_activities')
+    .select('lead_id')
+    .eq('activity_type', 'agent_suggestion')
+    .gte('created_at', sinceIso);
+  if (error) throw error;
+  return new Set((data ?? []).map((row) => row.lead_id));
+}
+
 export async function selectLeadActivities(leadId: string): Promise<LeadActivityRow[]> {
   const supabase = createSupabaseServiceRoleClient();
   const { data, error } = await supabase

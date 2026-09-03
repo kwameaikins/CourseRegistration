@@ -46,6 +46,9 @@ const {
   backfillAssignmentRule,
   sendSmsToLead,
   sendEmailToLead,
+  applyAgentScoreAdjustmentSystem,
+  scheduleAgentFollowUpSystem,
+  recordAgentSuggestionSystem,
 } = await import('@/modules/leads/service');
 
 beforeEach(() => {
@@ -791,5 +794,49 @@ describe('getPipelineSummary', () => {
       averageScore: 50,
       unassigned: 2,
     });
+  });
+});
+
+describe('agent system helpers (Agentic layer) — the clamps live in the service', () => {
+  it('clamps a score adjustment to ±15 whatever the model claimed', async () => {
+    leadsRepositoryMock.selectLeadById.mockResolvedValue({
+      id: 'lead-1', score: 50, next_follow_up_at: null,
+    });
+    await applyAgentScoreAdjustmentSystem('lead-1', 100, 'very keen');
+    expect(leadsRepositoryMock.updateLead).toHaveBeenCalledWith('lead-1', { score: 65 });
+
+    leadsRepositoryMock.updateLead.mockClear();
+    await applyAgentScoreAdjustmentSystem('lead-1', -100, 'gone cold');
+    expect(leadsRepositoryMock.updateLead).toHaveBeenCalledWith('lead-1', { score: 35 });
+  });
+
+  it('never pushes a score outside 0–100', async () => {
+    leadsRepositoryMock.selectLeadById.mockResolvedValue({
+      id: 'lead-1', score: 95, next_follow_up_at: null,
+    });
+    await applyAgentScoreAdjustmentSystem('lead-1', 15, 'hot');
+    expect(leadsRepositoryMock.updateLead).toHaveBeenCalledWith('lead-1', { score: 100 });
+  });
+
+  it('bounds an agent follow-up to 1–30 days', async () => {
+    await scheduleAgentFollowUpSystem('lead-1', 400, 'they said next year');
+    const [, changes] = leadsRepositoryMock.updateLead.mock.calls.at(-1)!;
+    const scheduled = new Date(changes.next_follow_up_at as string).getTime();
+    const daysOut = (scheduled - Date.now()) / 86_400_000;
+    expect(daysOut).toBeLessThanOrEqual(30.1);
+    expect(daysOut).toBeGreaterThan(29);
+  });
+
+  it('a suggestion starts the follow-up clock only where none is running', async () => {
+    leadsRepositoryMock.selectLeadById.mockResolvedValue({
+      id: 'lead-1', next_follow_up_at: '2026-10-01T00:00:00Z',
+    });
+    leadsRepositoryMock.updateLead.mockClear();
+    await recordAgentSuggestionSystem('lead-1', 'Suggested message: hello');
+    expect(leadsRepositoryMock.insertLeadActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ activity_type: 'agent_suggestion' }),
+    );
+    // Existing schedule untouched.
+    expect(leadsRepositoryMock.updateLead).not.toHaveBeenCalled();
   });
 });

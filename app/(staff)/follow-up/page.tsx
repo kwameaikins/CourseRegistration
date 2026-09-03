@@ -48,11 +48,32 @@ export default function FollowUpPage() {
   const [outcomes, setOutcomes] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
 
+  const [suggestions, setSuggestions] = useState<Record<string, string>>({});
+
   const reload = useCallback(async () => {
     try {
       const data = await apiFetch<{ leads: LeadRow[] }>('/api/leads?dueForFollowUp=true');
       setLeads(data.leads);
       setError('');
+      // Latest agent suggestion per queued lead (Agentic layer): the queue is
+      // small, so per-lead fetches are fine, and a failure only hides the
+      // hint — the queue itself already rendered.
+      const entries = await Promise.all(
+        data.leads.map(async (lead) => {
+          try {
+            const detail = await apiFetch<{
+              activities: Array<{ activityType: string; description: string; createdAt: string }>;
+            }>(`/api/leads/${lead.id}`);
+            const suggestion = detail.activities.find(
+              (activity) => activity.activityType === 'agent_suggestion',
+            );
+            return [lead.id, suggestion?.description ?? ''] as const;
+          } catch {
+            return [lead.id, ''] as const;
+          }
+        }),
+      );
+      setSuggestions(Object.fromEntries(entries.filter(([, text]) => text)));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load the follow-up queue.');
     } finally {
@@ -146,6 +167,11 @@ export default function FollowUpPage() {
               {lead.notes && (
                 <p className="rounded bg-muted/50 p-2 text-sm text-muted-foreground">
                   {lead.notes}
+                </p>
+              )}
+              {suggestions[lead.id] && (
+                <p className="rounded border border-primary/30 bg-primary/5 p-2 text-sm">
+                  <span className="font-semibold">🤖 Agent:</span> {suggestions[lead.id]}
                 </p>
               )}
               <textarea

@@ -123,6 +123,16 @@ export async function getDashboardSummary(
   range: DashboardDateRange = {},
 ): Promise<DashboardSummary> {
   await usersService.requireRole(['admin', 'management']);
+  return computeDashboardSummary(range);
+}
+
+// The computation without the role gate (Agentic layer, 2026-09-03): the
+// executive digest agent runs from the cron with no session and reads the
+// same numbers the dashboard shows — one computation, zero drift. System
+// callers only; the route path above stays role-checked.
+export async function computeDashboardSummary(
+  range: DashboardDateRange = {},
+): Promise<DashboardSummary> {
   const hasRange = Boolean(range.dateFrom || range.dateTo);
 
   // The headline tiles default to "this month"; the ledger and funnel reads

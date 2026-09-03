@@ -65,7 +65,11 @@ export interface LeadActivity {
     // salesperson cannot see what was already said" gap:
     | 'message_sent'
     | 'call_logged'
-    | 'outcome_recorded';
+    | 'outcome_recorded'
+    // Agentic layer (2026-09-03): a proposal from an autonomous agent — a
+    // drafted message, a call recommendation, a "consider marking Lost".
+    // Always a suggestion, never an executed action.
+    | 'agent_suggestion';
   description: string;
   performedBy: string | null;
   createdAt: string;
