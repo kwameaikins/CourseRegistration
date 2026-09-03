@@ -7,6 +7,9 @@ export interface LeadTriageSummary {
   suggestions: number;
   followUpsScheduled: number;
   scoresAdjusted: number;
+  // Autonomy tier 1: SMS the agent sent itself (AGENT_LEAD_TRIAGE_AUTOSEND,
+  // Cold+stale leads only, capped per run).
+  autoSent: number;
   skippedCooldown: number;
   errors: string[];
 }

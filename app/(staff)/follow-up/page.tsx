@@ -49,6 +49,36 @@ export default function FollowUpPage() {
   const [savingId, setSavingId] = useState<string | null>(null);
 
   const [suggestions, setSuggestions] = useState<Record<string, string>>({});
+  // Editable copy of each agent draft; comparing against the original at send
+  // time yields the unedited flag — the edit-rate metric that decides
+  // autonomy promotion.
+  const [draftEdits, setDraftEdits] = useState<Record<string, string>>({});
+  const [sendingDraftId, setSendingDraftId] = useState<string | null>(null);
+
+  // The agent records suggestions as: Suggested message: "..." — reason
+  function parseDraft(suggestion: string): string | null {
+    const match = suggestion.match(/Suggested message: "([\s\S]*)" — /);
+    return match ? match[1] : null;
+  }
+
+  async function sendDraft(leadId: string) {
+    const original = parseDraft(suggestions[leadId] ?? '') ?? '';
+    const message = (draftEdits[leadId] ?? original).trim();
+    if (message.length < 5) return;
+    setSendingDraftId(leadId);
+    setError('');
+    try {
+      await apiFetch(`/api/leads/${leadId}/send-draft`, {
+        method: 'POST',
+        body: JSON.stringify({ message, unedited: message === original.trim() }),
+      });
+      await reload();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not send the message.');
+    } finally {
+      setSendingDraftId(null);
+    }
+  }
 
   const reload = useCallback(async () => {
     try {
@@ -170,9 +200,32 @@ export default function FollowUpPage() {
                 </p>
               )}
               {suggestions[lead.id] && (
-                <p className="rounded border border-primary/30 bg-primary/5 p-2 text-sm">
-                  <span className="font-semibold">🤖 Agent:</span> {suggestions[lead.id]}
-                </p>
+                <div className="space-y-2 rounded border border-primary/30 bg-primary/5 p-2 text-sm">
+                  <p>
+                    <span className="font-semibold">🤖 Agent:</span> {suggestions[lead.id]}
+                  </p>
+                  {parseDraft(suggestions[lead.id]) !== null && (
+                    <div className="flex items-start gap-2">
+                      <textarea
+                        className="min-h-[52px] w-full rounded-md border border-input bg-background p-2 text-sm"
+                        value={draftEdits[lead.id] ?? parseDraft(suggestions[lead.id]) ?? ''}
+                        onChange={(event) =>
+                          setDraftEdits((current) => ({
+                            ...current,
+                            [lead.id]: event.target.value,
+                          }))
+                        }
+                      />
+                      <Button
+                        size="sm"
+                        disabled={sendingDraftId === lead.id}
+                        onClick={() => void sendDraft(lead.id)}
+                      >
+                        {sendingDraftId === lead.id ? 'Sending…' : 'Send SMS'}
+                      </Button>
+                    </div>
+                  )}
+                </div>
               )}
               <textarea
                 className="min-h-[64px] w-full rounded-md border border-input bg-background p-2 text-sm"

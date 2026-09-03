@@ -22,6 +22,12 @@ const leadsRepositoryMock = {
 };
 const sendTransactionalEmailMock = vi.fn();
 const sendSmsMessageMock = vi.fn();
+const marketingConsentServiceMock = {
+  isOptedOut: vi.fn(),
+  optedOutSubset: vi.fn(),
+  optOut: vi.fn(),
+};
+vi.mock('@/modules/marketing-consent/service', () => marketingConsentServiceMock);
 
 vi.mock('@/modules/leads/repository', () => leadsRepositoryMock);
 vi.mock('@/lib/resend/client', () => ({
@@ -49,6 +55,7 @@ const {
   applyAgentScoreAdjustmentSystem,
   scheduleAgentFollowUpSystem,
   recordAgentSuggestionSystem,
+  sendAgentSmsSystem,
 } = await import('@/modules/leads/service');
 
 beforeEach(() => {
@@ -838,5 +845,62 @@ describe('agent system helpers (Agentic layer) — the clamps live in the servic
     );
     // Existing schedule untouched.
     expect(leadsRepositoryMock.updateLead).not.toHaveBeenCalled();
+  });
+});
+
+describe('sendAgentSmsSystem — the shared guardrail for drafts and autosend', () => {
+  const fullRow = (overrides: Record<string, unknown> = {}) => ({
+    id: 'lead-1', registration_id: null, participant_id: null,
+    full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941',
+    job_title: null, company: null, lead_source: 'Website', status: 'New',
+    score: 30, assigned_to: null, notes: null, next_follow_up_at: null,
+    attribution: null, created_at: '2026-08-01T00:00:00Z', updated_at: '',
+    ...overrides,
+  });
+
+  it('sends and stamps the edit-rate marker per mode', async () => {
+    leadsRepositoryMock.selectLeadById.mockResolvedValue(fullRow());
+    marketingConsentServiceMock.isOptedOut.mockResolvedValue(false);
+
+    expect(await sendAgentSmsSystem('lead-1', 'Hi Ama', 'manual_unedited', 'staff-1')).toBe('sent');
+    expect(sendSmsMessageMock).toHaveBeenCalledWith({ toPhone: '0245121941', message: 'Hi Ama' });
+    expect(leadsRepositoryMock.insertLeadActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activity_type: 'message_sent',
+        description: expect.stringContaining('agent draft, unedited'),
+      }),
+    );
+
+    await sendAgentSmsSystem('lead-1', 'Hi Ama edited', 'manual_edited', 'staff-1');
+    expect(leadsRepositoryMock.insertLeadActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ description: expect.stringContaining('agent draft, edited') }),
+    );
+
+    await sendAgentSmsSystem('lead-1', 'Hi Ama auto', 'auto', null);
+    expect(leadsRepositoryMock.insertLeadActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ description: expect.stringContaining('auto-sent by triage agent') }),
+    );
+  });
+
+  it('an opted-out address is never messaged', async () => {
+    leadsRepositoryMock.selectLeadById.mockResolvedValue(fullRow());
+    marketingConsentServiceMock.isOptedOut.mockResolvedValue(true);
+    expect(await sendAgentSmsSystem('lead-1', 'Hi', 'auto', null)).toBe('skipped_opt_out');
+    expect(sendSmsMessageMock).not.toHaveBeenCalled();
+  });
+
+  it('a consent-lookup outage fails CLOSED for autonomous sends', async () => {
+    leadsRepositoryMock.selectLeadById.mockResolvedValue(fullRow());
+    marketingConsentServiceMock.isOptedOut.mockRejectedValue(new Error('db down'));
+    expect(await sendAgentSmsSystem('lead-1', 'Hi', 'auto', null)).toBe('skipped_opt_out');
+    expect(sendSmsMessageMock).not.toHaveBeenCalled();
+    // …but open for a human-reviewed send: one message a person approved.
+    expect(await sendAgentSmsSystem('lead-1', 'Hi', 'manual_unedited', 'staff-1')).toBe('sent');
+  });
+
+  it('no phone, no send', async () => {
+    leadsRepositoryMock.selectLeadById.mockResolvedValue(fullRow({ phone: '' }));
+    expect(await sendAgentSmsSystem('lead-1', 'Hi', 'auto', null)).toBe('skipped_no_phone');
+    expect(sendSmsMessageMock).not.toHaveBeenCalled();
   });
 });

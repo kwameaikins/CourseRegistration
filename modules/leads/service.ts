@@ -19,6 +19,8 @@ import type { Attribution } from '@/lib/attribution';
 // owns nurture enrollment; leads only signals its lifecycle moments. Every
 // call is fail-soft: nurture must never break lead writes.
 import * as sequencesService from '@/modules/sequences/service';
+// Opt-out enforcement for agent-drafted sends (Autonomy tier 1, 2026-09-03).
+import * as marketingConsentService from '@/modules/marketing-consent/service';
 import type { Database } from '@/lib/supabase/database.types';
 
 type LeadRow = Database['public']['Tables']['leads']['Row'];
@@ -406,6 +408,49 @@ export async function scheduleAgentFollowUpSystem(
     `Follow-up scheduled for ${at.slice(0, 10)} by the triage agent: ${reason.slice(0, 400)}`,
     null,
   );
+}
+
+// Agent-drafted SMS sends (Autonomy tier 1, 2026-09-03). One function serves
+// both paths so the guardrails cannot diverge:
+//   'manual_unedited' / 'manual_edited' — a human pressed Send on an agent
+//     draft in /follow-up. The mode IS the edit-rate instrumentation: the
+//     promotion-to-autonomy decision is arithmetic over these activity rows.
+//   'auto' — the triage agent sent it itself (AGENT_LEAD_TRIAGE_AUTOSEND).
+// Marketing opt-outs are enforced HERE, so no caller can forget them.
+export async function sendAgentSmsSystem(
+  leadId: string,
+  message: string,
+  mode: 'auto' | 'manual_unedited' | 'manual_edited',
+  performedBy: string | null,
+): Promise<'sent' | 'skipped_opt_out' | 'skipped_no_phone'> {
+  const lead = await getLeadById(leadId);
+  if (!lead.phone) return 'skipped_no_phone';
+  try {
+    if (await marketingConsentService.isOptedOut(lead.email)) {
+      return 'skipped_opt_out';
+    }
+  } catch (err) {
+    // Fail-open with a loud error, same posture as campaign sends: a consent
+    // lookup outage should not block one human-reviewed message — but for
+    // AUTO sends, fail closed: no consent check, no autonomous send.
+    console.error('[agent sms opt-out check]', err);
+    if (mode === 'auto') return 'skipped_opt_out';
+  }
+
+  await sendSmsMessage({ toPhone: lead.phone, message });
+  const label =
+    mode === 'auto'
+      ? 'SMS auto-sent by triage agent'
+      : mode === 'manual_unedited'
+        ? 'SMS sent (agent draft, unedited)'
+        : 'SMS sent (agent draft, edited)';
+  await logActivity(
+    leadId,
+    'message_sent',
+    `${label}: "${message.slice(0, 240)}${message.length > 240 ? '…' : ''}"`,
+    performedBy,
+  );
+  return 'sent';
 }
 
 // Voice-call → lead timeline bridge (Revenue OS Phase 2): call_log is

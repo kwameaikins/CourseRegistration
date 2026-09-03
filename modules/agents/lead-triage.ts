@@ -16,6 +16,22 @@ const MAX_LEADS_PER_RUN = 30;
 const SUGGESTION_COOLDOWN_DAYS = 7;
 const OPEN_STATUSES = ['New', 'Qualified', 'Follow-up'] as const;
 
+// Autonomy tier 1 (2026-09-03): with AGENT_LEAD_TRIAGE_AUTOSEND=true, the
+// agent may SEND its drafted SMS itself — but only to the "nothing to lose"
+// class, and only within these bounds. Everything outside the bounds falls
+// back to a suggestion for a human. Promotion criterion for widening this
+// class: the measured unedited-send rate in /follow-up plus conversion
+// parity — never a vibe.
+const MAX_AUTOSEND_PER_RUN = 10;
+const AUTOSEND_MAX_SCORE = 39; // Cold band only
+const AUTOSEND_MIN_STALE_DAYS = 14; // untouched this long
+const AUTOSEND_MIN_CHARS = 20;
+const AUTOSEND_MAX_CHARS = 320;
+
+function autosendEnabled(): boolean {
+  return process.env.AGENT_LEAD_TRIAGE_AUTOSEND === 'true';
+}
+
 interface TriageDecision {
   leadId: string;
   action: 'suggest_message' | 'schedule_follow_up' | 'suggest_lost' | 'suggest_call' | 'leave';
@@ -63,7 +79,7 @@ ${blocks}`;
 export async function runLeadTriageAgent(): Promise<LeadTriageSummary> {
   const summary: LeadTriageSummary = {
     evaluated: 0, suggestions: 0, followUpsScheduled: 0, scoresAdjusted: 0,
-    skippedCooldown: 0, errors: [],
+    autoSent: 0, skippedCooldown: 0, errors: [],
   };
 
   const allLeads = await leadsService.listLeads();
@@ -83,9 +99,18 @@ export async function runLeadTriageAgent(): Promise<LeadTriageSummary> {
   const batch = eligible.slice(0, MAX_LEADS_PER_RUN);
   if (batch.length === 0) return summary;
 
+  // Kept alongside the prompt blocks: the auto-send eligibility check needs
+  // the raw lead + how long it has sat untouched.
+  const infoById = new Map<string, { score: number; staleDays: number }>();
+
   const enriched = await Promise.all(
     batch.map(async (lead) => {
       const { activities } = await leadsService.getLeadWithActivities(lead.id);
+      const lastTouch = activities[0]?.createdAt ?? lead.createdAt;
+      infoById.set(lead.id, {
+        score: lead.score,
+        staleDays: Math.floor((Date.now() - new Date(lastTouch).getTime()) / 86_400_000),
+      });
       return {
         id: lead.id,
         profile:
@@ -133,13 +158,36 @@ export async function runLeadTriageAgent(): Promise<LeadTriageSummary> {
           );
           summary.followUpsScheduled += 1;
           break;
-        case 'suggest_message':
+        case 'suggest_message': {
+          const draft = (decision.draftMessage ?? '').trim();
+          const info = infoById.get(decision.leadId);
+          const eligibleForAutosend =
+            autosendEnabled() &&
+            summary.autoSent < MAX_AUTOSEND_PER_RUN &&
+            info !== undefined &&
+            info.score <= AUTOSEND_MAX_SCORE &&
+            info.staleDays >= AUTOSEND_MIN_STALE_DAYS &&
+            draft.length >= AUTOSEND_MIN_CHARS &&
+            draft.length <= AUTOSEND_MAX_CHARS;
+
+          if (eligibleForAutosend) {
+            // Opt-outs and missing phones are enforced inside the send; any
+            // skip falls back to a human suggestion rather than vanishing.
+            const outcome = await leadsService.sendAgentSmsSystem(
+              decision.leadId, draft, 'auto', null,
+            );
+            if (outcome === 'sent') {
+              summary.autoSent += 1;
+              break;
+            }
+          }
           await leadsService.recordAgentSuggestionSystem(
             decision.leadId,
-            `Suggested message: "${(decision.draftMessage ?? '').slice(0, 400)}" — ${decision.reason}`,
+            `Suggested message: "${draft.slice(0, 400)}" — ${decision.reason}`,
           );
           summary.suggestions += 1;
           break;
+        }
         case 'suggest_call':
           await leadsService.recordAgentSuggestionSystem(
             decision.leadId,

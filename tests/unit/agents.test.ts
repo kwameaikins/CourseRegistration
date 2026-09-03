@@ -7,6 +7,7 @@ const leadsServiceMock = {
   recordAgentSuggestionSystem: vi.fn(),
   applyAgentScoreAdjustmentSystem: vi.fn(),
   scheduleAgentFollowUpSystem: vi.fn(),
+  sendAgentSmsSystem: vi.fn(),
 };
 const leadsRepositoryMock = {
   selectLeadByRegistrationId: vi.fn(),
@@ -70,6 +71,7 @@ beforeEach(() => {
 
 afterEach(() => {
   delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.AGENT_LEAD_TRIAGE_AUTOSEND;
   delete process.env.AGENT_LEAD_TRIAGE_ENABLED;
   delete process.env.AGENT_COLLECTIONS_ENABLED;
   delete process.env.AGENT_EXEC_DIGEST_ENABLED;
@@ -129,6 +131,89 @@ describe('lead triage agent', () => {
     const summary = await runLeadTriageAgent();
     expect(summary.skippedCooldown).toBe(1);
     expect(runJsonAgentMock).not.toHaveBeenCalled();
+  });
+
+  describe('autonomy tier 1 (AGENT_LEAD_TRIAGE_AUTOSEND)', () => {
+    const staleColdLead = () =>
+      lead({ score: 25, createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString() });
+
+    it('auto-sends to a Cold, stale lead — and records no suggestion', async () => {
+      process.env.AGENT_LEAD_TRIAGE_AUTOSEND = 'true';
+      leadsServiceMock.listLeads.mockResolvedValue([staleColdLead()]);
+      leadsServiceMock.sendAgentSmsSystem.mockResolvedValue('sent');
+      runJsonAgentMock.mockResolvedValue([
+        {
+          leadId: 'lead-1', action: 'suggest_message', reason: 'stale cold lead',
+          draftMessage: 'Hi Ama — evening cohorts for November are open, payment plans available.',
+        },
+      ]);
+
+      const summary = await runLeadTriageAgent();
+
+      expect(summary.autoSent).toBe(1);
+      expect(summary.suggestions).toBe(0);
+      expect(leadsServiceMock.sendAgentSmsSystem).toHaveBeenCalledWith(
+        'lead-1', expect.stringContaining('Hi Ama'), 'auto', null,
+      );
+      expect(leadsServiceMock.recordAgentSuggestionSystem).not.toHaveBeenCalled();
+    });
+
+    it('a Warm lead stays a suggestion even with autosend armed', async () => {
+      process.env.AGENT_LEAD_TRIAGE_AUTOSEND = 'true';
+      leadsServiceMock.listLeads.mockResolvedValue([
+        lead({ score: 60, createdAt: new Date(Date.now() - 30 * 86_400_000).toISOString() }),
+      ]);
+      runJsonAgentMock.mockResolvedValue([
+        { leadId: 'lead-1', action: 'suggest_message', reason: 'warm', draftMessage: 'Hi Ama, quick nudge about the cohort.' },
+      ]);
+
+      const summary = await runLeadTriageAgent();
+
+      expect(summary.autoSent).toBe(0);
+      expect(summary.suggestions).toBe(1);
+      expect(leadsServiceMock.sendAgentSmsSystem).not.toHaveBeenCalled();
+    });
+
+    it('a recently-touched lead stays a suggestion — staleness gate', async () => {
+      process.env.AGENT_LEAD_TRIAGE_AUTOSEND = 'true';
+      leadsServiceMock.listLeads.mockResolvedValue([lead({ score: 25 })]); // created 2 days ago
+      runJsonAgentMock.mockResolvedValue([
+        { leadId: 'lead-1', action: 'suggest_message', reason: 'cold', draftMessage: 'Hi Ama, following up on your interest.' },
+      ]);
+
+      const summary = await runLeadTriageAgent();
+
+      expect(summary.autoSent).toBe(0);
+      expect(summary.suggestions).toBe(1);
+    });
+
+    it('an opt-out skip falls back to a human suggestion, never vanishes', async () => {
+      process.env.AGENT_LEAD_TRIAGE_AUTOSEND = 'true';
+      leadsServiceMock.listLeads.mockResolvedValue([staleColdLead()]);
+      leadsServiceMock.sendAgentSmsSystem.mockResolvedValue('skipped_opt_out');
+      runJsonAgentMock.mockResolvedValue([
+        { leadId: 'lead-1', action: 'suggest_message', reason: 'stale', draftMessage: 'Hi Ama — the November cohort is open.' },
+      ]);
+
+      const summary = await runLeadTriageAgent();
+
+      expect(summary.autoSent).toBe(0);
+      expect(summary.suggestions).toBe(1);
+      expect(leadsServiceMock.recordAgentSuggestionSystem).toHaveBeenCalled();
+    });
+
+    it('with the flag unset, nothing auto-sends regardless of eligibility', async () => {
+      leadsServiceMock.listLeads.mockResolvedValue([staleColdLead()]);
+      runJsonAgentMock.mockResolvedValue([
+        { leadId: 'lead-1', action: 'suggest_message', reason: 'stale', draftMessage: 'Hi Ama — seats are open for November.' },
+      ]);
+
+      const summary = await runLeadTriageAgent();
+
+      expect(summary.autoSent).toBe(0);
+      expect(summary.suggestions).toBe(1);
+      expect(leadsServiceMock.sendAgentSmsSystem).not.toHaveBeenCalled();
+    });
   });
 
   it('only triages open statuses — Enrolled and Lost are left alone', async () => {
