@@ -16,6 +16,9 @@ import { formatGhs } from '@/lib/utils';
 import { AppError } from '@/lib/errors';
 import * as voiceRepository from '@/modules/voice/repository';
 import * as feedbackService from '@/modules/feedback/service';
+// Permitted cross-module call (Revenue OS Phase 2, 2026-09-03) — mirrors a
+// completed call onto the lead timeline, fail-soft; call_log stays the record.
+import * as leadsService from '@/modules/leads/service';
 import { feedbackSubmissionSchema } from '@/modules/feedback/types';
 import type {
   CallLogView,
@@ -240,6 +243,20 @@ export async function handleEndOfCallReport(payload: {
     ...(bankReference ? { bank_reference: bankReference } : {}),
     ended_at: new Date().toISOString(),
   });
+
+  // Unified lead timeline (Revenue OS Phase 2, 2026-09-03): mirror the call
+  // onto the lead so a salesperson opening it sees the conversation happened.
+  // Fail-soft — the call log above is the record of truth.
+  if (callLog.registration_id) {
+    try {
+      await leadsService.recordCallOnLeadTimelineSystem(
+        callLog.registration_id,
+        `${callLog.call_type} — ${payload.summary ?? 'no summary captured'}`,
+      );
+    } catch (err) {
+      console.error('[voice lead timeline]', err);
+    }
+  }
 
   // Voice-collected feedback flows into the same feedback table as the web
   // form (one per Registration — a duplicate means the form beat the call).

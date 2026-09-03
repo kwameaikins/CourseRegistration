@@ -25,6 +25,12 @@ export const FEEDBACK_IMPROVEMENT_LABEL = 'What should we improve about the cour
 export const FEEDBACK_RECOMMEND_LABEL = 'Would you recommend this course to others?';
 export const FEEDBACK_RECOMMEND_OPTIONS = ['Yes', 'Maybe', 'No'] as const;
 
+// Standard NPS question (Revenue OS Phase 2, 2026-09-03). Kept ALONGSIDE the
+// Yes/Maybe/No above rather than replacing it — that keeps historical
+// comparability, while the 0–10 scale makes the answer benchmarkable.
+export const FEEDBACK_NPS_LABEL =
+  'How likely are you to recommend Knowsia to a friend or colleague? (0 = not at all, 10 = extremely likely)';
+
 export const FEEDBACK_OTHER_COURSE_LABEL =
   'Which other course would you like Knowsia to offer?';
 

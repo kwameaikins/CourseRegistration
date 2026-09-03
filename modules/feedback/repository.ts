@@ -71,6 +71,7 @@ export async function insertFeedback(row: {
   recommendation: string;
   other_course_suggestion: string | null;
   testimonial_choice: string;
+  nps_score: number | null;
 }): Promise<'inserted' | 'duplicate'> {
   const supabase = createSupabaseServiceRoleClient();
   const { error } = await supabase.from('feedback').insert(row);

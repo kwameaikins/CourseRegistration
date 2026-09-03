@@ -1,6 +1,8 @@
 import { sendTransactionalEmail } from '@/lib/resend/client';
 import { sendSmsMessage } from '@/lib/arkesel/client';
 import { AppError } from '@/lib/errors';
+import { unsubscribeFooterHtml } from '@/lib/unsubscribe';
+import * as marketingConsentService from '@/modules/marketing-consent/service';
 import * as campaignsRepository from '@/modules/campaigns/repository';
 import * as leadsService from '@/modules/leads/service';
 import * as registrationsService from '@/modules/registrations/service';
@@ -281,6 +283,16 @@ export async function sendCampaign(
   const isRegistrationAudience = campaign.audienceType === 'registrations';
   const recipients = await matchAudience(campaign);
   const recipientById = new Map(recipients.map((recipient) => [recipient.id, recipient]));
+  // Marketing consent (Revenue OS Phase 2): one batch lookup, checked per
+  // recipient before any send. A campaign IS marketing by definition.
+  // Fail-open with a loud error: a consent-lookup outage should not block a
+  // human-confirmed send of ≤100 messages, but it must be visible.
+  const optedOut = await marketingConsentService
+    .optedOutSubset(recipients.map((recipient) => recipient.email ?? '').filter(Boolean))
+    .catch((err) => {
+      console.error('[campaign opt-out lookup]', err);
+      return new Set<string>();
+    });
   let sent = 0;
   let failed = 0;
 
@@ -301,6 +313,14 @@ export async function sendCampaign(
       );
       continue;
     }
+    if (recipient?.email && optedOut.has(recipient.email.toLowerCase())) {
+      failed += 1;
+      await campaignsRepository.markCampaignMemberFailed(
+        member.id,
+        'Recipient has unsubscribed from marketing.',
+      );
+      continue;
+    }
 
     try {
       if (campaign.channel === 'email') {
@@ -308,7 +328,7 @@ export async function sendCampaign(
           to: destination,
           from: process.env.CAMPAIGN_EMAIL_FROM ?? DEFAULT_CAMPAIGN_FROM,
           subject: campaign.messageSubject || campaign.name,
-          html: renderHtml(member.preview_message),
+          html: renderHtml(member.preview_message) + unsubscribeFooterHtml(destination),
         });
       } else {
         await sendSmsMessage({ toPhone: destination, message: member.preview_message });

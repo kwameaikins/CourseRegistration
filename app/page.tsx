@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 
 import { CourseRating } from '@/app/(public)/programmes/CourseRating';
 import { CourseSessionSummary } from '@/app/(public)/programmes/CourseSessionSummary';
+import { EnquiryForm } from '@/components/EnquiryForm';
 import {
   MARKETING_STYLES,
   MarketingIcons,
@@ -435,6 +436,9 @@ export default async function HomePage() {
                   <p className="answer">{item.answer}</p>
                 </details>
               ))}
+            </div>
+            <div style={{ maxWidth: 720, margin: '28px auto 0' }}>
+              <EnquiryForm />
             </div>
           </div>
         </section>

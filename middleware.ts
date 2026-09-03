@@ -93,5 +93,6 @@ export const config = {
     '/corporate/:path*',
     '/editorial/:path*',
     '/coupons/:path*',
+    '/sequences/:path*',
   ],
 };

@@ -106,6 +106,29 @@ export default async function ManagementDashboardPage({
             <p className="text-3xl font-bold">
               {formatGhs(summary.aggregate.revenueReceivedThisMonth)}
             </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              against registrations created in the period
+            </p>
+          </CardContent>
+        </Card>
+        {/* Payment-DATED revenue from the payment_events ledger (Revenue OS
+            Phase 2): money that actually arrived in the window, whichever
+            period its registration was created in. */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Collected — {periodLabel}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold">
+              {formatGhs(summary.aggregate.revenueCollectedInPeriod)}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {summary.aggregate.ledgerActive
+                ? 'by payment date, from the payments ledger'
+                : 'ledger newly live — history predates it'}
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -225,6 +248,102 @@ export default async function ManagementDashboardPage({
           )}
         </CardContent>
       </Card>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        {/* Lead → paid funnel for the same window as the tiles. */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Funnel — {periodLabel}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1 text-sm">
+            <div className="flex justify-between border-b py-1">
+              <span className="text-muted-foreground">Leads created</span>
+              <span className="font-medium">{summary.funnel.leadsCreated}</span>
+            </div>
+            <div className="flex justify-between border-b py-1">
+              <span className="text-muted-foreground">Qualified or further</span>
+              <span className="font-medium">{summary.funnel.leadsQualified}</span>
+            </div>
+            <div className="flex justify-between border-b py-1">
+              <span className="text-muted-foreground">Registrations</span>
+              <span className="font-medium">{summary.funnel.registrations}</span>
+            </div>
+            <div className="flex justify-between border-b py-1">
+              <span className="text-muted-foreground">Paid in full</span>
+              <span className="font-medium">{summary.funnel.paidRegistrations}</span>
+            </div>
+            <div className="flex justify-between pt-2 text-xs text-muted-foreground">
+              <span>Lead → registration: {summary.funnel.leadToRegistrationRate}%</span>
+              <span>Registration → paid: {summary.funnel.registrationToPaidRate}%</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Lifetime value — all-time by design; LTV is not a monthly number. */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Lifetime Value (all-time)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            <div className="flex gap-4">
+              <span>
+                <strong>{formatGhs(summary.lifetimeValue.averageLtv)}</strong> avg. per paying
+                participant
+              </span>
+              <span className="text-muted-foreground">
+                {summary.lifetimeValue.participants} paying participants
+              </span>
+            </div>
+            <div className="space-y-1">
+              {summary.lifetimeValue.bySource.map((row) => (
+                <div key={row.source} className="flex justify-between border-b py-1 last:border-0">
+                  <span className="text-muted-foreground">
+                    {row.source}
+                    <span className="ml-1 text-xs">({row.participants})</span>
+                  </span>
+                  <span className="font-medium">{formatGhs(row.averageLtv)}</span>
+                </div>
+              ))}
+              {summary.lifetimeValue.bySource.length === 0 && (
+                <p className="text-muted-foreground">No paying participants yet.</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Machine-captured attribution (UTM/referrer) — the counterpart to the
+          self-declared Lead Sources table. Hidden until the cookie has had
+          tagged traffic to observe. */}
+      {summary.campaignPerformance.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Campaign Attribution (measured)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b text-left text-muted-foreground">
+                  <th className="py-2 font-medium">Source</th>
+                  <th className="py-2 font-medium">Campaign</th>
+                  <th className="py-2 font-medium">Registrations</th>
+                  <th className="py-2 font-medium">Paid</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.campaignPerformance.map((row) => (
+                  <tr key={`${row.source}-${row.campaign ?? ''}`} className="border-b last:border-0">
+                    <td className="py-2">{row.source}</td>
+                    <td className="py-2">{row.campaign ?? '—'}</td>
+                    <td className="py-2">{row.registrations}</td>
+                    <td className="py-2">{row.paid}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card>

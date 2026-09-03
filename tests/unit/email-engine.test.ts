@@ -100,6 +100,9 @@ describe('BR-07 — sendEmailOnce reservation-before-send (T-BR07-01 logic)', ()
     expect(repositoryMock.updateEmailLogEntry).toHaveBeenCalledWith('reg-1', 'welcome', {
       success: true,
       error_message: null,
+      // Stubbed sendTransactionalEmail returns void, so the engine records
+      // "no id" — the field's presence is what matters here.
+      provider_message_id: null,
     });
   });
 

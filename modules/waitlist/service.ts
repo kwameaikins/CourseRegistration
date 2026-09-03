@@ -9,6 +9,7 @@ import { sendTransactionalEmail } from '@/lib/resend/client';
 import * as usersService from '@/modules/users/service';
 import * as waitlistRepository from '@/modules/waitlist/repository';
 import * as leadsService from '@/modules/leads/service';
+import type { Attribution } from '@/lib/attribution';
 import type { LeadSource } from '@/lib/domain/types';
 import type { WaitlistEntryView, WaitlistStatus } from '@/modules/waitlist/types';
 
@@ -34,6 +35,7 @@ export async function joinWaitlist(input: {
   leadSource: LeadSource;
   jobTitle?: string | null;
   company?: string | null;
+  attribution?: Attribution | null;
 }): Promise<{ waitlistId: string }> {
   let row;
   try {
@@ -42,6 +44,7 @@ export async function joinWaitlist(input: {
       batch_id: input.batchId,
       lead_source: input.leadSource,
       consent_given: true,
+      attribution: input.attribution ?? null,
     });
   } catch (err) {
     // unique(participant_id, batch_id) — same BR-03 posture as Registration.
@@ -84,6 +87,7 @@ export async function joinWaitlist(input: {
       company: input.company,
       leadSource: input.leadSource,
       status: 'New',
+      attribution: input.attribution ?? null,
     });
   } catch (err) {
     console.error('[waitlist lead creation]', err);

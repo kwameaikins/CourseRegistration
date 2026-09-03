@@ -33,13 +33,37 @@ export async function reserveEmailLogSlot(
 export async function updateEmailLogEntry(
   registrationId: string,
   emailType: EmailType,
-  changes: { success: boolean; error_message?: string | null },
+  changes: {
+    success: boolean;
+    error_message?: string | null;
+    provider_message_id?: string | null;
+  },
 ): Promise<void> {
   const supabase = createSupabaseServiceRoleClient();
   const { error } = await supabase
     .from('email_log')
     .update(changes)
     .match({ registration_id: registrationId, email_type: emailType });
+  if (error) throw error;
+}
+
+// Engagement events from the Resend webhook (Revenue OS Phase 2, 2026-09-03):
+// first-touch semantics — the first open/click timestamp is the interesting
+// one, and later events must not overwrite it.
+export async function recordEmailEngagement(
+  providerMessageId: string,
+  event: 'opened' | 'clicked',
+  at: string,
+): Promise<void> {
+  const supabase = createSupabaseServiceRoleClient();
+  const column = event === 'opened' ? 'opened_at' : 'clicked_at';
+  const changes =
+    event === 'opened' ? { opened_at: at } : { clicked_at: at };
+  const { error } = await supabase
+    .from('email_log')
+    .update(changes)
+    .eq('provider_message_id', providerMessageId)
+    .is(column, null);
   if (error) throw error;
 }
 

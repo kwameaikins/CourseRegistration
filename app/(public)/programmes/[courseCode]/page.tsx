@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 
 import { CourseRating } from '@/app/(public)/programmes/CourseRating';
 import { CourseSessionSummary } from '@/app/(public)/programmes/CourseSessionSummary';
+import { EnquiryForm } from '@/components/EnquiryForm';
 import { MARKETING_STYLES, MarketingIcons } from '@/components/marketing/marketing-design-system';
 import { formatDate, formatGhs } from '@/lib/utils';
 import * as feedbackService from '@/modules/feedback/service';
@@ -465,6 +466,12 @@ export default async function ProgrammeDetailPage({
           </div>
         </div>
       </main>
+
+      <section style={{ paddingBottom: 8 }}>
+        <div className="wrap" style={{ maxWidth: 720 }}>
+          <EnquiryForm courseName={course.courseName} />
+        </div>
+      </section>
 
       <section style={{ paddingBottom: 24 }}>
         <div className="wrap">

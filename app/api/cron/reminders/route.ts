@@ -7,6 +7,7 @@ import * as partnersService from '@/modules/partners/service';
 import * as accessGrantsService from '@/modules/access-grants/service';
 import * as registrationsService from '@/modules/registrations/service';
 import * as certificatesService from '@/modules/certificates/service';
+import * as sequencesService from '@/modules/sequences/service';
 
 // GET /api/cron/reminders — F1.07 (E03–E06), triggered daily at 07:00 UTC by
 // Vercel Cron (BR-17). Also dispatches post-course feedback requests for
@@ -67,6 +68,10 @@ export async function GET(request: Request) {
     // certificates, so a re-run issues nothing twice.
     const certificateIssuance =
       await certificatesService.runCompletedBatchCertificateIssuance();
+    // Nurture sequences (Revenue OS Phase 2, 2026-09-03) — sends every due
+    // step of every ACTIVE sequence; opt-outs honoured per send. Bundled here
+    // for the same Vercel Hobby two-cron-job cap reason as everything above.
+    const sequences = await sequencesService.runSequenceDispatch();
     return successResponse({
       ...summary,
       installments,
@@ -79,6 +84,7 @@ export async function GET(request: Request) {
       accessSweep,
       autoLapse,
       certificateIssuance,
+      sequences,
     });
   } catch (err) {
     // A failed cron run affects many participants at once — must be visible

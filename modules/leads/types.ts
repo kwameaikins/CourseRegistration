@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { attributionSchema } from '@/lib/attribution';
+import type { Attribution } from '@/lib/attribution';
 import { LEAD_SOURCES } from '@/lib/domain/types';
 import type { LeadSource } from '@/lib/domain/types';
 
@@ -36,6 +38,10 @@ export interface Lead {
   assignedTo: string | null;
   notes: string | null;
   nextFollowUpAt: string | null;
+  // First-touch campaign attribution (lib/attribution.ts), captured from the
+  // visitor cookie when the lead was created; null for staff-entered leads
+  // and anyone who arrived untagged.
+  attribution: Attribution | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -54,7 +60,12 @@ export interface LeadActivity {
     | 'score_changed'
     | 'note_updated'
     | 'follow_up_scheduled'
-    | 'duplicate_merged';
+    | 'duplicate_merged'
+    // Unified timeline (Revenue OS Phase 2, 2026-09-03) — closes the "a
+    // salesperson cannot see what was already said" gap:
+    | 'message_sent'
+    | 'call_logged'
+    | 'outcome_recorded';
   description: string;
   performedBy: string | null;
   createdAt: string;
@@ -77,9 +88,37 @@ export const createLeadInputSchema = z.object({
   score: z.coerce.number().int().min(0).max(100).optional(),
   assignedTo: z.string().uuid().nullable().optional(),
   notes: z.string().trim().max(1000).nullable().optional(),
+  // Machine-captured, distinct from the self-declared leadSource: the cookie
+  // says which campaign brought them; the dropdown says what they told us.
+  attribution: attributionSchema.nullable().optional(),
 });
 
 export type CreateLeadInput = z.infer<typeof createLeadInputSchema>;
+
+// US-M03 (PRD §10): Hot/Warm/Cold as a DISPLAY of the numeric score rather
+// than a third independent field — one source of truth, zero drift. The
+// bands mirror the dashboard's conversion-colour thresholds.
+export function leadTemperature(score: number): 'Hot' | 'Warm' | 'Cold' {
+  if (score >= 70) return 'Hot';
+  if (score >= 40) return 'Warm';
+  return 'Cold';
+}
+
+// Public enquiry form (Revenue OS Phase 2, 2026-09-03) — the top-funnel
+// capture that finally lets a browser become a lead without registering.
+// Phone is required deliberately: in this market it is the primary contact
+// channel, and an enquiry without one is rarely actionable.
+export const enquiryInputSchema = z.object({
+  fullName: z.string().trim().min(2).max(150),
+  email: z.email().transform((value) => value.toLowerCase()),
+  phone: z.string().trim().min(10).max(20),
+  courseName: z.string().trim().max(200).optional(),
+  message: z.string().trim().min(5).max(800),
+  // Honeypot: humans never see it, bots fill it. Checked in the route.
+  website: z.string().max(200).optional(),
+});
+
+export type EnquiryInput = z.infer<typeof enquiryInputSchema>;
 
 // PATCH /api/leads/[id] previously had NO schema validation at all — this
 // closes that gap; every field mirrors updateLead's inline param shape.

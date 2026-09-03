@@ -66,6 +66,11 @@ import type {
   TransferRegistrationInput,
 } from '@/modules/registrations/types';
 import type { StaffRole } from '@/lib/domain/types';
+import type { Attribution } from '@/lib/attribution';
+// Permitted cross-module call (Revenue OS Phase 2, 2026-09-03) — sequences
+// owns win-back nurture; this module only signals the lapse moment,
+// fail-soft, after the write commits.
+import * as sequencesService from '@/modules/sequences/service';
 
 function isUniqueViolation(err: unknown): boolean {
   return (
@@ -88,6 +93,10 @@ function round2(value: number): number {
 export async function createRegistration(
   input: RegistrationInput,
   referralCookieCode?: string | null,
+  // First-touch campaign attribution from the knowsia_attribution cookie
+  // (Revenue OS Phase 2, 2026-09-03) — the API route reads and validates it;
+  // stored verbatim on the registration and the lead, never interpreted here.
+  visitorAttribution?: Attribution | null,
 ): Promise<CreateRegistrationResult> {
   // BR-15: server-side consent enforcement, independent of the client.
   if (input.consentGiven !== true) {
@@ -183,6 +192,7 @@ export async function createRegistration(
       participantEmail: input.email,
       participantFullName: fullName,
       participantPhone: input.phone,
+      attribution: visitorAttribution ?? null,
       batchId: input.batchId,
       courseName: course?.courseName ?? batch.cohortLabel,
       cohortLabel: batch.cohortLabel,
@@ -204,6 +214,7 @@ export async function createRegistration(
       batch_id: input.batchId,
       lead_source: input.leadSource,
       consent_given: true,
+      attribution: visitorAttribution ?? null,
     });
   } catch (err) {
     // BR-03: unique(participant_id, batch_id) is the authoritative guarantee.
@@ -328,6 +339,7 @@ export async function createRegistration(
       phone: input.phone,
       jobTitle: input.jobTitle,
       company: input.company,
+      attribution: visitorAttribution ?? null,
       leadSource: input.leadSource,
       status: 'New',
       // score omitted on purpose — leadsService.createLead computes it
@@ -648,6 +660,7 @@ async function registerOneParticipant(params: {
         paymentNotes: params.paymentNotes,
       },
       { id: actor.id, fullName: actor.fullName, role: actor.role },
+      'import',
     );
     paymentStatus = paymentResult.paymentStatus;
   }
@@ -1252,6 +1265,7 @@ export async function lapseRegistration(registrationId: string, reason: string):
   });
 
   await notifyWaitlistOfFreedSeat(existing);
+  await enrollLapsedInWinbackSystem(registrationId);
 
   // Best-effort, exactly as in access-grants: the audit-log insert runs on the
   // session client and only admin holds the INSERT policy, so a finance
@@ -1332,6 +1346,24 @@ async function notifyWaitlistOfFreedSeat(
 // "we've written off the course you didn't attend" 15 days later is a
 // collections letter nobody asked for, and the balance is not being pursued —
 // that is the entire point. Reinstating restores the row if they do surface.
+// Win-back nurture (Revenue OS Phase 2, 2026-09-03): a write-off is a
+// retention counter-signal, and until now nothing ever re-marketed to it.
+// Fail-soft — nurture must never fail a lapse write that already committed.
+async function enrollLapsedInWinbackSystem(registrationId: string): Promise<void> {
+  try {
+    const data = await registrationsRepository.selectRegistration360(registrationId);
+    if (!data?.participant || data.participant.deleted_at) return;
+    await sequencesService.enrollRegistrationSystem('registration_lapsed', {
+      id: registrationId,
+      email: data.participant.email,
+      fullName: data.participant.full_name,
+      courseName: data.course?.course_name ?? null,
+    });
+  } catch (err) {
+    console.error('[lapse winback enroll]', err);
+  }
+}
+
 export async function runAutoLapseSweep(
   options: { dryRun?: boolean; now?: Date } = {},
 ): Promise<AutoLapseSweepSummary> {
@@ -1372,6 +1404,7 @@ export async function runAutoLapseSweep(
         reason: AUTO_LAPSE_REASON,
       });
       summary.lapsed += 1;
+      await enrollLapsedInWinbackSystem(candidate.registrationId);
     } catch (err) {
       summary.errors.push(`${candidate.registrationId}: ${String(err)}`);
     }

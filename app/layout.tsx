@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
+import { AnalyticsScripts } from '@/components/AnalyticsScripts';
+import { AttributionCapture } from '@/components/AttributionCapture';
+
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -23,7 +26,11 @@ interface RootLayoutProps {
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        <AttributionCapture />
+        <AnalyticsScripts />
+      </body>
     </html>
   );
 }

@@ -19,10 +19,135 @@ export interface BatchSummaryRaw {
     registrationId: string;
     leadSource: string;
     registeredAt: string;
+    attribution: Record<string, string> | null;
     paymentStatus: string;
     amountPaid: number;
     courseFee: number;
   }>;
+}
+
+// Payment-dated revenue (Revenue OS Phase 2, 2026-09-03) — from the
+// payment_events ledger, so a payment collected inside the window counts in
+// the window regardless of when its registration was created. The ledger only
+// began recording at this migration, so history before it reads as zero — the
+// service surfaces that honestly instead of silently mixing methodologies.
+export async function selectCollectedRevenue(
+  dateFrom: string | null,
+  dateTo: string | null,
+): Promise<{ total: number; bySource: Record<string, number>; eventCount: number }> {
+  const supabase = createSupabaseServiceRoleClient();
+  let query = supabase.from('payment_events').select('amount, source');
+  if (dateFrom) query = query.gte('recorded_at', `${dateFrom}T00:00:00.000Z`);
+  if (dateTo) query = query.lte('recorded_at', `${dateTo}T23:59:59.999Z`);
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const bySource: Record<string, number> = {};
+  let total = 0;
+  for (const row of data ?? []) {
+    const amount = Number(row.amount);
+    total += amount;
+    bySource[row.source] = (bySource[row.source] ?? 0) + amount;
+  }
+  return { total, bySource, eventCount: data?.length ?? 0 };
+}
+
+// Funnel: lead volume for the window. Registration/paid counts come from the
+// batch data the service already holds — this only adds the top of the funnel.
+export async function selectLeadFunnelStats(
+  dateFrom: string | null,
+  dateTo: string | null,
+): Promise<{ created: number; qualifiedPlus: number }> {
+  const supabase = createSupabaseServiceRoleClient();
+  let query = supabase.from('leads').select('id, status, created_at');
+  if (dateFrom) query = query.gte('created_at', `${dateFrom}T00:00:00.000Z`);
+  if (dateTo) query = query.lte('created_at', `${dateTo}T23:59:59.999Z`);
+  const { data, error } = await query;
+  if (error) throw error;
+  const rows = data ?? [];
+  // Current status, not status history (none is kept as columns): a lead that
+  // reached Enrolled has necessarily been qualified, so "beyond New and not
+  // Lost" is the honest ever-qualified proxy available.
+  const qualifiedPlus = rows.filter(
+    (row) => row.status !== 'New' && row.status !== 'Lost',
+  ).length;
+  return { created: rows.length, qualifiedPlus };
+}
+
+// Lifetime value (user request, 2026-09-03): total collected per participant
+// across ALL their registrations, all-time — LTV is a lifetime metric and is
+// deliberately not range-filtered. Money on a later-lapsed registration still
+// counts: it was received. Grouped by the participant's FIRST registration's
+// lead_source, because LTV-by-channel is an acquisition question.
+export async function selectLifetimeValueStats(): Promise<{
+  participants: number;
+  averageLtv: number;
+  bySource: Array<{ source: string; participants: number; averageLtv: number }>;
+}> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data: registrations, error: regError } = await supabase
+    .from('registrations')
+    .select('id, participant_id, lead_source, registered_at');
+  if (regError) throw regError;
+  if (!registrations || registrations.length === 0) {
+    return { participants: 0, averageLtv: 0, bySource: [] };
+  }
+
+  const { data: payments, error: payError } = await supabase
+    .from('payments')
+    .select('registration_id, amount_paid')
+    .in('registration_id', registrations.map((row) => row.id));
+  if (payError) throw payError;
+  const paidByRegistration = new Map(
+    (payments ?? []).map((row) => [row.registration_id, Number(row.amount_paid)]),
+  );
+
+  const byParticipant = new Map<string, { total: number; firstAt: string; firstSource: string }>();
+  for (const row of registrations) {
+    const amount = paidByRegistration.get(row.id) ?? 0;
+    const entry = byParticipant.get(row.participant_id);
+    if (!entry) {
+      byParticipant.set(row.participant_id, {
+        total: amount,
+        firstAt: row.registered_at,
+        firstSource: row.lead_source,
+      });
+    } else {
+      entry.total += amount;
+      if (row.registered_at < entry.firstAt) {
+        entry.firstAt = row.registered_at;
+        entry.firstSource = row.lead_source;
+      }
+    }
+  }
+
+  // Only participants who ever paid anything shape the average: a bank of
+  // free-event signups would otherwise drag "customer lifetime value" toward
+  // zero while describing people who were never customers.
+  const paying = [...byParticipant.values()].filter((entry) => entry.total > 0);
+  const average = (values: number[]) =>
+    values.length === 0
+      ? 0
+      : Math.round((values.reduce((sum, v) => sum + v, 0) / values.length) * 100) / 100;
+
+  const sourceMap = new Map<string, number[]>();
+  for (const entry of paying) {
+    const list = sourceMap.get(entry.firstSource) ?? [];
+    list.push(entry.total);
+    sourceMap.set(entry.firstSource, list);
+  }
+
+  return {
+    participants: paying.length,
+    averageLtv: average(paying.map((entry) => entry.total)),
+    bySource: [...sourceMap.entries()]
+      .map(([source, totals]) => ({
+        source,
+        participants: totals.length,
+        averageLtv: average(totals),
+      }))
+      .sort((a, b) => b.averageLtv - a.averageLtv),
+  };
 }
 
 // Repeat-enrolment rate (founder-directed 2026-08-13). Deliberately derived
@@ -127,7 +252,7 @@ export async function selectDashboardData(): Promise<BatchSummaryRaw[]> {
   // debt that has been closed.
   const { data: registrations, error: registrationsError } = await supabase
     .from('registrations')
-    .select('id, batch_id, lead_source, registered_at')
+    .select('id, batch_id, lead_source, registered_at, attribution')
     .in('batch_id', batches.map((batch) => batch.id))
     .is('lapsed_at', null);
   if (registrationsError) throw registrationsError;
@@ -156,6 +281,7 @@ export async function selectDashboardData(): Promise<BatchSummaryRaw[]> {
           registrationId: registration.id,
           leadSource: registration.lead_source,
           registeredAt: registration.registered_at,
+          attribution: registration.attribution as Record<string, string> | null,
           paymentStatus: payment?.payment_status ?? 'Unpaid',
           amountPaid: Number(payment?.amount_paid ?? 0),
           courseFee: Number(payment?.course_fee ?? batch.course_fee),

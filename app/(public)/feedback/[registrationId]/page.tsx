@@ -20,6 +20,7 @@ import {
   FEEDBACK_MOST_VALUABLE_LABEL,
   FEEDBACK_OTHER_COURSE_LABEL,
   FEEDBACK_RATING_QUESTIONS,
+  FEEDBACK_NPS_LABEL,
   FEEDBACK_RECOMMEND_LABEL,
   FEEDBACK_RECOMMEND_OPTIONS,
   FEEDBACK_TESTIMONIAL_LABEL,
@@ -126,6 +127,8 @@ export default function FeedbackPage({
   const [recommendation, setRecommendation] = useState<(typeof FEEDBACK_RECOMMEND_OPTIONS)[number] | ''>('');
   const [otherCourseSuggestion, setOtherCourseSuggestion] = useState('');
   const [testimonialChoice, setTestimonialChoice] = useState<'Named' | 'Anonymous' | 'No'>('No');
+  // NPS 0–10; -1 = unanswered (optional question).
+  const [npsScore, setNpsScore] = useState(-1);
 
   const ratingValues: Record<string, [number, (v: number) => void]> = {
     overallRating: [overallRating, setOverallRating],
@@ -176,6 +179,7 @@ export default function FeedbackPage({
           recommendation,
           otherCourseSuggestion,
           testimonialChoice,
+          ...(npsScore >= 0 ? { npsScore } : {}),
         }),
       });
       setCertificateIssued(result.certificateIssued);
@@ -302,6 +306,25 @@ export default function FeedbackPage({
             options={FEEDBACK_RECOMMEND_OPTIONS.map((o) => ({ value: o, label: o }))}
             onChange={setRecommendation}
           />
+          <div className="space-y-2">
+            <Label>{FEEDBACK_NPS_LABEL}</Label>
+            <div className="flex flex-wrap gap-1">
+              {Array.from({ length: 11 }, (_, score) => (
+                <button
+                  key={score}
+                  type="button"
+                  onClick={() => setNpsScore(score)}
+                  className={`h-9 w-9 rounded-md border text-sm font-medium ${
+                    npsScore === score
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'bg-background hover:border-primary'
+                  }`}
+                >
+                  {score}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="otherCourse">{FEEDBACK_OTHER_COURSE_LABEL} (optional)</Label>
             <input

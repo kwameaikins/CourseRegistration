@@ -3,6 +3,7 @@
 import { buildCourseIcsAttachment } from '@/lib/calendar/ics';
 import { sendTransactionalEmail } from '@/lib/resend/client';
 import * as communicationsRepository from '@/modules/communications/repository';
+import * as marketingConsentService from '@/modules/marketing-consent/service';
 import { EMAIL_TYPE_TOGGLE, type EmailType } from '@/modules/communications/types';
 
 export type SendOutcome =
@@ -40,6 +41,19 @@ export async function sendEmailOnce(
   // Never email an erasure-requested (soft-deleted) Participant — their
   // address has been anonymised anyway (BR-16).
   if (context.participantDeleted) return 'skipped_deleted_participant';
+
+  // Marketing consent (Revenue OS Phase 2, 2026-09-03): 'upsell' is the one
+  // MARKETING type in this lifecycle engine — everything else is service the
+  // registrant signed up for and stays exempt from the opt-out list.
+  if (emailType === 'upsell') {
+    try {
+      if (await marketingConsentService.isOptedOut(context.participantEmail)) {
+        return 'skipped_gated';
+      }
+    } catch (err) {
+      console.error('[email engine opt-out check]', err);
+    }
+  }
 
   // BR-09/BR-10: all gates are checked BEFORE the BR-07 reservation.
   // Reserving first would permanently block a re-enabled email type, since
@@ -131,15 +145,21 @@ export async function sendEmailOnce(
   }
 
   try {
-    await sendTransactionalEmail({
+    // Optional chaining: older stubs/mocks of sendTransactionalEmail resolve
+    // void, and the id is telemetry — its absence must never fail a send.
+    const sendResult = await sendTransactionalEmail({
       to: context.participantEmail,
       subject: renderTemplateBody(template.subject, placeholderData),
       html: renderTemplateBody(template.body, placeholderData),
       attachments,
     });
+    const providerMessageId = sendResult?.providerMessageId ?? null;
     await communicationsRepository.updateEmailLogEntry(registrationId, emailType, {
       success: true,
       error_message: null,
+      // Lets the Resend engagement webhook attribute opened/clicked events
+      // back to this exact send.
+      provider_message_id: providerMessageId,
     });
     return 'sent';
   } catch (err) {

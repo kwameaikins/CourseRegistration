@@ -107,6 +107,8 @@ describe('updateOpportunity', () => {
 
     expect(opportunitiesRepositoryMock.updateOpportunity).toHaveBeenCalledWith('opp-1', {
       stage: 'Proposal',
+      // A real stage change stamps the age-in-stage clock (Revenue OS Phase 2).
+      stage_changed_at: expect.any(String),
       amount: 1500,
     });
     expect(result).toMatchObject({ stage: 'Proposal', amount: 1500 });
@@ -141,6 +143,7 @@ describe('markWonByRegistrationId', () => {
 
     expect(opportunitiesRepositoryMock.updateOpportunity).toHaveBeenCalledWith('opp-1', {
       stage: 'Won',
+      stage_changed_at: expect.any(String),
     });
   });
 });

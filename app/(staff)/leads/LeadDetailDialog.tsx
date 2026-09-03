@@ -82,6 +82,18 @@ export function LeadDetailDialog({
             <div className="flex flex-wrap gap-2">
               <Badge variant="outline">{lead.status}</Badge>
               <Badge variant="secondary">Score {lead.score}</Badge>
+              {/* US-M03: Hot/Warm/Cold is a display of the score, not a third field. */}
+              <Badge
+                className={
+                  lead.score >= 70
+                    ? 'bg-red-600'
+                    : lead.score >= 40
+                      ? 'bg-amber-500'
+                      : 'bg-slate-400'
+                }
+              >
+                {lead.score >= 70 ? 'Hot' : lead.score >= 40 ? 'Warm' : 'Cold'}
+              </Badge>
               <Badge variant="outline">{lead.leadSource}</Badge>
             </div>
             <div>

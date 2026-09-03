@@ -6,6 +6,17 @@ import type { Database } from '@/lib/supabase/database.types';
 
 type PaymentRow = Database['public']['Tables']['payments']['Row'];
 type PaymentSubmissionRow = Database['public']['Tables']['payment_submissions']['Row'];
+type PaymentEventInsert = Database['public']['Tables']['payment_events']['Insert'];
+
+// Analytics ledger (Revenue OS Phase 2, 2026-09-03): one row per payment
+// DELTA, written alongside the aggregate update. payments.amount_paid stays
+// the financial source of truth; this exists so the dashboard can answer
+// "how much money arrived in this period" by payment date.
+export async function insertPaymentEvent(event: PaymentEventInsert): Promise<void> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase.from('payment_events').insert(event);
+  if (error) throw error;
+}
 
 export async function selectPaymentByRegistrationId(
   registrationId: string,

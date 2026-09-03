@@ -199,12 +199,16 @@ export async function applyPaymentUpdate(
   registrationId: string,
   update: PaymentUpdate,
   verifiedByStaff: { id: string; fullName: string; role: string },
+  // Which door the money came through — recorded on the analytics ledger so
+  // the dashboard can split collected revenue by channel.
+  eventSource: 'staff' | 'import' | 'corporate' | 'submission' | 'system' = 'staff',
 ): Promise<PaymentUpdateResult> {
   const existing = await paymentsRepository.selectPaymentByRegistrationId(registrationId);
   if (!existing) {
     throw new AppError('NOT_FOUND', 'No payment record exists for this registration.', 404);
   }
   const statusBefore = existing.payment_status;
+  const amountBefore = Number(existing.amount_paid);
 
   // BR-12: verified_by is ALWAYS the current session's staff id, set
   // server-side — any client-supplied value was already discarded upstream.
@@ -218,6 +222,25 @@ export async function applyPaymentUpdate(
     payment_notes: update.paymentNotes ?? existing.payment_notes,
     verified_by: verifiedByStaff.id,
   });
+
+  // Analytics ledger (Revenue OS Phase 2): record the delta this update
+  // applied. Non-blocking — the aggregate has already committed, and a
+  // reporting row must never fail a payment write.
+  try {
+    const delta = Math.round((update.amountPaid - amountBefore) * 100) / 100;
+    if (delta !== 0) {
+      await paymentsRepository.insertPaymentEvent({
+        registration_id: registrationId,
+        amount: delta,
+        payment_method: update.paymentMethod ?? null,
+        transaction_id: update.transactionId ?? null,
+        source: eventSource,
+        recorded_by: verifiedByStaff.id,
+      });
+    }
+  } catch (err) {
+    console.error('[payment event ledger]', err);
+  }
 
   if (updated.payment_status === 'Paid' && statusBefore !== 'Paid') {
     // Settling a zero-fee registration (a free event, or a fee already waived
@@ -901,6 +924,7 @@ export async function reviewPaymentSubmission(
         paymentNotes: submission.participant_notes,
       },
       { id: staffUser.id, fullName: staffUser.fullName, role: staffUser.role },
+      'submission',
     );
   }
 

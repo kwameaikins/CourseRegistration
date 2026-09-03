@@ -26,6 +26,7 @@ const {
   feedbackRequestDateFor,
   getPublishableTestimonials,
   isPublishableTestimonial,
+  getBatchFeedbackSummary,
   runFeedbackRequestDispatch,
   runFeedbackRequestForAttendees,
   submitFeedback,
@@ -347,5 +348,53 @@ describe('getPublishableTestimonials', () => {
     repositoryMock.selectPublishableTestimonialsSystem.mockResolvedValue([]);
     await getPublishableTestimonials(3);
     expect(repositoryMock.selectPublishableTestimonialsSystem).toHaveBeenCalledWith(60);
+  });
+});
+
+describe('NPS on the batch summary (Revenue OS Phase 2)', () => {
+  function summaryRow(overrides: Record<string, unknown> = {}) {
+    return {
+      registration_id: 'reg-1',
+      participant_name: 'Ama',
+      overall_rating: 5,
+      relevance_rating: 5,
+      facilitator_rating: 5,
+      confidence_rating: 5,
+      materials_clarity: 'Yes',
+      most_valuable_text: null,
+      improvement_text: null,
+      recommendation: 'Yes',
+      other_course_suggestion: null,
+      testimonial_choice: 'No',
+      submitted_at: '2026-09-01T00:00:00Z',
+      nps_score: null,
+      ...overrides,
+    };
+  }
+
+  it('computes %promoters − %detractors over ANSWERED responses only', async () => {
+    repositoryMock.selectFeedbackForBatch.mockResolvedValue([
+      summaryRow({ registration_id: 'r1', nps_score: 10 }), // promoter
+      summaryRow({ registration_id: 'r2', nps_score: 3 }), // detractor
+      summaryRow({ registration_id: 'r3', nps_score: 8 }), // passive
+      summaryRow({ registration_id: 'r4' }), // did not answer — excluded
+    ]);
+    repositoryMock.countPaidRegistrationsForBatch.mockResolvedValue(10);
+
+    const summary = await getBatchFeedbackSummary('batch-1');
+
+    expect(summary.npsResponses).toBe(3);
+    // (1 promoter − 1 detractor) / 3 answers → 0%.
+    expect(summary.nps).toBe(0);
+  });
+
+  it('reports null rather than a fake 0 when nobody answered the question', async () => {
+    repositoryMock.selectFeedbackForBatch.mockResolvedValue([summaryRow()]);
+    repositoryMock.countPaidRegistrationsForBatch.mockResolvedValue(10);
+
+    const summary = await getBatchFeedbackSummary('batch-1');
+
+    expect(summary.nps).toBeNull();
+    expect(summary.npsResponses).toBe(0);
   });
 });

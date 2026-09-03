@@ -24,10 +24,18 @@ interface OpportunityRow {
   batchLabel: string;
   amount: number;
   stage: (typeof STAGES)[number];
+  stageChangedAt: string;
   expectedCloseDate: string | null;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+// Whole days a deal has sat in its current stage — the number that makes a
+// rotting Proposal visible at a glance.
+function daysInStage(stageChangedAt: string): number {
+  const ms = Date.now() - new Date(stageChangedAt).getTime();
+  return Math.max(0, Math.floor(ms / 86_400_000));
 }
 
 interface PipelineSummary {
@@ -111,6 +119,13 @@ export default function SalesPipelinePage() {
             One deal per registration, tracked from first contact to a won or lost outcome.
           </p>
         </div>
+        <a
+          href="/api/opportunities/export"
+          download
+          className="text-sm font-medium text-primary hover:underline"
+        >
+          Export CSV
+        </a>
         <select
           className="h-9 rounded-md border border-input bg-background px-3 text-sm"
           value={stageFilter}
@@ -183,6 +198,7 @@ export default function SalesPipelinePage() {
               <TableRow>
                 <TableHead>Deal</TableHead>
                 <TableHead>Stage</TableHead>
+                <TableHead>In stage</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Expected close</TableHead>
                 <TableHead>Created</TableHead>
@@ -211,6 +227,19 @@ export default function SalesPipelinePage() {
                         ))}
                       </select>
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    <span
+                      className={
+                        daysInStage(row.stageChangedAt) >= 14 &&
+                        row.stage !== 'Won' &&
+                        row.stage !== 'Lost'
+                          ? 'font-medium text-amber-600'
+                          : 'text-muted-foreground'
+                      }
+                    >
+                      {daysInStage(row.stageChangedAt)}d
+                    </span>
                   </TableCell>
                   <TableCell>
                     <Input

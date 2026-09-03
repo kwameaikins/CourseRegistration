@@ -77,6 +77,7 @@ describe('joinWaitlist', () => {
       batch_id: 'batch-1',
       lead_source: 'WhatsApp',
       consent_given: true,
+      attribution: null,
     });
   });
 

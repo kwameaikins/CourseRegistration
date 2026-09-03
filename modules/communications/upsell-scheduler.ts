@@ -14,6 +14,10 @@ import { sendEmailOnce } from '@/modules/communications/email-engine';
 import { sendWhatsappOnce } from '@/modules/communications/whatsapp-engine';
 import { sendSmsOnce } from '@/modules/communications/sms-engine';
 import * as voiceService from '@/modules/voice/service';
+// The multi-step answer to the one-shot limitation documented above (Revenue
+// OS Phase 2, 2026-09-03): candidates are ALSO enrolled in the post_course
+// sequence, whose later waves are deduped per-step rather than forever.
+import * as sequencesService from '@/modules/sequences/service';
 import { formatGhs } from '@/lib/utils';
 
 export interface UpsellRunSummary {
@@ -72,6 +76,17 @@ export async function runUpsellMessageDispatch(now = new Date()): Promise<Upsell
       }
     } catch (err) {
       summary.errors.push(`${candidate.registrationId}/upsell: ${String(err)}`);
+    }
+
+    // Fail-soft, once per registration (DB unique index): the sequence engine
+    // owns the later waves; an enrollment hiccup must not fail the dispatch.
+    try {
+      await sequencesService.enrollRegistrationByIdSystem(
+        'post_course',
+        candidate.registrationId,
+      );
+    } catch (err) {
+      console.error('[upsell sequence enroll]', err);
     }
   }
 

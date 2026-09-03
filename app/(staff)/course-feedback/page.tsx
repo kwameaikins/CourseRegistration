@@ -44,6 +44,8 @@ interface Summary {
   averageFacilitator: number | null;
   averageConfidence: number | null;
   recommendationBreakdown: { yes: number; maybe: number; no: number };
+  nps: number | null;
+  npsResponses: number;
   rows: FeedbackRow[];
 }
 
@@ -139,6 +141,10 @@ export default function CourseFeedbackPage() {
               ['Avg relevance', summary.averageRelevance?.toFixed(1) ?? '—'],
               ['Avg facilitator', summary.averageFacilitator?.toFixed(1) ?? '—'],
               ['Avg confidence', summary.averageConfidence?.toFixed(1) ?? '—'],
+              [
+                'NPS',
+                summary.nps === null ? '—' : `${summary.nps} (${summary.npsResponses} answers)`,
+              ],
             ].map(([label, value]) => (
               <div key={label} className="rounded-lg border p-4">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">

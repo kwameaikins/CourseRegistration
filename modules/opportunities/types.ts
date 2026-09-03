@@ -11,6 +11,9 @@ export interface Opportunity {
   batchLabel: string;
   amount: number;
   stage: OpportunityStage;
+  // When the stage last changed (Revenue OS Phase 2) — the /sales screen
+  // shows age-in-stage from this, so a deal rotting in Proposal is visible.
+  stageChangedAt: string;
   expectedCloseDate: string | null;
   notes: string | null;
   createdAt: string;

@@ -6,6 +6,7 @@ import {
   registrationListFiltersSchema,
 } from '@/modules/registrations/types';
 import { REFERRAL_CODE_COOKIE } from '@/modules/partners/types';
+import { ATTRIBUTION_COOKIE, parseAttributionCookie } from '@/lib/attribution';
 
 // POST /api/registrations — F1.01, public (Document 5, Section 2).
 export async function POST(request: Request) {
@@ -41,7 +42,16 @@ export async function POST(request: Request) {
 
     const cookieStore = await cookies();
     const referralCookieCode = cookieStore.get(REFERRAL_CODE_COOKIE)?.value ?? null;
-    const result = await registrationsService.createRegistration(parsed.data, referralCookieCode);
+    // First-touch campaign attribution — parsed defensively; a malformed
+    // cookie degrades to "no attribution", never to a failed registration.
+    const attribution = parseAttributionCookie(
+      cookieStore.get(ATTRIBUTION_COOKIE)?.value,
+    );
+    const result = await registrationsService.createRegistration(
+      parsed.data,
+      referralCookieCode,
+      attribution,
+    );
     return successResponse(result, 201);
   } catch (err) {
     return handleRouteError(err);

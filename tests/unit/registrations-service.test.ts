@@ -944,6 +944,7 @@ describe('bulkImportRegistrations — backfill of registrations collected outsid
       'reg-1',
       expect.objectContaining({ amountPaid: 1200, paymentMethod: 'Cash' }),
       { id: 'staff-1', fullName: 'Jane Doe', role: 'marketing' },
+      'import',
     );
     expect(result.summary.created).toBe(2);
     expect(result.summary.unpaid).toBe(1);
@@ -1053,6 +1054,7 @@ describe('createCorporateEmployeeRegistration — one employee row under a compa
       'reg-1',
       expect.objectContaining({ paymentNotes: 'Corporate registration — Acme Ltd', paymentMethod: 'Bank Transfer' }),
       actor,
+      'import',
     );
   });
 });

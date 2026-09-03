@@ -168,6 +168,13 @@ export default function LeadsPage() {
             A first step toward the Revenue OS lead pipeline.
           </p>
         </div>
+        <a
+          href="/api/leads/export"
+          download
+          className="text-sm font-medium text-primary hover:underline"
+        >
+          Export CSV
+        </a>
         <Button variant="outline" onClick={() => setDueOnly((value) => !value)}>
           {dueOnly ? 'Show all leads' : `Show due for follow-up (${dueCount})`}
         </Button>
@@ -347,7 +354,20 @@ export default function LeadsPage() {
                       />
                     </div>
                   </TableCell>
-                  <TableCell>{row.score}</TableCell>
+                  <TableCell>
+                    <span className="mr-1">{row.score}</span>
+                    <span
+                      className={
+                        row.score >= 70
+                          ? 'text-xs font-semibold text-red-600'
+                          : row.score >= 40
+                            ? 'text-xs font-semibold text-amber-600'
+                            : 'text-xs text-muted-foreground'
+                      }
+                    >
+                      {row.score >= 70 ? 'Hot' : row.score >= 40 ? 'Warm' : 'Cold'}
+                    </span>
+                  </TableCell>
                   <TableCell>
                     <Input
                       type="date"

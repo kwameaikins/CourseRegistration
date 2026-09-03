@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const dashboardRepositoryMock = {
   selectDashboardData: vi.fn(),
   selectRepeatEnrolmentStats: vi.fn(),
+  selectCollectedRevenue: vi.fn(),
+  selectLeadFunnelStats: vi.fn(),
+  selectLifetimeValueStats: vi.fn(),
 };
 const usersServiceMock = {
   requireRole: vi.fn(),
@@ -53,6 +56,20 @@ beforeEach(() => {
     inWindow: 0,
     repeat: 0,
     returningParticipants: 0,
+  });
+  dashboardRepositoryMock.selectCollectedRevenue.mockResolvedValue({
+    total: 0,
+    bySource: {},
+    eventCount: 0,
+  });
+  dashboardRepositoryMock.selectLeadFunnelStats.mockResolvedValue({
+    created: 0,
+    qualifiedPlus: 0,
+  });
+  dashboardRepositoryMock.selectLifetimeValueStats.mockResolvedValue({
+    participants: 0,
+    averageLtv: 0,
+    bySource: [],
   });
   dashboardRepositoryMock.selectDashboardData.mockResolvedValue([
     {

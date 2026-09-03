@@ -22,6 +22,7 @@ function toOpportunity(row: OpportunityRow): Opportunity {
     batchLabel: row.batch_label,
     amount: Number(row.amount),
     stage: row.stage as Opportunity['stage'],
+    stageChangedAt: row.stage_changed_at,
     expectedCloseDate: row.expected_close_date,
     notes: row.notes,
     createdAt: row.created_at,
@@ -56,6 +57,11 @@ export async function updateOpportunity(
   }
 
   const changes: Partial<OpportunityRow> = {};
+  if (input.stage !== undefined && input.stage !== existing.stage) {
+    // Stamped only on a REAL stage change — re-saving the same stage must not
+    // reset the age-in-stage clock.
+    changes.stage_changed_at = new Date().toISOString();
+  }
   if (input.stage !== undefined) changes.stage = input.stage;
   if (input.amount !== undefined) changes.amount = input.amount;
   if (input.expectedCloseDate !== undefined) changes.expected_close_date = input.expectedCloseDate;
@@ -71,7 +77,10 @@ export async function updateOpportunity(
 export async function markWonByRegistrationId(registrationId: string): Promise<void> {
   const existing = await opportunitiesRepository.selectOpportunityByRegistrationId(registrationId);
   if (!existing || existing.stage === 'Won' || existing.stage === 'Lost') return;
-  await opportunitiesRepository.updateOpportunity(existing.id, { stage: 'Won' });
+  await opportunitiesRepository.updateOpportunity(existing.id, {
+    stage: 'Won',
+    stage_changed_at: new Date().toISOString(),
+  });
 }
 
 export async function getPipelineSummary(

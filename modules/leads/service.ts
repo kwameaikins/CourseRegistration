@@ -5,6 +5,7 @@ import * as leadsRepository from '@/modules/leads/repository';
 import type {
   CreateLeadAssignmentRuleInput,
   CreateLeadInput,
+  EnquiryInput,
   Lead,
   LeadActivity,
   LeadAssignmentRule,
@@ -13,6 +14,11 @@ import type {
   UpdateLeadInput,
 } from '@/modules/leads/types';
 import { createLeadInputSchema, updateLeadInputSchema } from '@/modules/leads/types';
+import type { Attribution } from '@/lib/attribution';
+// Permitted cross-module call (Revenue OS Phase 2, 2026-09-03) — sequences
+// owns nurture enrollment; leads only signals its lifecycle moments. Every
+// call is fail-soft: nurture must never break lead writes.
+import * as sequencesService from '@/modules/sequences/service';
 import type { Database } from '@/lib/supabase/database.types';
 
 type LeadRow = Database['public']['Tables']['leads']['Row'];
@@ -51,6 +57,7 @@ function toLead(row: LeadRow): Lead {
     assignedTo: row.assigned_to,
     notes: row.notes,
     nextFollowUpAt: row.next_follow_up_at,
+    attribution: (row.attribution as Lead['attribution']) ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -155,6 +162,10 @@ export async function createLead(input: CreateLeadInput): Promise<Lead> {
       if (recalculated > existing.score) {
         changes.score = recalculated;
       }
+      // First-touch still wins: only fill attribution a lead never had.
+      if (!existing.attribution && parsed.attribution) {
+        changes.attribution = parsed.attribution;
+      }
       const merged =
         Object.keys(changes).length > 0
           ? await leadsRepository.updateLead(existing.id, changes)
@@ -184,6 +195,21 @@ export async function createLead(input: CreateLeadInput): Promise<Lead> {
 
     const lead = await leadsRepository.insertLead({ ...parsed, score, assignedTo });
     await logActivity(lead.id, 'created', `Lead captured from ${parsed.leadSource}.`, null);
+    // Nurture (Revenue OS Phase 2): a brand-new lead starts the lead_new
+    // sequence — but only for leads with no registration, since someone who
+    // registered already receives the lifecycle emails and must not also get
+    // "come register" nurture.
+    if (!parsed.registrationId) {
+      try {
+        await sequencesService.enrollLeadSystem('lead_new', {
+          id: lead.id,
+          email: lead.email,
+          fullName: lead.full_name,
+        });
+      } catch (err) {
+        console.error('[leads nurture enroll]', err);
+      }
+    }
     if (autoAssignedRule) {
       const staffName = await leadsRepository.selectStaffFullName(autoAssignedRule.assigned_to);
       await logActivity(
@@ -199,6 +225,65 @@ export async function createLead(input: CreateLeadInput): Promise<Lead> {
     if (err instanceof AppError) throw err;
     throw new AppError('LEAD_CREATE_FAILED', 'Unable to create lead right now.', 500);
   }
+}
+
+// Public enquiry → lead (Revenue OS Phase 2, 2026-09-03). Until this, a lead
+// existed only once someone attempted a registration or joined a waitlist —
+// the browser who wanted to ask a question first was invisible. The enquiry
+// text lands in notes; the follow-up clock starts immediately so the lead
+// shows in /follow-up and tomorrow's staff nudge rather than sitting silent.
+export async function createEnquiryLead(
+  input: EnquiryInput,
+  attribution: Attribution | null,
+): Promise<{ leadId: string }> {
+  const note = [
+    input.courseName ? `Enquiry about ${input.courseName}:` : 'Enquiry:',
+    input.message,
+  ]
+    .join(' ')
+    .slice(0, 1000);
+
+  const lead = await createLead({
+    fullName: input.fullName,
+    email: input.email,
+    phone: input.phone,
+    leadSource: 'Website',
+    status: 'New',
+    notes: note,
+    attribution,
+  });
+
+  // Dedup in createLead may have returned an existing lead, whose notes the
+  // merge deliberately leaves alone — but the enquiry text is the whole point
+  // here, so append it rather than lose it.
+  if (lead.notes !== note) {
+    try {
+      const combined = [lead.notes, note].filter(Boolean).join(' | ').slice(0, 1000);
+      await leadsRepository.updateLead(lead.id, { notes: combined });
+    } catch (err) {
+      console.error('[leads enquiry note merge]', err);
+    }
+  }
+
+  // Only start the clock where none is running — an enquiry from someone a
+  // staff member already scheduled must not stomp that schedule. (Dedup in
+  // createLead may have returned an existing lead.)
+  if (!lead.nextFollowUpAt) {
+    try {
+      await leadsRepository.updateLead(lead.id, {
+        next_follow_up_at: new Date().toISOString(),
+      });
+      await logActivity(
+        lead.id,
+        'follow_up_scheduled',
+        'Follow-up due now — web enquiry awaiting a response.',
+        null,
+      );
+    } catch (err) {
+      console.error('[leads enquiry follow-up]', err);
+    }
+  }
+  return { leadId: lead.id };
 }
 
 export async function listLeads(filters: ListLeadsFilters = {}): Promise<Lead[]> {
@@ -239,6 +324,14 @@ export async function sendSmsToLead(leadId: string, message: string): Promise<vo
     throw new AppError('VALIDATION_ERROR', 'This lead has no phone number on file.', 400);
   }
   await sendSmsMessage({ toPhone: lead.phone, message });
+  // Unified timeline (Revenue OS Phase 2): a message sent and not recorded is
+  // a conversation the next salesperson cannot see.
+  await logActivity(
+    leadId,
+    'message_sent',
+    `SMS sent: "${message.slice(0, 140)}${message.length > 140 ? '…' : ''}"`,
+    null,
+  );
 }
 
 export async function sendEmailToLead(
@@ -251,6 +344,57 @@ export async function sendEmailToLead(
     throw new AppError('VALIDATION_ERROR', 'This lead has no email address on file.', 400);
   }
   await sendTransactionalEmail({ to: lead.email, subject, html: body });
+  await logActivity(leadId, 'message_sent', `Email sent: "${subject.slice(0, 200)}"`, null);
+}
+
+// Voice-call → lead timeline bridge (Revenue OS Phase 2): call_log is
+// registration-scoped, so until now calls never appeared on the lead. Called
+// from the Vapi webhook after a call completes; fail-soft there.
+export async function recordCallOnLeadTimelineSystem(
+  registrationId: string,
+  summary: string,
+): Promise<void> {
+  const lead = await leadsRepository.selectLeadByRegistrationId(registrationId);
+  if (!lead) return;
+  await logActivity(
+    lead.id,
+    'call_logged',
+    `Call completed: ${summary.slice(0, 800)}`,
+    null,
+  );
+}
+
+// US-M02 (PRD §10, previously unbuilt): record the outcome of a follow-up
+// call/conversation and optionally schedule the next one, in one action.
+export async function recordOutcome(
+  leadId: string,
+  outcome: string,
+  // undefined = leave the existing schedule alone; null = clear it.
+  nextFollowUpAt: string | null | undefined,
+  performedBy: string | null,
+): Promise<Lead> {
+  const lead = await getLeadById(leadId);
+  await logActivity(
+    lead.id,
+    'outcome_recorded',
+    outcome.slice(0, 1000),
+    performedBy,
+  );
+  if (nextFollowUpAt !== undefined) {
+    const updated = await leadsRepository.updateLead(lead.id, {
+      next_follow_up_at: nextFollowUpAt,
+    });
+    if (nextFollowUpAt) {
+      await logActivity(
+        lead.id,
+        'follow_up_scheduled',
+        `Next follow-up scheduled for ${nextFollowUpAt.slice(0, 10)}.`,
+        performedBy,
+      );
+    }
+    return toLead(updated);
+  }
+  return lead;
 }
 
 export async function getPipelineSummary() {
@@ -357,6 +501,12 @@ export async function markEnrolledByRegistrationId(registrationId: string): Prom
     `Status changed from "${previousStatus}" to "Enrolled" automatically — payment received.`,
     null,
   );
+  // A paying customer must never keep receiving "come sign up" nurture.
+  try {
+    await sequencesService.stopForLeadSystem(lead.id, 'lead_enrolled');
+  } catch (err) {
+    console.error('[leads nurture stop on enrol]', err);
+  }
 }
 
 export async function updateLead(
@@ -391,6 +541,21 @@ export async function updateLead(
       `Status changed from "${existing.status}" to "${updated.status}".`,
       performedBy,
     );
+    // Nurture (Revenue OS Phase 2), fail-soft: Lost starts the win-back
+    // clock; Enrolled stops every active sequence — never nurture a customer.
+    try {
+      if (updated.status === 'Lost') {
+        await sequencesService.enrollLeadSystem('lead_lost', {
+          id: updated.id,
+          email: updated.email,
+          fullName: updated.full_name,
+        });
+      } else if (updated.status === 'Enrolled') {
+        await sequencesService.stopForLeadSystem(updated.id, 'lead_enrolled');
+      }
+    } catch (err) {
+      console.error('[leads nurture status hook]', err);
+    }
   }
   if (parsedInput.assignedTo !== undefined && parsedInput.assignedTo !== existing.assigned_to) {
     if (updated.assigned_to) {

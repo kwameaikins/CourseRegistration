@@ -20,6 +20,7 @@ const paymentsRepositoryMock = {
   selectPaymentSubmissionContext: vi.fn(),
   selectRegistrationContextSystem: vi.fn(),
   updatePaymentDiscountSystem: vi.fn(),
+  insertPaymentEvent: vi.fn(),
 };
 const usersServiceMock = {
   requireRole: vi.fn(),
@@ -158,6 +159,52 @@ describe('BR-12 — verified_by is always the session staff id', () => {
   it('requires the finance or admin role', async () => {
     await updatePaymentByStaff('reg-1', { amountPaid: 100, paymentMethod: 'Cash' });
     expect(usersServiceMock.requireRole).toHaveBeenCalledWith(['finance', 'admin']);
+  });
+});
+
+describe('payment_events analytics ledger (Revenue OS Phase 2)', () => {
+  it('records the DELTA applied, not the new total', async () => {
+    // The default fixture starts existing amount_paid at 0 and updates to
+    // 1200 — the ledger row is the difference.
+    await updatePaymentByStaff('reg-1', { amountPaid: 1200, paymentMethod: 'Bank Transfer' });
+    expect(paymentsRepositoryMock.insertPaymentEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        registration_id: 'reg-1',
+        amount: 1200,
+        source: 'staff',
+      }),
+    );
+  });
+
+  it('records nothing when the amount is unchanged', async () => {
+    paymentsRepositoryMock.selectPaymentByRegistrationId.mockResolvedValueOnce({
+      registration_id: 'reg-1',
+      amount_paid: '1200.00',
+      payment_status: 'Paid',
+      transaction_id: null,
+      payment_notes: null,
+    });
+    paymentsRepositoryMock.updatePaymentByRegistrationId.mockResolvedValueOnce({
+      registration_id: 'reg-1',
+      amount_paid: '1200.00',
+      balance: '0.00',
+      course_fee: '1200.00',
+      payment_status: 'Paid',
+      payment_method: 'Bank Transfer',
+      transaction_id: null,
+      payment_date: null,
+      verified_by: 'staff-fin-1',
+      payment_notes: null,
+    });
+    await updatePaymentByStaff('reg-1', { amountPaid: 1200, paymentMethod: 'Bank Transfer' });
+    expect(paymentsRepositoryMock.insertPaymentEvent).not.toHaveBeenCalled();
+  });
+
+  it('a ledger failure never fails the payment write', async () => {
+    paymentsRepositoryMock.insertPaymentEvent.mockRejectedValueOnce(new Error('down'));
+    await expect(
+      updatePaymentByStaff('reg-1', { amountPaid: 500, paymentMethod: 'Cash' }),
+    ).resolves.toBeDefined();
   });
 });
 

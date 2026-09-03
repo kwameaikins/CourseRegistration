@@ -68,6 +68,7 @@ export async function submitFeedback(
     recommendation: input.recommendation,
     other_course_suggestion: input.otherCourseSuggestion || null,
     testimonial_choice: input.testimonialChoice,
+    nps_score: input.npsScore ?? null,
   });
   if (outcome === 'duplicate') {
     throw new AppError(
@@ -241,6 +242,18 @@ export async function getBatchFeedbackSummary(
     else recommendationBreakdown.no += 1;
   }
 
+  // Standard NPS: %promoters (9–10) − %detractors (0–6), computed only over
+  // responses that answered the 0–10 question (it is newer than the form).
+  const npsAnswers = rows
+    .map((row) => row.nps_score)
+    .filter((value): value is number => typeof value === 'number');
+  const promoters = npsAnswers.filter((value) => value >= 9).length;
+  const detractors = npsAnswers.filter((value) => value <= 6).length;
+  const nps =
+    npsAnswers.length === 0
+      ? null
+      : Math.round(((promoters - detractors) / npsAnswers.length) * 100);
+
   return {
     responses: rows.length,
     paidRegistrations,
@@ -249,6 +262,8 @@ export async function getBatchFeedbackSummary(
     averageFacilitator: average(rows.map((r) => r.facilitator_rating)),
     averageConfidence: average(rows.map((r) => r.confidence_rating)),
     recommendationBreakdown,
+    nps,
+    npsResponses: npsAnswers.length,
     rows: rows.map((row) => ({
       registrationId: row.registration_id,
       participantName: row.participant_name,

@@ -29,6 +29,7 @@ export async function insertLead(input: CreateLeadInput): Promise<LeadRow> {
       score: input.score,
       assigned_to: input.assignedTo ?? null,
       notes: input.notes ?? null,
+      attribution: input.attribution ?? null,
     })
     .select()
     .single();

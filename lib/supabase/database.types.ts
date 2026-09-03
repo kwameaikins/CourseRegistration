@@ -1569,25 +1569,34 @@ export type Database = {
       }
       email_log: {
         Row: {
+          clicked_at: string | null
           email_type: string
           error_message: string | null
           id: string
+          opened_at: string | null
+          provider_message_id: string | null
           registration_id: string
           sent_at: string
           success: boolean
         }
         Insert: {
+          clicked_at?: string | null
           email_type: string
           error_message?: string | null
           id?: string
+          opened_at?: string | null
+          provider_message_id?: string | null
           registration_id: string
           sent_at?: string
           success: boolean
         }
         Update: {
+          clicked_at?: string | null
           email_type?: string
           error_message?: string | null
           id?: string
+          opened_at?: string | null
+          provider_message_id?: string | null
           registration_id?: string
           sent_at?: string
           success?: boolean
@@ -1651,6 +1660,7 @@ export type Database = {
           improvement_text: string | null
           materials_clarity: string
           most_valuable_text: string | null
+          nps_score: number | null
           other_course_suggestion: string | null
           overall_rating: number
           recommendation: string
@@ -1666,6 +1676,7 @@ export type Database = {
           improvement_text?: string | null
           materials_clarity: string
           most_valuable_text?: string | null
+          nps_score?: number | null
           other_course_suggestion?: string | null
           overall_rating: number
           recommendation: string
@@ -1681,6 +1692,7 @@ export type Database = {
           improvement_text?: string | null
           materials_clarity?: string
           most_valuable_text?: string | null
+          nps_score?: number | null
           other_course_suggestion?: string | null
           overall_rating?: number
           recommendation?: string
@@ -1811,6 +1823,7 @@ export type Database = {
       leads: {
         Row: {
           assigned_to: string | null
+          attribution: Json | null
           company: string | null
           created_at: string
           email: string
@@ -1829,6 +1842,7 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
+          attribution?: Json | null
           company?: string | null
           created_at?: string
           email: string
@@ -1847,6 +1861,7 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
+          attribution?: Json | null
           company?: string | null
           created_at?: string
           email?: string
@@ -2126,6 +2141,30 @@ export type Database = {
           },
         ]
       }
+      marketing_opt_outs: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          reason: string | null
+          source: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          reason?: string | null
+          source?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          reason?: string | null
+          source?: string
+        }
+        Relationships: []
+      }
       news_sources: {
         Row: {
           created_at: string
@@ -2182,6 +2221,150 @@ export type Database = {
           },
         ]
       }
+      nurture_enrollments: {
+        Row: {
+          context: Json | null
+          email: string
+          enrolled_at: string
+          full_name: string
+          id: string
+          lead_id: string | null
+          next_send_at: string | null
+          next_step: number
+          registration_id: string | null
+          sequence_id: string
+          status: string
+          stopped_reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          context?: Json | null
+          email: string
+          enrolled_at?: string
+          full_name: string
+          id?: string
+          lead_id?: string | null
+          next_send_at?: string | null
+          next_step?: number
+          registration_id?: string | null
+          sequence_id: string
+          status?: string
+          stopped_reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          context?: Json | null
+          email?: string
+          enrolled_at?: string
+          full_name?: string
+          id?: string
+          lead_id?: string | null
+          next_send_at?: string | null
+          next_step?: number
+          registration_id?: string | null
+          sequence_id?: string
+          status?: string
+          stopped_reason?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nurture_enrollments_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "nurture_sequences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nurture_enrollments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nurture_enrollments_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nurture_sequences: {
+        Row: {
+          channel: string
+          created_at: string
+          id: string
+          is_active: boolean
+          key: string
+          name: string
+          trigger: string
+          updated_at: string
+        }
+        Insert: {
+          channel?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          key: string
+          name: string
+          trigger: string
+          updated_at?: string
+        }
+        Update: {
+          channel?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          key?: string
+          name?: string
+          trigger?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      nurture_steps: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          offset_days: number
+          sequence_id: string
+          step_number: number
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          offset_days: number
+          sequence_id: string
+          step_number: number
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          offset_days?: number
+          sequence_id?: string
+          step_number?: number
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nurture_steps_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "nurture_sequences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       opportunities: {
         Row: {
           amount: number
@@ -2194,6 +2377,7 @@ export type Database = {
           notes: string | null
           registration_id: string | null
           stage: string
+          stage_changed_at: string
           updated_at: string
         }
         Insert: {
@@ -2207,6 +2391,7 @@ export type Database = {
           notes?: string | null
           registration_id?: string | null
           stage?: string
+          stage_changed_at?: string
           updated_at?: string
         }
         Update: {
@@ -2220,6 +2405,7 @@ export type Database = {
           notes?: string | null
           registration_id?: string | null
           stage?: string
+          stage_changed_at?: string
           updated_at?: string
         }
         Relationships: [
@@ -2878,6 +3064,47 @@ export type Database = {
           },
         ]
       }
+      payment_events: {
+        Row: {
+          amount: number
+          id: string
+          payment_method: string | null
+          recorded_at: string
+          recorded_by: string | null
+          registration_id: string
+          source: string
+          transaction_id: string | null
+        }
+        Insert: {
+          amount: number
+          id?: string
+          payment_method?: string | null
+          recorded_at?: string
+          recorded_by?: string | null
+          registration_id: string
+          source?: string
+          transaction_id?: string | null
+        }
+        Update: {
+          amount?: number
+          id?: string
+          payment_method?: string | null
+          recorded_at?: string
+          recorded_by?: string | null
+          registration_id?: string
+          source?: string
+          transaction_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_events_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "registrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payments: {
         Row: {
           amount_paid: number
@@ -3252,6 +3479,7 @@ export type Database = {
       }
       registrations: {
         Row: {
+          attribution: Json | null
           batch_id: string
           company_allocation_id: string | null
           consent_given: boolean
@@ -3267,6 +3495,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          attribution?: Json | null
           batch_id: string
           company_allocation_id?: string | null
           consent_given: boolean
@@ -3282,6 +3511,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          attribution?: Json | null
           batch_id?: string
           company_allocation_id?: string | null
           consent_given?: boolean
@@ -3733,6 +3963,7 @@ export type Database = {
       }
       waitlist_entries: {
         Row: {
+          attribution: Json | null
           batch_id: string
           consent_given: boolean
           converted_registration_id: string | null
@@ -3746,6 +3977,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          attribution?: Json | null
           batch_id: string
           consent_given?: boolean
           converted_registration_id?: string | null
@@ -3759,6 +3991,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          attribution?: Json | null
           batch_id?: string
           consent_given?: boolean
           converted_registration_id?: string | null

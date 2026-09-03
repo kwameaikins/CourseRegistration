@@ -93,6 +93,7 @@ export async function insertRegistration(input: {
   lead_source: RegistrationRow['lead_source'];
   consent_given: boolean;
   company_allocation_id?: string;
+  attribution?: RegistrationRow['attribution'];
 }): Promise<RegistrationRow> {
   const supabase = createSupabaseServiceRoleClient();
   const { data, error } = await supabase

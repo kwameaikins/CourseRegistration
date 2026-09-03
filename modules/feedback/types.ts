@@ -20,6 +20,9 @@ export const feedbackSubmissionSchema = z.object({
   recommendation: yesMaybeNo,
   otherCourseSuggestion: z.string().trim().max(300).optional().default(''),
   testimonialChoice: testimonialChoice.default('No'),
+  // NPS 0–10 (Revenue OS Phase 2, 2026-09-03). Optional: the Vapi voice
+  // flow does not ask it, and older clients don't send it.
+  npsScore: z.coerce.number().int().min(0).max(10).optional(),
 });
 
 export type FeedbackSubmissionInput = z.infer<typeof feedbackSubmissionSchema>;
@@ -57,6 +60,10 @@ export interface BatchFeedbackSummary {
   averageFacilitator: number | null;
   averageConfidence: number | null;
   recommendationBreakdown: { yes: number; maybe: number; no: number };
+  // Net Promoter Score: %promoters (9–10) − %detractors (0–6), over the
+  // responses that answered the NPS question; null when none have.
+  nps: number | null;
+  npsResponses: number;
   rows: FeedbackRow[];
 }
 

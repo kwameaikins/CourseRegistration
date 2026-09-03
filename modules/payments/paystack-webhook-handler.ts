@@ -89,6 +89,21 @@ export async function processWebhookEvent(payload: unknown): Promise<WebhookOutc
     throw err;
   }
 
+  // Analytics ledger (Revenue OS Phase 2) — non-blocking, same posture as
+  // every other side effect here.
+  try {
+    await paymentsRepository.insertPaymentEvent({
+      registration_id: registrationId,
+      amount: amountGhs,
+      payment_method: channelToPaymentMethod(data.channel),
+      transaction_id: data.reference,
+      source: 'paystack',
+      recorded_by: null,
+    });
+  } catch (err) {
+    console.error('[paystack webhook payment event ledger]', err);
+  }
+
   if (updated.payment_status === 'Paid') {
     await paymentsService.runPaidTransitionSideEffects(registrationId, Number(updated.amount_paid));
     // Auto-login (founder-approved 2026-07-22): this is the only Paid

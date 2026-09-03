@@ -28,6 +28,37 @@ export interface DashboardSummary {
     registrationsThisMonth: number;
     revenueReceivedThisMonth: number;
     totalOutstandingBalance: number;
+    // Payment-DATED revenue from the payment_events ledger (Revenue OS
+    // Phase 2) — money that actually arrived in the window, regardless of
+    // when its registration was created. `ledgerActive` is false while the
+    // ledger predates its own history (no events recorded yet), so the page
+    // can label the tile honestly instead of showing a misleading zero.
+    revenueCollectedInPeriod: number;
+    collectedBySource: Record<string, number>;
+    ledgerActive: boolean;
+  };
+  // Lead → qualified → registration → paid, for the same window as the tiles.
+  funnel: {
+    leadsCreated: number;
+    leadsQualified: number;
+    registrations: number;
+    paidRegistrations: number;
+    leadToRegistrationRate: number;
+    registrationToPaidRate: number;
+  };
+  // Machine-captured campaign attribution (utm/referrer), the counterpart to
+  // the self-declared leadSources table below it.
+  campaignPerformance: Array<{
+    source: string;
+    campaign: string | null;
+    registrations: number;
+    paid: number;
+  }>;
+  // Lifetime value: all-time collected per paying participant.
+  lifetimeValue: {
+    participants: number;
+    averageLtv: number;
+    bySource: Array<{ source: string; participants: number; averageLtv: number }>;
   };
   leadSources: Array<{ source: string; count: number; conversionRate: number }>;
   // Revenue OS Phase 1 roadmap: give executives a single screen that spans
@@ -94,19 +125,33 @@ export async function getDashboardSummary(
   await usersService.requireRole(['admin', 'management']);
   const hasRange = Boolean(range.dateFrom || range.dateTo);
 
-  const [batches, leadPipeline, salesPipeline, corporateSummary, repeatStats] =
-    await Promise.all([
-      dashboardRepository.selectDashboardData(),
-      leadsService.getPipelineSummary(),
-      opportunitiesService.getPipelineSummary(),
-      corporateService.getCorporateSummary(),
-      // Honours the same window as the registration tiles, so "repeat rate"
-      // always describes the period the rest of the screen is describing.
-      dashboardRepository.selectRepeatEnrolmentStats(
-        range.dateFrom ?? null,
-        range.dateTo ?? null,
-      ),
-    ]);
+  // The headline tiles default to "this month"; the ledger and funnel reads
+  // below honour the identical window so every figure describes one period.
+  const monthStartIso = (() => {
+    const d = new Date();
+    d.setUTCDate(1);
+    d.setUTCHours(0, 0, 0, 0);
+    return d.toISOString().slice(0, 10);
+  })();
+  const periodFrom = range.dateFrom ?? (hasRange ? null : monthStartIso);
+  const periodTo = range.dateTo ?? null;
+
+  const [batches, leadPipeline, salesPipeline, corporateSummary, repeatStats,
+    collected, leadFunnel, lifetimeValue] = await Promise.all([
+    dashboardRepository.selectDashboardData(),
+    leadsService.getPipelineSummary(),
+    opportunitiesService.getPipelineSummary(),
+    corporateService.getCorporateSummary(),
+    // Honours the same window as the registration tiles, so "repeat rate"
+    // always describes the period the rest of the screen is describing.
+    dashboardRepository.selectRepeatEnrolmentStats(
+      range.dateFrom ?? null,
+      range.dateTo ?? null,
+    ),
+    dashboardRepository.selectCollectedRevenue(periodFrom, periodTo),
+    dashboardRepository.selectLeadFunnelStats(periodFrom, periodTo),
+    dashboardRepository.selectLifetimeValueStats(),
+  ]);
 
   // The range filters REGISTRATIONS, not batches: a cohort that started
   // outside the window can still have taken registrations inside it, and
@@ -182,6 +227,51 @@ export async function getDashboardSummary(
     leadSourceMap.set(registration.leadSource, entry);
   }
 
+  // Machine-captured attribution: registrations whose visitor arrived with a
+  // UTM tag or an external referrer. Sparse until the cookie has been live a
+  // while — the page shows the table only when there is something to show.
+  const campaignMap = new Map<string, { source: string; campaign: string | null; registrations: number; paid: number }>();
+  for (const registration of revenueRegistrations) {
+    const attribution = registration.attribution;
+    if (!attribution) continue;
+    const source =
+      attribution.utm_source ??
+      (attribution.referrer
+        ? (() => {
+            try {
+              return new URL(attribution.referrer).host;
+            } catch {
+              return 'referral';
+            }
+          })()
+        : null);
+    if (!source) continue;
+    const campaign = attribution.utm_campaign ?? null;
+    const key = `${source}::${campaign ?? ''}`;
+    const entry = campaignMap.get(key) ?? { source, campaign, registrations: 0, paid: 0 };
+    entry.registrations += 1;
+    if (registration.paymentStatus === 'Paid') entry.paid += 1;
+    campaignMap.set(key, entry);
+  }
+
+  // Funnel: leads from the leads table; registration counts from the same
+  // ranged population every other tile uses.
+  const paidInPeriod = registrationsInPeriod.filter((r) => r.paymentStatus === 'Paid').length;
+  const funnel = {
+    leadsCreated: leadFunnel.created,
+    leadsQualified: leadFunnel.qualifiedPlus,
+    registrations: registrationsInPeriod.length,
+    paidRegistrations: paidInPeriod,
+    leadToRegistrationRate:
+      leadFunnel.created === 0
+        ? 0
+        : round2((registrationsInPeriod.length / leadFunnel.created) * 100),
+    registrationToPaidRate:
+      registrationsInPeriod.length === 0
+        ? 0
+        : round2((paidInPeriod / registrationsInPeriod.length) * 100),
+  };
+
   return {
     courses,
     aggregate: {
@@ -197,7 +287,17 @@ export async function getDashboardSummary(
       totalOutstandingBalance: round2(
         revenueRegistrations.reduce((sum, r) => sum + (r.courseFee - r.amountPaid), 0),
       ),
+      revenueCollectedInPeriod: round2(collected.total),
+      collectedBySource: Object.fromEntries(
+        Object.entries(collected.bySource).map(([source, amount]) => [source, round2(amount)]),
+      ),
+      ledgerActive: collected.eventCount > 0,
     },
+    funnel,
+    campaignPerformance: [...campaignMap.values()].sort(
+      (a, b) => b.registrations - a.registrations,
+    ),
+    lifetimeValue,
     repeatEnrolment: {
       registrations: repeatStats.inWindow,
       repeatRegistrations: repeatStats.repeat,

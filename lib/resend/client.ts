@@ -25,8 +25,12 @@ export async function sendTransactionalEmail(params: {
   // Additive (system review, 2026-07-24) - content is base64, matching what
   // Resend's API expects. Optional so every existing call site is unchanged.
   attachments?: Array<{ filename: string; content: string; contentType: string }>;
-}): Promise<void> {
-  const { error } = await getResendClient().emails.send({
+  // Returns Resend's message id (Revenue OS Phase 2, 2026-09-03) so the
+  // engagement webhook can land opened/clicked events back on the email_log
+  // row that recorded the send. Additive: every existing caller ignores the
+  // return value and is unchanged.
+}): Promise<{ providerMessageId: string | null }> {
+  const { data, error } = await getResendClient().emails.send({
     from: params.from
       ? formatFromAddress(params.from)
       : formatFromAddress(process.env.RESEND_FROM_EMAIL!),
@@ -42,4 +46,5 @@ export async function sendTransactionalEmail(params: {
   if (error) {
     throw new Error(`Resend send failed: ${error.message}`);
   }
+  return { providerMessageId: data?.id ?? null };
 }
