@@ -16,6 +16,7 @@ import {
   SIGNATURE_AIKINS_PNG_BASE64,
   SIGNATURE_BONNEY_PNG_BASE64,
 } from '@/lib/certificates/signatures';
+import { ORGANISATION_NAME } from '@/lib/organisation';
 import { wrapText } from '@/lib/pdf-text';
 
 const NAVY = rgb(30 / 255, 58 / 255, 138 / 255);
@@ -117,6 +118,9 @@ export async function generateCertificatePdf(
   const logoHeight = 44;
   const logoWidth = (740 / 270) * logoHeight;
   page.drawImage(logoImage, { x: 66, y: y(110), width: logoWidth, height: logoHeight });
+  // Issuing body, directly under the wordmark (founder request 2026-09-04).
+  // Left-aligned with the logo, well clear of the centred headline at 118.
+  page.drawText(ORGANISATION_NAME, { x: 66, y: y(126), size: 9, font: helvetica, color: GREY });
 
   // Certificate number + QR code, top-right.
   const qrDataUrl = await QRCode.toDataURL(data.verifyUrl, {
@@ -253,8 +257,8 @@ export async function generateCertificatePdf(
   signatory('Isaac Adjin Bonney (CA, CPFA, CFIP)', 'Board Chair', 235, isaacSignature);
   signatory('Stephen Kwame Aikins, CA', 'Programme Director', 607, stephenSignature);
 
-  // Verification footer.
-  const verifyLine = `Verify: ${data.verifyUrl}`;
+  // Verification footer, naming the issuer next to the check.
+  const verifyLine = `Issued by ${ORGANISATION_NAME}  ·  Verify: ${data.verifyUrl}`;
   const verifyWidth = helvetica.widthOfTextAtSize(verifyLine, 8);
   page.drawText(verifyLine, {
     x: centerX - verifyWidth / 2,

@@ -27,6 +27,7 @@ import { ApiError, apiFetch } from '@/components/api-client';
 import { AddToLinkedInButton } from '@/components/AddToLinkedInButton';
 import { PaystackCheckout } from '@/components/PaystackCheckout';
 import { PORTAL_STYLES, PortalIcons } from '@/components/portal/portal-design-system';
+import { appHost } from '@/lib/app-url';
 import { formatDate, formatGhs } from '@/lib/utils';
 import { UPLOAD_ACCEPT_ATTRIBUTE, UPLOAD_TYPES_HINT } from '@/lib/upload-constants';
 import {
@@ -896,7 +897,7 @@ export default function PortalDashboardPage() {
             <div className="support">
               Need help?
               <br />
-              <a href="mailto:info.knowsia@gmail.com">info.knowsia@gmail.com</a>
+              <a href="mailto:info@knowsia.com">info@knowsia.com</a>
             </div>
             <button className="logout" type="button" onClick={handleLogout}>
               <svg className="icon"><use href="#i-logout" /></svg>Log out
@@ -1724,7 +1725,7 @@ export default function PortalDashboardPage() {
                               />
                             </div>
                             <div className="verify">
-                              Verify at <a href={`/verify/${cert.certificateNumber}`}>reg.knowsia.com/verify/{cert.certificateNumber}</a>
+                              Verify at <a href={`/verify/${cert.certificateNumber}`}>{appHost()}/verify/{cert.certificateNumber}</a>
                             </div>
                           </>
                         )}

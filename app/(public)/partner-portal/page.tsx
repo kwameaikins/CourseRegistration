@@ -237,7 +237,7 @@ export default function PartnerPortalDashboardPage() {
             <div className="support">
               Need help?
               <br />
-              <a href="mailto:info.knowsia@gmail.com">info.knowsia@gmail.com</a>
+              <a href="mailto:info@knowsia.com">info@knowsia.com</a>
             </div>
             <button className="logout" type="button" onClick={() => void logout()}>
               <svg className="icon"><use href="#i-logout" /></svg>Log out

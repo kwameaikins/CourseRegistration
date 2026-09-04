@@ -3,6 +3,8 @@
 // only what the certificate itself already displays.
 import * as certificatesService from '@/modules/certificates/service';
 import { KnowsiaHeader } from '@/components/KnowsiaHeader';
+import { appHost } from '@/lib/app-url';
+import { ORGANISATION_NAME } from '@/lib/organisation';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +35,7 @@ export default async function VerifyPage({
             <p className="text-xl font-bold text-[#F49E20]">{result.recipientName}</p>
             <p className="text-sm">successfully completed</p>
             <p className="text-lg font-semibold text-[#4B21A8]">{result.courseTitle}</p>
+            <p className="text-sm">Issued by {ORGANISATION_NAME}</p>
             <p className="text-sm text-muted-foreground">
               Certificate {result.certificateNumber} · Issued{' '}
               {new Date(`${result.issuedDate}T00:00:00Z`).toLocaleDateString('en-GB', {
@@ -68,7 +71,7 @@ export default async function VerifyPage({
       <p className="mt-6 text-center text-xs text-muted-foreground">
         Knowsia — practical professional training ·{' '}
         <a href="/register" className="font-medium text-[#4B21A8] underline">
-          View our courses → reg.knowsia.com/register
+          View our courses → {appHost()}/register
         </a>
       </p>
     </main>

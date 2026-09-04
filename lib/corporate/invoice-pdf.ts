@@ -4,7 +4,9 @@
 // generated-on-demand posture as lib/certificates/pdf.ts.
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
+import { appHost } from '@/lib/app-url';
 import { KNOWSIA_LOGO_PNG_BASE64 } from '@/lib/certificates/logo';
+import { ORGANISATION_LINE, ORGANISATION_NAME } from '@/lib/organisation';
 import { wrapText } from '@/lib/pdf-text';
 
 // Brand colors (2026-07-26) — the real Knowsia orange from the logo (also
@@ -50,6 +52,8 @@ export async function generateCorporateInvoicePdf(data: CorporateInvoicePdfData)
   const logoHeight = 40;
   const logoWidth = (740 / 270) * logoHeight;
   page.drawImage(logoImage, { x: 48, y: y(88), width: logoWidth, height: logoHeight });
+  // Issuer, under the wordmark and above the rule (founder request 2026-09-04).
+  page.drawText(ORGANISATION_LINE, { x: 48, y: y(106), size: 9, font: helvetica, color: GREY });
 
   page.drawText('INVOICE', { x: width - 48 - bold.widthOfTextAtSize('INVOICE', 22), y: y(78), size: 22, font: bold, color: ORANGE });
   const invoiceNumber = `Ref: CORP-${data.allocationId.slice(0, 8).toUpperCase()}`;
@@ -80,7 +84,10 @@ export async function generateCorporateInvoicePdf(data: CorporateInvoicePdfData)
   cursorTop += 20;
   // Table header
   const columns = { desc: 48, seats: 340, price: 420, total: 500 };
-  page.drawRectangle({ x: 48, y: y(cursorTop) - 4, width: width - 96, height: 22, color: INK });
+  // The bar must cover the label baselines drawn at cursorTop+12 below —
+  // anchored at cursorTop-4 (as it was until 2026-09-04) it sat entirely
+  // above them, leaving white-on-white, invisible column headings.
+  page.drawRectangle({ x: 48, y: y(cursorTop + 18), width: width - 96, height: 22, color: INK });
   page.drawText('Description', { x: columns.desc + 6, y: y(cursorTop + 12), size: 10, font: bold, color: rgb(1, 1, 1) });
   page.drawText('Seats', { x: columns.seats, y: y(cursorTop + 12), size: 10, font: bold, color: rgb(1, 1, 1) });
   page.drawText('Price/seat', { x: columns.price, y: y(cursorTop + 12), size: 10, font: bold, color: rgb(1, 1, 1) });
@@ -124,7 +131,7 @@ export async function generateCorporateInvoicePdf(data: CorporateInvoicePdfData)
   line('Bank transfer. Please reference the invoice number above and quote', 10, helvetica, GREY, 13);
   line('the company name so payment can be matched and seats confirmed.', 10, helvetica, GREY, 13);
 
-  const footer = 'Knowsia — reg.knowsia.com';
+  const footer = `${ORGANISATION_NAME} — ${appHost()}`;
   page.drawText(footer, {
     x: width / 2 - helvetica.widthOfTextAtSize(footer, 8) / 2,
     y: 36,

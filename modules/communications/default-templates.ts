@@ -9,8 +9,12 @@
 // overwrites edited templates.
 import * as communicationsRepository from '@/modules/communications/repository';
 import type { EmailType } from '@/lib/domain/types';
+import { ORGANISATION_EMAIL } from '@/lib/organisation';
 
-const CONTACT = 'info.knowsia@gmail.com';
+// Seeded into NEW course templates only; templates already saved in the
+// database keep whatever address they were edited to (see the Messaging
+// screen to update those).
+const CONTACT = ORGANISATION_EMAIL;
 // Business MoMo account registered as "Knowsia Professional Institute"
 // (founder-provided 2026-09-03; replaced the personal number 0530531328 and
 // old merchant code 143735 — existing DB templates were updated the same day).

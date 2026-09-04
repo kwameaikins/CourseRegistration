@@ -5,7 +5,9 @@
 // stored record.
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
 
+import { appHost } from '@/lib/app-url';
 import { KNOWSIA_LOGO_PNG_BASE64 } from '@/lib/certificates/logo';
+import { ORGANISATION_EMAIL, ORGANISATION_LINE, ORGANISATION_NAME } from '@/lib/organisation';
 import { wrapText } from '@/lib/pdf-text';
 
 const ORANGE = rgb(244 / 255, 158 / 255, 32 / 255);
@@ -96,6 +98,8 @@ export async function generateStatementPdf(data: StatementPdfData): Promise<Uint
   const logoHeight = 40;
   const logoWidth = (740 / 270) * logoHeight;
   page.drawImage(logoImage, { x: 48, y: y(88), width: logoWidth, height: logoHeight });
+  // Issuer, under the wordmark and above the rule (founder request 2026-09-04).
+  page.drawText(ORGANISATION_LINE, { x: 48, y: y(106), size: 9, font: helvetica, color: GREY });
 
   const title = 'ACCOUNT STATEMENT';
   page.drawText(title, {
@@ -220,7 +224,7 @@ export async function generateStatementPdf(data: StatementPdfData): Promise<Uint
   }
 
   // Footer on every page.
-  const footer = 'Knowsia — reg.knowsia.com — Questions? info.knowsia@gmail.com';
+  const footer = `${ORGANISATION_NAME} — ${appHost()} — Questions? ${ORGANISATION_EMAIL}`;
   for (const p of doc.getPages()) {
     p.drawText(footer, {
       x: PAGE_WIDTH / 2 - helvetica.widthOfTextAtSize(footer, 8) / 2,

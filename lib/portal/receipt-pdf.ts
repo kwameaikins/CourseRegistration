@@ -4,7 +4,9 @@
 // lib/certificates/pdf.ts and lib/corporate/invoice-pdf.ts.
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
+import { appHost } from '@/lib/app-url';
 import { KNOWSIA_LOGO_PNG_BASE64 } from '@/lib/certificates/logo';
+import { ORGANISATION_EMAIL, ORGANISATION_LINE, ORGANISATION_NAME } from '@/lib/organisation';
 import { wrapText } from '@/lib/pdf-text';
 
 // Brand colors (2026-07-26) — the real Knowsia orange from the logo (also
@@ -51,6 +53,8 @@ export async function generateReceiptPdf(data: ReceiptPdfData): Promise<Uint8Arr
   const logoHeight = 40;
   const logoWidth = (740 / 270) * logoHeight;
   page.drawImage(logoImage, { x: 48, y: y(88), width: logoWidth, height: logoHeight });
+  // Issuer, under the wordmark and above the rule (founder request 2026-09-04).
+  page.drawText(ORGANISATION_LINE, { x: 48, y: y(106), size: 9, font: helvetica, color: GREY });
 
   page.drawText('RECEIPT', { x: width - 48 - bold.widthOfTextAtSize('RECEIPT', 22), y: y(78), size: 22, font: bold, color: ORANGE });
   const receiptNumber = `Ref: RCPT-${data.registrationId.slice(0, 8).toUpperCase()}`;
@@ -114,11 +118,20 @@ export async function generateReceiptPdf(data: ReceiptPdfData): Promise<Uint8Arr
   cursorTop += descriptionLines.length * DESC_LINE_HEIGHT + 17;
   page.drawLine({ start: { x: 48, y: y(cursorTop) }, end: { x: width - 48, y: y(cursorTop) }, thickness: 1, color: GREY });
   cursorTop += 24;
-  page.drawText('Balance Remaining', { x: columns.fee, y: y(cursorTop), size: 12, font: bold, color: INK });
+  // Right-align the label to the value column: left-aligned at the Fee
+  // column it ran straight into the amount (caught on 2026-09-04).
+  const balanceLabel = 'Balance Remaining';
+  page.drawText(balanceLabel, {
+    x: columns.paid - 12 - bold.widthOfTextAtSize(balanceLabel, 12),
+    y: y(cursorTop),
+    size: 12,
+    font: bold,
+    color: INK,
+  });
   page.drawText(formatGhs(data.balance), { x: columns.paid, y: y(cursorTop), size: 12, font: bold, color: INK });
 
   cursorTop += 50;
-  const footer = 'Knowsia — reg.knowsia.com — Questions? info.knowsia@gmail.com';
+  const footer = `${ORGANISATION_NAME} — ${appHost()} — Questions? ${ORGANISATION_EMAIL}`;
   page.drawText(footer, {
     x: width / 2 - helvetica.widthOfTextAtSize(footer, 8) / 2,
     y: 36,
