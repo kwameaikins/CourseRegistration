@@ -153,6 +153,24 @@ npx playwright test          # E2E tests (Section 6, Document 9)
 ```
 Week (per PLAN.md):     5 (Tasks 1–5 code-complete; live integrations pending)
 
+2026-09-04 (three commits, ddda843 / 75b37a4 / 48fd186 — see PLAN.md §Platform convergence):
+  Domain consolidation groundwork (Coding Docs/20) — SHIPPED DARK. Host is
+    env-driven via lib/app-url.ts; next.config.ts gains CANONICAL_HOST and
+    KNOWSIA_APP_PUBLIC_URL (unset = production unchanged, emergency
+    knowsia.com→reg 307 kept); config/legacy-redirects.json (790 WordPress
+    URLs) applies only once CANONICAL_HOST is set; trailing-slash
+    canonicalisation now lives in middleware.ts (live on this deploy, same
+    behaviour). RETIRE_PROGRAMMES_REDIRECT deleted.
+  Legal entity is Knowsia Professional Institute; name, location, contact
+    email (info@knowsia.com) and phones live ONLY in lib/organisation.ts —
+    certificates, invoices, receipts, statements, portal footers, seeded
+    templates and marketing pages read from it. Never type the name, a
+    number or the address into a page again.
+  Home page rebuilt for knowsia.com (two doors: cohorts + study platform);
+    /about, /contact, /privacy-policy added; shared MarketingFooter;
+    TrackedLink fires GA4/Pixel click events (home_*). Privacy text needs
+    founder + practitioner review before cutover (PRIVACY_REVIEW_NOTES).
+
 Built & deployed (all committed, tests/tsc/lint/build green throughout):
   Phase 1 core — registration, Paystack payments + webhook, email engine
     (7 types), Resend DNS-verified and live.
