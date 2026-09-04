@@ -1,0 +1,3952 @@
+[
+  {
+    "source": "/10-study-habits-of-high-scoring-ca-students",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/3-ways-to-earn-on-knowsia-teach-contribute-refer",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/account-access",
+    "destination": "https://app.knowsia.com/login",
+    "rule": "page-study"
+  },
+  {
+    "source": "/activate",
+    "destination": "https://app.knowsia.com/login",
+    "rule": "page-study"
+  },
+  {
+    "source": "/affiliate",
+    "destination": "/partners/apply",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/affiliate-account",
+    "destination": "/partner-portal",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/affiliate-marketing-for-students-earn-while-you-study",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/affiliate-registration",
+    "destination": "/partners/apply",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/affiliate-reset-password",
+    "destination": "/partner-portal/change-pin",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/ai-driven-business-model-inc-blog",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/balancing-affiliate-marketing-with-studies",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/balancing-study-with-work-and-life",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/balancing-work-and-study-a-guide-for-busy-professionals",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/become-a-tutor",
+    "destination": "/tutor-portal",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/become-a-tutor-on-knowsia-step-by-step-guide",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/become-a-tutor/academic-tutor-application-form",
+    "destination": "/tutor-portal",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/become-a-tutor/professional-tutor-application-form",
+    "destination": "/tutor-portal",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/become-a-tutor/student-tutor-application-form",
+    "destination": "/tutor-portal",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/become-chartered-accountant-ghana",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/before-you-take-the-icag-online-exam-check-this-or-risk-failing",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/blog",
+    "destination": "/news",
+    "rule": "blog-index"
+  },
+  {
+    "source": "/building-effective-study-groups-for-cpa-success",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/career-opportunities-after-becoming-a-chartered-accountant",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/cart2",
+    "destination": "/programmes",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/category/:slug",
+    "destination": "/news",
+    "rule": "pattern-blog-category"
+  },
+  {
+    "source": "/category/exams-preparation",
+    "destination": "/news",
+    "rule": "blog-category"
+  },
+  {
+    "source": "/category/exams-preparations",
+    "destination": "/news",
+    "rule": "blog-category"
+  },
+  {
+    "source": "/category/excel-businessprofessionals",
+    "destination": "/news",
+    "rule": "blog-category"
+  },
+  {
+    "source": "/category/excel-for-accountants",
+    "destination": "/news",
+    "rule": "blog-category"
+  },
+  {
+    "source": "/category/free",
+    "destination": "/news",
+    "rule": "blog-category"
+  },
+  {
+    "source": "/category/general",
+    "destination": "/news",
+    "rule": "blog-category"
+  },
+  {
+    "source": "/checkout2",
+    "destination": "/programmes",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/common-accounting-errors-startups-must-avoid",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/common-pitfalls-to-avoid-in-your-study-plan",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/common-problems-faced-by-students-preparing-for-professional-exams",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/community",
+    "destination": "/partners/apply",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/community/feed-2",
+    "destination": "/partners/apply",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/community/groups",
+    "destination": "/partners/apply",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/community/members",
+    "destination": "/partners/apply",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/contact-2",
+    "destination": "/contact",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/course-category/:slug",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "pattern-course-category"
+  },
+  {
+    "source": "/course-category/certificate-courses",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/course-category/excel",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/course-category/icag",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/course-category/icag-level-1",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/course-category/icag-level-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/course-category/icag-level-3",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/course-category/professional-programs",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/course-tag/icag",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/course-tag/level-1",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/courses",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "page-study"
+  },
+  {
+    "source": "/courses/1-2-business-management-and-informations-systems",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "course-unmapped"
+  },
+  {
+    "source": "/courses/1-3-business-and-corporate-law",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "course-unmapped"
+  },
+  {
+    "source": "/courses/1-4-introduction-to-management-and-cost-accounting",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "course-unmapped"
+  },
+  {
+    "source": "/courses/2-1-financial-reporting",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "course-unmapped"
+  },
+  {
+    "source": "/courses/2-3-audit-and-assurance",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "course-unmapped"
+  },
+  {
+    "source": "/courses/2-4-financial-management",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "course-unmapped"
+  },
+  {
+    "source": "/courses/2-6-principles-of-taxation",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "course-unmapped"
+  },
+  {
+    "source": "/courses/3-1-corporate-reporting",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "course-unmapped"
+  },
+  {
+    "source": "/courses/3-1-public-sector-accounting-and-finance",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "course-unmapped"
+  },
+  {
+    "source": "/courses/3-2-advanced-audit-and-assurance",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "course-unmapped"
+  },
+  {
+    "source": "/courses/3-3-advanced-taxation",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "course-unmapped"
+  },
+  {
+    "source": "/courses/3-4-strategic-case-study",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "course-unmapped"
+  },
+  {
+    "source": "/courses/excel-for-business-professionals",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "course-unmapped"
+  },
+  {
+    "source": "/courses/financial-accounting",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "course-unmapped"
+  },
+  {
+    "source": "/courses/knowsia-website-tutorials",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "course-unmapped"
+  },
+  {
+    "source": "/courses/management-accounting",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "course-unmapped"
+  },
+  {
+    "source": "/courses/microsoft-excel-for-business-professional-advanced",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "course-unmapped"
+  },
+  {
+    "source": "/courses/microsoft-excel-for-business-professionals-intermediate",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "course-unmapped"
+  },
+  {
+    "source": "/courses/payroll-automation-with-excel",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "course-unmapped"
+  },
+  {
+    "source": "/courses/sage-300",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "course-unmapped"
+  },
+  {
+    "source": "/cs",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "page-study-questions-pending"
+  },
+  {
+    "source": "/customer-relationship-management-in-banking",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/data-analytics-for-competitive-market-analysis",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/developing-resilience-for-long-term-success",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/digital-transformation-in-banking",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/discounts",
+    "destination": "/programmes",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/employment-tax-in-ghana-a-comprehensive-guide",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/entry-requirements-for-the-icag-professional-qualification",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/esg-sustainability-reporting-training",
+    "destination": "/programmes/ESG1",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/essential-skills-for-accountants-in-the-digital-age",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/ethics-and-professionalism-in-chartered-accountancy",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/excel-templates",
+    "destination": "/news",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/financial-literacy-and-customer-service",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/financial-management-strategy",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/free-icag-tuition",
+    "destination": "/programmes",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/free-tools-every-ca-student-should-be-using",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/future-ready-skills",
+    "destination": "/programmes",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/global-internal-audit-standards",
+    "destination": "/programmes",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/goal-setting-for-confidence-in-accounting-studies-icag",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/guide-payroll-preparation",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/home",
+    "destination": "/",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/how-combining-business-and-tech-sparks-innovation",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/how-ethics-and-professional-scepticism-are-integrated-in-icag-syllabus",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/how-knowsia-helps-with-goal-setting",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/how-knowsias-question-bank-helps-you-study-smarter",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/how-to-build-a-strong-professional-network-from-scratch",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/how-to-manage-time-in-exams",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/how-to-pass-building-a-killer-study-plan",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/how-to-pass-icag-exams-proven-strategies-that-work",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/how-to-promote-your-knowsia-courses-as-a-tutor",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/how-to-stay-motivated-during-ca-exam-prep",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/how-to-tackle-challenging-icag-subjects",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/how-to-tame-the-syllabus-monster-smart-ways-to-break-down-your-study-plan",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/how-to-turn-your-notes-into-a-paid-course",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/icag-assessments-format-pass-marks-and-progression-rules",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/icag-exemptions-guide",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/icag-live-tuition",
+    "destination": "/programmes",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/instructor-dashboard",
+    "destination": "/tutor-portal",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/introduction-to-icag-qualification-levels-knowledge-application-and-professional",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/join",
+    "destination": "https://app.knowsia.com/register",
+    "rule": "page-study"
+  },
+  {
+    "source": "/jump-to",
+    "destination": "/",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/key-benefits-of-the-new-icag-qualification-structure",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/knowsia-ai",
+    "destination": "https://app.knowsia.com/",
+    "rule": "page-study"
+  },
+  {
+    "source": "/ld-exam/1-1-financial-accounting-pq-july-2025",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/:slug",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "pattern-lessons"
+  },
+  {
+    "source": "/lessons/1-1-overview-of-payroll",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/1-2-sample-payroll",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/1-3-payroll-problem",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/1-4-master-payroll-structure",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/12",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/2-1-using-the-lookup-functions",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/2-2-the-index-function",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/2-3-the-match-function",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/2-4-combining-the-indext-and-match-functions",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/2-5-using-name-ranges",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/2-6-first-application-of-the-excel-functions",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/3-1-the-basic-salary",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/3-2-allowances",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/3-3-reliefs",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/3-4-relief-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/3-5-relief-3",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/3-6-paye",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/3-7-net-salaries",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/3-8-bonus-tax",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/3-9-overtime-tax",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/4-1-conditioning-the-basic-salary",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/4-2-conditioning-the-professional-allowance",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/4-3-conditioning-the-pf",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/4-4-conditioning-the-tier-3",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/5-1-loan-portfolio-format",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/5-2-staff-loan-data",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/5-3-computing-the-interest-payable",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/5-4-loan-maturity-date",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/5-5-total-loan-paid",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/5-6-the-loan-balance",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/5-7-loan-deduction",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/6-1-payslip",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/bases-of-accounting",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/business-transactions",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/creating-charts-and-graphs",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/creating-charts-and-graphs-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-1",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-1-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-1-3",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-1-4",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-1-5",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-1-6",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-1-7",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-1-8",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-1-business-organisations",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-1-course-introduction",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-1-introduction",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-1-sources-of-law",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-10",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-10-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-10-3",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-10-absorption-and-marginal-costing-part-i",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-10-control-account",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-10-employment-law",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-11",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-11-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-11-absorption-and-marginal-costing-part-ii",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-11-control-account-part-ii",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-11-management-administration-and-regulation-of-companies",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-12-correction-errors",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-12-governance-ethical-issues",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-12-pricing-technique",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-13-fundamentals-of-human-rights-mp4",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-13-how-to-solve-a-pricing-question",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-13-journal",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-14-bad-and-doubtful-debt-in-financial-accounting",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-14-priority-based-budgeting",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-15-bad-and-doubtful-dept-in-financial-accounting-part-ii",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-15-cvp-analysis",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-16-capital-structure-and-finance-cost",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-17-component-of-financial-statement",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-18-preparing-basic-financial-statement-swan",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-19-partnership-accounting",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-2-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-2-3",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-2-4",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-2-5",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-2-6",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-2-7",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-2-8",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-2-9",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-2-accounting-equation",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-2-introduction-to-cost-and-management-accounting",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-3",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-3-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-3-3",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-3-4",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-3-business-and-organizational-structure",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-3-costing-terminologies",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-3-double-entry-bookkeeping-part-i",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-3-law-of-contract",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-4",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-4-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-4-3",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-4-4",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-4-books-of-prime-entry",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-4-cost-behaviour-segregation-and-estimation",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-4-introduction-to-business-stratagy",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-4-law-of-contract-part-ii",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-5",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-5-accounting-for-materials-part-i",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-5-double-entry-bookkeeping-part-ii",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-5-introduction-to-information-technology-and-information-systems",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-5-vitiating-factors",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-6",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-6-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-6-3",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-6-accounting-for-materials-part-ii",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-6-accounting-for-non-current-assets",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-6-competitive-forces-and-market",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-6-law-of-torts-negligence",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-7",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-7-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-7-3",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-7-accounting-for-labour-cost",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-7-finance-rd-and-marketing-strategies",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-7-law-of-torts",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-7-methods-of-depreciation",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-8",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-8-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-8-3",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-8-4",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-8-5",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-8-hr-recruitment-and-selection",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-8-overhead-part-i",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-9",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-9-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-9-3",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-9-intangible-assets",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-9-overhead-part-ii",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/day-9-sales-of-goods",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/deliverability-of-your-emails",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/developing-strategy",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/ethics-and-accounting",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/formatting-spreadsheet",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/formatting-spreadsheet-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/improving-designing-marketing-emails",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/introduction-to-financial-accounting-by-business-entities",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/investment-marketing-final-strategies",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/knowing-excel",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-10",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-100",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-101",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-102",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-103",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-104",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-105",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-106",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-107",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-108",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-109",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-11",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-110",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-111",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-112",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-113",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-114",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-115",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-116",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-117",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-118",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-119",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-12",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-120",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-121",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-122",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-123",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-124",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-125",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-126",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-127",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-128",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-129",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-13",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-130",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-131",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-132",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-133",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-134",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-135",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-136",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-137",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-138",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-139",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-14",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-140",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-141",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-142",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-143",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-144",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-145",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-146",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-147",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-148",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-149",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-15",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-150",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-151",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-152",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-153",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-154",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-155",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-156",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-157",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-158",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-159",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-16",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-160",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-161",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-162",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-163",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-164",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-165",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-166",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-167",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-168",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-169",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-17",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-170",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-171",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-172",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-173",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-174",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-175",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-176",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-177",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-178",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-179",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-18",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-180",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-181",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-182",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-183",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-184",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-185",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-186",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-187",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-188",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-189",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-19",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-190",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-191",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-192",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-193",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-194",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-195",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-196",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-197",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-198",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-199",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-20",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-200",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-201",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-202",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-203",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-204",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-205",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-206",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-207",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-208",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-209",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-21",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-210",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-211",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-212",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-213",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-214",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-215",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-216",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-217",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-218",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-219",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-22",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-220",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-221",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-222",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-223",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-224",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-225",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-226",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-227",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-228",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-229",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-23",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-230",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-231",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-24",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-25",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-26",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-27",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-28",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-29",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-3",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-30",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-31",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-32",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-33",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-34",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-35",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-36",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-37",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-38",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-39",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-4",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-40",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-41",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-42",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-43",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-44",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-45",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-46",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-47",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-48",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-49",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-5",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-50",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-51",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-52",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-53",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-54",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-55",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-56",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-57",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-58",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-59",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-6",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-60",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-61",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-62",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-63",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-64",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-65",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-66",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-67",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-68",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-69",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-7",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-70",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-71",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-72",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-73",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-74",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-75",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-76",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-77",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-78",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-79",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-8",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-80",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-81",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-82",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-83",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-84",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-85",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-86",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-87",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-88",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-89",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-9",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-90",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-91",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-92",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-93",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-94",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-95",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-96",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-97",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-98",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/lesson-99",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/monitoring-digital-advertising",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/performing-calculations-in-excel",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/printing",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/printing-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/sage-300",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/the-components-of-financial-statement",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/the-need-for-financial-statement",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/types-of-business",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/working-with-data",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/lessons/working-with-data-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/live-programmes",
+    "destination": "/programmes",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/long-term-success-as-a-tutor-on-knowsia",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/managing-stress-and-well-being",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/mastering-productivity-for-work-and-study",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/my-account-2",
+    "destination": "/portal",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/navigating-the-educational-pathway-to-becoming-a-certified-public-accountant-cpa-key-requirements-and-strategic-choices",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/overcoming-challenges-in-competitive-analytics",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/overcoming-common-exam-mistakes",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/overcoming-procrastination",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/overview-of-icag-professional-qualification-syllabus-2024-2029",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/payment-options",
+    "destination": "/programmes",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/practical-auditing-skills-for-ca-students",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/practical-skills-for-accountants",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/prioritizing-tasks-for-icag-success",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/product-category/:slug",
+    "destination": "/programmes",
+    "rule": "pattern-product-category"
+  },
+  {
+    "source": "/product-category/category-a",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product-category/category-b",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product-category/excel-automation-for-accountants",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product-category/excel-templates",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product-category/icag-tuition",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product-category/icag-tuition/level-1",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product-category/icag-tuition/level-2",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product-category/icag-tuition/level-3",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product-category/short-courses",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product-category/uncategorized",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/:slug",
+    "destination": "/programmes",
+    "rule": "pattern-product"
+  },
+  {
+    "source": "/product/1-1-financial-accounting",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/1-2-business-management-and-information-system",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/1-3-business-and-corporate-law",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/1-4-introduction-to-cost-and-management-accounting",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/2-1-financial-reporting",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/2-2-management-accounting",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/2-3-audit-and-assurance",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/2-4-financial-management",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/2-5-public-sector-accounting-and-finance",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/2-6-principles-of-taxation",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/3-1-corporate-reporting",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/3-2-advanced-audit-and-assurance",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/3-3-advancedtaxation",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/3-4-strategic-case-study",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/ai-for-business-productivity",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/ai-powered-digital-marketing",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/ai-powered-financial-reporting-and-analysis-with-excel",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/asset-register-with-ppe-schedule",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/comprehensive-payroll-automation-with-excel",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/excel-payroll-tamplate",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/financial-reporting-automation",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/free-tuition-registration-fee",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/inventory-modeling-and-control",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/product/payroll-automation-with-excel",
+    "destination": "/programmes",
+    "rule": "commerce"
+  },
+  {
+    "source": "/professional-development-for-cas",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/purpose-and-rationale-of-the-icag-syllabus-update",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/qb",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "page-study-questions-pending"
+  },
+  {
+    "source": "/qr-code",
+    "destination": "/",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/question-bank-pricing",
+    "destination": "https://app.knowsia.com/pricing",
+    "rule": "page-study"
+  },
+  {
+    "source": "/quizzes/:slug",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "pattern-quizzes"
+  },
+  {
+    "source": "/quizzes/1",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/1-1-financial-accounting-section-a",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/1-introduction-to-financial-accounting-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/1-scope-of-management-accounting-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/1-the-business-organisation-and-its-stakeholders-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/1-the-legal-system-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/10-bank-reconciliation-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/10-forecasting-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/10-hr-recruitment-and-selection-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/10-the-mangement-of-companies-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/11-budgeting-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/11-companies-in-difficulty-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/11-correction-of-errors-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/11-hr-training-and-development-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/12-budgeting-models-and-systems-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/12-capital-structure-and-finance-cost-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/12-governance-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/12-hr-other-human-resources-functions",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/13-cash-budgeting-and-working-capital-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/13-preparation-of-financial-statement-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/13-professional-ethics-in-accounting-and-business-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/14-management-and-leadership-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/14-preparation-of-company-financial-statement-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/14-standard-costing-and-variance-analysis-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/15-cost-volume-profit-cvp-analysis-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/15-motivation-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/15-preparation-of-partnership-account-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/16-preparation-of-not-for-profit-accounts-and-public-sector-accounting-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/16-relevant-cost-and-revenue-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/16-teams-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/17-decision-making-techniques-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/17-introduction-to-information-technology-and-information-systems-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/17-preparation-of-accounts-from-incomplete-records-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/18-statement-of-cash-flows-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/18-the-internet-cloud-computing-is-security-and-blockchain-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/19-interpretation-of-financial-statement-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/2-business-and-organizational-structure-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/2-cost-and-cost-behaviour-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/2-law-of-contract-i-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/2-the-conceptual-framework-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/3-accounting-equation",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/3-cost-segregation-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/3-law-of-contract-ii-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/3-organisation-culture-in-business-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/4-accounting-for-inventory-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/4-double-entry-bookkeeping",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/4-the-external-environment-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/4-tort-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/5-accounting-for-overheads-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/5-introduction-to-business-strategy-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/5-law-agency-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/5-sales-and-purchases-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/6-commercial-law-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/6-competive-forces-and-markets-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/6-marginal-costing-and-absorption-costing-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/6-non-current-assets-and-depreciation-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/7-bad-and-doutful-debt-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/7-employment-law-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/7-job-costing-batch-costing-and-service-costing-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/8-accruals-and-prepayments-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/8-business-organisation-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/8-finance-rd-and-marketing-strategies-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/8-process-costing-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/9-capital-and-the-financing-of-campanies-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/9-ethics-and-accounting-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/9-operations-startegy-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/9-pricing-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/control-account-and-control-account-reconciliation",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/day-6-law-of-torts-negligence",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/introduction-to-cost-management-accounting-quiz-1",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/practice-questions-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-1",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-10",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-11",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-12",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-13",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-14",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-15",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-16",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-17",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-18",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-19",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-20",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-21",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-22",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-23",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-24",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-25",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-26",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-27",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-28",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-29",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-3",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-3-cost-terms-concepts-and-classifications",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-4",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-4-cost-behavior-and-cost-volume-profit-cvp-analysis",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-5",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-5-job-order-costing-and-process-costing",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-6",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-6-budgeting-and-variance-analysis",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-6-budgeting-and-variance-analysis-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-7",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-7-decision-making",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-8",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/quiz-9",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/quizzes/the-internet-cloud-computing-is-security-and-blockchain-quiz",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/role-of-technology-in-icag-syllabus-and-exams",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/shop",
+    "destination": "/programmes",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/sneaky-tips-to-access-free-academic-workshop",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/sq",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "page-study-questions-pending"
+  },
+  {
+    "source": "/staying-focused-during-study-sessions",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/strategies-to-succeed-in-affiliate-marketing-for-students",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/stress-management-and-mental-health-for-ca-students",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/student-dashboard",
+    "destination": "https://app.knowsia.com/login",
+    "rule": "page-study"
+  },
+  {
+    "source": "/study-habits-matter-for-ca-success",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/success-story-how-one-student-passed-all-icag-levels-knowsia-as-her-guide",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/sustainability-integration-in-icag-accounting-qualification",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/terms-and-conditions",
+    "destination": "/partners/apply",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/testimonials",
+    "destination": "/",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/the-biggest-accounting-challenges-and-solutions",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/the-future-of-technology-to-boost-motivation",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/the-importance-of-continuous-development-in-accounting",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/the-role-of-chartered-accountants-in-achieving-net-zero-goals",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/the-science-behind-question-banks-why-they-work-for-exam-success",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/the-student-tutor-model-teaching-what-youre-learning",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/time-management-and-goal-setting-for-icag-students",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/tools-and-resources-to-boost-productivity",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/top-10-mistakes-ca-students-make-and-how-to-avoid-them",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/top-cpd-courses-every-accountant-should-take",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/topic/accessibility",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/accessibility-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/alignment-tool",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/alignment-tool-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/basic-chart-types",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/basic-chart-types-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/basic-investment-social-media-influencing",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/borders",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/borders-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/change-chart-style-and-type",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/change-chart-style-and-type-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/conditional-formatting",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/conditional-formatting-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/course-introduction",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/custom-formatting",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/custom-formatting-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/excel-options",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/excel-options-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/excel-template",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/excel-template-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/filtering",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/filtering-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/find-and-replace",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/find-and-replace-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/font-formatting",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/font-formatting-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/format-painter",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/format-painter-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/functions-i-sum-and-autosum",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/functions-i-sum-and-autosum-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/functions-ii-average-min-max",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/functions-ii-average-min-max-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/growth-hacking-with-your-content",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/headers-and-footers",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/headers-and-footers-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/introduction-performing-calculations",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/managing-rows-and-column",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/managing-rows-and-column-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/modify-chart-element",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/modify-chart-element-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/monitoring-advertising",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/move-and-resize-charts",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/move-and-resize-charts-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/orientation-margin-and-scale",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/orientation-margin-and-scale-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/page-breaks",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/page-breaks-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/print-preview",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/print-preview-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/print-titles",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/print-titles-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/relationships",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/relative-referencing-absolute-referencing",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/relative-referencing-absolute-referencing-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/save-options",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/save-options-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/selecting-and-navigating-through-data-in-excel",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/selecting-and-navigating-through-data-in-excel-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/sharing-charts",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/sharing-charts-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/sorting",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/sorting-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/styles-and-themes",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/styles-and-themes-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/success-with-advert",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/the-fill-handle",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/the-fill-handle-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/the-power-of-effective-content",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/the-view-option",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/the-view-option-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/this-is-the-first-topic",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/topic",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/topic-10",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/topic-11",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/topic-12",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/topic-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/topic-3",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/topic-4",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/topic-5",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/topic-6",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/topic-7",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/topic-8",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/topic-9",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/welcome-students-and-introduction-to-the-course",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/welcome-students-and-introduction-to-the-course-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/what-is-excel-and-the-user-interface",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/what-is-excel-and-the-user-interface-view-option",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/working-across-worksheet",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/working-across-worksheet-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/working-with-data-in-excel-data-entry-data-types-editing-deleting-copy-and-paste",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/working-with-data-in-excel-data-entry-data-types-editing-deleting-copy-and-paste-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/working-with-formulas",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topic/working-with-formulas-2",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "learndash-internal"
+  },
+  {
+    "source": "/topics/:slug",
+    "destination": "https://app.knowsia.com/catalogue",
+    "rule": "pattern-ld-topics"
+  },
+  {
+    "source": "/training",
+    "destination": "/programmes",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/using-technology-to-boost-motivation",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/webinars-and-cpds",
+    "destination": "/programmes",
+    "rule": "page-mapped"
+  },
+  {
+    "source": "/why-a-strong-professional-network-matters",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/why-analytics-competitive-stratagies-matter",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/why-choose-knowsia-to-create-sell-your-course",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/why-cpd-courses-matter-for-accountants",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/why-knowsia-stands-out",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/why-tracking-study-progress-matters",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/why-we-built-knowsia-africas-learning-teaching-earning-platform",
+    "destination": "/news",
+    "rule": "post-not-yet-imported"
+  },
+  {
+    "source": "/zoom-meetings/:slug",
+    "destination": "/programmes",
+    "rule": "pattern-zoom-meetings"
+  }
+]

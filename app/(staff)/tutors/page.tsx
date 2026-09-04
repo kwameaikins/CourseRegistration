@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { appHost } from '@/lib/app-url';
 
 interface TutorRow {
   id: string;
@@ -114,7 +115,7 @@ export default function TutorsPage() {
         <h1 className="text-2xl font-semibold">Tutors</h1>
         <p className="text-sm text-muted-foreground">
           External facilitators who teach Knowsia courses — not staff accounts. Each tutor gets
-          their own portal (reg.knowsia.com/tutor-portal) with their teaching schedule, roster,
+          their own portal ({appHost()}/tutor-portal) with their teaching schedule, roster,
           attendance, and certificate-eligibility views, PIN-protected.
         </p>
       </div>

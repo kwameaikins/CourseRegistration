@@ -33,5 +33,13 @@ KNOWSIA ASSETS/
 .vercel
 .env*
 
-# Built WordPress plugin bundle — regenerate from wordpress/knowsia-programmes/
+# Built WordPress plugin bundle ï¿½ regenerate from wordpress/knowsia-programmes/
 wordpress/*.zip
+
+# Domain consolidation (Coding Docs/20): raw exports stay local. The sitemap
+# inventory (small, public URLs) IS committed; the WordPress XML export and the
+# Search Console CSVs (business data, large) are not.
+scripts/seo/inventory/*/wordpress-export.xml
+scripts/seo/inventory/*/gsc/
+scripts/seo/inventory/*/*.sql
+scripts/seo/inventory/*/*.tar.gz

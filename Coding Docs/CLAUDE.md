@@ -1156,6 +1156,23 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     the columns exist while nothing writes them yet. KnowsiaApp's half (accept
     token, verify, find-or-create m1_users, link, store its own back-link) is a
     separate repo and a separate pass.
+  Seam III — paid cohort grants question-bank access, NOT BUILT, GAP NOW
+    USER-VISIBLE (2026-09-04). Seams I and II are live on the KnowsiaApp side
+    (PIN login + /learn rewrite), so a cohort student can reach
+    reg.knowsia.com/learn/questions — and gets 402 Payment Required from
+    KnowsiaApp because a handoff/PIN account starts with no trial and nothing
+    grants access. The page mislabels it "study service may be unavailable".
+    Confirmed in KnowsiaApp Railway logs (pin-login 200 → auth/me 200 →
+    questions 402). Fix lives in III (both repos) and in KnowsiaApp's student
+    page; this repo's verify/handoff payloads stay identity-only (BR-45).
+    Also learned the same day, recorded in KnowsiaApp's PLAN.md: KnowsiaApp
+    production had been the 2026-08-27 Railway build on Railway Postgres
+    (nine 2026-09-03 deploys failed on a DATABASE_URL with a trailing newline)
+    while its 109-question bank sat in Supabase. RESOLVED 2026-09-04: the
+    bank was loaded into Railway Postgres, the API repointed and redeployed
+    (deployment a5186b30, admin migrations at 011). The question bank is now
+    live in production for any account that clears KnowsiaApp's tier gate —
+    which is still nobody from this repo's cohorts until Seam III exists.
     Resolved during the same session: a full duplicate of the KnowsiaApp repo
     had been copied INTO this working tree, which broke `npx tsc --noEmit`
     (167 errors) and `npm run lint` (677 errors) — every one of them

@@ -1,8 +1,8 @@
 'use client';
 
-// Verification landing page: employers who type reg.knowsia.com/verify
-// (without a certificate number) get a lookup box instead of a 404. The QR
-// code and printed links go straight to /verify/<number>.
+// Verification landing page: employers who type <host>/verify (without a
+// certificate number) get a lookup box instead of a 404. The QR code and
+// printed links go straight to /verify/<number>.
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { KnowsiaHeader } from '@/components/KnowsiaHeader';
+import { appHost } from '@/lib/app-url';
 
 export default function VerifyLandingPage() {
   const router = useRouter();
@@ -58,7 +59,7 @@ export default function VerifyLandingPage() {
       <p className="mt-6 text-center text-xs text-muted-foreground">
         Knowsia — practical professional training ·{' '}
         <a href="/register" className="font-medium text-[#4B21A8] underline">
-          View our courses → reg.knowsia.com/register
+          View our courses → {appHost()}/register
         </a>
       </p>
     </main>

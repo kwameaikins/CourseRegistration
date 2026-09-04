@@ -7,10 +7,16 @@
 // start_date/start_time/end_date, all naive local values). Ghana/Africa-Accra
 // is UTC+0 with no DST, so those naive values are treated directly as UTC
 // wall-clock time — no conversion needed, and no invented schema either.
+import { appUrl } from '@/lib/app-url';
+
 const DEFAULT_EVENT_DURATION_HOURS = 3;
 const FOLD_LIMIT = 73; // characters per line before folding (RFC5545 §3.1, 75-octet limit with headroom)
 
-const APP_URL = () => process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com';
+// The UID's domain part is an IDENTIFIER, not a link: calendars match a
+// re-sent invite to the one already on file by UID, so it must never change
+// with the deployment host (Coding Docs/20). Links in the description do
+// follow the host, via appUrl().
+const ICS_UID_DOMAIN = 'reg.knowsia.com';
 
 function pad2(value: string | undefined): string {
   return (value ?? '00').padStart(2, '0');
@@ -77,7 +83,7 @@ export function buildCourseIcsAttachment(params: CourseIcsParams): IcsEmailAttac
   const description = [
     `Facilitator: ${params.facilitatorName}`,
     `This course runs through ${params.endDate}.`,
-    `Check your student portal for the full schedule and Zoom link: ${APP_URL()}/portal/login`,
+    `Check your student portal for the full schedule and Zoom link: ${appUrl()}/portal/login`,
   ].join('\n');
   const location = params.zoomLink ?? 'Online — Zoom link to follow';
 
@@ -88,7 +94,7 @@ export function buildCourseIcsAttachment(params: CourseIcsParams): IcsEmailAttac
     'CALSCALE:GREGORIAN',
     'METHOD:REQUEST',
     'BEGIN:VEVENT',
-    `UID:${params.registrationId}@reg.knowsia.com`,
+    `UID:${params.registrationId}@${ICS_UID_DOMAIN}`,
     `DTSTAMP:${toIcsUtcStamp(new Date())}`,
     `DTSTART:${toIcsUtcStamp(start)}`,
     `DTEND:${toIcsUtcStamp(end)}`,

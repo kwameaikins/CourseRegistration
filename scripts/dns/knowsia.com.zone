@@ -1,0 +1,62 @@
+; knowsia.com — Cloudflare import draft, compiled 2026-09-04 from live DNS lookups.
+; Doc 20 (Domain Consolidation) Phase 0. Import via Cloudflare → DNS → Import and Export → Import.
+;
+; HOW THIS WAS BUILT: every record below was observed by querying the current authoritative
+; servers (ns1/ns2.knowsia.com on the VPS). TXT lookups against those servers TIME OUT, so
+; SPF / DKIM / DMARC could not be read — copy them from CyberPanel → DNS → knowsia.com before
+; importing, or mail deliverability drops the moment the nameservers change. Everything marked
+; VERIFY must be checked in CyberPanel's zone as well; anything present there and absent here
+; must be added.
+;
+; TTLs are deliberately short (300 s) for the migration window. Raise to 3600 once stable.
+;
+; Cloudflare proxy status: import with DNS-only (grey cloud) for EVERY record. Vercel and
+; the mail host need direct connections; the orange-cloud proxy in front of Vercel breaks TLS
+; and caching assumptions.
+
+$ORIGIN knowsia.com.
+$TTL 300
+
+; ---------- Apex and www (TODAY: WordPress on the VPS) ----------
+; Phase 3 changes these two lines to:  @ A 76.76.21.21   and   www CNAME cname.vercel-dns.com.
+@                 300  IN  A      64.20.36.232
+www               300  IN  CNAME  knowsia.com.
+
+; ---------- Mail (on the VPS — CyberPanel / Roundcube). Must move before Phase 4 ----------
+@                 300  IN  MX 10  knowsia.com.
+mail              300  IN  A      64.20.36.232
+; VERIFY and paste from CyberPanel DNS (could not be read remotely):
+; @                 300  IN  TXT    "v=spf1 a mx ip4:64.20.36.232 ~all"
+; default._domainkey 300 IN  TXT    "v=DKIM1; k=rsa; p=..."
+; _dmarc            300  IN  TXT    "v=DMARC1; p=none; rua=mailto:info@knowsia.com"
+
+; ---------- Applications ----------
+reg               300  IN  CNAME  da623ee62209f472.vercel-dns-017.com.
+; quiz.knowsia.com is BROKEN as of 2026-09-04: https://quiz.knowsia.com/ answers
+; 301 to itself (a redirect loop) while https://knowsia-quiz-app.web.app/ is
+; fine. A bare CNAME to the web.app host is not how Firebase Hosting custom
+; domains work — the domain has to be added in the Firebase console
+; (Hosting → Add custom domain), which issues a TXT verification record and
+; two A records (Firebase's anycast IPs) to use INSTEAD of this CNAME. Keep the
+; line below only until that is done, then replace it with what the console gives.
+quiz              300  IN  CNAME  knowsia-quiz-app.web.app.
+; Phase 1 adds:
+; app               300  IN  CNAME  cname.vercel-dns.com.
+; Phase 3 adds (VPS kept reachable for 60–90 days, noindex):
+; legacy            300  IN  A      64.20.36.232
+
+; ---------- Legacy hosting conveniences (VPS) ----------
+ftp               300  IN  CNAME  knowsia.com.
+
+; ---------- Nameserver glue (drop once Cloudflare is authoritative) ----------
+; ns1 / ns2.knowsia.com currently point at the VPS. After the registrar switch these are unused;
+; keep them for 7 days in case anything cached still asks, then delete.
+ns1               300  IN  A      64.20.36.232
+ns2               300  IN  A      64.20.36.232
+
+; ---------- Verification records ----------
+; Vercel domain verification for knowsia.com (Vercel → course-registration → Domains shows the
+; exact TXT name/value when you add the domain):
+; _vercel           300  IN  TXT    "vc-domain-verify=knowsia.com,..."
+; Google Search Console domain property (Search Console → Add property → Domain shows the value):
+; @                 300  IN  TXT    "google-site-verification=..."

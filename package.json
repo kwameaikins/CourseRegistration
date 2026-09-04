@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "load-test": "node scripts/load-test-registrations.mjs",
-    "tutorial": "node scripts/tutorial/build.mjs"
+    "tutorial": "node scripts/tutorial/build.mjs",
+    "seo:redirects": "node scripts/seo/build-legacy-redirects.mjs",
+    "seo:check": "node scripts/seo/check-redirects.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.112.3",

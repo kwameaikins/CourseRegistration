@@ -8,6 +8,8 @@
 // that is the whole compliance point.
 import { createHmac, timingSafeEqual } from 'crypto';
 
+import { appUrl } from '@/lib/app-url';
+
 function secret(): string {
   // Falls back to the service-role key: always present, never client-exposed.
   const value =
@@ -36,7 +38,7 @@ export function verifyUnsubscribeToken(email: string, token: string): boolean {
 }
 
 export function unsubscribeLink(email: string): string {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com';
+  const base = appUrl();
   const normalized = email.trim().toLowerCase();
   return `${base}/unsubscribe?e=${encodeURIComponent(normalized)}&t=${unsubscribeToken(normalized)}`;
 }

@@ -1,11 +1,13 @@
 import type { MetadataRoute } from 'next';
 
+import { appUrl } from '@/lib/app-url';
+
 // robots.txt (Revenue OS Phase 2, 2026-09-03). Public marketing pages are
 // crawlable; staff screens, portals, APIs and tokenised pages are not — a
 // feedback or unsubscribe URL in a search index would be a leak, not a win.
-const BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com';
 
 export default function robots(): MetadataRoute.Robots {
+  const base = appUrl();
   return {
     rules: [
       {
@@ -32,6 +34,6 @@ export default function robots(): MetadataRoute.Robots {
         ],
       },
     ],
-    sitemap: `${BASE}/sitemap.xml`,
+    sitemap: `${base}/sitemap.xml`,
   };
 }

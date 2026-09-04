@@ -150,6 +150,12 @@ enrolment.
 **Seam II wiring in place:** `next.config.ts` rewrites `/learn/:path*` to the
 KnowsiaApp frontend, gated on `KNOWSIA_APP_FRONTEND_URL`.
 
+> **Amendment 2026-09-04 — mechanism changes, goal stays.** Founder direction: the Course
+> Registration app moves to `knowsia.com`, KnowsiaApp moves to `app.knowsia.com`, WordPress is
+> retired. "One apparent product" is then delivered by shared branding and the handoff, not by a
+> path rewrite; the `/learn` rewrite becomes a permanent redirect. Plan, URL map, SEO safeguards
+> and phase checklists: `Coding Docs/20_Domain_Consolidation_and_WordPress_Retirement.md`.
+
 **II — One domain and shared navigation.** Both frontends are Next.js on Vercel, so path-based
 rewrites give one apparent product without either codebase knowing about the other. Cosmetic, no
 data change, but it is what makes the two systems *feel* like one to a customer.
@@ -162,6 +168,18 @@ Mechanically this hangs off `runPaidTransitionSideEffects`, which is already the
 paid-transition consequence is wired (welcome email, WhatsApp invite, lead transition, partner
 commission accrual). It does not need a new trigger — it needs one more side effect. Fire-and-forget
 and idempotent, matching the rule on both sides.
+
+**Status 2026-09-04 — NOT BUILT, and the gap is now visible to real users.** Seams I and II are
+live: a cohort student signs into `reg.knowsia.com/learn` with their portal email/mobile + PIN, and
+KnowsiaApp creates their `m1_users` row with no trial (`trial_used = true`, `student_tier = 'free'`
+— deliberately, so the cohort purchase does not burn their one trial). Without III nothing ever sets
+their access, so KnowsiaApp's `GET /api/v1/questions` answers **402 Payment Required** and the
+Practice Questions page shows "Could not load questions. The study service may be unavailable".
+Confirmed in KnowsiaApp's Railway logs: `pin-login 200 → auth/me 200 → questions 402`, on every
+retry. Two consequences for this repo when III is built: (a) the grant must carry an explicit period
+(course duration), never an open-ended tier change; (b) BR-45 still holds — the handoff/PIN verify
+payloads stay identity-only, and the grant travels as its own service-key call from
+`runPaidTransitionSideEffects`, exactly as the LMS enrolment grant already does.
 
 ---
 

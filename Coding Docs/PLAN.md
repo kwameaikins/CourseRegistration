@@ -357,9 +357,67 @@ the system has been taking real payments for weeks), so these are unblocked when
         `m1_users` row, call link, and store its own back-link. Separate repo, separate pass
 - [ ] II — One domain / shared navigation: Vercel path rewrites, both frontends being Next.js.
       Cosmetic, no data change, but it is what makes the two feel like one product
+  - 2026-09-04: superseded in mechanism by Doc 20 (Domain Consolidation and WordPress
+    Retirement): this app → `knowsia.com`, KnowsiaApp → `app.knowsia.com`, `/learn` rewrite →
+    permanent redirect, WordPress retired behind a full 301 map. Founder answered Doc 20 §7 the
+    same day (import all posts; gated-answer question pages first; import all 21 LearnDash
+    courses; DNS to Cloudflare; affiliates → partner programme).
+  - 2026-09-04: legal entity confirmed as **Knowsia Professional Institute** (`lib/organisation.ts`).
+    Now printed on certificates (under the wordmark and in the verify footer), invoices, receipts
+    and statements (under the wordmark and in the footer), on the public verify page, and named
+    as data controller in the privacy policy. Two pre-existing PDF faults fixed on the way: the
+    invoice's column headings were drawn outside the dark header band (invisible), and the
+    receipt's "Balance Remaining" label overlapped its amount. Sample renders reviewed;
+    `tests/unit/financial-documents-pdf.test.ts` renders all three (set PDF_DUMP=<dir> to eyeball).
+    Public contact address is now **info@knowsia.com** everywhere in code (`ORGANISATION_EMAIL`):
+    receipt/statement footers, the four portal help footers, new-course message templates, and
+    KnowsiaApp's privacy page and student shell. Not changed: templates already saved in the
+    database (edit on the Messaging screen), `ZOOM_HOST_EMAIL` and `RESEND_FROM_EMAIL` (env), and
+    the interim bank account name "Noohra Business Consult" in the payment instructions, which is
+    the account's real name until the founder says otherwise.
+  - 2026-09-04: **home page rebuilt for the consolidated knowsia.com** (`app/page.tsx`, uncommitted).
+    One page, two doors: live programmes here and the question bank on the study platform
+    (`/learn/register` → free 14-day trial; becomes app.knowsia.com after Phase 1). Sections:
+    hero, "What we do" (four offerings, each pointing at something that exists today), open
+    cohorts (live data, founder rule: no cohort → no card), question bank, who it is for, why
+    Knowsia, how registration works, real testimonials only, work with Knowsia (corporate seats,
+    teach with us → /contact, partner programme), FAQ + enquiry, returning users, closer, shared
+    footer. EducationalOrganization JSON-LD with the institute's legal name. New
+    `components/marketing/TrackedLink.tsx` fires GA4/Meta Pixel click events on both doors and
+    every register button (`home_*` events) so the two funnels can be compared. Rendered on a
+    dev server: 200, all sections present; typecheck, lint and 1118 tests green. Follow-up the
+    same day: a real published past question (AT Nov 2024 L3 Q4b, "crowding out") shown as an
+    example in the question-bank band with a "How a practice session works" list; phone numbers
+    and the WhatsApp link moved into `lib/organisation.ts` (`ORGANISATION_PHONES`,
+    `whatsappUrl()`) and used by the home, contact, programme pages and the shared
+    `MarketingFooter`, which the two programme pages now use too (their inline footers are
+    gone); the home page's catalogue read now fails soft like the testimonials read, so a
+    database error can never 500 the front door. Still to do: look at it in a browser on a
+    phone. The WordPress search phrases ("professional tuition", "past questions", "question
+    bank") are in the H1, lede and headings. `lib/app-url.ts` replaces every
+    hard-coded host; `next.config.ts` gains `CANONICAL_HOST` (www/reg → apex, emergency 307
+    retired) and `KNOWSIA_APP_PUBLIC_URL` (/learn → permanent redirect); `config/host-redirects.mjs`;
+    `npm run seo:redirects` generates `config/legacy-redirects.json` (789 entries from the 13
+    WordPress sitemaps saved under `scripts/seo/inventory/2026-09-04/`); `npm run seo:check` walks
+    them; sitemap lists news articles. RETIRE_PROGRAMMES_REDIRECT deleted. Typecheck, lint and
+    1110 tests green. /about, /contact and /privacy-policy built from the WordPress copy
+    (privacy text verbatim — founder must review the third-party names before cutover);
+    /testimonials and /terms-and-conditions found to be placeholder/template pages and mapped
+    to / and /partners/apply instead. Still to build here: blog import (needs a body column on
+    published articles + the WP database dump); legacy media. Nothing changes in production
+    until the three env vars are set (Doc 20 §5) — with ONE exception that ships live on the
+    next deploy: trailing-slash canonicalisation moved from Next's built-in redirect to
+    `middleware.ts` (`skipTrailingSlashRedirect: true`), so the legacy map can match `/x/` in one
+    hop later. Same observable behaviour (`/programmes/` → 308 `/programmes`), but middleware now
+    runs on every page path instead of only staff paths; API routes and assets excluded.
 - [ ] III — Paid cohort grants question-bank access: hangs off the existing
       `runPaidTransitionSideEffects` (already the single place every paid-transition consequence is
       wired), fire-and-forget and idempotent. First integration with real product value
+  - 2026-09-04: this gap is now user-visible. PIN-login cohort students reach
+    `reg.knowsia.com/learn/questions` and get a 402 from KnowsiaApp (no trial, no grant), rendered
+    as "study service may be unavailable". See Doc 19 §4 III status note. The fix is III on both
+    sides plus a proper 402 message in KnowsiaApp's student page; nothing to change in this repo's
+    verify/handoff payloads (BR-45).
 
 Open product question, not an engineering one: whether Knowsia runs a tutor marketplace at all
 (KnowsiaApp M9). This repo's tutors *teach your cohorts*; M9's tutors *sell their own courses*.

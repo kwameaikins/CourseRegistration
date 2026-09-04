@@ -1,104 +1,115 @@
+import fs from 'node:fs';
+import path from 'node:path';
+
 import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs';
 
-// Retiring /programmes in favour of knowsia.com (founder decision 2026-08-05).
-//
-// ⚠️ AMENDED 2026-08-17 — THIS PROJECT IS PAUSED AND THE FLAG MUST STAY OFF.
-// The founder decided reg.knowsia.com gets its own public home page while
-// knowsia.com waits for the question bank and AI tutor. `app/page.tsx` is now a
-// marketing home page whose primary call to action points at /programmes, so
-// enabling this redirect would bounce visitors off the domain the moment they
-// click it — and into a 404, since the WordPress side is still undeployed. The
-// line below about this app keeping "only the transactional surface" no longer
-// holds; see the Amendment at the top of
-// Coding Docs/course-catalog-integration-plan.md.
-//
-// knowsia.com becomes the canonical home for programme content; this app keeps
-// only the transactional surface (/register and onward). Rather than deleting
-// the pages, the redirect is gated behind an env flag so it can be switched on
-// in Vercel the moment the WordPress catalogue is verified live — and switched
-// back off just as fast if something is wrong there.
-//
-// DO NOT set this until knowsia.com/programmes and /programmes/{code} are
-// actually serving. Enabling it early 301s real visitors into a 404, and 301s
-// are aggressively cached by browsers.
-//
-// Set RETIRE_PROGRAMMES_REDIRECT=true in Vercel to activate.
-//
-// Note the per-code rule: published marketing collateral links directly to
-// reg.knowsia.com/programmes/ESG1, /AI02, /ERM1 (see Coding Docs/*.md), so a
-// bare /programmes redirect alone would strand every one of those links.
-const RETIRE_PROGRAMMES = process.env.RETIRE_PROGRAMMES_REDIRECT === 'true';
-const MARKETING_SITE = process.env.MARKETING_SITE_URL ?? 'https://knowsia.com';
-// The path segment the WordPress catalogue lives on. Must match the plugin's
-// KNOWSIA_PROGRAMMES_SLUG exactly — if the WordPress page is at
-// /live-programmes and this still says /programmes, every redirected visitor
-// lands on a 404. Kept as an env var so the two can be aligned without a code
-// change, and so this app's own /programmes path (which is what is already
-// indexed) does not have to change with it.
-const MARKETING_PATH = (process.env.MARKETING_PROGRAMMES_PATH ?? '/programmes').replace(/\/$/, '');
+import { buildHostRedirects, sanitizeHost, toNextRedirects } from './config/host-redirects.mjs';
 
-// Integration II of platform convergence (Coding Docs/19_Platform_Convergence.md
-// §4): the KnowsiaApp study platform surfaces under this domain at /learn/*,
-// via path rewrites — one apparent product, two codebases, neither knowing
-// about the other. Gated on the env var so nothing changes until the
-// KnowsiaApp frontend is actually deployed; set it to that deployment's URL
-// (e.g. https://knowsia-study.vercel.app) in Vercel to switch it on.
-// Aggressively sanitised, and validated before use: a malformed value (a
-// stray CR from a Windows pipe took the whole production build down on
-// 2026-08-23 with "Invalid rewrites found") must degrade to "no rewrites",
-// never to a failed deploy.
+// ── Domain consolidation (Coding Docs/20, founder decision 2026-09-04) ──────
+//
+// This app moves from reg.knowsia.com to knowsia.com; KnowsiaApp moves from
+// the /learn rewrite to app.knowsia.com; WordPress is retired behind a full
+// 301 map. Everything below ships DARK: with no env set, production behaves
+// exactly as before. Three env vars flip it, in this order:
+//
+//   KNOWSIA_APP_PUBLIC_URL   Phase 1. The study platform's own host
+//                            (https://app.knowsia.com). /learn/* becomes a
+//                            permanent redirect there and the rewrite stops.
+//   CANONICAL_HOST           Phase 3, the DNS flip. "knowsia.com". www. and
+//                            reg. hosts 308 here, the emergency stopgap goes,
+//                            and the WordPress-era path map applies.
+//   NEXT_PUBLIC_APP_URL      Phase 3, same moment. https://knowsia.com — every
+//                            link the app writes (lib/app-url.ts).
+//
+// Every value is sanitised before use: a stray CR from a Windows pipe once
+// took the production build down with "Invalid rewrites found" (2026-08-23).
+// A malformed value degrades to "unset", never to a failed deploy.
+//
+// The earlier RETIRE_PROGRAMMES_REDIRECT flag (send /programmes to the
+// WordPress catalogue) is deleted rather than kept dormant: it points the
+// opposite way to this plan, and a flag nobody may ever set is a trap.
+
+const CANONICAL_HOST = sanitizeHost(process.env.CANONICAL_HOST);
+
+// Integration II of platform convergence (Coding Docs/19 §4): until the study
+// platform has its own host, it surfaces under this domain at /learn/* via
+// path rewrites — one apparent product, two codebases. Gated on the env var so
+// nothing changes until the KnowsiaApp frontend is actually deployed.
 const KNOWSIA_APP_FRONTEND_URL = (process.env.KNOWSIA_APP_FRONTEND_URL ?? '')
   .replace(/\s+/g, '')
   .replace(/\/+$/, '');
 const LEARN_REWRITE_ENABLED = /^https:\/\/[a-z0-9.-]+$/i.test(KNOWSIA_APP_FRONTEND_URL);
 
+// Phase 1: once the study platform answers on its own host, /learn/* links
+// (portal buttons, emails, bookmarks) must keep working — as a permanent
+// redirect, not a proxy. Takes precedence over the rewrite when both are set.
+const KNOWSIA_APP_PUBLIC_URL = (process.env.KNOWSIA_APP_PUBLIC_URL ?? '')
+  .replace(/\s+/g, '')
+  .replace(/\/+$/, '');
+const LEARN_REDIRECT_ENABLED = /^https:\/\/[a-z0-9.-]+$/i.test(KNOWSIA_APP_PUBLIC_URL);
+
+// The WordPress-era path map, generated by scripts/seo/build-legacy-redirects.mjs.
+// Read defensively: a missing or malformed file means "no legacy redirects",
+// never a failed build.
+function loadLegacyRedirects(): { source: string; destination: string }[] {
+  try {
+    const file = path.join(__dirname, 'config', 'legacy-redirects.json');
+    const parsed: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return Array.isArray(parsed) ? (parsed as { source: string; destination: string }[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Every WordPress URL ends in a slash, and Next's built-in trailing-slash
+  // redirect ran BEFORE the custom map, so each legacy URL cost two hops
+  // (/x/ → /x → destination; measured 2026-09-04). With it off, the map
+  // matches /x/ directly in one hop. middleware.ts restores the canonical
+  // 308 (/programmes/ → /programmes) for every path the map does not claim,
+  // so nothing else changes.
+  skipTrailingSlashRedirect: true,
   async redirects() {
-    const rules = [];
-    // Emergency stopgap (2026-09-03): the WordPress VPS hosting knowsia.com is
-    // down (all ports dead, nameservers with it). knowsia.com's DNS is being
-    // pointed at this Vercel project so marketing traffic lands on the
-    // registration site instead of a connection error. TEMPORARY (307) on
-    // purpose: when the VPS is repaired and DNS reverts, no browser must be
-    // left holding a cached permanent redirect. Path preserved because ads
-    // link to /programmes/{code}, which this app also serves; unknown WP
-    // paths fall to this app's 404, which still beats "site unreachable".
-    rules.push({
-      source: '/:path*',
-      has: [{ type: 'host' as const, value: '(www\\.)?knowsia\\.com' }],
-      destination: 'https://reg.knowsia.com/:path*',
-      permanent: false,
-    });
-    // Bare /learn must never be proxied: the exact-path external rewrite came
-    // back as a 308 to itself in production (ERR_TOO_MANY_REDIRECTS,
-    // 2026-08-23). Send it straight into the catalogue, which the /learn/*
-    // rewrite serves correctly.
-    if (LEARN_REWRITE_ENABLED) {
-      rules.push({
-        source: '/learn',
-        destination: '/learn/catalogue',
-        permanent: false,
-      });
+    const rules: {
+      source: string;
+      destination: string;
+      permanent: boolean;
+      has?: { type: 'host'; value: string }[];
+    }[] = [];
+
+    // Host rules first, so a legacy host reaches the canonical host in one hop
+    // and the path map below then applies on the canonical host only.
+    // Pre-cutover (CANONICAL_HOST unset) this is solely the emergency
+    // knowsia.com → reg.knowsia.com stopgap of 2026-09-03, TEMPORARY (307) on
+    // purpose so no browser caches it past the VPS being repaired.
+    for (const rule of buildHostRedirects({ canonicalHost: CANONICAL_HOST })) {
+      rules.push({ ...rule, has: rule.has as { type: 'host'; value: string }[] });
     }
-    if (!RETIRE_PROGRAMMES) return rules;
-    return [
-      ...rules,
-      {
-        source: '/programmes',
-        destination: `${MARKETING_SITE}${MARKETING_PATH}`,
-        permanent: true,
-      },
-      {
-        source: '/programmes/:courseCode',
-        destination: `${MARKETING_SITE}${MARKETING_PATH}/:courseCode`,
-        permanent: true,
-      },
-    ];
+
+    if (LEARN_REDIRECT_ENABLED) {
+      rules.push({ source: '/learn', destination: `${KNOWSIA_APP_PUBLIC_URL}/catalogue`, permanent: true });
+      rules.push({ source: '/learn/:path*', destination: `${KNOWSIA_APP_PUBLIC_URL}/:path*`, permanent: true });
+    } else if (LEARN_REWRITE_ENABLED) {
+      // Bare /learn must never be proxied: the exact-path external rewrite came
+      // back as a 308 to itself in production (ERR_TOO_MANY_REDIRECTS,
+      // 2026-08-23). Send it straight into the catalogue, which the /learn/*
+      // rewrite serves correctly.
+      rules.push({ source: '/learn', destination: '/learn/catalogue', permanent: false });
+    }
+
+    // The WordPress paths only ever existed on knowsia.com, so they apply only
+    // once this deployment IS knowsia.com. Nothing changes on reg.knowsia.com
+    // before the flip.
+    if (CANONICAL_HOST) {
+      rules.push(...toNextRedirects(loadLegacyRedirects()));
+    }
+
+    return rules;
   },
   async rewrites() {
-    if (!LEARN_REWRITE_ENABLED) return [];
+    if (LEARN_REDIRECT_ENABLED || !LEARN_REWRITE_ENABLED) return [];
     // The study app serves itself under basePath /learn (its next.config), so
     // the proxied path is passed through UNCHANGED — pages, /_next assets and
     // API proxy all resolve inside that app. Stripping the prefix here is what
