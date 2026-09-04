@@ -4,11 +4,13 @@ import Link from 'next/link';
 
 import { CourseRating } from '@/app/(public)/programmes/CourseRating';
 import { CourseSessionSummary } from '@/app/(public)/programmes/CourseSessionSummary';
+import { MarketingFooter } from '@/components/marketing/MarketingFooter';
 import {
   MARKETING_STYLES,
   MarketingIcons,
   WHY_ICONS,
 } from '@/components/marketing/marketing-design-system';
+import { whatsappUrl } from '@/lib/organisation';
 import * as feedbackService from '@/modules/feedback/service';
 import { getPublicCourseCatalog } from '@/modules/courses/public-catalog';
 import {
@@ -25,8 +27,7 @@ export const metadata: Metadata = {
     'Live, expert-led professional training in AI-powered financial reporting, ESG and sustainability reporting, and enterprise risk management. Practical exercises, professional certificate, verifiable credentials.',
 };
 
-const WHATSAPP_CONTACT_URL =
-  process.env.NEXT_PUBLIC_CONTACT_WHATSAPP_URL ?? 'https://wa.me/233530531328';
+const WHATSAPP_CONTACT_URL = whatsappUrl();
 
 const TRUST_POINTS = [
   { icon: 'm-live', label: 'Live expert-led training' },
@@ -308,19 +309,7 @@ export default async function ProgrammesPage() {
         </section>
       </main>
 
-      <footer className="foot">
-        <div className="wrap">
-          <p>
-            Need help before registering? Call 053 053 1328 or 020 370 1923, or email{' '}
-            <a href="mailto:info@knowsia.com">info@knowsia.com</a>
-          </p>
-          <p style={{ marginTop: 10 }}>
-            <Link href="/verify">Verify a certificate</Link>
-            {' · '}
-            <Link href="/portal/login">Student portal</Link>
-          </p>
-        </div>
-      </footer>
+      <MarketingFooter />
     </div>
   );
 }

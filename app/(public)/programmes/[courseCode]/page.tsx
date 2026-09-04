@@ -6,7 +6,10 @@ import { notFound } from 'next/navigation';
 import { CourseRating } from '@/app/(public)/programmes/CourseRating';
 import { CourseSessionSummary } from '@/app/(public)/programmes/CourseSessionSummary';
 import { EnquiryForm } from '@/components/EnquiryForm';
+import { MarketingFooter } from '@/components/marketing/MarketingFooter';
 import { MARKETING_STYLES, MarketingIcons } from '@/components/marketing/marketing-design-system';
+import { appUrl } from '@/lib/app-url';
+import { whatsappUrl } from '@/lib/organisation';
 import { formatDate, formatGhs } from '@/lib/utils';
 import * as feedbackService from '@/modules/feedback/service';
 import { getPublicCourseByCode } from '@/modules/courses/public-catalog';
@@ -14,10 +17,9 @@ import { CATALOG_FAQ } from '@/modules/courses/public-content';
 
 export const dynamic = 'force-dynamic';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com';
+const APP_URL = appUrl();
 
-const WHATSAPP_CONTACT_URL =
-  process.env.NEXT_PUBLIC_CONTACT_WHATSAPP_URL ?? 'https://wa.me/233530531328';
+const WHATSAPP_CONTACT_URL = whatsappUrl();
 
 export async function generateMetadata({
   params,
@@ -496,14 +498,7 @@ export default async function ProgrammeDetailPage({
         </div>
       </section>
 
-      <footer className="foot">
-        <div className="wrap">
-          <p>
-            Questions before registering? Call 053 053 1328 or 020 370 1923, or email{' '}
-            <a href="mailto:info@knowsia.com">info@knowsia.com</a>
-          </p>
-        </div>
-      </footer>
+      <MarketingFooter />
     </div>
   );
 }

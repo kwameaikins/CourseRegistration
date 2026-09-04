@@ -7,12 +7,21 @@ import { redirect } from 'next/navigation';
 import { CourseRating } from '@/app/(public)/programmes/CourseRating';
 import { CourseSessionSummary } from '@/app/(public)/programmes/CourseSessionSummary';
 import { EnquiryForm } from '@/components/EnquiryForm';
+import { MarketingFooter } from '@/components/marketing/MarketingFooter';
+import { TrackedLink } from '@/components/marketing/TrackedLink';
 import {
   MARKETING_STYLES,
   MarketingIcons,
   WHY_ICONS,
 } from '@/components/marketing/marketing-design-system';
+import { appUrl } from '@/lib/app-url';
 import { getRootDestination } from '@/lib/auth/root-destination';
+import {
+  ORGANISATION_EMAIL,
+  ORGANISATION_NAME,
+  ORGANISATION_PHONES,
+  whatsappUrl,
+} from '@/lib/organisation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { getPublicCourseCatalog } from '@/modules/courses/public-catalog';
 import * as feedbackService from '@/modules/feedback/service';
@@ -23,52 +32,108 @@ import {
 } from '@/modules/courses/public-content';
 import * as usersService from '@/modules/users/service';
 
-// The public home page of reg.knowsia.com.
+// The home page of knowsia.com (reg.knowsia.com until the Doc 20 cutover).
 //
-// FOUNDER DECISION 2026-08-17: this app gets its own home page. That amends the
-// decision of 2026-08-05 (Coding Docs/course-catalog-integration-plan.md), which
-// made knowsia.com the canonical marketing surface and left this app "only the
-// transactional surface". knowsia.com is deferred until the question bank and AI
-// tutor are finished; until then the live business needs a front door, and this
-// is it. See the "Amendment" section in that document for the consequences —
-// most importantly that RETIRE_PROGRAMMES_REDIRECT must stay OFF, because
-// /programmes is now this page's primary destination.
+// Rebuilt 2026-09-04 for the domain consolidation. It replaces two pages that
+// did different jobs: this app's home (one product, live cohorts) and the
+// WordPress home (everything at once). It is one page with two doors — live
+// programmes here, the question bank on the study platform — and everything
+// below the hero sorts visitors rather than selling all four offerings at
+// equal volume.
 //
-// Staff behaviour is unchanged: a signed-in staff member is redirected to their
-// role's default screen (Document 8, Section 9), so nobody's daily entry point
-// moved.
+// Two founder rules survive from the previous version and are enforced by
+// the data reads, not by copy: never advertise a programme with no cohort
+// open, and never show a testimonial that is not a real, consented quote.
+//
+// Staff behaviour is unchanged: a signed-in staff member is redirected to
+// their role's default screen (Document 8, Section 9).
 
 export const dynamic = 'force-dynamic';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com';
+const APP_URL = appUrl();
 
 export const metadata: Metadata = {
-  title: 'Knowsia — Live Professional Training for Finance Professionals in Ghana',
+  title: 'Knowsia — Professional Tuition, Training and Question Bank for Finance Professionals',
   description:
-    'Live, expert-led training in financial reporting, ESG, risk, audit and tax. Taught by practising chartered accountants, with a verifiable certificate. See open cohorts, dates and fees.',
+    'Knowsia Professional Institute: live expert-led training, exam tuition and a past-questions bank for ICAG, ICAN, ACCA and CIMA candidates, and CPD that counts. Taught by practising chartered accountants, with a verifiable certificate.',
   alternates: { canonical: APP_URL },
   openGraph: {
-    title: 'Knowsia — Live Professional Training',
+    title: 'Knowsia — Professional education, made easier to pass',
     description:
-      'Live, expert-led training in financial reporting, ESG, risk, audit and tax, with a verifiable certificate.',
+      'Live training, exam tuition, a question bank and CPD for accountants and finance professionals in Ghana and across Africa.',
     url: APP_URL,
     siteName: 'Knowsia',
     type: 'website',
   },
 };
 
-const WHATSAPP_CONTACT_URL =
-  process.env.NEXT_PUBLIC_CONTACT_WHATSAPP_URL ?? 'https://wa.me/233530531328';
+const WHATSAPP_CONTACT_URL = whatsappUrl();
+
+// A real, published past question from the bank, shown as a taste of what
+// the study platform holds. Chosen for being short enough to read on a
+// phone; the answer and explanation stay on the platform, which is the point.
+// Refresh it from time to time from m3_questions (approved AND published).
+const EXAMPLE_QUESTION = {
+  paper: 'Advanced Taxation',
+  level: 'ICAG Level 3',
+  sitting: 'November 2024',
+  reference: 'Question 4(b)',
+  marks: 5,
+  text: 'Expansionary fiscal policy has been criticised on the grounds that it can lead to "crowding out". Explain, with appropriate examples, what is meant by "crowding out" as used under fiscal policy.',
+};
+
+// The study platform. Served at /learn on this host today (rewrite) and at
+// app.knowsia.com after Phase 1 (redirect) — both resolve these paths.
+const STUDY = {
+  register: '/learn/register',
+  login: '/learn/login',
+  catalogue: '/learn/catalogue',
+};
 
 const TRUST_POINTS = [
-  { icon: 'm-live', label: 'Live expert-led training' },
-  { icon: 'm-hands', label: 'Practical exercises' },
-  { icon: 'm-award', label: 'Professional certificate' },
-  { icon: 'm-shield', label: 'Verifiable credentials' },
+  { icon: 'm-live', label: 'Live, expert-led training' },
+  { icon: 'm-check', label: 'Past questions with model answers' },
+  { icon: 'm-award', label: 'CPD hours on every certificate' },
+  { icon: 'm-shield', label: 'Certificates anyone can verify' },
 ];
 
-// Three segments, not the full audience list from every programme — a home page
-// sorts visitors, the programme page qualifies them.
+// What we do — the four things a visitor can actually act on today. Each
+// door goes to something that exists, not to a "coming soon".
+const OFFERINGS = [
+  {
+    icon: 'm-live',
+    title: 'Live professional programmes',
+    body: 'Short, practical cohorts in financial reporting, tax, ESG, risk, audit and AI for finance, taught live over Zoom by practising chartered accountants. Dates, fees and places are shown live.',
+    href: '#cohorts',
+    label: 'See open programmes',
+    event: 'home_offering_programmes',
+  },
+  {
+    icon: 'm-users',
+    title: 'Professional exam tuition',
+    body: 'Structured preparation for ICAG and other professional examinations, level by level, with examination technique built in. Tuition cohorts appear in the programme list whenever one is open.',
+    href: '/programmes',
+    label: 'Browse programmes',
+    event: 'home_offering_tuition',
+  },
+  {
+    icon: 'm-check',
+    title: 'Question bank and mock exams',
+    body: 'Past questions organised by paper, level, sitting and topic, with model answers and explanations. Practise on your phone or laptop and track the topics that need work.',
+    href: STUDY.register,
+    label: 'Start a free 14-day trial',
+    event: 'home_offering_question_bank',
+  },
+  {
+    icon: 'm-award',
+    title: 'CPD and certificates',
+    body: 'Every paid programme carries CPD hours and ends with a certificate that employers, institutes and clients can verify online in seconds.',
+    href: '/verify',
+    label: 'Verify a certificate',
+    event: 'home_offering_cpd',
+  },
+];
+
 const AUDIENCE = [
   {
     icon: 'm-users',
@@ -82,30 +147,15 @@ const AUDIENCE = [
   },
   {
     icon: 'm-hands',
-    title: 'Business owners and management',
-    body: 'Owners, directors and management teams accountable for governance, tax position and the numbers their organisation reports.',
+    title: 'Students of the professional bodies',
+    body: 'Candidates for ICAG, ICAN, ACCA and CIMA who want structure, past questions and someone who has passed the exam to learn from.',
   },
 ];
 
-// Where an existing participant goes. Kept low on the page because the hero
-// already carries a Student login link — this is for people who scroll looking
-// for it rather than the primary path.
 const RETURNING = [
-  {
-    href: '/portal/login',
-    title: 'Student portal',
-    body: 'Your class link, payments, receipts and certificates.',
-  },
-  {
-    href: '/verify',
-    title: 'Verify a certificate',
-    body: 'Check that a Knowsia certificate is genuine.',
-  },
-  {
-    href: '/company-portal/login',
-    title: 'Corporate portal',
-    body: 'Manage your organisation’s seats and employees.',
-  },
+  { href: '/portal/login', title: 'Student portal', body: 'Your class link, payments, receipts and certificates.' },
+  { href: STUDY.login, title: 'Study platform', body: 'Question bank, mock exams and your study plan. Cohort students sign in with their email and PIN.' },
+  { href: '/company-portal/login', title: 'Corporate portal', body: 'Manage your organisation’s seats and employees.' },
 ];
 
 export default async function HomePage() {
@@ -136,13 +186,18 @@ export default async function HomePage() {
   }
 
   // Same read the catalogue uses, so a fee or a date can never differ between
-  // this page and the programme page. Testimonials fail soft — a visitor came
-  // for the training, not the quotes.
+  // this page and the programme page. Both reads fail soft: a database
+  // hiccup shows the "cohorts are being scheduled" callout and no quotes,
+  // never a 500 on the front door — the one page a search engine and every
+  // advert points at (caught locally 2026-09-04).
   const [allCourses, testimonials] = await Promise.all([
-    getPublicCourseCatalog(),
-    feedbackService.getPublishableTestimonials(3).catch((err) => {
+    getPublicCourseCatalog().catch((err: unknown) => {
+      console.error('[home catalogue]', err);
+      return [] as Awaited<ReturnType<typeof getPublicCourseCatalog>>;
+    }),
+    feedbackService.getPublishableTestimonials(3).catch((err: unknown) => {
       console.error('[home testimonials]', err);
-      return [];
+      return [] as Awaited<ReturnType<typeof feedbackService.getPublishableTestimonials>>;
     }),
   ]);
 
@@ -151,12 +206,31 @@ export default async function HomePage() {
   const courses = allCourses.filter((course) => course.sessions.length > 0);
   const featured = courses.slice(0, 4);
 
+  // Organisation markup with the legal name, so a brand search shows the
+  // institute rather than a bare wordmark.
+  const organisationJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'EducationalOrganization',
+    name: ORGANISATION_NAME,
+    alternateName: 'Knowsia',
+    url: APP_URL,
+    logo: `${APP_URL}/knowsia-logo.png`,
+    email: ORGANISATION_EMAIL,
+    telephone: ORGANISATION_PHONES[1].tel,
+    address: { '@type': 'PostalAddress', addressLocality: 'Accra', addressCountry: 'GH' },
+    sameAs: ['https://www.linkedin.com/company/66631112', 'https://www.youtube.com/@knowsia1'],
+  };
+
   return (
     <div className="mk">
       <style>{MARKETING_STYLES}</style>
       <MarketingIcons />
-      <a href="#cohorts" className="skip">
-        Skip to open programmes
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(organisationJsonLd) }}
+      />
+      <a href="#what-we-do" className="skip">
+        Skip to content
       </a>
 
       <header className="hero">
@@ -175,29 +249,29 @@ export default async function HomePage() {
             </Link>
           </nav>
 
-          <p className="eyebrow">Professional training · Ghana</p>
-          <h1>Advance your career with practical, future-ready skills</h1>
+          <p className="eyebrow">{ORGANISATION_NAME} · Accra</p>
+          <h1>Professional education, made easier to pass</h1>
           <p className="lede">
-            Live, expert-led training in financial reporting, ESG, risk, audit and tax —
-            taught by practising chartered accountants, with a verifiable certificate at
-            the end.
+            Live, expert-led training for finance professionals, exam tuition and a
+            past-questions bank for ICAG, ICAN, ACCA and CIMA candidates, and CPD that
+            counts — taught by practising chartered accountants, with a certificate anyone
+            can verify.
           </p>
 
           <div className="hero-cta">
-            <a href="#cohorts" className="btn btn-primary">
+            <TrackedLink href="#cohorts" event="home_hero_programmes" className="btn btn-primary">
               See open programmes
               <svg className="icon" aria-hidden>
                 <use href="#m-arrow" />
               </svg>
-            </a>
-            <a
-              href={WHATSAPP_CONTACT_URL}
-              target="_blank"
-              rel="noreferrer"
+            </TrackedLink>
+            <TrackedLink
+              href={STUDY.register}
+              event="home_hero_question_bank"
               className="btn btn-ghost-light"
             >
-              Talk to us on WhatsApp
-            </a>
+              Practise past questions
+            </TrackedLink>
           </div>
 
           <div className="trust">
@@ -214,7 +288,40 @@ export default async function HomePage() {
       </header>
 
       <main>
-        <section className="band" id="cohorts">
+        <section className="band" id="what-we-do">
+          <div className="wrap">
+            <div className="band-head">
+              <p className="kicker">What we do</p>
+              <h2>Four ways to learn, one place to prove it</h2>
+              <p>
+                Everything Knowsia offers is built around one goal: help you pass, then help you
+                perform. Pick the door that fits where you are.
+              </p>
+            </div>
+            <div className="cards">
+              {OFFERINGS.map((item) => (
+                <article key={item.title} className="card">
+                  <div className="card-top">
+                    <span className="icon-badge">
+                      <svg className="icon" aria-hidden>
+                        <use href={`#${item.icon}`} />
+                      </svg>
+                    </span>
+                  </div>
+                  <h3>{item.title}</h3>
+                  <p className="blurb">{item.body}</p>
+                  <div className="cta-row">
+                    <TrackedLink href={item.href} event={item.event} className="btn btn-outline btn-sm">
+                      {item.label}
+                    </TrackedLink>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="band band-tint" id="cohorts">
           <div className="wrap">
             <div className="band-head">
               <p className="kicker">Open for registration</p>
@@ -233,14 +340,14 @@ export default async function HomePage() {
                   and we will let you know as soon as new dates are confirmed.
                 </p>
                 <div style={{ marginTop: 18 }}>
-                  <a
+                  <TrackedLink
                     href={WHATSAPP_CONTACT_URL}
-                    target="_blank"
-                    rel="noreferrer"
+                    event="home_whatsapp"
+                    external
                     className="btn btn-outline btn-sm"
                   >
                     Chat with us on WhatsApp
-                  </a>
+                  </TrackedLink>
                 </div>
               </div>
             ) : (
@@ -274,16 +381,17 @@ export default async function HomePage() {
                       <CourseSessionSummary course={course} />
 
                       <div className="cta-row">
-                        <Link
+                        <TrackedLink
                           href={
                             course.nextSession
                               ? `/register?batchId=${course.nextSession.batchId}`
                               : '/register'
                           }
+                          event="home_register_click"
                           className="btn btn-primary btn-sm"
                         >
                           {course.isFreeProgramme ? 'Register free' : 'Register now'}
-                        </Link>
+                        </TrackedLink>
                         <Link
                           href={`/programmes/${course.courseCode}`}
                           className="btn btn-outline btn-sm"
@@ -307,6 +415,108 @@ export default async function HomePage() {
                 )}
               </>
             )}
+          </div>
+        </section>
+
+        <section className="band" id="question-bank">
+          <div className="wrap">
+            <div className="band-head">
+              <p className="kicker">Question bank</p>
+              <h2>Practise the way the examiner marks</h2>
+              <p>
+                Past questions from the professional bodies, filed by paper, level, sitting and
+                topic, each with a model answer and an explanation of what earns the marks.
+                Attempt them, see where you lose marks, and let your study plan follow the
+                topics that need work.
+              </p>
+            </div>
+            <div className="grid-3">
+              <div className="feature">
+                <span className="icon-badge">
+                  <svg className="icon" aria-hidden>
+                    <use href="#m-check" />
+                  </svg>
+                </span>
+                <h3>Real past questions</h3>
+                <p>
+                  Sourced from the institutes’ own papers and examiner reports, reviewed before
+                  publication, and organised the way the syllabus is.
+                </p>
+              </div>
+              <div className="feature">
+                <span className="icon-badge">
+                  <svg className="icon" aria-hidden>
+                    <use href="#m-calendar" />
+                  </svg>
+                </span>
+                <h3>Mock exams and study plans</h3>
+                <p>
+                  Sit timed mocks, track your scores by topic, and get a week-by-week plan
+                  built from your own gaps.
+                </p>
+              </div>
+              <div className="feature">
+                <span className="icon-badge">
+                  <svg className="icon" aria-hidden>
+                    <use href="#m-support" />
+                  </svg>
+                </span>
+                <h3>Free to start</h3>
+                <p>
+                  Create an account and practise free for 14 days. Cohort students sign in with
+                  the same email and PIN they use for their portal.
+                </p>
+              </div>
+            </div>
+            <div className="detail-grid" style={{ marginTop: 32 }}>
+              <article className="card">
+                <div className="card-top">
+                  <h3>An example from the bank</h3>
+                  <span className="tag tag-code">{EXAMPLE_QUESTION.marks} marks</span>
+                </div>
+                <p className="promise">
+                  {EXAMPLE_QUESTION.paper} · {EXAMPLE_QUESTION.level} · {EXAMPLE_QUESTION.sitting} ·{' '}
+                  {EXAMPLE_QUESTION.reference}
+                </p>
+                <p className="blurb">{EXAMPLE_QUESTION.text}</p>
+                <div className="cta-row">
+                  <TrackedLink href={STUDY.register} event="home_qb_example" className="btn btn-primary btn-sm">
+                    See the model answer
+                  </TrackedLink>
+                </div>
+              </article>
+              <div className="callout">
+                <h3>How a practice session works</h3>
+                <ul className="list">
+                  <li>
+                    <svg className="icon" aria-hidden>
+                      <use href="#m-check" />
+                    </svg>
+                    <span>Filter by paper, level, sitting or topic and attempt the question.</span>
+                  </li>
+                  <li>
+                    <svg className="icon" aria-hidden>
+                      <use href="#m-check" />
+                    </svg>
+                    <span>Compare your answer with the model answer and the marking points.</span>
+                  </li>
+                  <li>
+                    <svg className="icon" aria-hidden>
+                      <use href="#m-check" />
+                    </svg>
+                    <span>Your topic scores update, and your study plan follows the gaps.</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            <div style={{ marginTop: 28, textAlign: 'center' }} className="hero-cta">
+              <TrackedLink href={STUDY.register} event="home_qb_register" className="btn btn-primary">
+                Start a free 14-day trial
+              </TrackedLink>
+              <TrackedLink href={STUDY.catalogue} event="home_qb_catalogue" className="btn btn-outline">
+                Browse self-paced courses
+              </TrackedLink>
+            </div>
           </div>
         </section>
 
@@ -402,22 +612,67 @@ export default async function HomePage() {
 
         <section className="band band-tint">
           <div className="wrap">
-            <div className="callout">
-              <h2 style={{ fontSize: '1.5rem' }}>Training a team?</h2>
-              <p style={{ marginTop: 10, color: 'var(--ink-muted)' }}>
-                Buy seats for your organisation and add colleagues as you go. You get a
-                corporate portal to track attendance, download certificates and manage
-                everyone from one account — and a discount on group registrations.
-              </p>
-              <div style={{ marginTop: 18 }}>
-                <a
-                  href={WHATSAPP_CONTACT_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="btn btn-primary btn-sm"
-                >
-                  Talk to us about team training
-                </a>
+            <div className="band-head">
+              <p className="kicker">Work with Knowsia</p>
+              <h2>For organisations, tutors and partners</h2>
+            </div>
+            <div className="grid-3">
+              <div className="feature">
+                <span className="icon-badge">
+                  <svg className="icon" aria-hidden>
+                    <use href="#m-users" />
+                  </svg>
+                </span>
+                <h3>Training a team?</h3>
+                <p>
+                  Buy seats for your organisation, add colleagues as you go, and track
+                  attendance and certificates from a corporate portal — with a discount on
+                  group registrations.
+                </p>
+                <p style={{ marginTop: 12 }}>
+                  <TrackedLink
+                    href={WHATSAPP_CONTACT_URL}
+                    event="home_team_training"
+                    external
+                    className="btn btn-outline btn-sm"
+                  >
+                    Talk to us about team training
+                  </TrackedLink>
+                </p>
+              </div>
+              <div className="feature">
+                <span className="icon-badge">
+                  <svg className="icon" aria-hidden>
+                    <use href="#m-hands" />
+                  </svg>
+                </span>
+                <h3>Teach with Knowsia</h3>
+                <p>
+                  Practising professionals and experienced lecturers facilitate our programmes.
+                  If you can make a hard topic clear, we would like to hear from you.
+                </p>
+                <p style={{ marginTop: 12 }}>
+                  <Link href="/contact" className="btn btn-outline btn-sm">
+                    Get in touch
+                  </Link>
+                </p>
+              </div>
+              <div className="feature">
+                <span className="icon-badge">
+                  <svg className="icon" aria-hidden>
+                    <use href="#m-award" />
+                  </svg>
+                </span>
+                <h3>Partner programme</h3>
+                <p>
+                  Refer professionals and organisations to Knowsia programmes and earn a
+                  commission on every completed registration, tracked in your own portal.
+                </p>
+                <p style={{ marginTop: 12 }}>
+                  <Link href="/partners/apply" className="btn btn-outline btn-sm">
+                    Apply as a partner
+                  </Link>
+                </p>
               </div>
             </div>
           </div>
@@ -443,14 +698,10 @@ export default async function HomePage() {
           </div>
         </section>
 
-        {/* The root used to redirect anonymous visitors to the STAFF sign-in,
-            which stranded anyone who typed the bare domain or trimmed a /verify
-            URL off a printed certificate. This band is where those people now
-            land instead. */}
         <section className="band band-tint">
           <div className="wrap">
             <div className="band-head">
-              <p className="kicker">Already registered?</p>
+              <p className="kicker">Already with us?</p>
               <h2>Pick up where you left off</h2>
             </div>
             <div className="grid-3">
@@ -467,46 +718,29 @@ export default async function HomePage() {
         <section style={{ paddingBottom: 24 }}>
           <div className="wrap">
             <div className="closer">
-              <h2>Ready to build your next professional skill?</h2>
+              <h2>Ready to pass with confidence?</h2>
               <p>
-                Choose a programme and take the next step towards becoming a more capable,
-                confident and future-ready professional.
+                Choose a programme, or start practising past questions today, and take the
+                next step towards a more capable, confident and future-ready career.
               </p>
               <div className="hero-cta">
-                <a href="#cohorts" className="btn btn-primary">
+                <TrackedLink href="#cohorts" event="home_closer_programmes" className="btn btn-primary">
                   See open programmes
-                </a>
-                <a
-                  href={WHATSAPP_CONTACT_URL}
-                  target="_blank"
-                  rel="noreferrer"
+                </TrackedLink>
+                <TrackedLink
+                  href={STUDY.register}
+                  event="home_closer_question_bank"
                   className="btn btn-ghost-light"
                 >
-                  Chat with us on WhatsApp
-                </a>
+                  Practise past questions
+                </TrackedLink>
               </div>
             </div>
           </div>
         </section>
       </main>
 
-      <footer className="foot">
-        <div className="wrap">
-          <p>
-            Questions before registering? Call 053 053 1328 or 020 370 1923, or email{' '}
-            <a href="mailto:info@knowsia.com">info@knowsia.com</a>
-          </p>
-          <p style={{ marginTop: 10 }}>
-            <Link href="/programmes">All programmes</Link>
-            {' · '}
-            <Link href="/verify">Verify a certificate</Link>
-            {' · '}
-            <Link href="/portal/login">Student portal</Link>
-            {' · '}
-            <Link href="/login">Staff sign in</Link>
-          </p>
-        </div>
-      </footer>
+      <MarketingFooter />
     </div>
   );
 }
