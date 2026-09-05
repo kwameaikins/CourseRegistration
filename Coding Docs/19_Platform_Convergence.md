@@ -181,6 +181,23 @@ retry. Two consequences for this repo when III is built: (a) the grant must carr
 payloads stay identity-only, and the grant travels as its own service-key call from
 `runPaidTransitionSideEffects`, exactly as the LMS enrolment grant already does.
 
+> **Update 2026-09-05 — the KnowsiaApp half is BUILT; this repo's half is still open.**
+> KnowsiaApp now exposes `POST /api/v1/service/auth/question-bank-access` (header
+> `X-Service-Key`; body `{email, name?, phone?, participant_id?, access_days (1–730, required),
+> source?}` → 201 `{user_id, access_until, tier, extended}`) and
+> `POST /api/v1/service/auth/question-bank-access/revoke` (`{email? | participant_id?}`).
+> It finds-or-creates the `m1_users` row (no trial, no password — same as the PIN login), sets
+> `m1_users.question_bank_access_until`, and while that is in the future every KnowsiaApp gate
+> treats the person as `standard`. Idempotent: a repeat with a shorter or equal period answers
+> `extended: false` and changes nothing, so fire-and-forget retries are safe. Consequences (a)
+> and (b) above are honoured on that side: the period is mandatory, and the grant is its own
+> call. **To finish Seam III here:** add a `grantQuestionBankAccess({email, name, phone,
+> participantId, accessDays: <course duration in days>, source: <course_code>})` helper beside
+> `grantLmsAccess` in `modules/knowsia-app/service.ts` and call it from
+> `runPaidTransitionSideEffects` (and the revoke on refund / cancellation). Until then the
+> KnowsiaApp question page shows the real reason ("your free trial has ended … On a Knowsia cohort
+> course? … contact info@knowsia.com") instead of "service unavailable".
+
 ---
 
 ## 5. What "Integrated" Means Here
