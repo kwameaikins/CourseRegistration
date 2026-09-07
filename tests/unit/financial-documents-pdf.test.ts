@@ -23,7 +23,9 @@ function isPdf(bytes: Uint8Array): boolean {
 describe('organisation constants', () => {
   it('name the institute, not the wordmark alone', () => {
     expect(ORGANISATION_NAME).toBe('Knowsia Professional Institute');
-    expect(ORGANISATION_LINE).toContain('Accra');
+    // Country, not city — Knowsia is online and has no office to name.
+    expect(ORGANISATION_LINE).toContain('Ghana');
+    expect(ORGANISATION_LINE).not.toContain('Accra');
   });
 });
 

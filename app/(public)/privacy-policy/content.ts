@@ -46,11 +46,15 @@ export const PRIVACY_SECTIONS: PolicySection[] = [
   {
     heading: '1. Who we are and how to reach us',
     blocks: [
-      p('Knowsia Professional Institute, Accra, Ghana (“Knowsia”, “we”, “us”) operates knowsia.com and app.knowsia.com and is the data controller for the personal data described in this policy.'),
+      p('Knowsia Professional Institute, Ghana (“Knowsia”, “we”, “us”) operates knowsia.com and app.knowsia.com and is the data controller for the personal data described in this policy.'),
+      // The postal channel is deliberately absent (founder correction,
+      // 2026-09-07): Knowsia is an online institution with no office, and a
+      // policy that invites post to an address nobody reads is worse than one
+      // that names only the channels that work. Restore it if and when there
+      // is a registered address to print.
       ul([
         'Email: info@knowsia.com',
         'Phone: +233 20 370 1923 or +233 53 053 1328',
-        'Post: Knowsia Professional Institute, Accra, Ghana',
       ]),
       p('If you write to us about your personal data, please say so in the subject line so it reaches the right person quickly.'),
     ],
