@@ -23,6 +23,8 @@ export function MarketingFooter() {
           <a href={`mailto:${ORGANISATION_EMAIL}`}>{ORGANISATION_EMAIL}</a>
         </p>
         <p style={{ marginTop: 10 }}>
+          <Link href="/">Home</Link>
+          {' · '}
           <a href="/learn/catalogue">Courses</a>
           {' · '}
           <Link href="/programmes">All programmes</Link>

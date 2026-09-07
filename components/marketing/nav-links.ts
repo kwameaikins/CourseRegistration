@@ -21,6 +21,9 @@ export type NavLink = {
 };
 
 export const MARKETING_NAV_LINKS: NavLink[] = [
+  // The logo links home too, but a wordmark is a convention rather than a
+  // signpost — people look for the word (founder report, 2026-09-07).
+  { href: '/', label: 'Home' },
   { href: '/learn/catalogue', label: 'Courses', external: true },
   { href: '/learn/questions', label: 'Question bank', external: true },
   { href: '/programmes', label: 'Programmes' },
