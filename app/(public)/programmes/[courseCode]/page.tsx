@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
@@ -7,6 +6,7 @@ import { CourseRating } from '@/app/(public)/programmes/CourseRating';
 import { CourseSessionSummary } from '@/app/(public)/programmes/CourseSessionSummary';
 import { EnquiryForm } from '@/components/EnquiryForm';
 import { MarketingFooter } from '@/components/marketing/MarketingFooter';
+import { MarketingNav } from '@/components/marketing/MarketingNav';
 import { MARKETING_STYLES, MarketingIcons } from '@/components/marketing/marketing-design-system';
 import { appUrl } from '@/lib/app-url';
 import { whatsappUrl } from '@/lib/organisation';
@@ -119,24 +119,10 @@ export default async function ProgrammeDetailPage({
         Skip to programme details
       </a>
 
+      <MarketingNav current="/programmes" />
+
       <header className="hero" style={{ paddingBottom: 56 }}>
         <div className="wrap">
-          <nav className="hero-nav">
-            <Link href="/programmes">
-              <Image
-                src="/knowsia-logo.png"
-                alt="Knowsia"
-                width={185}
-                height={68}
-                priority
-                className="logo"
-              />
-            </Link>
-            <Link href="/programmes" className="plain">
-              All programmes
-            </Link>
-          </nav>
-
           <p className="eyebrow">
             {course.isFreeProgramme ? 'Free webinar' : `Programme · ${course.courseCode}`}
           </p>

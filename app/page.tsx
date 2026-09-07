@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -8,6 +7,7 @@ import { CourseRating } from '@/app/(public)/programmes/CourseRating';
 import { CourseSessionSummary } from '@/app/(public)/programmes/CourseSessionSummary';
 import { EnquiryForm } from '@/components/EnquiryForm';
 import { MarketingFooter } from '@/components/marketing/MarketingFooter';
+import { MarketingNav } from '@/components/marketing/MarketingNav';
 import { TrackedLink } from '@/components/marketing/TrackedLink';
 import {
   MARKETING_STYLES,
@@ -18,6 +18,7 @@ import { appUrl } from '@/lib/app-url';
 import { getRootDestination } from '@/lib/auth/root-destination';
 import {
   ORGANISATION_EMAIL,
+  ORGANISATION_LOCATION,
   ORGANISATION_NAME,
   ORGANISATION_PHONES,
   whatsappUrl,
@@ -217,7 +218,10 @@ export default async function HomePage() {
     logo: `${APP_URL}/knowsia-logo.png`,
     email: ORGANISATION_EMAIL,
     telephone: ORGANISATION_PHONES[1].tel,
-    address: { '@type': 'PostalAddress', addressLocality: 'Accra', addressCountry: 'GH' },
+    // Country only: an online institution with no office should not assert a
+    // postal locality in structured data, which search engines read as a
+    // physical place of business.
+    address: { '@type': 'PostalAddress', addressCountry: 'GH' },
     sameAs: ['https://www.linkedin.com/company/66631112', 'https://www.youtube.com/@knowsia1'],
   };
 
@@ -233,23 +237,11 @@ export default async function HomePage() {
         Skip to content
       </a>
 
+      <MarketingNav current="/" />
+
       <header className="hero">
         <div className="wrap">
-          <nav className="hero-nav">
-            <Image
-              src="/knowsia-logo.png"
-              alt="Knowsia"
-              width={185}
-              height={68}
-              priority
-              className="logo"
-            />
-            <Link href="/portal/login" className="plain">
-              Student login
-            </Link>
-          </nav>
-
-          <p className="eyebrow">{ORGANISATION_NAME} · Accra</p>
+          <p className="eyebrow">{ORGANISATION_NAME} · {ORGANISATION_LOCATION}</p>
           <h1>Professional education, made easier to pass</h1>
           <p className="lede">
             Live, expert-led training for finance professionals, exam tuition and a

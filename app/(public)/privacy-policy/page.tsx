@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
-import Link from 'next/link';
 
 import { MarketingFooter } from '@/components/marketing/MarketingFooter';
+import { MarketingNav } from '@/components/marketing/MarketingNav';
 import { MARKETING_STYLES, MarketingIcons } from '@/components/marketing/marketing-design-system';
 import { appUrl } from '@/lib/app-url';
 
@@ -30,16 +29,10 @@ export default function PrivacyPolicyPage() {
         Skip to content
       </a>
 
+      <MarketingNav />
+
       <header className="hero" style={{ paddingBottom: 48 }}>
         <div className="wrap">
-          <nav className="hero-nav">
-            <Link href="/">
-              <Image src="/knowsia-logo.png" alt="Knowsia" width={185} height={68} priority className="logo" />
-            </Link>
-            <Link href="/programmes" className="plain">
-              All programmes
-            </Link>
-          </nav>
           <p className="eyebrow">Legal</p>
           <h1 style={{ maxWidth: '20ch' }}>Privacy Policy</h1>
           <p className="lede">

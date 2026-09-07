@@ -83,6 +83,49 @@ export const MARKETING_STYLES = `${BRAND_TOKENS}
 .mk .hero-nav .logo { height: 38px; width: auto; }
 .mk .hero-nav a.plain { color: var(--rail-fg-muted); text-decoration: none; font-size: 14px; }
 .mk .hero-nav a.plain:hover { color: var(--rail-fg); }
+
+/* ---------- site menu ----------
+   Sticky, so the way out of a page is always on screen. It sits ABOVE the hero
+   and shares the hero's dark ground, so at rest the two read as one surface and
+   the bar only becomes visible as a bar once you scroll past the hero. */
+.mk .site-menu {
+  position: sticky; top: 0; z-index: 60;
+  background: var(--rail-bg);
+  border-bottom: 1px solid transparent;
+}
+.mk .site-menu.is-open { border-bottom-color: var(--rail-line); }
+.mk .menu-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-top: 16px; padding-bottom: 16px; }
+.mk .menu-bar .logo { height: 38px; width: auto; display: block; }
+.mk .menu-links { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px 20px; }
+.mk .menu-links a.plain { color: var(--rail-fg-muted); text-decoration: none; font-size: 14px; white-space: nowrap; padding: 4px 0; }
+.mk .menu-links a.plain:hover { color: var(--rail-fg); }
+.mk .menu-links a.plain[aria-current="page"] { color: var(--rail-fg); font-weight: 600; }
+.mk .menu-login { color: var(--rail-fg); font-weight: 600; }
+/* The toggle exists only on small screens. */
+.mk .menu-toggle { display: none; }
+.mk .menu-bars, .mk .menu-bars::before, .mk .menu-bars::after {
+  display: block; width: 18px; height: 2px; background: currentColor; border-radius: 2px; content: '';
+}
+.mk .menu-bars { position: relative; }
+.mk .menu-bars::before { position: absolute; top: -6px; }
+.mk .menu-bars::after { position: absolute; top: 6px; }
+
+@media (max-width: 820px) {
+  .mk .menu-bar { flex-wrap: wrap; }
+  .mk .menu-toggle {
+    display: inline-flex; align-items: center; gap: 10px;
+    background: transparent; border: 1px solid var(--rail-line); border-radius: 8px;
+    color: var(--rail-fg); font: inherit; font-size: 14px; padding: 8px 14px; cursor: pointer;
+  }
+  /* Collapsed by default on a phone: seven links must not push the headline
+     off the screen. */
+  .mk .menu-links { display: none; width: 100%; }
+  .mk .site-menu.is-open .menu-links {
+    display: flex; flex-direction: column; align-items: flex-start;
+    justify-content: flex-start; gap: 2px; padding: 8px 0 16px;
+  }
+  .mk .site-menu.is-open .menu-links a.plain { padding: 10px 0; font-size: 15px; }
+}
 .mk .eyebrow {
   display: inline-flex; align-items: center; gap: 8px;
   font-size: 12px; font-weight: 600; letter-spacing: 0.10em; text-transform: uppercase;

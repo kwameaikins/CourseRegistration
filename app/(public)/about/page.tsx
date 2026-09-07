@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import Link from 'next/link';
 
 import { MarketingFooter } from '@/components/marketing/MarketingFooter';
+import { MarketingNav } from '@/components/marketing/MarketingNav';
 import { MARKETING_STYLES, MarketingIcons } from '@/components/marketing/marketing-design-system';
 import { appUrl } from '@/lib/app-url';
 
@@ -103,17 +103,10 @@ export default function AboutPage() {
         Skip to content
       </a>
 
+      <MarketingNav current="/about" />
+
       <header className="hero" style={{ paddingBottom: 56 }}>
         <div className="wrap">
-          <nav className="hero-nav">
-            <Link href="/">
-              <Image src="/knowsia-logo.png" alt="Knowsia" width={185} height={68} priority className="logo" />
-            </Link>
-            <Link href="/programmes" className="plain">
-              All programmes
-            </Link>
-          </nav>
-
           <p className="eyebrow">About us</p>
           <h1 style={{ maxWidth: '24ch' }}>
             We make professional education easy to access — and easier to pass.
@@ -205,8 +198,8 @@ export default function AboutPage() {
               <p className="kicker">Our team</p>
               <h2>Practitioners first</h2>
               <p>
-                Knowsia Professional Institute is based in Accra. The people behind it teach what
-                they practise.
+                Knowsia Professional Institute is an online institution in Ghana. The people
+                behind it teach what they practise.
               </p>
             </div>
             <div className="grid-3">

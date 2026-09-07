@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import Link from 'next/link';
 
 import { CourseRating } from '@/app/(public)/programmes/CourseRating';
 import { CourseSessionSummary } from '@/app/(public)/programmes/CourseSessionSummary';
 import { MarketingFooter } from '@/components/marketing/MarketingFooter';
+import { MarketingNav } from '@/components/marketing/MarketingNav';
 import {
   MARKETING_STYLES,
   MarketingIcons,
@@ -63,22 +63,10 @@ export default async function ProgrammesPage() {
         Skip to programmes
       </a>
 
+      <MarketingNav current="/programmes" />
+
       <header className="hero">
         <div className="wrap">
-          <nav className="hero-nav">
-            <Image
-              src="/knowsia-logo.png"
-              alt="Knowsia"
-              width={185}
-              height={68}
-              priority
-              className="logo"
-            />
-            <Link href="/portal/login" className="plain">
-              Student login
-            </Link>
-          </nav>
-
           <p className="eyebrow">Professional training</p>
           <h1>Advance your career with practical, future-ready skills</h1>
           <p className="lede">

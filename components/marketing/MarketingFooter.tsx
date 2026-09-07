@@ -1,6 +1,11 @@
 import Link from 'next/link';
 
-import { ORGANISATION_EMAIL, ORGANISATION_NAME, ORGANISATION_PHONES } from '@/lib/organisation';
+import {
+  ORGANISATION_EMAIL,
+  ORGANISATION_LOCATION,
+  ORGANISATION_NAME,
+  ORGANISATION_PHONES,
+} from '@/lib/organisation';
 
 // Shared footer for every marketing page (home, programmes, programme
 // detail, /about, /contact, /privacy-policy). Contact details come from
@@ -18,7 +23,13 @@ export function MarketingFooter() {
           <a href={`mailto:${ORGANISATION_EMAIL}`}>{ORGANISATION_EMAIL}</a>
         </p>
         <p style={{ marginTop: 10 }}>
+          <a href="/learn/catalogue">Courses</a>
+          {' · '}
           <Link href="/programmes">All programmes</Link>
+          {' · '}
+          <Link href="/news">Insights</Link>
+          {' · '}
+          <Link href="/updates">Updates</Link>
           {' · '}
           <Link href="/about">About</Link>
           {' · '}
@@ -30,7 +41,7 @@ export function MarketingFooter() {
           {' · '}
           <Link href="/privacy-policy">Privacy</Link>
         </p>
-        <p style={{ marginTop: 10 }}>{ORGANISATION_NAME} · Accra, Ghana</p>
+        <p style={{ marginTop: 10 }}>{ORGANISATION_NAME} · {ORGANISATION_LOCATION}</p>
       </div>
     </footer>
   );

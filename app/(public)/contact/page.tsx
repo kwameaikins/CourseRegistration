@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import Link from 'next/link';
 
 import { EnquiryForm } from '@/components/EnquiryForm';
 import { MarketingFooter } from '@/components/marketing/MarketingFooter';
+import { MarketingNav } from '@/components/marketing/MarketingNav';
 import { MARKETING_STYLES, MarketingIcons } from '@/components/marketing/marketing-design-system';
 import { appUrl } from '@/lib/app-url';
 import { ORGANISATION_EMAIL, ORGANISATION_PHONES, whatsappUrl } from '@/lib/organisation';
@@ -74,22 +74,15 @@ export default function ContactPage() {
         Skip to content
       </a>
 
+      <MarketingNav current="/contact" />
+
       <header className="hero" style={{ paddingBottom: 56 }}>
         <div className="wrap">
-          <nav className="hero-nav">
-            <Link href="/">
-              <Image src="/knowsia-logo.png" alt="Knowsia" width={185} height={68} priority className="logo" />
-            </Link>
-            <Link href="/programmes" className="plain">
-              All programmes
-            </Link>
-          </nav>
-
           <p className="eyebrow">Contact</p>
           <h1 style={{ maxWidth: '20ch' }}>Need help or a service?</h1>
           <p className="lede">
-            Reach us through any of the channels below. We are in Accra, Ghana, and every
-            programme runs live online.
+            Reach us through any of the channels below. We are an online institution in Ghana,
+            and every programme runs live online.
           </p>
         </div>
       </header>
