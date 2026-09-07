@@ -16,7 +16,7 @@ export default async function NewsCategoryPage({ params }: { params: Promise<{ c
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-10">
-      <KnowsiaHeader />
+      <KnowsiaHeader nav />
       <p className="mt-6 text-sm">
         <Link href="/news" className="text-muted-foreground hover:underline">
           Knowsia Insights

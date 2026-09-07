@@ -21,7 +21,7 @@ export default async function NewsHomePage() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-10">
-      <KnowsiaHeader />
+      <KnowsiaHeader nav />
       <h1 className="mt-6 text-2xl font-semibold">Knowsia Insights</h1>
       <p className="mt-2 text-sm text-muted-foreground">
         News and analysis for accountants, auditors, and finance professionals.

@@ -18,23 +18,12 @@ import { useEffect, useState } from 'react';
 // same reason MarketingFooter exists — no page can offer a different set of
 // destinations from its neighbour.
 
-type NavLink = {
-  href: string;
-  label: string;
-  // The study platform is a separate application, served at /learn on this host
-  // by a rewrite. Next's client router must not try to own those routes, so
-  // they render as plain anchors and do a real navigation.
-  external?: boolean;
-};
+// The destinations live in ./nav-links so KnowsiaHeader — the other public
+// shell, on /news, /verify and /register — renders the same set. One list,
+// two renderings.
+import { MARKETING_NAV_LINKS, STUDENT_LOGIN_HREF, type NavLink } from './nav-links';
 
-export const MARKETING_NAV_LINKS: NavLink[] = [
-  { href: '/learn/catalogue', label: 'Courses', external: true },
-  { href: '/programmes', label: 'Programmes' },
-  { href: '/news', label: 'Insights' },
-  { href: '/updates', label: 'Updates' },
-  { href: '/about', label: 'About' },
-  { href: '/contact', label: 'Contact' },
-];
+export { MARKETING_NAV_LINKS };
 
 export function MarketingNav({ current }: { current?: string }) {
   const [open, setOpen] = useState(false);
@@ -95,14 +84,7 @@ export function MarketingNav({ current }: { current?: string }) {
 
         <nav id="site-menu-links" className="menu-links" aria-label="Primary">
           {MARKETING_NAV_LINKS.map(renderLink)}
-          {/*
-            Unchanged from the old per-page nav: /portal is the REGISTRATION
-            portal (programme participants), which is not the same login as the
-            study platform at /learn. Two portals, two logins — preserved as it
-            was rather than quietly repointed. Worth resolving, but that is a
-            product decision, not a navigation fix.
-          */}
-          <Link href="/portal/login" className="plain menu-login" onClick={() => setOpen(false)}>
+          <Link href={STUDENT_LOGIN_HREF} className="plain menu-login" onClick={() => setOpen(false)}>
             Student login
           </Link>
         </nav>

@@ -22,7 +22,7 @@ export default async function VerifyPage({
     <main className="mx-auto max-w-xl px-4 py-16">
       <div className="rounded-xl border-4 border-[#4B21A8] p-8 text-center">
         <div className="flex justify-center">
-          <KnowsiaHeader />
+          <KnowsiaHeader nav />
         </div>
         <h1 className="mt-4 text-lg font-semibold uppercase tracking-wide">
           Certificate Verification
