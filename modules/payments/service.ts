@@ -7,6 +7,9 @@ import * as communicationsService from '@/modules/communications/service';
 import * as attendanceService from '@/modules/attendance/service';
 import * as opportunitiesService from '@/modules/opportunities/service';
 import * as leadsService from '@/modules/leads/service';
+// Same posture as the services above: knowsia-app owns the cross-platform
+// grant, this module owns the money that triggers it.
+import * as knowsiaAppService from '@/modules/knowsia-app/service';
 import * as r2Client from '@/lib/r2/client';
 import { paymentSlipKey } from '@/lib/r2/keys';
 // Permitted cross-module call, same posture as leads/opportunities/
@@ -106,6 +109,17 @@ export async function runPaidTransitionSideEffects(
     await communicationsService.sendSmsOnce(registrationId, 'payment_confirmation');
   } catch (err) {
     console.error('[payment_confirmation sms]', err);
+  }
+  // Seam III of platform convergence (Coding Docs/19 §4 III), the half this
+  // repo owed: a paid cohort seat unlocks the question bank on KnowsiaApp for
+  // a stated period. Deliberately here and NOT in runSettledEnrollmentSideEffects
+  // — that funnel also carries free webinars, which must not receive paid
+  // access. Non-blocking and idempotent over there, like every side effect
+  // around it: the payment has already committed and must never fail over this.
+  try {
+    await knowsiaAppService.grantQuestionBankAccessSystem(registrationId);
+  } catch (err) {
+    console.error('[payment_confirmation question bank grant]', err);
   }
   await runSettledEnrollmentSideEffects(registrationId);
 }

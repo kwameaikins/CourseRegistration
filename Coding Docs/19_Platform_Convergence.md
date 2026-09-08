@@ -1,6 +1,14 @@
 # Platform Convergence — Course Registration and KnowsiaApp
 
-**Status:** Approved direction (2026-08-13)
+> **SUPERSEDED IN PART, 2026-09-07.** §2's decision — "integrate the product, do not merge the
+> codebases" — was reversed by founder direction: the codebases ARE merging, onto one Python
+> backend and one Next.js frontend. See `21_Codebase_Consolidation.md` for the plan, the measured
+> scope and the phase order. **The rest of this document still governs**, and §3's ownership table
+> is now the module map for that migration — it still decides where a new feature goes until the
+> module it belongs to has moved. §4's seams remain the interim mechanism and are still being
+> completed; §5's definition of "integrated" is now a milestone on the way rather than the end state.
+
+**Status:** Approved direction (2026-08-13), §2 superseded 2026-09-07
 **Owner:** Knowsia Operations and Engineering
 **Scope:** How the two Knowsia codebases relate, which one owns what, and how they integrate.
 **Applies to both repos.** This document lives here; KnowsiaApp needs a mirror of §3 in its own
