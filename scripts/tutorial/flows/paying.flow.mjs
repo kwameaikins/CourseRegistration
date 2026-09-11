@@ -84,7 +84,7 @@ const payingFlow = {
   subtitle: 'Knowsia · Payments',
   path: '/portal',
 
-  ready: { selector: 'button:has-text("My Courses")' },
+  ready: { selector: 'button:has-text("Live Courses")' },
 
   mocks: [
     { url: '**/api/portal/me', json: { data: DEMO_DASHBOARD, error: null } },
@@ -110,11 +110,11 @@ const payingFlow = {
   steps: [
     {
       id: 'intro',
-      does: 'Opens the My Courses section of the student portal, showing a course with an outstanding balance.',
+      does: 'Opens the Live Courses section of the student portal, showing a course with an outstanding balance.',
       narrate:
-        'Everything about paying lives in your student portal, under My Courses. Here is a course still to be paid for.',
+        'Everything about paying lives in your student portal, under Live Courses. Here is a course still to be paid for.',
       async run(ui) {
-        await ui.click('button:has-text("My Courses")');
+        await ui.click('button:has-text("Live Courses")');
         await ui.clearHighlight();
         await ui.pause(900);
       },

@@ -32,6 +32,14 @@ const OUTRO_SECONDS = 5;
 // Breathing room after each line so steps do not run into one another.
 const STEP_GAP_MS = 650;
 
+// A BARE flow id is accepted as well as `--flow <id>`, and that is not sugar.
+// PowerShell rewrites the arguments on the way through npm: run
+// `npm run tutorial -- --flow installments` from a PowerShell prompt and this
+// script receives exactly `["installments"]` — the separator and the flag are
+// both swallowed. Without this the documented command silently rebuilds the
+// DEFAULT flow and reports success, which is the worst shape a mistake can
+// have: it spent an ElevenLabs render and produced a finished video of the
+// wrong walkthrough. Found 2026-09-11, doing exactly that.
 function parseArgs(argv) {
   const args = { flow: 'register', baseUrl: 'http://localhost:3000' };
   for (let i = 0; i < argv.length; i += 1) {
@@ -41,6 +49,7 @@ function parseArgs(argv) {
     else if (arg === '--note') args.note = argv[++i];
     else if (arg === '--no-ai') args.noAi = true;
     else if (arg === '--refresh') args.refresh = true;
+    else if (!arg.startsWith('-')) args.flow = arg;
   }
   return args;
 }
@@ -104,8 +113,19 @@ async function main() {
     console.log(`\n[1/5] Narration — reused cache (${cachePath})`);
   } else if (useAi) {
     console.log('\n[1/5] Narration — generating with claude-opus-5');
-    narration = await generateNarration({ flow, featureNote: args.note });
-    writeFileSync(cachePath, JSON.stringify(narration, null, 2));
+    // A model failure must never cost the whole build. The drafts in a flow
+    // file are complete lines rather than placeholders, so falling back to
+    // them produces a finished video instead of no video. Added 2026-09-11,
+    // when an exhausted Anthropic balance killed a run outright — the wrong
+    // outcome for a step that only rewrites wording somebody already wrote.
+    try {
+      narration = await generateNarration({ flow, featureNote: args.note });
+      writeFileSync(cachePath, JSON.stringify(narration, null, 2));
+    } catch (err) {
+      console.warn(`  narration model unavailable (${err.message.slice(0, 120)})`);
+      console.warn('  falling back to the hand-written drafts');
+      narration = flow.steps.map((step) => ({ id: step.id, text: step.narrate, source: 'draft' }));
+    }
   } else {
     console.log('\n[1/5] Narration — using hand-written drafts (no ANTHROPIC_API_KEY or --no-ai)');
     narration = flow.steps.map((step) => ({ id: step.id, text: step.narrate, source: 'draft' }));

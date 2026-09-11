@@ -137,17 +137,17 @@ const portalLoginFlow = {
         // and the ring would otherwise hang over the dashboard as it loads.
         await ui.clearHighlight();
         await ui.page.waitForURL('**/portal');
-        await ui.page.waitForSelector('button:has-text("My Courses")', { timeout: 20_000 });
+        await ui.page.waitForSelector('button:has-text("Live Courses")', { timeout: 20_000 });
         await ui.pause(1200);
       },
     },
     {
       id: 'courses',
-      does: 'Opens the My Courses section, which lists the registered course with its dates, facilitator and Zoom join link.',
+      does: 'Opens the Live Courses section, which lists the registered course with its dates, facilitator and Zoom join link.',
       narrate:
-        'My Courses has every programme you have registered for, with the dates and the link to join each class.',
+        'Live Courses has every programme you have registered for, with the dates and the link to join each class.',
       async run(ui) {
-        await ui.click('button:has-text("My Courses")');
+        await ui.click('button:has-text("Live Courses")');
         await ui.clearHighlight();
         await ui.pause(900);
       },

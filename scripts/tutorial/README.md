@@ -7,7 +7,17 @@ running instance, so nothing on screen is synthetic.
 ```bash
 npm run dev                       # in one terminal
 npm run tutorial -- --flow register
+npm run tutorial -- register      # same thing, and the one that works in PowerShell
 ```
+
+**PowerShell swallows the flags.** Run the first form from a PowerShell prompt
+and the script receives exactly `["register"]` — the separator and `--flow` are
+both eaten, and so is `--no-ai`. A bare flow id is therefore accepted as well,
+because without it the documented command silently rebuilds the DEFAULT flow and
+reports success: an ElevenLabs render spent on a finished video of the wrong
+walkthrough. To force the drafts where the flag will not survive, use
+`TUTORIAL_TTS` and the narration cache, or run `node scripts/tutorial/build.mjs`
+directly from a shell that passes arguments through.
 
 Output lands in `scripts/tutorial/out/<flow>/`:
 
@@ -87,8 +97,10 @@ export default {
   thing the narration model is allowed to describe. This is what stops
   generated narration from mentioning UI that is not there.
 - **`narrate`** is the human-written line. It is used verbatim when there is no
-  `ANTHROPIC_API_KEY` or when `--no-ai` is passed, so the pipeline never
-  depends on the model being available.
+  `ANTHROPIC_API_KEY`, when `--no-ai` is passed, **and when the model fails** —
+  a narration failure is caught and falls back rather than killing the build,
+  because an exhausted Anthropic balance once ended a run outright. That is the
+  wrong outcome for a step that only rewrites wording somebody already wrote.
 
 The `ui` helper is deliberately small — `moveTo`, `click`, `type`,
 `selectByIndex`, `check`, `highlight`, `clearHighlight`, `pause`, and raw
@@ -134,6 +146,46 @@ regression check on the highest-traffic path in the app. The maintenance cost of
 keeping flows working is the same cost as keeping e2e tests working — which is
 the honest argument for starting with three or four core flows rather than
 "every new feature".
+
+## The flows
+
+| Flow                   | What it teaches                                                |
+| ---------------------- | -------------------------------------------------------------- |
+| `register`             | Filling in the public registration form                         |
+| `paying`               | Card, Mobile Money, and telling us about a transfer you made     |
+| `portal-login`         | Signing in and finding your way round the portal                 |
+| `coupon`               | Coupons and referral codes, including best-price-wins            |
+| `materials`            | Finding the materials for your course                            |
+| `certificate-linkedin` | Putting your certificate on LinkedIn                             |
+| `installments`         | Splitting the fee in two — offered once, before you pay anything |
+| `assignments`          | Submitting work, and reading the mark when it comes back         |
+| `company-seats`        | A company filling the seats it bought, by pasting a spreadsheet  |
+| `verify-certificate`   | Checking a certificate is genuine — for employers, not students  |
+
+The last four were added 2026-09-11. They were chosen because they are the
+journeys nobody completes unaided: a payment plan hidden behind a text link, an
+Assignments tab most students never open, a corporate buyer expected to discover
+a paste box in a portal they were never shown, and a verification page whose
+audience is not the student at all.
+
+**`verify-certificate` is the one flow that cannot be mocked.** The result page
+is a server component reading the database directly, so there is no request to
+intercept, and fulfilling the navigation with hand-written HTML would put a page
+on screen the application never rendered. It therefore reads real data, and
+`TUTORIAL_CERT_NUMBER` must name a certificate issued to a DEMO recipient — the
+page prints the holder's name in large type, and a marketing video is not the
+place to publish somebody's qualification without them asking. The default is
+the app's own placeholder, which resolves to "not found" and is a deliberately
+safe fallback.
+
+## Keeping them current
+
+A rendered video is a snapshot; the flow file is the thing that is maintained.
+When the UI moves, re-run the flow rather than re-shooting it — and re-run every
+flow, not just the one you were thinking about. On 2026-09-11 the portal's nav
+label had been renamed from "My Courses" to "Live Courses" and **two flows had
+been silently broken ever since**: they could not record at all, and their
+published videos still showed a label that no longer existed.
 
 ## Requirements
 
