@@ -144,7 +144,9 @@ Rules for the generator: strip trailing slash, case-insensitive, `www` → apex,
 - [x] **Public URL inventory** — all Rank Math sitemaps saved, 787 URLs (`scripts/seo/inventory/2026-09-04/`).
 - [ ] **Inventory the question bank** (this is PLAN.md Task M8.1 in KnowsiaApp): count `question` posts and every custom taxonomy term (`topic`, `question-tag`, `tag-sq`), count images inside them, and export them. Record the counts here. *(needs the WP export — §10 step 2; the agent does the counting)*
 - [x] **Find where email lives.** MX → the VPS. Mail must move before Phase 4 (§9).
-- [ ] **Move authoritative DNS off the VPS** to Cloudflare (free). Zone draft ready at `scripts/dns/knowsia.com.zone`; TXT records to be copied from CyberPanel. Import, set DNS-only, switch nameservers at the registrar. *(founder — §10 steps 4–6; agent verifies afterwards)*
+- [ ] 🔴 **Move authoritative DNS off the VPS** to Cloudflare (free). **Now the most urgent item in this document — see §12. It is a REPAIR, not preparation.** Zone draft is COMPLETE at `scripts/dns/knowsia.com.zone`. Import, set every record DNS-only, switch nameservers at the registrar. *(founder — §10 steps 5–6; agent verifies afterwards)*
+- [x] **TXT records captured** (2026-09-12). SPF, DKIM, DMARC, the Resend pair and the quiz records are in the zone draft; §10 step 4 is done. The DKIM key was *verified* as a real 2048-bit RSA public key, not assumed complete.
+- [x] **Backup** — taken by the founder the week of 2026-09-05. Adequate for everything up to Phase 4: the nameserver switch touches no data and is reversed at the registrar in minutes. **Take a fresh one, with mailboxes explicitly included, immediately before Phase 4** — that is the only irreversible step.
 - [x] **Founder decisions** taken (§7).
 
 ### Phase 1 — `app.knowsia.com` (no SEO exposure, can happen this week)
@@ -281,3 +283,81 @@ After step 6, tell the agent: it will verify every record resolves identically f
 - `knowsia.com`, `www`, `reg`, `app` all HTTPS, `www` and `reg` 301 to apex.
 - Email to `info@knowsia.com` unaffected throughout.
 - VPS powered off, backups retained, redirects still live.
+
+---
+
+## 12. What the 2026-09-12 DNS read found (and why Phase 0's DNS step is now urgent)
+
+Phase 0 step 4 was "copy the mail DNS records from CyberPanel". Doing it
+explained why they could not be read remotely, and the explanation is worse
+than the missing values.
+
+### The delegation is broken; the domain runs on cache
+
+```
+ns1.knowsia.com          no A record at all
+ns2.knowsia.com          no A record at all
+ns1.noohrabusiness.com   127.0.0.1
+ns2.noohrabusiness.com   127.0.0.1
+ns3.noohrabusiness.com   127.0.0.1
+```
+
+**All five nameservers delegated for `knowsia.com` are unreachable.** The domain
+resolves only because public resolvers hold stale A, MX and SOA records. TXT was
+not cached, which is exactly why TXT queries time out and TCP connections are
+closed. **When those caches expire, `knowsia.com` stops resolving** — website,
+mail, `reg.knowsia.com`, and the 312 printed `/verify/KNS-…` URLs.
+
+Querying the VPS's own DNS server directly (`64.20.36.232`) separates the
+delegation fault from the server: it answers A, NS, SOA and MX correctly and
+hangs *only* on TXT. PowerDNS is otherwise healthy. The cause of the TXT
+failure is unknown and now moot — Cloudflare becomes authoritative and serves
+these records correctly.
+
+Consequence for the plan: moving DNS to Cloudflare stops being step 5 of Phase 0
+and becomes the first thing to do. It is repairing live infrastructure.
+
+### Three faults in the zone data, all fixed in the zone draft
+
+1. **Duplicate SPF at the apex.** Under RFC 7208 §4.5 more than one SPF record
+   is a `PERMERROR` receivers must honour — so SPF is not merely unreadable, it
+   is **failing**. (The founder questioned whether the two panel rows were
+   really one zone. It cannot be settled by query, because TXT is the broken
+   type; the `noohrabusiness.com` zone shows the identical doubling in a view
+   whose own counter reads 11 records, all of one domain. The zone draft
+   publishes one SPF record, which is correct on either reading.)
+2. **Duplicate DKIM selector**, making the key ambiguous.
+3. **DKIM in test mode** — `t=y` tells receivers the domain is only *testing*
+   DKIM and not to act on failures, discarding most of the benefit. Dropped,
+   with the ADSP `o=~` that was withdrawn as a standard in 2013.
+
+Plus one that is broken without being a mail problem:
+`_acme-challenge.quiz.knowsia.com.knowsia.com` — the zone name appended to an
+already-qualified name, a CyberPanel UI trap. It can never validate.
+
+**Net effect while uncorrected: mail from `knowsia.com` has no working
+authentication at all** — SPF failing, DKIM ambiguous and in test mode, DMARC
+at `p=none` with no `rua` so it reports nothing either.
+
+### The trap when importing
+
+Cloudflare offers to **scan** existing DNS during onboarding. The scan queries
+the current nameservers, which cannot answer TXT — so it returns A, MX and
+CNAME records, silently omits **every** TXT record, and produces a zone that
+looks complete with no SPF, DKIM or DMARC. **Skip the scan; import the zone
+file.** This is why §10 step 5 says so.
+
+### One good find
+
+`send.knowsia.com` (`v=spf1 include:amazonses.com ~all`) and
+`resend._domainkey` are already configured. **Resend's DNS side is done**, so
+the silently-failing trial email sequence (KnowsiaApp PLAN.md) is purely the
+missing `RESEND_API_KEY` on Railway — no DNS work needed.
+
+### Two things that are not blockers
+
+- **The 99% CPU** on the VPS (2 cores, 9 days uptime) stops mattering once
+  Cloudflare is authoritative. Do not spend time on it for this plan's sake.
+- **CyberPanel by hostname.** `noohrabusiness.com` resolves to `127.0.0.1`, so
+  `https://noohrabusiness.com:8090` reaches the operator's own laptop. Use
+  `https://64.20.36.232:8090` and accept the self-signed certificate.
