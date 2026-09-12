@@ -1,12 +1,52 @@
-; knowsia.com — Cloudflare import draft, compiled 2026-09-04 from live DNS lookups.
-; Doc 20 (Domain Consolidation) Phase 0. Import via Cloudflare → DNS → Import and Export → Import.
+; knowsia.com — Cloudflare import draft.
+; Compiled 2026-09-04 from live DNS lookups; TXT records added 2026-09-12 from
+; CyberPanel → DNS → knowsia.com (they could not be read remotely — see below).
+; Doc 20 (Domain Consolidation) Phase 0. Import via Cloudflare → DNS → Import and Export.
 ;
-; HOW THIS WAS BUILT: every record below was observed by querying the current authoritative
-; servers (ns1/ns2.knowsia.com on the VPS). TXT lookups against those servers TIME OUT, so
-; SPF / DKIM / DMARC could not be read — copy them from CyberPanel → DNS → knowsia.com before
-; importing, or mail deliverability drops the moment the nameservers change. Everything marked
-; VERIFY must be checked in CyberPanel's zone as well; anything present there and absent here
-; must be added.
+; WHY THE TXT RECORDS HAD TO BE READ BY HAND: every nameserver delegated for
+; knowsia.com is unreachable. ns1/ns2.knowsia.com have no A record at all, and
+; ns1/ns2/ns3.noohrabusiness.com all resolve to 127.0.0.1. The domain currently
+; resolves ONLY from stale resolver caches (A, MX and SOA were cached; TXT was
+; not, which is why TXT queries time out and TCP connections are closed). When
+; those caches expire, knowsia.com stops resolving entirely — website, mail,
+; reg.knowsia.com and the 312 printed /verify/KNS-… URLs with it.
+; Moving to Cloudflare is therefore a REPAIR, not just migration preparation.
+;
+; ── THREE FAULTS FOUND IN THE LIVE ZONE, FIXED HERE (2026-09-12) ────────────
+;
+; 1. TWO SPF RECORDS AT THE APEX. CyberPanel's zone lists
+;    "v=spf1 a mx ip4:64.20.36.232 ~all" on knowsia.com TWICE. Under RFC 7208
+;    §4.5 a domain publishing more than one SPF record is a PERMERROR, and
+;    receivers must treat it as such — so SPF is not merely invisible, it is
+;    FAILING, and has been for as long as the duplicate has existed. Exactly one
+;    SPF record appears below. Delete the duplicate in CyberPanel too, or it
+;    comes back if that zone is ever re-exported.
+;
+; 2. DUPLICATE DKIM SELECTOR. default._domainkey.knowsia.com is also listed
+;    twice. Two TXT records at one selector make the key ambiguous and
+;    verification unreliable. One below.
+;
+; 3. DKIM IS IN TEST MODE. _domainkey.knowsia.com carries "t=y; o=~;" — t=y
+;    tells receivers this domain is only TESTING DKIM and not to act on
+;    failures, which throws away most of the benefit. It is dropped here. (o=~
+;    is ADSP, withdrawn as a standard in 2013, and is dropped with it.)
+;
+; A fourth, not a mail problem but broken: the live zone has
+; "_acme-challenge.quiz.knowsia.com.knowsia.com" — the zone name appended to a
+; name that was already fully qualified, a CyberPanel UI trap. It can never
+; validate. Written correctly below.
+;
+; NOT a fault, recorded because it looked like one: the DKIM record is stored as
+; THREE quoted strings, which is correct — a single DNS TXT string cannot exceed
+; 255 bytes. The key was read out in full on 2026-09-12 and verified as a valid
+; 2048-bit RSA public key. So the TXT-serving failure described above is NOT
+; caused by a malformed DKIM record, and its real cause is unknown — which no
+; longer matters, because Cloudflare becomes authoritative and serves these
+; records correctly regardless.
+;
+; STILL NEEDED: the Google Search Console token. Do NOT try to recover the
+; truncated one — a fresh Domain property issues a new value (Doc 20 Phase 0
+; step 1), and that is the one to publish.
 ;
 ; TTLs are deliberately short (300 s) for the migration window. Raise to 3600 once stable.
 ;
@@ -25,10 +65,35 @@ www               300  IN  CNAME  knowsia.com.
 ; ---------- Mail (on the VPS — CyberPanel / Roundcube). Must move before Phase 4 ----------
 @                 300  IN  MX 10  knowsia.com.
 mail              300  IN  A      64.20.36.232
-; VERIFY and paste from CyberPanel DNS (could not be read remotely):
-; @                 300  IN  TXT    "v=spf1 a mx ip4:64.20.36.232 ~all"
-; default._domainkey 300 IN  TXT    "v=DKIM1; k=rsa; p=..."
-; _dmarc            300  IN  TXT    "v=DMARC1; p=none; rua=mailto:info@knowsia.com"
+
+; SPF — EXACTLY ONE. See fault 1 above.
+@                 300  IN  TXT    "v=spf1 a mx ip4:64.20.36.232 ~all"
+
+; DKIM — one selector, test mode removed. Key read from CyberPanel 2026-09-12
+; and VERIFIED: 392 base64 chars → 294 bytes DER → a valid 2048-bit RSA public
+; key (checked with `cryptography`, not eyeballed — a truncated DKIM key FAILS
+; verification rather than being ignored, so "it looks long enough" is not a
+; check).
+;
+; Split into three strings because a single DNS TXT string cannot exceed 255
+; bytes. The joins are load-bearing: a space BEFORE "p=" and NO space inside
+; the base64. Whitespace in the middle of the key breaks it silently.
+default._domainkey 300 IN  TXT    ( "v=DKIM1; h=sha256; k=rsa; "
+                                    "p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqABgfCbHRMCCNttqTM7s+eCaKpP7t0/a1HdAb+0uRg3mcgVFN4bUHh+XVo4naNaJMAE4zUUmZErk9/AD4Ssb/nfQBqCjG3YJjbtJuc5SGfai9x/4rgiQ0wws0NPoGXdCnaGsDlZ1CK7DuTk8DFA6HubmBmS7qbu1n/aFSEHlUl7tZ/fBiC1fU+kSG9ZsieaRPBFR4pJmsbBzAG"
+                                    "diLk29VJMILF90hrh58RD3biUGLvSvrx7qkqkzWO3KuajKZWQlPfSXJUvrVzo/9KarqyT0WzyU06tLQOa+6BmypI0oIOG3lShSasNz0E7aAVoH3eWLFsyo6ZKTk1dfvtEQ+mOqlwIDAQAB" )
+
+; DMARC. p=none is monitoring only: it reports nothing and enforces nothing.
+; `rua` is added so the reports actually arrive somewhere — without it, p=none
+; is a record that does literally nothing. Move to p=quarantine once the
+; reports show legitimate mail passing (weeks, not days).
+_dmarc            300  IN  TXT    "v=DMARC1; p=none; rua=mailto:info@knowsia.com"
+
+; ---------- Transactional mail (Resend, via Amazon SES) ----------
+; Already configured in the live zone, which means Resend's DNS side is DONE —
+; only RESEND_API_KEY is missing on Railway (see PLAN.md: the whole trial
+; conversion sequence is silently not sending).
+send              300  IN  TXT    "v=spf1 include:amazonses.com ~all"
+resend._domainkey 300  IN  TXT    "p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC4Cmhh2…REPLACE-WITH-FULL-KEY"
 
 ; ---------- Applications ----------
 reg               300  IN  CNAME  da623ee62209f472.vercel-dns-017.com.
@@ -40,6 +105,9 @@ reg               300  IN  CNAME  da623ee62209f472.vercel-dns-017.com.
 ; two A records (Firebase's anycast IPs) to use INSTEAD of this CNAME. Keep the
 ; line below only until that is done, then replace it with what the console gives.
 quiz              300  IN  CNAME  knowsia-quiz-app.web.app.
+quiz              300  IN  TXT    "hosting-site=knowsia-quiz-app"
+; Fault 4: the live zone has this name with ".knowsia.com" appended twice.
+_acme-challenge.quiz 300 IN TXT   "NY3wQmMdbp3YUTNWZKhQh7fdeqzYHPSX-tdABbaZ160"
 ; Phase 1 adds:
 ; app               300  IN  CNAME  cname.vercel-dns.com.
 ; Phase 3 adds (VPS kept reachable for 60–90 days, noindex):
@@ -49,14 +117,24 @@ quiz              300  IN  CNAME  knowsia-quiz-app.web.app.
 ftp               300  IN  CNAME  knowsia.com.
 
 ; ---------- Nameserver glue (drop once Cloudflare is authoritative) ----------
-; ns1 / ns2.knowsia.com currently point at the VPS. After the registrar switch these are unused;
-; keep them for 7 days in case anything cached still asks, then delete.
+; These are listed as authoritative for the domain and DO NOT RESOLVE today,
+; which is the outage described in the header. Keep for 7 days after the
+; registrar switch in case anything cached still asks, then delete.
 ns1               300  IN  A      64.20.36.232
 ns2               300  IN  A      64.20.36.232
 
 ; ---------- Verification records ----------
+; Google Search Console. The value in CyberPanel's table view is cut off at
+; "…04H96-"; a Search Console token is 43 characters after the "=", so CONFIRM
+; the full string before importing — a truncated token silently fails to verify.
+@                 300  IN  TXT    "google-site-verification=UaJeCu6p0HnWs8PU04H96-REPLACE-WITH-FULL-TOKEN"
 ; Vercel domain verification for knowsia.com (Vercel → course-registration → Domains shows the
 ; exact TXT name/value when you add the domain):
 ; _vercel           300  IN  TXT    "vc-domain-verify=knowsia.com,..."
-; Google Search Console domain property (Search Console → Add property → Domain shows the value):
-; @                 300  IN  TXT    "google-site-verification=..."
+
+; ---------- Deliberately NOT carried over ----------
+; The live zone also holds SPF / DMARC / _domainkey records for the
+; mail.knowsia.com SUBDOMAIN. Nothing sends as @mail.knowsia.com, and a
+; subdomain SPF only matters if mail claims to come from it. Left out to keep
+; the zone honest; add back if a mail client is ever configured to use it.
+; Also left out: "_domainkey.knowsia.com  t=y; o=~;" — see fault 3.
