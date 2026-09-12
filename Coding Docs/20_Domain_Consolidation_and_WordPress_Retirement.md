@@ -317,19 +317,35 @@ these records correctly.
 Consequence for the plan: moving DNS to Cloudflare stops being step 5 of Phase 0
 and becomes the first thing to do. It is repairing live infrastructure.
 
-### Three faults in the zone data, all fixed in the zone draft
+### Faults in the zone data
 
-1. **Duplicate SPF at the apex.** Under RFC 7208 §4.5 more than one SPF record
-   is a `PERMERROR` receivers must honour — so SPF is not merely unreadable, it
-   is **failing**. (The founder questioned whether the two panel rows were
-   really one zone. It cannot be settled by query, because TXT is the broken
-   type; the `noohrabusiness.com` zone shows the identical doubling in a view
-   whose own counter reads 11 records, all of one domain. The zone draft
-   publishes one SPF record, which is correct on either reading.)
-2. **Duplicate DKIM selector**, making the key ambiguous.
-3. **DKIM in test mode** — `t=y` tells receivers the domain is only *testing*
-   DKIM and not to act on failures, discarding most of the benefit. Dropped,
-   with the ADSP `o=~` that was withdrawn as a standard in 2013.
+**WITHDRAWN — "duplicate SPF at the apex".** This section previously asserted
+two apex SPF records, read off CyberPanel's table, and called it an RFC 7208
+§4.5 `PERMERROR`. The founder said the two rows were two different zones. **The
+founder was right**: Cloudflare's export of 2026-09-12 shows exactly ONE apex
+SPF record. The claim is withdrawn.
+
+Keep the reason it was made, because it generalises: the claim was
+*unfalsifiable at the time* — TXT was the one record type those nameservers
+could not serve — and it was written up from a screenshot anyway. A finding
+that cannot yet be checked is allowed to stay in that state. Every other gate
+in this platform refuses to act without evidence; a migration note should hold
+itself to the same rule.
+
+Two that are real:
+
+1. **Duplicate DKIM selector — worse than first described.** There are **two**
+   `default._domainkey` records with **different keys**, and **neither matches
+   the key read out of CyberPanel by hand** on 2026-09-12 — three distinct DKIM
+   keys at one selector. Two in DNS makes verification ambiguous; the
+   hand-read third was probably copied from the `noohrabusiness.com` zone,
+   which lists that selector three times. **Only CyberPanel → Email → DKIM
+   Manager can settle it**, because the published record must match the private
+   key the mail server signs with. Both are left in place until it does:
+   deleting the live one is worse than the ambiguity.
+2. **DKIM in test mode** — `t=y` tells receivers the domain is only *testing*
+   DKIM and not to act on failures, discarding most of the benefit. Deleted
+   2026-09-12, with the ADSP `o=~` withdrawn as a standard in 2013.
 
 Plus one that is broken without being a mail problem:
 `_acme-challenge.quiz.knowsia.com.knowsia.com` — the zone name appended to an
@@ -339,13 +355,38 @@ already-qualified name, a CyberPanel UI trap. It can never validate.
 authentication at all** — SPF failing, DKIM ambiguous and in test mode, DMARC
 at `p=none` with no `rua` so it reports nothing either.
 
-### The trap when importing
+### The import trap — not the one predicted, and worse
 
-Cloudflare offers to **scan** existing DNS during onboarding. The scan queries
-the current nameservers, which cannot answer TXT — so it returns A, MX and
-CNAME records, silently omits **every** TXT record, and produces a zone that
-looks complete with no SPF, DKIM or DMARC. **Skip the scan; import the zone
-file.** This is why §10 step 5 says so.
+The prediction was that Cloudflare's onboarding **scan** would miss every TXT
+record, because the current nameservers cannot answer TXT. **That was wrong:**
+the scan found 10 TXT records, including SPF, DKIM, DMARC and the Resend pair.
+Cloudflare evidently retries harder or queries from more locations than a single
+resolver does.
+
+What the scan actually missed was worse. It **omitted `reg.knowsia.com`** — live,
+serving 200, and the host of the registration app, the four portals and the 312
+printed `/verify/KNS-…` certificate URLs. Switching nameservers on the scanned
+record set would have taken all of that down. It also missed `quiz.knowsia.com`
+and its two TXT records. Cloudflare's own banner warns of exactly this ("our
+scan may have missed uncommon records"), and the missing record was a CNAME —
+the type the prediction assumed was safe.
+
+**So the rule is a procedure, not a preference:** after the zone exists in
+Cloudflare, **export it and diff it against the live zone BEFORE touching the
+registrar.** Five minutes; it caught a certain outage. Do not rely on either
+the scan or the import being complete — verify.
+
+Two records surfaced only in the export and were previously written down
+nowhere: `link.knowsia.com → track.smtp2go.net` (SMTP2GO link tracking) and
+`send.knowsia.com MX → feedback-smtp.eu-west-1.amazonses.com`. The domain
+therefore uses **SMTP2GO as well as Resend**, which matters for §9.
+
+The Google Search Console token turned out to be **complete** in the export —
+CyberPanel's table view had merely truncated it — so §10 step 1 does not need
+to re-issue it from a fresh Domain property.
+
+Cloudflare's nameservers for this zone: `ernest.ns.cloudflare.com` and
+`zainab.ns.cloudflare.com`.
 
 ### One good find
 
