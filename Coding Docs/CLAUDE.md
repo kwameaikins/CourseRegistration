@@ -73,6 +73,16 @@ your summary of it.
 - **Payments:** Paystack (Card + MTN MoMo)
 - **File storage:** Cloudflare R2 (founder-directed 2026-08-02, payment slip uploads only; free tier at this scale) — accessed via `lib/r2/client.ts` using `aws4fetch`, not the AWS SDK
 - **UI:** Shadcn/ui + Tailwind CSS (components copied in via CLI, not npm-installed)
+- **Design rules (2026-09-13):** before designing or restyling any
+  student-facing screen, read **`KnowsiaApp/frontend/DESIGN.md`**. It governs
+  BOTH frontends until the Doc 21 consolidation merges them, and every rule in
+  it records the thing it prevents rather than a preference: never render an
+  empty container, one primary action per screen ordered by what expires
+  soonest, five top-level navigation items with no two a student cannot tell
+  apart, ownership and purchase never ambiguous, and an action is not a
+  destination. The merged-portal mockup it was drawn from is
+  [One Knowsia](https://claude.ai/code/artifact/3f1c69d7-a73e-48e8-8a97-1b9131013dbb),
+  which reduces the two portals' thirteen sidebar entries to five.
 - **Hosting:** Vercel (including Vercel Cron for scheduled jobs)
 - **Monitoring:** Uptime Robot (uptime) + Sentry (errors)
 - **Budget constraint: $0/month — for THIS repo.** Do not introduce any paid service without
