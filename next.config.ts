@@ -89,14 +89,19 @@ const nextConfig: NextConfig = {
     }
 
     if (LEARN_REDIRECT_ENABLED) {
-      rules.push({ source: '/learn', destination: `${KNOWSIA_APP_PUBLIC_URL}/catalogue`, permanent: true });
+      // The study app's root IS the question-bank landing page since
+      // 2026-09-15 (founder: "replace the /learn page with the question-bank
+      // page"), so bare /learn lands there, not on the catalogue.
+      rules.push({ source: '/learn', destination: `${KNOWSIA_APP_PUBLIC_URL}/`, permanent: true });
       rules.push({ source: '/learn/:path*', destination: `${KNOWSIA_APP_PUBLIC_URL}/:path*`, permanent: true });
     } else if (LEARN_REWRITE_ENABLED) {
       // Bare /learn must never be proxied: the exact-path external rewrite came
       // back as a 308 to itself in production (ERR_TOO_MANY_REDIRECTS,
-      // 2026-08-23). Send it straight into the catalogue, which the /learn/*
-      // rewrite serves correctly.
-      rules.push({ source: '/learn', destination: '/learn/catalogue', permanent: false });
+      // 2026-08-23). Since 2026-09-15 it goes to the question-bank landing
+      // page (founder: "replace the reg.knowsia.com/learn page with the
+      // question-bank page"), which the /learn/* rewrite serves correctly;
+      // the catalogue stays at /learn/catalogue.
+      rules.push({ source: '/learn', destination: '/learn/question-bank', permanent: false });
     }
 
     // The WordPress paths only ever existed on knowsia.com, so they apply only
