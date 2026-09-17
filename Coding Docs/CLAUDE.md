@@ -1140,6 +1140,23 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     NOT DONE, and the boundary is half-bound until it is: §3 must be mirrored
     into KnowsiaApp's own CLAUDE.md. A rule written in one repo binds one repo.
 
+  Operator scripts for one person's account (2026-09-17). Two read-only /
+    write-once Node scripts that load `.env.local` themselves and print
+    outcomes, never a key or a PIN: `scripts/find-participant.mjs <name>` —
+    every participant row matching the name with its registrations (course
+    code, cohort, status), which is how a duplicate is found; and
+    `scripts/reset-participant-pin.mjs <email> --send` — resets the portal PIN
+    to the portal's own initial convention (the last four digits of the
+    mobile, `lastFourDigits`), sets `must_change_pin`, clears the lockout, and
+    tells the student by Resend email and Arkesel SMS. Neither message carries
+    the digits; both say "the last four digits of your mobile number". A
+    deleted participant is refused. First use: Philemon Kpodo, two rows under
+    one phone (one already soft-deleted); the duplicate on the STUDY platform
+    (m1_users, no attempts, one refresh token) was deleted by hand there, and
+    the PIN on the surviving row reset and notified. Duplicates exist because
+    `participants.email` is the only uniqueness — the same phone twice is
+    allowed — so a name search is the honest way to find them.
+
   Seam I — KnowsiaApp account link, REGISTRATION HALF BUILT (2026-08-13).
     Founder directed building despite Document 19 §7's "nothing starts before
     go-live" — it ships DORMANT (both KNOWSIA_APP_URL and
