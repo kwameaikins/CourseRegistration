@@ -2,7 +2,7 @@
 // number (the portal's own initial-PIN convention), force a change on first
 // sign-in, clear any lockout, and tell them by email and SMS.
 // Loads .env.local itself; prints outcomes only — never a key, never the PIN.
-//   node scripts/reset-participant-pin.mjs philemonkpodo80@gmail.com [--send]
+//   node scripts/reset-participant-pin.mjs <email> [--send] [--note="<one sentence for the email>"]
 import { readFileSync } from 'node:fs';
 import { randomBytes, scryptSync } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
@@ -18,6 +18,9 @@ for (const file of ['.env.local', '.env']) {
 
 const email = process.argv[2];
 const send = process.argv.includes('--send');
+// Optional: what changed about the account, said in the email (e.g. a merge).
+const noteArg = process.argv.find((a) => a.startsWith('--note='));
+const note = noteArg ? noteArg.slice(7) : '';
 if (!email) throw new Error('usage: reset-participant-pin.mjs <email> [--send]');
 
 // Same algorithm as lib/portal-auth/pin.ts (scrypt, 16-byte salt, 64-byte key).
@@ -59,7 +62,7 @@ const { error: mailError } = await resend.emails.send({
   subject: 'Your Knowsia student PIN has been reset',
   html: `
 <p>Dear ${first},</p>
-<p>We found two accounts under your name and have kept this one, <b>${p.email}</b>. The other has been removed, so please use this address from now on.</p>
+<p>${note || `We found two accounts under your name and have kept this one, <b>${p.email}</b>. The other has been removed, so please use this address from now on.`}</p>
 <p>Your student portal PIN has been reset. To sign in:</p>
 <ol>
   <li>Go to <a href="${appUrl}/portal/login">${appUrl.replace(/^https?:\/\//, '')}/portal/login</a></li>
