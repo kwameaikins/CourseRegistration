@@ -206,6 +206,19 @@ payloads stay identity-only, and the grant travels as its own service-key call f
 > KnowsiaApp question page shows the real reason ("your free trial has ended … On a Knowsia cohort
 > course? … contact info@knowsia.com") instead of "service unavailable".
 
+**Seam III RETIRED as a grant (founder, 2026-09-17: "remove the cohort grant
+access. they would have to subscribe to get access or try for free for 14 days
+after").** `POST /api/v1/service/auth/question-bank-access` still answers 201 and
+still finds-or-creates the `m1_users` row, but grants NOTHING: the response keeps
+its fields with `access_until: ""`, `extended: false`, plus `granted: false` and
+`trial_days_on_first_sign_in: 14`. The account is owed the ordinary 14-day trial,
+started the first time the person signs in over there, and must subscribe after
+it. `grantQuestionBankAccessSystem` here only checks `response.ok`, so it keeps
+working unchanged; `QUESTION_BANK_ACCESS_DAYS` is now inert. The 327 grants that
+existed were ended the same day (`scripts/retire_cohort_grants.py` in KnowsiaApp).
+The LMS enrolment grant (`/service/lms/enrolments`) is a different seam and is
+untouched.
+
 **Seam IV — one certificate registry (founder decision 2026-09-17).** A student who completes
 a self-paced course on Knowsia Study earns a certificate, and the numbering
 `KNS-<COURSECODE>-<YEAR>-<NNNN>` is a serial per course code per year allocated from THIS
