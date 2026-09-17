@@ -145,6 +145,22 @@ export async function selectCertificateById(id: string): Promise<CertificateRow 
   return data;
 }
 
+// The row an external issuer already created for its own certificate id
+// (2026-09-17). A retried issue call from Knowsia Study finds this instead
+// of burning a second serial number.
+export async function selectCertificateByExternalRef(
+  externalRef: string,
+): Promise<CertificateRow | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('certificates')
+    .select('*')
+    .eq('external_ref', externalRef)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 export async function selectCertificateByNumber(
   certificateNumber: string,
 ): Promise<CertificateRow | null> {

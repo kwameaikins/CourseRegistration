@@ -780,6 +780,7 @@ export type Database = {
           cpd_credit: string
           created_at: string
           description: string
+          external_ref: string | null
           facilitator_name: string | null
           hours: number
           id: string
@@ -790,6 +791,7 @@ export type Database = {
           registration_id: string | null
           revoked: boolean
           revoked_reason: string | null
+          source: string
         }
         Insert: {
           certificate_number: string
@@ -797,6 +799,7 @@ export type Database = {
           cpd_credit?: string
           created_at?: string
           description?: string
+          external_ref?: string | null
           facilitator_name?: string | null
           hours?: number
           id?: string
@@ -807,6 +810,7 @@ export type Database = {
           registration_id?: string | null
           revoked?: boolean
           revoked_reason?: string | null
+          source?: string
         }
         Update: {
           certificate_number?: string
@@ -814,6 +818,7 @@ export type Database = {
           cpd_credit?: string
           created_at?: string
           description?: string
+          external_ref?: string | null
           facilitator_name?: string | null
           hours?: number
           id?: string
@@ -824,6 +829,7 @@ export type Database = {
           registration_id?: string | null
           revoked?: boolean
           revoked_reason?: string | null
+          source?: string
         }
         Relationships: [
           {

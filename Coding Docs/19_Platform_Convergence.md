@@ -206,6 +206,22 @@ payloads stay identity-only, and the grant travels as its own service-key call f
 > KnowsiaApp question page shows the real reason ("your free trial has ended … On a Knowsia cohort
 > course? … contact info@knowsia.com") instead of "service unavailable".
 
+**Seam IV — one certificate registry (founder decision 2026-09-17).** A student who completes
+a self-paced course on Knowsia Study earns a certificate, and the numbering
+`KNS-<COURSECODE>-<YEAR>-<NNNN>` is a serial per course code per year allocated from THIS
+registry — the codes are shared (CA01–CA04 exist on both sides), so a second issuer would mint
+the same number twice. Knowsia Study therefore never numbers a certificate itself: it calls
+`POST /api/integration/certificates/issue` (Bearer `KNOWSIA_APP_SERVICE_KEY`, same boundary as
+`portal-login/verify`) with `{externalRef, courseCode, courseTitle, recipientName,
+recipientEmail?, description?, hours, cpdCredit?, facilitatorName?, issuedDate?}` and receives
+`{id, certificateNumber, issuedDate, verifyUrl, downloadUrl, existing}`. The row lives in
+`certificates` with `registration_id` null, `source = 'self_paced'` and `external_ref` = the
+caller's own certificate id (UNIQUE, migration `202609170067`), so a retry after a timeout
+returns the row it already created instead of burning a serial. **No email is sent here** —
+Knowsia Study writes its own. `GET /api/integration/certificates/{number}/pdf` (same key) returns
+the same pdf-lib PDF a cohort participant downloads, for the study platform to proxy to its own
+signed-in student. `reg.knowsia.com/verify/<number>` verifies both kinds unchanged.
+
 ---
 
 ## 5. What "Integrated" Means Here

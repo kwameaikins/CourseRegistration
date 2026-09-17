@@ -161,6 +161,15 @@ npx playwright test          # E2E tests (Section 6, Document 9)
 > session (or a new context window) to know where things stand without re-reading everything.
 
 ```
+2026-09-17 — Seam IV, one certificate registry (Coding Docs/19 §4):
+  POST /api/integration/certificates/issue and GET
+  /api/integration/certificates/{number}/pdf (service key) let Knowsia Study
+  issue and download self-paced certificates from THIS registry, so the
+  KNS-<CODE>-<YEAR>-<NNNN> series stays single. Migration 202609170067
+  (certificates.external_ref UNIQUE, source cohort|self_paced) applied to
+  production and present in `supabase migration list` the same day.
+  modules/certificates/service.ts: issueForKnowsiaApp (idempotent by
+  external_ref, no role check, no email), getCertificatePdfByNumber.
 Week (per PLAN.md):     5 (Tasks 1–5 code-complete; live integrations pending)
 
 2026-09-04 (three commits, ddda843 / 75b37a4 / 48fd186 — see PLAN.md §Platform convergence):

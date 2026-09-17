@@ -33,6 +33,34 @@ export const batchIssueSchema = z.object({
 
 export type BatchIssueInput = z.infer<typeof batchIssueSchema>;
 
+// Issued for Knowsia Study on completion of a self-paced course (2026-09-17):
+// one registry, one KNS series, one verifier. `externalRef` is the caller's
+// own certificate id and makes the call idempotent.
+export const externalIssueSchema = z.object({
+  externalRef: z.string().trim().min(8).max(80),
+  courseCode: z.string().trim().min(2).max(10),
+  courseTitle: z.string().trim().min(2).max(200),
+  recipientName: z.string().trim().min(2).max(200),
+  recipientEmail: z.string().email().optional(),
+  description: z.string().trim().max(600).default(''),
+  hours: z.number().min(0).max(1000),
+  cpdCredit: z.string().trim().max(50).default('TBD'),
+  facilitatorName: z.string().trim().max(200).optional(),
+  issuedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+export type ExternalIssueInput = z.infer<typeof externalIssueSchema>;
+
+export interface ExternalIssueResult {
+  id: string;
+  certificateNumber: string;
+  issuedDate: string;
+  verifyUrl: string;
+  downloadUrl: string;
+  // True when the row already existed for this externalRef.
+  existing: boolean;
+}
+
 export interface CertificateView {
   id: string;
   certificateNumber: string;

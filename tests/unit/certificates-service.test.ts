@@ -7,6 +7,7 @@ const repositoryMock = {
   selectCourseSerialFloor: vi.fn(),
   selectCertificateById: vi.fn(),
   selectCertificateByNumber: vi.fn(),
+  selectCertificateByExternalRef: vi.fn(),
   updateCertificate: vi.fn(),
   selectBatchIssueContext: vi.fn(),
   selectBatchIdForRegistration: vi.fn(),
@@ -36,6 +37,8 @@ const {
   buildCertificateNumber,
   getBatchIssueContextSystem,
   getCertificatePdf,
+  getCertificatePdfByNumber,
+  issueForKnowsiaApp,
   issueCertificateIfEligible,
   runCompletedBatchCertificateIssuance,
   runCertificateBackfill,
@@ -86,6 +89,77 @@ beforeEach(() => {
     },
   }));
   sendTransactionalEmailMock.mockResolvedValue(undefined);
+});
+
+describe('issued for Knowsia Study (one registry, 2026-09-17)', () => {
+  const input = {
+    externalRef: 'a5c9f1e2-0000-4000-8000-000000000001',
+    courseCode: 'ca01',
+    courseTitle: 'Practical Accounting with Sage 50',
+    recipientName: 'Ama Owusu',
+    recipientEmail: 'ama@example.com',
+    description: '',
+    hours: 6.4,
+    cpdCredit: '6',
+    facilitatorName: 'Georgina Anum',
+    issuedDate: '2026-09-17',
+  };
+
+  it('allocates the next serial in the SAME series as cohort certificates and records the source', async () => {
+    repositoryMock.selectCertificateByExternalRef.mockResolvedValue(null);
+    repositoryMock.selectMaxSerialForCourseYear.mockResolvedValue(20);
+    const result = await issueForKnowsiaApp(input);
+    expect(repositoryMock.selectMaxSerialForCourseYear).toHaveBeenCalledWith('CA01', 2026);
+    expect(repositoryMock.insertCertificate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        certificate_number: 'KNS-CA01-2026-0021',
+        external_ref: input.externalRef,
+        source: 'self_paced',
+        hours: 6,
+        issued_by: null,
+      }),
+    );
+    expect(result.certificateNumber).toBe('KNS-CA01-2026-0021');
+    expect(result.existing).toBe(false);
+    expect(result.verifyUrl).toContain('/verify/KNS-CA01-2026-0021');
+    // No staff role is consulted and no email is sent — the study platform writes its own.
+    expect(usersServiceMock.requireRole).not.toHaveBeenCalled();
+    expect(sendTransactionalEmailMock).not.toHaveBeenCalled();
+  });
+
+  it('is idempotent by externalRef — a retry returns the row it already created', async () => {
+    repositoryMock.selectCertificateByExternalRef.mockResolvedValue({
+      id: 'cert-9', certificate_number: 'KNS-CA01-2026-0021', issued_date: '2026-09-17', revoked: false,
+    });
+    const result = await issueForKnowsiaApp(input);
+    expect(result.existing).toBe(true);
+    expect(result.certificateNumber).toBe('KNS-CA01-2026-0021');
+    expect(repositoryMock.insertCertificate).not.toHaveBeenCalled();
+  });
+
+  it('reads back the winner when two calls race on one externalRef', async () => {
+    repositoryMock.selectCertificateByExternalRef
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: 'cert-9', certificate_number: 'KNS-CA01-2026-0021', issued_date: '2026-09-17' });
+    repositoryMock.insertCertificate.mockResolvedValue({ outcome: 'duplicate' });
+    const result = await issueForKnowsiaApp(input);
+    expect(result.existing).toBe(true);
+    expect(result.certificateNumber).toBe('KNS-CA01-2026-0021');
+  });
+
+  it('renders the PDF by number and refuses a revoked one', async () => {
+    repositoryMock.selectCertificateByNumber.mockResolvedValue({
+      id: 'cert-9', certificate_number: 'KNS-CA01-2026-0021', recipient_name: 'Ama Owusu',
+      course_title: 'Practical Accounting with Sage 50', description: '', hours: 6,
+      facilitator_name: 'Georgina Anum', issued_date: '2026-09-17', revoked: false,
+    });
+    const { fileName, bytes } = await getCertificatePdfByNumber('KNS-CA01-2026-0021');
+    expect(fileName).toBe('KNS-CA01-2026-0021.pdf');
+    expect(bytes.length).toBeGreaterThan(1000);
+
+    repositoryMock.selectCertificateByNumber.mockResolvedValue({ id: 'cert-9', certificate_number: 'x', revoked: true });
+    await expect(getCertificatePdfByNumber('KNS-CA01-2026-0021')).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
 });
 
 describe('certificate numbering', () => {

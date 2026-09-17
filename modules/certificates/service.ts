@@ -20,6 +20,8 @@ import {
   type BatchIssueInput,
   type BatchIssueResult,
   type CertificateView,
+  type ExternalIssueInput,
+  type ExternalIssueResult,
   type ManualIssueInput,
   type VerificationResult,
 } from '@/modules/certificates/types';
@@ -462,6 +464,100 @@ export async function issueManual(
     }
   }
   return toView(row);
+}
+
+// Issued FOR Knowsia Study when a student completes a self-paced course
+// (founder decision 2026-09-17: one registry). Same allocator, same table,
+// same verify page as a cohort certificate; `registration_id` is null as for a
+// manual issue, `source` says which platform. No staff role: the caller is
+// the service-key route, the same trust boundary as the portal-login verify.
+//
+// Idempotent by external_ref. The study platform calls this from a
+// completion hook and retries hourly on failure; a retry after a timeout must
+// find the row it already created, never mint a second serial.
+//
+// Sends NO email: Knowsia Study writes its own completion email with its own
+// links, and two emails for one certificate is how a student learns to ignore
+// both.
+export async function issueForKnowsiaApp(input: ExternalIssueInput): Promise<ExternalIssueResult> {
+  const existing = await certificatesRepository.selectCertificateByExternalRef(input.externalRef);
+  if (existing) {
+    return {
+      id: existing.id,
+      certificateNumber: existing.certificate_number,
+      issuedDate: existing.issued_date,
+      verifyUrl: verifyUrlFor(existing.certificate_number),
+      downloadUrl: downloadUrlFor(existing.id),
+      existing: true,
+    };
+  }
+  let row: CertificateRow;
+  try {
+    row = await insertWithNumberRetry(
+      {
+        recipient_name: input.recipientName,
+        course_title: input.courseTitle,
+        description: input.description,
+        hours: Math.round(input.hours),
+        cpd_credit: input.cpdCredit,
+        facilitator_name: input.facilitatorName ?? null,
+        issued_date: input.issuedDate ?? new Date().toISOString().slice(0, 10),
+        issued_by: null,
+        recipient_email: input.recipientEmail ?? null,
+        external_ref: input.externalRef,
+        source: 'self_paced',
+      },
+      input.courseCode,
+    );
+  } catch (err) {
+    // Two calls racing on the same externalRef: the unique constraint turns
+    // the second into a duplicate — read back what the first wrote.
+    if (err instanceof AppError && err.code === 'DUPLICATE_CERTIFICATE') {
+      const raced = await certificatesRepository.selectCertificateByExternalRef(input.externalRef);
+      if (raced) {
+        return {
+          id: raced.id,
+          certificateNumber: raced.certificate_number,
+          issuedDate: raced.issued_date,
+          verifyUrl: verifyUrlFor(raced.certificate_number),
+          downloadUrl: downloadUrlFor(raced.id),
+          existing: true,
+        };
+      }
+    }
+    throw err;
+  }
+  return {
+    id: row.id,
+    certificateNumber: row.certificate_number,
+    issuedDate: row.issued_date,
+    verifyUrl: verifyUrlFor(row.certificate_number),
+    downloadUrl: downloadUrlFor(row.id),
+    existing: false,
+  };
+}
+
+// The PDF by NUMBER, for the study platform to proxy to its own student.
+// Same renderer as the emailed download, so a self-paced certificate is the
+// same artefact a cohort participant receives.
+export async function getCertificatePdfByNumber(
+  certificateNumber: string,
+): Promise<{ fileName: string; bytes: Uint8Array }> {
+  const row = await certificatesRepository.selectCertificateByNumber(certificateNumber);
+  if (!row || row.revoked) {
+    throw new AppError('NOT_FOUND', 'Certificate not available.', 404);
+  }
+  const bytes = await generateCertificatePdf({
+    certificateNumber: row.certificate_number,
+    recipientName: row.recipient_name,
+    courseTitle: row.course_title,
+    description: row.description,
+    hours: row.hours,
+    facilitatorName: row.facilitator_name,
+    issuedDate: row.issued_date,
+    verifyUrl: verifyUrlFor(row.certificate_number),
+  });
+  return { fileName: `${row.certificate_number}.pdf`, bytes };
 }
 
 export async function getBatchIssueContextSystem(batchId: string): Promise<{
