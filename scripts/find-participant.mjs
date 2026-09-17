@@ -37,8 +37,18 @@ for (const p of people) {
     const { data: c } = b ? await db.from('courses').select('course_code, course_name').eq('id', b.course_id).maybeSingle() : { data: null };
     console.log(`    ${r.registered_at.slice(0, 10)}  ${r.registration_status.padEnd(10)} ${c?.course_code ?? '?'} ${c?.course_name ?? ''} (${b?.cohort_label ?? '?'})`);
   }
-  const { data: portal, error: portalError } = await db.from('portal_accounts').select('created_at').eq('participant_id', p.id);
-  console.log(`    portal account: ${portalError ? portalError.message : portal.length ? 'yes' : 'no'}`);
+  const { data: auth } = await db
+    .from('participant_auth')
+    .select('must_change_pin, failed_attempts, locked_until, last_login_at, updated_at')
+    .eq('participant_id', p.id)
+    .maybeSingle();
+  if (!auth) console.log('    portal sign-in: no credential row (never provisioned)');
+  else {
+    const locked = auth.locked_until && new Date(auth.locked_until) > new Date();
+    console.log(`    portal sign-in: ${auth.last_login_at ? 'last ' + auth.last_login_at.slice(0, 16).replace('T', ' ') : 'never signed in'}`
+      + ` | PIN ${auth.must_change_pin ? 'still the initial one (must change)' : 'changed by the student'}`
+      + ` | failed attempts ${auth.failed_attempts}${locked ? ' | LOCKED until ' + auth.locked_until.slice(0, 16) : ''}`);
+  }
 }
 
 
