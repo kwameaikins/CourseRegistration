@@ -2,9 +2,10 @@
 // attendance, payments, certificates, materials access, feedback, logs)
 // moves to the surviving row, leftovers on the old row are re-pointed or
 // dropped, and the old row is soft-deleted as the app's erasure does it.
-// Dry run by default; `--apply` writes. Run from the Registration repo dir.
+// Dry run by default; `--apply` writes.
+//   node scripts/merge-participant.mjs <from-email> <into-email> [--apply]
 import { readFileSync } from 'node:fs';
-import { createClient } from 'file:///E:/Knowsia%20Course%20Registration/node_modules/@supabase/supabase-js/dist/index.mjs';
+import { createClient } from '@supabase/supabase-js';
 
 for (const file of ['.env.local', '.env']) {
   try {

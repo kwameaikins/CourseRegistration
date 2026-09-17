@@ -1156,6 +1156,19 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     the PIN on the surviving row reset and notified. Duplicates exist because
     `participants.email` is the only uniqueness — the same phone twice is
     allowed — so a name search is the honest way to find them.
+    `scripts/merge-participant.mjs <from> <into> --apply` (2026-09-17, second
+    case: Nicholina Nyumutei, ESG2 under her Gmail and TAX1 under her work
+    address, same phone). Every registration on FROM moves to INTO, and with
+    it everything keyed by registration_id — attendance, payments,
+    certificates (recipient_email re-addressed), materials access, feedback,
+    the logs; the participant_id leftovers are re-pointed (leads, waitlist,
+    coupons) or dropped (sessions, tokens, the PIN row); FROM is soft-deleted.
+    It refuses when INTO already holds the same batch, and it is a dry run
+    until `--apply`. The study-platform mirror (m1_users) is merged by hand
+    there: the duplicate deleted, the surviving row's
+    `question_bank_access_source` widened to both courses. The reset script
+    takes `--note="…"` for the one sentence in the email that says what
+    changed.
 
   Seam I — KnowsiaApp account link, REGISTRATION HALF BUILT (2026-08-13).
     Founder directed building despite Document 19 §7's "nothing starts before
