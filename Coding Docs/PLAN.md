@@ -330,6 +330,24 @@ codebases.** Porting either way costs months and ends with less than exists toda
 **The binding rule — people and money here; learning content and AI there; neither system rebuilds
 the other's half.** Ownership table in Document 19 §3. This costs nothing and applies from today.
 
+**2026-09-18 — Knowsia Core (Doc 22) names where the shared capabilities go.** Founder: bundle
+identity, payments, communications, leads, analytics and affiliates as ONE platform layer, built
+inside `knowsia-api` (`app/platform/`, prefix `core_`); certificates stay with the LMS; "let split
+it now, each app should have its own records" — one person, separate app records, no merge, exact-
+email linking in December. `22_Knowsia_Core.md` holds the decision, the eleven-module table (this
+repo's `participants`, `payments`, `partners`, `leads`, `feedback`, email tables each named with
+their destination), the seven-phase roadmap and its exit criteria. Nothing in THIS repo moves
+before December; Phase 1 was invisible (an outbox, an audit log, tenancy columns on the Python
+side). What landed here (commit `8abbfcd`): Doc 22, pointers in Doc 19 and Doc 21,
+`Coding Docs/contracts/service-api.v1.json` (the OpenAPI description of the 13 `/api/v1/service/*`
+routes, written by the Python repo's contract test) and `tests/unit/knowsia-core-contract.test.ts`,
+which asserts the four endpoints `modules/knowsia-app/service.ts` calls still exist with the fields
+it sends — a breaking change over there now fails a test here, in review (4 passed).
+- [x] `tests/unit/knowsia-core-contract.test.ts` is inside `vitest.config.mts`'s `tests/unit/**`
+      glob, so `npm test` runs it with everything else (no separate CI wiring)
+- [ ] Phase 2 (December): Core identity created from `participants` by exact email; PIN login and
+      the handoff unchanged; this repo's user table read-only after — Doc 22 §7
+
 - [x] Boundary agreed and documented (Document 19 §3)
 - [ ] Mirror §3 into KnowsiaApp's own CLAUDE.md — until then the boundary binds one repo only
 - [ ] Stop-building list on the KnowsiaApp side: M10 Affiliate, M11 CRM, and the `notif_`
