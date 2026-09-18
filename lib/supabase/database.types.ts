@@ -2544,6 +2544,7 @@ export type Database = {
           company: string | null
           consent_at: string | null
           consent_given: boolean
+          core_identity_id: string | null
           created_at: string
           deleted_at: string | null
           email: string
@@ -2563,6 +2564,7 @@ export type Database = {
           company?: string | null
           consent_at?: string | null
           consent_given?: boolean
+          core_identity_id?: string | null
           created_at?: string
           deleted_at?: string | null
           email: string
@@ -2582,6 +2584,7 @@ export type Database = {
           company?: string | null
           consent_at?: string | null
           consent_given?: boolean
+          core_identity_id?: string | null
           created_at?: string
           deleted_at?: string | null
           email?: string
@@ -3725,6 +3728,7 @@ export type Database = {
       }
       staff_users: {
         Row: {
+          core_identity_id: string | null
           created_at: string
           email: string
           full_name: string
@@ -3735,6 +3739,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          core_identity_id?: string | null
           created_at?: string
           email: string
           full_name: string
@@ -3745,6 +3750,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          core_identity_id?: string | null
           created_at?: string
           email?: string
           full_name?: string

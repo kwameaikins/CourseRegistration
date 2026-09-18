@@ -69,4 +69,14 @@ describe('KnowsiaApp service-door contract (what modules/knowsia-app/service.ts 
     const reply = responseFields('/api/v1/service/lms/participants/{participant_id}/enrolments', 'get');
     expect(reply).toContain('enrolments');
   });
+
+  it('the dual-read shadow check (Doc 22 Phase 2): POST …/identity/check', () => {
+    const fields = requestFields('/api/v1/service/identity/check', 'post');
+    for (const f of ['path', 'product', 'external_id', 'email', 'app_verdict']) {
+      expect(fields, `request field ${f}`).toContain(f);
+    }
+    const reply = responseFields('/api/v1/service/identity/check', 'post');
+    expect(reply).toContain('recorded');
+    expect(reply).toContain('dual_read_on');
+  });
 });

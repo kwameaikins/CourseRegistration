@@ -930,6 +930,27 @@ and click "Email invoice".
 
 ---
 
+## Knowsia Core Phase 2 — this side of the identity link (2026-09-18)
+
+Coding Docs/22 §3 and §7. The linker lives in knowsia-api; this app opens the door it reads
+and writes through, and sends its PIN sign-ins to the dual-read. Nothing about sign-in reads the
+new column; the shadow call is fire-and-forget and off unless `CORE_DUAL_READ=true`.
+
+- [x] `participants.core_identity_id`, `staff_users.core_identity_id` (202609180070) — a shared
+      KEY set by the linker, exact email only; never a merge
+- [x] `GET /api/integration/identities/export` (every participant and staff account with what an
+      identity is made of), `POST …/identities/link` (a row already carrying a DIFFERENT identity
+      is skipped and counted, never moved) — `modules/knowsia-core/{service,repository}.ts`,
+      service key as certificates/issue
+- [x] `verifyCredentials` (portal PIN login) → `knowsiaCoreService.shadowLoginCheck` after each
+      verdict (`ok` / `invalid` / `locked`) → knowsia-api `POST /api/v1/service/identity/check`;
+      3 s timeout, Sentry on failure, never awaited by the sign-in
+- [x] Contract test asserts the new route (5 passed)
+- [ ] `npx supabase db push` for 202609180070; deploy; when the founder turns the dual-read on,
+      set `CORE_DUAL_READ=true` on Vercel as well as Railway
+
+---
+
 ## Risk watch (carried from `/docs/01_PRD.md` risk register)
 
 | ID | Risk | Status |

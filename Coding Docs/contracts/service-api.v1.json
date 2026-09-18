@@ -326,6 +326,74 @@
         "title": "ImportSectionResponse",
         "type": "object"
       },
+      "LoginCheckRequest": {
+        "properties": {
+          "app_verdict": {
+            "pattern": "^(ok|invalid|locked)$",
+            "title": "App Verdict",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "external_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Id"
+          },
+          "path": {
+            "pattern": "^(pin|handoff|password|refresh)$",
+            "title": "Path",
+            "type": "string"
+          },
+          "product": {
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "product",
+          "app_verdict"
+        ],
+        "title": "LoginCheckRequest",
+        "type": "object"
+      },
+      "LoginCheckResponse": {
+        "properties": {
+          "dual_read_on": {
+            "title": "Dual Read On",
+            "type": "boolean"
+          },
+          "recorded": {
+            "title": "Recorded",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "recorded",
+          "dual_read_on"
+        ],
+        "title": "LoginCheckResponse",
+        "type": "object"
+      },
       "ParticipantEnrolmentSummary": {
         "properties": {
           "completed_at": {
@@ -961,6 +1029,47 @@
         "summary": "Revoke Question Bank Access",
         "tags": [
           "service-auth"
+        ]
+      }
+    },
+    "/api/v1/service/identity/check": {
+      "post": {
+        "operationId": "login_check_api_v1_service_identity_check_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginCheckRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginCheckResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Login Check",
+        "tags": [
+          "service-identity"
         ]
       }
     },

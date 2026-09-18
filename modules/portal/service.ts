@@ -7,6 +7,9 @@ import * as portalRepository from '@/modules/portal/repository';
 // Permitted cross-module call (2026-08-23) — the merged dashboard shows the
 // participant's self-paced study summary; knowsia-app owns the HTTP seam.
 import * as knowsiaAppService from '@/modules/knowsia-app/service';
+// Permitted cross-module call (Coding Docs/22 Phase 2, 2026-09-18) — the
+// dual-read shadow check after a PIN sign-in; knowsia-core owns that seam.
+import * as knowsiaCoreService from '@/modules/knowsia-core/service';
 import * as paymentsRepository from '@/modules/payments/repository';
 // Permitted cross-module call (system review, 2026-07-24) — see
 // renameExistingCertificates's doc comment: retroactively fixing the name
@@ -151,7 +154,14 @@ async function verifyCredentials(input: PortalLoginInput): Promise<
     return { status: 'invalid' };
   }
 
+  // Knowsia Core dual-read (Coding Docs/22 Phase 2): once THIS table has
+  // decided, Core is told the verdict and records its own. Fire-and-forget,
+  // off unless CORE_DUAL_READ=true, and never a factor in the answer below.
+  const shadow = (verdict: knowsiaCoreService.ShadowVerdict) =>
+    knowsiaCoreService.shadowLoginCheck({ participantId: participant.id, email: participant.email, verdict });
+
   if (auth.locked_until && new Date(auth.locked_until) > new Date()) {
+    shadow('locked');
     return { status: 'locked' };
   }
 
@@ -162,16 +172,19 @@ async function verifyCredentials(input: PortalLoginInput): Promise<
         failed_attempts: 0,
         locked_until: new Date(Date.now() + LOCKOUT_DURATION_MS).toISOString(),
       });
+      shadow('locked');
       return { status: 'locked' };
     }
     await portalRepository.recordFailedLogin(participant.id, {
       failed_attempts: nextFailedAttempts,
       locked_until: null,
     });
+    shadow('invalid');
     return { status: 'invalid' };
   }
 
   await portalRepository.recordSuccessfulLogin(participant.id);
+  shadow('ok');
   return { status: 'ok', participant, mustChangePin: auth.must_change_pin };
 }
 
