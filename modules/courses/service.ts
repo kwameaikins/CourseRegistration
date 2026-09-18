@@ -63,6 +63,7 @@ function toBatch(row: BatchRow): Batch {
     capacity: row.capacity,
     courseFee: Number(row.course_fee),
     isFree: row.is_free,
+    isUnlisted: row.is_unlisted,
     startDate: row.start_date,
     startTime: row.start_time,
     endDate: row.end_date,
@@ -284,6 +285,7 @@ export async function updateBatch(batchId: string, changes: BatchUpdate): Promis
     ...(changes.cohortLabel !== undefined && { cohort_label: changes.cohortLabel }),
     ...(changes.courseFee !== undefined && { course_fee: changes.courseFee }),
     ...(changes.isFree !== undefined && { is_free: changes.isFree }),
+    ...(changes.isUnlisted !== undefined && { is_unlisted: changes.isUnlisted }),
     ...(changes.startDate !== undefined && { start_date: changes.startDate }),
     ...(changes.startTime !== undefined && { start_time: changes.startTime }),
     ...(changes.endDate !== undefined && { end_date: changes.endDate }),
@@ -389,8 +391,12 @@ export async function adjustBatchCapacityInternal(batchId: string, delta: number
 // (late registration, founder-approved 2026-08-12) — hasStarted is what the
 // form uses to say so, so a late joiner knows what they are walking into
 // rather than being quietly enrolled into a course that began last week.
-export async function getActiveBatchesForPublicForm(): Promise<PublicBatchOption[]> {
-  const rows = await coursesRepository.selectActiveJoinableBatchesPublic();
+// `includeBatchId` is the Batch a direct link names (/register?batchId=…):
+// an UNLISTED Batch is left out of the dropdown unless it is that one, so a
+// private one-to-one tuition Batch is reachable by its link and by nothing
+// else (2026-09-18).
+export async function getActiveBatchesForPublicForm(includeBatchId?: string | null): Promise<PublicBatchOption[]> {
+  const rows = await coursesRepository.selectActiveJoinableBatchesPublic(includeBatchId ?? null);
   const usage = await coursesRepository.countRegistrationsByBatchIdsSystem(rows.map((row) => row.id));
   const todayIso = new Date().toISOString().slice(0, 10);
   return rows.map((row) => {
@@ -405,6 +411,7 @@ export async function getActiveBatchesForPublicForm(): Promise<PublicBatchOption
     hasStarted: row.start_date < todayIso,
     courseFee: Number(row.course_fee),
     isFree: row.is_free,
+    isUnlisted: row.is_unlisted,
     capacity: row.capacity,
     seatsRemaining,
     isFull: seatsRemaining !== null && seatsRemaining <= 0,
@@ -434,6 +441,7 @@ function toBatchInsert(input: BatchInput): Database['public']['Tables']['batches
     capacity: input.capacity ?? null,
     course_fee: input.courseFee,
     is_free: input.isFree,
+    is_unlisted: input.isUnlisted,
     start_date: input.startDate,
     start_time: input.startTime,
     end_date: input.endDate,

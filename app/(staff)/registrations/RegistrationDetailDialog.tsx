@@ -189,6 +189,50 @@ export function RegistrationDetailDialog(props: {
   const [lapsing, setLapsing] = useState(false);
   const [lapseError, setLapseError] = useState<string | null>(null);
 
+  // Invoice (founder request 2026-09-18, one-to-one tuition). The sheet opens
+  // on demand, reads as one sentence with the due date in the middle of it,
+  // and on success the sentence changes where the person was looking.
+  const [invoicing, setInvoicing] = useState(false);
+  const [invoiceDueDate, setInvoiceDueDate] = useState('');
+  const [invoiceMessage, setInvoiceMessage] = useState('');
+  const [invoiceSending, setInvoiceSending] = useState(false);
+  const [invoiceError, setInvoiceError] = useState<string | null>(null);
+  const [invoiceSent, setInvoiceSent] = useState<{ reference: string; sentTo: string } | null>(null);
+
+  function openInvoice() {
+    const inSevenDays = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+    const start = data?.course?.startDate ?? '';
+    const today = new Date().toISOString().slice(0, 10);
+    setInvoiceDueDate(start && start >= today && start < inSevenDays ? start : inSevenDays);
+    setInvoiceMessage('');
+    setInvoiceError(null);
+    setInvoicing(true);
+  }
+
+  async function handleSendInvoice() {
+    setInvoiceSending(true);
+    setInvoiceError(null);
+    try {
+      const result = await apiFetch<{ reference: string; sentTo: string }>(
+        `/api/registrations/${props.registrationId}/invoice`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            dueDate: invoiceDueDate || null,
+            message: invoiceMessage.trim() || null,
+          }),
+        },
+      );
+      setInvoiceSent({ reference: result.reference, sentTo: result.sentTo });
+      setInvoicing(false);
+    } catch (err) {
+      setInvoiceError(err instanceof Error ? err.message : 'Failed to send the invoice.');
+    } finally {
+      setInvoiceSending(false);
+    }
+  }
+
   function loadData() {
     setLoading(true);
     setErrorMessage(null);
@@ -525,7 +569,7 @@ export function RegistrationDetailDialog(props: {
                   )}
                 </div>
                 {data.canViewStatement && data.participant && (
-                  <div className="mt-3">
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
                     <Button variant="outline" size="sm" asChild>
                       <a
                         href={`/api/participants/${data.participant.id}/statement`}
@@ -535,6 +579,78 @@ export function RegistrationDetailDialog(props: {
                         Download account statement
                       </a>
                     </Button>
+                    {data.course && data.payment && (
+                      <>
+                        <Button variant="outline" size="sm" asChild>
+                          <a
+                            href={`/api/registrations/${props.registrationId}/invoice`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Preview invoice
+                          </a>
+                        </Button>
+                        {!invoicing && !invoiceSent && data.participant.email && (
+                          <Button variant="outline" size="sm" onClick={openInvoice}>
+                            Email invoice
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+                {invoiceSent && data.participant && (
+                  <p className="mt-2 text-sm text-muted-foreground" aria-live="polite">
+                    Invoice {invoiceSent.reference} sent to {invoiceSent.sentTo}.{' '}
+                    <button type="button" className="underline" onClick={() => { setInvoiceSent(null); openInvoice(); }}>
+                      Send again
+                    </button>
+                  </p>
+                )}
+                {invoicing && data.participant && data.payment && (
+                  <div className="mt-3 space-y-3 rounded-md border p-3">
+                    <p className="text-sm leading-7">
+                      Email an invoice for{' '}
+                      <strong>
+                        {data.payment.balance > 0 ? formatGhs(data.payment.balance) : formatGhs(data.payment.amountPaid)}
+                      </strong>
+                      {data.payment.balance > 0 ? (
+                        <>
+                          , due by{' '}
+                          <input
+                            type="date"
+                            aria-label="Due date"
+                            className="mx-1 inline-block h-8 rounded-md border border-input bg-background px-2 text-sm"
+                            value={invoiceDueDate}
+                            min={new Date().toISOString().slice(0, 10)}
+                            onChange={(event) => setInvoiceDueDate(event.target.value)}
+                          />
+                        </>
+                      ) : (
+                        <> (paid in full — a receipted invoice)</>
+                      )}
+                      , to <strong>{data.participant.email}</strong>.
+                    </p>
+                    <div className="space-y-1">
+                      <Label htmlFor="invoiceMessage" className="text-xs text-muted-foreground">
+                        A note to include (optional)
+                      </Label>
+                      <Input
+                        id="invoiceMessage"
+                        placeholder="e.g. Sessions are Tuesdays and Thursdays, 6–8 pm, online and in person as agreed."
+                        value={invoiceMessage}
+                        onChange={(event) => setInvoiceMessage(event.target.value)}
+                      />
+                    </div>
+                    {invoiceError && <p className="text-sm text-destructive">{invoiceError}</p>}
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" disabled={invoiceSending || (data.payment.balance > 0 && !invoiceDueDate)} onClick={handleSendInvoice}>
+                        {invoiceSending ? 'Sending…' : 'Send invoice'}
+                      </Button>
+                      <Button variant="ghost" size="sm" disabled={invoiceSending} onClick={() => setInvoicing(false)}>
+                        Cancel
+                      </Button>
+                    </div>
                   </div>
                 )}
               </Section>

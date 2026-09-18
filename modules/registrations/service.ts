@@ -10,6 +10,12 @@ import { stringifyCsv } from '@/lib/csv';
 import { sendTransactionalEmail } from '@/lib/resend/client';
 import { sendSmsMessage } from '@/lib/arkesel/client';
 import { effectiveCourseFee } from '@/lib/utils';
+import { appUrl } from '@/lib/app-url';
+import {
+  generateRegistrationInvoicePdf,
+  invoiceReference,
+  type RegistrationInvoicePdfData,
+} from '@/lib/registrations/invoice-pdf';
 import * as registrationsRepository from '@/modules/registrations/repository';
 import * as coursesService from '@/modules/courses/service';
 import * as usersService from '@/modules/users/service';
@@ -1189,6 +1195,118 @@ export async function sendEmailToRegistration(
     throw new AppError('VALIDATION_ERROR', 'This registrant has no email address on file.', 400);
   }
   await sendTransactionalEmail({ to: contact.email, subject, html: body });
+}
+
+// ---------------------------------------------------------------------------
+// Invoice for one registration (founder request 2026-09-18: a student asked
+// for private one-to-one tuition — Excel Data Analytics, hybrid — "I have to
+// send him an invoice").
+//
+// An invoice is a VIEW of the registration's live fee, payments and balance,
+// rendered on demand (lib/registrations/invoice-pdf.ts) — never a stored
+// record, so it can never disagree with the payment row, and re-sending after
+// a part payment shows the new balance. The reference is derived from the
+// registration id (INV-<id8>), the corporate invoice's CORP-<id8> precedent.
+// Nothing here touches payment_status; paying is still the portal, MoMo or
+// bank, matched through the existing flows.
+//
+// The due date is a rendering choice, not a stored fact: seven days from
+// issue, or the course start if that comes first — a seat should be paid for
+// before the first session, never after. Staff may pass `dueDate` to say
+// otherwise for one send.
+const INVOICE_DUE_DAYS = 7;
+
+export async function getInvoiceData(
+  registrationId: string,
+  options: { dueDate?: string | null } = {},
+): Promise<RegistrationInvoicePdfData> {
+  await usersService.requireRole(['admin', 'finance']);
+  const data = await registrationsRepository.selectRegistration360(registrationId);
+  if (!data || !data.participant || !data.batch || !data.payment) {
+    throw new AppError('NOT_FOUND', 'Registration not found.', 404);
+  }
+  if (!data.participant.email) {
+    throw new AppError('VALIDATION_ERROR', 'This registrant has no email address on file.', 400);
+  }
+  const issuedDate = new Date().toISOString().slice(0, 10);
+  const inSevenDays = new Date(Date.now() + INVOICE_DUE_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const defaultDue = data.batch.start_date < inSevenDays && data.batch.start_date >= issuedDate
+    ? data.batch.start_date
+    : inSevenDays;
+  const dueDate = options.dueDate && /^\d{4}-\d{2}-\d{2}$/.test(options.dueDate) ? options.dueDate : defaultDue;
+
+  return {
+    registrationId,
+    participantName: data.participant.full_name,
+    participantEmail: data.participant.email,
+    participantPhone: data.participant.phone,
+    courseName: data.course?.course_name ?? '',
+    courseCode: data.course?.course_code ?? '',
+    cohortLabel: data.batch.cohort_label,
+    startDate: data.batch.start_date,
+    endDate: data.batch.end_date,
+    facilitatorName: data.batch.facilitator_name,
+    courseFee: Number(data.payment.course_fee),
+    amountPaid: Number(data.payment.amount_paid),
+    balance: Number(data.payment.balance),
+    issuedDate,
+    dueDate,
+  };
+}
+
+export async function getInvoicePdf(
+  registrationId: string,
+  options: { dueDate?: string | null } = {},
+): Promise<{ filename: string; pdf: Uint8Array }> {
+  const data = await getInvoiceData(registrationId, options);
+  const pdf = await generateRegistrationInvoicePdf(data);
+  return { filename: `${invoiceReference(registrationId)}.pdf`, pdf };
+}
+
+// Emails the invoice to the registrant as an attachment, with a short
+// covering note in the same frame every template wears. Free-text sends are
+// not written to email_log (see sendEmailToRegistration); the staff action
+// audit log records it.
+export async function sendInvoice(
+  registrationId: string,
+  options: { dueDate?: string | null; message?: string | null } = {},
+): Promise<{ sentTo: string; reference: string; balance: number }> {
+  const data = await getInvoiceData(registrationId, options);
+  const pdf = await generateRegistrationInvoicePdf(data);
+  const reference = invoiceReference(registrationId);
+  const paid = data.balance <= 0;
+  const firstName = data.participantName.split(' ')[0] || data.participantName;
+  const ghs = (n: number) => `GHS ${n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const longDate = (iso: string) =>
+    new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const note = options.message?.trim()
+    ? `<p>${options.message.trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br/>')}</p>`
+    : '';
+  const portalUrl = `${appUrl()}/portal/login`;
+  const html = communicationsService.wrapEmailHtml(
+    paid
+      ? `<p>Dear ${firstName},</p>
+<p>Thank you — your fee for <strong>${data.courseName}</strong> (${data.cohortLabel}) has been received in full. Your receipted invoice <strong>${reference}</strong> is attached for your records.</p>
+${note}`
+      : `<p>Dear ${firstName},</p>
+<p>Please find attached invoice <strong>${reference}</strong> for <strong>${data.courseName}</strong> (${data.cohortLabel}), starting ${longDate(data.startDate)}.</p>
+<p style="font-size:22px;margin:20px 0 4px;"><strong>${ghs(data.balance)}</strong></p>
+<p style="margin-top:0;color:#5a5a64;">due by ${longDate(data.dueDate)}</p>
+${note}
+<p>The quickest way to pay is through your <a href="${portalUrl}">student portal</a> — card or MoMo, matched to you at once. MoMo and bank details are on the invoice; please quote <strong>${reference}</strong> if you pay that way so we can match it to you.</p>
+<p>If anything on the invoice needs changing, simply reply to this email.</p>`,
+  );
+  await sendTransactionalEmail({
+    to: data.participantEmail,
+    subject: paid
+      ? `Receipted invoice ${reference} — ${data.courseName}`
+      : `Invoice ${reference} — ${data.courseName}, ${ghs(data.balance)} due by ${longDate(data.dueDate)}`,
+    html,
+    attachments: [
+      { filename: `${reference}.pdf`, content: Buffer.from(pdf).toString('base64'), contentType: 'application/pdf' },
+    ],
+  });
+  return { sentTo: data.participantEmail, reference, balance: data.balance };
 }
 
 export async function updateNotes(registrationId: string, notes: string | null): Promise<void> {

@@ -448,6 +448,7 @@ export type Database = {
           id: string
           is_active: boolean
           is_free: boolean
+          is_unlisted: boolean
           meeting_days: number[] | null
           payment_reminder_enabled: boolean
           resources_link: string | null
@@ -479,6 +480,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_free?: boolean
+          is_unlisted?: boolean
           meeting_days?: number[] | null
           payment_reminder_enabled?: boolean
           resources_link?: string | null
@@ -510,6 +512,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_free?: boolean
+          is_unlisted?: boolean
           meeting_days?: number[] | null
           payment_reminder_enabled?: boolean
           resources_link?: string | null

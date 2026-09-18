@@ -33,3 +33,23 @@ export function whatsappUrl(): string {
   const raw = (process.env.NEXT_PUBLIC_CONTACT_WHATSAPP_URL ?? '').trim();
   return raw || DEFAULT_WHATSAPP_URL;
 }
+
+// How to pay us (2026-09-18). Until now these lived as private constants in
+// modules/communications/default-templates.ts and nowhere else; the
+// registration invoice (lib/registrations/invoice-pdf.ts) prints the same
+// details, and two copies of a bank account number is how one of them goes
+// stale. The templates now read from here too.
+//
+// Business MoMo account registered as "Knowsia Professional Institute"
+// (founder-provided 2026-09-03). Bank details are the interim ones the
+// founder gave on 2026-08-01, "for now" — confirm before treating as
+// permanent.
+export const PAYMENT_DETAILS = {
+  momoNumber: '0559136464',
+  momoMerchantCode: '354542',
+  momoAccountName: ORGANISATION_NAME,
+  bankName: 'Zenith Bank',
+  bankAccountName: 'Noohra Business Consult',
+  bankAccountNumber: '0006012704149',
+  bankBranch: 'Koforidua, Ghana',
+} as const;

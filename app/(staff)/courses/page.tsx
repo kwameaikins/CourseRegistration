@@ -45,6 +45,10 @@ interface Batch {
   // Free event / webinar (2026-08-03) — requires courseFee 0 and no
   // early-registration discount (DB constraint free_batch_has_no_fee).
   isFree: boolean;
+  // Unlisted (2026-09-18): a private Batch — one-to-one tuition — hidden
+  // from the public programmes page and the registration dropdown, reachable
+  // only by its direct /register?batchId= link (the seat offer sends it).
+  isUnlisted: boolean;
   startDate: string;
   startTime: string;
   endDate: string;
@@ -92,6 +96,7 @@ const EMPTY_BATCH_FORM = {
   capacity: '',
   courseFee: '',
   isFree: false,
+  isUnlisted: false,
   startDate: '',
   startTime: '09:00',
   endDate: '',
@@ -233,6 +238,7 @@ export default function CourseControlPanelPage() {
           // toggle was flipped, which the DB constraint would reject.
           courseFee: batchForm.isFree ? 0 : Number(batchForm.courseFee),
           isFree: batchForm.isFree,
+          isUnlisted: batchForm.isUnlisted,
           startDate: batchForm.startDate,
           startTime: batchForm.startTime,
           endDate: batchForm.endDate,
@@ -282,6 +288,7 @@ export default function CourseControlPanelPage() {
       capacity: batch.capacity !== null ? String(batch.capacity) : '',
       courseFee: String(batch.courseFee),
       isFree: batch.isFree,
+    isUnlisted: batch.isUnlisted,
       startDate: batch.startDate,
       startTime: batch.startTime,
       endDate: batch.endDate,
@@ -311,6 +318,7 @@ export default function CourseControlPanelPage() {
           capacity: editBatchForm.capacity ? Number(editBatchForm.capacity) : null,
           courseFee: editBatchForm.isFree ? 0 : Number(editBatchForm.courseFee),
           isFree: editBatchForm.isFree,
+          isUnlisted: editBatchForm.isUnlisted,
           startDate: editBatchForm.startDate,
           startTime: editBatchForm.startTime,
           endDate: editBatchForm.endDate,
@@ -659,6 +667,23 @@ export default function CourseControlPanelPage() {
                           </span>
                         </Label>
                       </div>
+                      <div className="col-span-2 flex items-start gap-3 rounded-md border p-3">
+                        <input
+                          id={`edit-isUnlisted-${batch.id}`}
+                          type="checkbox"
+                          className="mt-1 h-4 w-4 shrink-0"
+                          checked={editBatchForm.isUnlisted}
+                          onChange={(event) =>
+                            setEditBatchForm({ ...editBatchForm, isUnlisted: event.target.checked })
+                          }
+                        />
+                        <Label htmlFor={`edit-isUnlisted-${batch.id}`} className="font-normal">
+                          Unlisted (private)
+                          <span className="mt-1 block text-xs text-muted-foreground">
+                            Hidden from every public listing; reachable only by direct link.
+                          </span>
+                        </Label>
+                      </div>
                       <div className="space-y-2">
                         <Label htmlFor={`edit-capacity-${batch.id}`}>
                           Capacity <span className="text-muted-foreground">(optional — blank = unlimited)</span>
@@ -840,7 +865,7 @@ export default function CourseControlPanelPage() {
                           <p className="font-medium">{batch.cohortLabel}</p>
                           <p className="text-sm text-muted-foreground">
                             {formatDate(batch.startDate)} – {formatDate(batch.endDate)} ·{' '}
-                            {batch.isFree ? 'Free event' : formatGhs(batch.courseFee)} ·{' '}
+                            {batch.isUnlisted ? 'Unlisted · ' : ''}{batch.isFree ? 'Free event' : formatGhs(batch.courseFee)} ·{' '}
                             {batch.facilitatorName}
                           </p>
                           {batch.discountCutoffDate && batch.discountedFee !== null && (
@@ -991,6 +1016,26 @@ export default function CourseControlPanelPage() {
                           No fee is charged and no early-bird discount applies. Registrants
                           are confirmed on sign-up and receive their joining link straight
                           away — they are never asked to pay and never chased for a balance.
+                        </span>
+                      </Label>
+                    </div>
+                    <div className="col-span-2 flex items-start gap-3 rounded-md border p-3">
+                      <input
+                        id="isUnlisted"
+                        type="checkbox"
+                        className="mt-1 h-4 w-4 shrink-0"
+                        checked={batchForm.isUnlisted}
+                        onChange={(event) =>
+                          setBatchForm({ ...batchForm, isUnlisted: event.target.checked })
+                        }
+                      />
+                      <Label htmlFor="isUnlisted" className="font-normal">
+                        Unlisted (private — one-to-one tuition, bespoke runs)
+                        <span className="mt-1 block text-xs text-muted-foreground">
+                          Hidden from the programmes page and the registration dropdown.
+                          The student registers through the direct link you send them
+                          (the seat offer, or /register?batchId=…). Everything else —
+                          payment, portal, certificate — works as for any batch.
                         </span>
                       </Label>
                     </div>

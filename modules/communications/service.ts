@@ -14,6 +14,9 @@ export {
   saveTemplate,
 } from '@/modules/communications/template-admin';
 export { getMessageLog, getMessageLogForRegistrations } from '@/modules/communications/message-log';
+// The branded email frame (logo, type, sign-off) for an ad-hoc email built
+// outside the template pipeline — the registration invoice (2026-09-18).
+export { wrap as wrapEmailHtml } from '@/modules/communications/default-templates';
 export type {
   EmailTemplateView,
   EmailType,

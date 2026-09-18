@@ -8,8 +8,17 @@ export const dynamic = 'force-dynamic';
 
 // F1.01 — Public Registration Form. The Batch dropdown lists only Active,
 // future batches (BR-19), resolved server-side.
-export default async function RegisterPage() {
-  const batchOptions = await coursesService.getActiveBatchesForPublicForm();
+export default async function RegisterPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ batchId?: string | string[] }>;
+}) {
+  // A direct link (/register?batchId=…, the staff seat offer) may name an
+  // UNLISTED Batch — one-to-one tuition — which the dropdown would otherwise
+  // never carry. The form still preselects it from window.location.
+  const { batchId } = await searchParams;
+  const requested = typeof batchId === 'string' ? batchId : null;
+  const batchOptions = await coursesService.getActiveBatchesForPublicForm(requested);
 
   return (
     <main className="mx-auto max-w-lg px-4 py-10">

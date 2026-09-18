@@ -99,7 +99,7 @@ export async function updateBatchById(
 // AI-Powered Financial Reporting intake on 2026-08-11 with no route in
 // except a staff bulk import. end_date is NOT NULL on batches, so this is a
 // total order with no null-handling branch.
-export async function selectActiveJoinableBatchesPublic(): Promise<
+export async function selectActiveJoinableBatchesPublic(includeBatchId: string | null = null): Promise<
   Array<
     Pick<
       BatchRow,
@@ -109,6 +109,7 @@ export async function selectActiveJoinableBatchesPublic(): Promise<
       | 'end_date'
       | 'course_fee'
       | 'is_free'
+      | 'is_unlisted'
       | 'capacity'
       | 'discount_cutoff_date'
       | 'discounted_fee'
@@ -121,14 +122,18 @@ export async function selectActiveJoinableBatchesPublic(): Promise<
   const { data: batches, error: batchesError } = await supabase
     .from('batches')
     .select(
-      'id, course_id, cohort_label, start_date, end_date, course_fee, is_free, capacity, discount_cutoff_date, discounted_fee',
+      'id, course_id, cohort_label, start_date, end_date, course_fee, is_free, is_unlisted, capacity, discount_cutoff_date, discounted_fee',
     )
     .eq('is_active', true)
     .gte('end_date', new Date().toISOString().slice(0, 10))
     .order('start_date', { ascending: true });
   if (batchesError) throw batchesError;
 
-  const courseIds = [...new Set(batches.map((batch) => batch.course_id))];
+  // Unlisted Batches (2026-09-18) stay out of the dropdown unless the direct
+  // link named one — then that one, and only that one, is offered.
+  const visible = (batches ?? []).filter((batch) => !batch.is_unlisted || batch.id === includeBatchId);
+
+  const courseIds = [...new Set(visible.map((batch) => batch.course_id))];
   if (courseIds.length === 0) {
     return [];
   }
@@ -143,13 +148,14 @@ export async function selectActiveJoinableBatchesPublic(): Promise<
     courses.map((course) => [course.id, course.course_name]),
   );
 
-  return batches.map((batch) => ({
+  return visible.map((batch) => ({
     id: batch.id,
     cohort_label: batch.cohort_label,
     start_date: batch.start_date,
     end_date: batch.end_date,
     course_fee: batch.course_fee,
     is_free: batch.is_free,
+    is_unlisted: batch.is_unlisted,
     capacity: batch.capacity,
     discount_cutoff_date: batch.discount_cutoff_date,
     discounted_fee: batch.discounted_fee,
@@ -243,6 +249,7 @@ export async function selectPublicCourseCatalogSystem(): Promise<
       'id, course_id, cohort_label, start_date, start_time, end_date, course_fee, is_free, capacity, discount_cutoff_date, discounted_fee, facilitator_name',
     )
     .eq('is_active', true)
+    .eq('is_unlisted', false)   // a private Batch is never listed (2026-09-18)
     .gte('end_date', new Date().toISOString().slice(0, 10))
     .order('start_date', { ascending: true });
   if (batchesError) throw batchesError;

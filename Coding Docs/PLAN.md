@@ -883,6 +883,39 @@ in attribution or commission math (both untouched by this change).
 
 ---
 
+## One-to-one tuition: unlisted Batches and a registration invoice (2026-09-18)
+
+A student asked for private, hybrid one-to-one tuition (Excel Data Analytics) at an agreed fee
+and needed an invoice. Deliberately NOT a new entity: it is an ordinary Course + Batch with one
+seat and the agreed fee, so registration → payment → portal → LMS grant → certificate all work
+unchanged (the free-event reasoning). Two things an ordinary Batch could not do:
+
+- [x] **Stay off the public pages.** `batches.is_unlisted` (migration 202609180068, applied).
+      An unlisted Batch is out of the programmes pages, the catalogue API and the register
+      dropdown — but `/register?batchId=…` (the seat-offer link) includes that one Batch, so it
+      is reachable by its link and by nothing else. Staff screens are unaffected; the Courses
+      screen has an "Unlisted (private)" checkbox on create and edit, and rows are prefixed
+      "Unlisted ·".
+- [x] **Send an invoice.** `GET/POST /api/registrations/[id]/invoice` (admin + finance) →
+      `lib/registrations/invoice-pdf.ts`, rendered on demand from the live payment row — never
+      stored, so it cannot disagree with the ledger and a re-send after a part payment shows
+      the new balance. Reference `INV-<id8>` (the corporate `CORP-<id8>` precedent). Set the way
+      the founder asked ("remember the Apple design principles"): one number at size, "due by
+      <date>" in the same breath, everything else quiet; balance 0 renders as a RECEIPTED
+      INVOICE in green. Due date defaults to 7 days or the course start if sooner; staff may
+      override per send. POST emails it as an attachment in the branded frame
+      (`communicationsService.wrapEmailHtml`) with an optional note. The Registration 360
+      dialog has "Preview invoice" and "Email invoice" — the send is one sentence with the due
+      date in the middle of it, and the sentence changes in place on success.
+- [x] `PAYMENT_DETAILS` centralised in `lib/organisation.ts` (templates and the invoice read the
+      same MoMo and bank details).
+
+Still the founder's to do: create the course "Excel Data Analytics — One-to-One Tuition" and its
+unlisted Batch (fee, dates, one seat) on `/courses`, register the student, open the registration
+and click "Email invoice".
+
+---
+
 ## Risk watch (carried from `/docs/01_PRD.md` risk register)
 
 | ID | Risk | Status |

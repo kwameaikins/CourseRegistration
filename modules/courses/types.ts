@@ -34,6 +34,10 @@ export interface Batch {
   // whose fee reached zero for one person via a code discount or a staff
   // waiver — those still count as revenue-bearing.
   isFree: boolean;
+  // Unlisted (founder request 2026-09-18, one-to-one tuition): kept out of
+  // every public listing, reachable only by a direct /register?batchId=
+  // link. Staff screens are unaffected.
+  isUnlisted: boolean;
   startDate: string;
   startTime: string;
   endDate: string;
@@ -84,6 +88,7 @@ export interface PublicBatchOption {
   hasStarted: boolean;
   courseFee: number;
   isFree: boolean;
+  isUnlisted: boolean;
   capacity: number | null;
   seatsRemaining: number | null;
   isFull: boolean;
@@ -157,6 +162,7 @@ export const batchInputSchema = z
     capacity: z.number().int().positive().nullable().optional(),
     courseFee: z.number().min(0),
     isFree: z.boolean().default(false),
+    isUnlisted: z.boolean().default(false),
     startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     startTime: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
     endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -239,6 +245,7 @@ export const batchUpdateSchema = z
     // Batch to free without also sending courseFee: 0 in the same body is
     // caught by the free_batch_has_no_fee DB constraint, not here.
     isFree: z.boolean().optional(),
+    isUnlisted: z.boolean().optional(),
     startDate: z
       .string()
       .regex(/^\d{4}-\d{2}-\d{2}$/)

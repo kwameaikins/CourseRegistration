@@ -9,7 +9,7 @@
 // overwrites edited templates.
 import * as communicationsRepository from '@/modules/communications/repository';
 import type { EmailType } from '@/lib/domain/types';
-import { ORGANISATION_EMAIL } from '@/lib/organisation';
+import { PAYMENT_DETAILS, ORGANISATION_EMAIL } from '@/lib/organisation';
 
 // Seeded into NEW course templates only; templates already saved in the
 // database keep whatever address they were edited to (see the Messaging
@@ -18,14 +18,15 @@ const CONTACT = ORGANISATION_EMAIL;
 // Business MoMo account registered as "Knowsia Professional Institute"
 // (founder-provided 2026-09-03; replaced the personal number 0530531328 and
 // old merchant code 143735 — existing DB templates were updated the same day).
-const MOMO_PERSONAL = '0559136464';
-const MOMO_MERCHANT_CODE = '354542';
+const MOMO_PERSONAL = PAYMENT_DETAILS.momoNumber;
+const MOMO_MERCHANT_CODE = PAYMENT_DETAILS.momoMerchantCode;
 // Interim bank details (founder-provided 2026-08-01, "for now" — confirm
-// before treating as permanent).
-const BANK_NAME = 'Zenith Bank';
-const BANK_ACCOUNT_NAME = 'Noohra Business Consult';
-const BANK_ACCOUNT_NUMBER = '0006012704149';
-const BANK_BRANCH = 'Koforidua, Ghana';
+// before treating as permanent). One source for these since 2026-09-18:
+// lib/organisation.ts, which the registration invoice reads too.
+const BANK_NAME = PAYMENT_DETAILS.bankName;
+const BANK_ACCOUNT_NAME = PAYMENT_DETAILS.bankAccountName;
+const BANK_ACCOUNT_NUMBER = PAYMENT_DETAILS.bankAccountNumber;
+const BANK_BRANCH = PAYMENT_DETAILS.bankBranch;
 const PORTAL_LOGIN_URL = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com'}/portal/login`;
 
 // Logo is referenced by public URL, not inlined — email clients (Gmail,
@@ -33,7 +34,10 @@ const PORTAL_LOGIN_URL = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.know
 // plain hosted URL. Served from public/knowsia-logo.png.
 const LOGO_URL = `${process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com'}/knowsia-logo.png`;
 
-const wrap = (inner: string): string =>
+// Exported as `wrapEmailHtml` through communications/service.ts (2026-09-18)
+// so an ad-hoc email built elsewhere — the registration invoice — wears the
+// same frame as every template.
+export const wrap = (inner: string): string =>
   `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#1a1a2e;max-width:600px;margin:0 auto;"><p style="margin-bottom:24px;"><img src="${LOGO_URL}" alt="Knowsia" width="140" style="display:block;" /></p>${inner}<p style="margin-top:28px;">Warm regards,<br/><strong>The Knowsia Team</strong></p></div>`;
 
 export const DEFAULT_TEMPLATES: ReadonlyArray<{

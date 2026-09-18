@@ -176,7 +176,12 @@ describe('lead triage agent', () => {
 
     it('a recently-touched lead stays a suggestion — staleness gate', async () => {
       process.env.AGENT_LEAD_TRIAGE_AUTOSEND = 'true';
-      leadsServiceMock.listLeads.mockResolvedValue([lead({ score: 25 })]); // created 2 days ago
+      // Created 2 days ago — RELATIVE to now. The fixture's fixed '2026-09-01'
+      // was two days old when this was written and aged past the staleness
+      // gate on its own (found 2026-09-18).
+      leadsServiceMock.listLeads.mockResolvedValue([
+        lead({ score: 25, createdAt: new Date(Date.now() - 2 * 86_400_000).toISOString() }),
+      ]);
       runJsonAgentMock.mockResolvedValue([
         { leadId: 'lead-1', action: 'suggest_message', reason: 'cold', draftMessage: 'Hi Ama, following up on your interest.' },
       ]);
