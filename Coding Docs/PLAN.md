@@ -914,6 +914,15 @@ unchanged (the free-event reasoning). Two things an ordinary Batch could not do:
       an unlisted batch the link is the only way in. The button's label reports success.
 - [x] Course page draft `Coding Docs/excel-data-analytics.md` (EDA01; fee, hours and batch link
       left as placeholders for the founder).
+- [x] **Invoice in the company's name** (founder, later on 2026-09-18: "his boss wants the
+      invoice in the company name"). Chosen over the corporate module on purpose — that is for
+      a company BUYING seats and managing staff; this is a name on the paper. The invoice sheet
+      has "Bill to a company instead" (pre-filled from the participant's company; attention,
+      address, billing email), stored on `registrations.invoice_bill_to` (migration
+      202609180069, applied) so preview and every re-send agree; `PATCH …/invoice` saves it,
+      POST sends to the participant AND the billing email. The PDF puts the company at size
+      with "Attention:" and a "Participant:" line beneath, and the online-payment line says
+      the participant can pay through the portal.
 
 Still the founder's to do: create the course "Excel Data Analytics — One-to-One Tuition" and its
 unlisted Batch (fee, dates, one seat) on `/courses`, register the student, open the registration

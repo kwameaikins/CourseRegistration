@@ -209,6 +209,37 @@ export const lapseRegistrationSchema = z.object({
 });
 export type LapseRegistrationInput = z.infer<typeof lapseRegistrationSchema>;
 
+// Invoice bill-to (2026-09-18): an employer wanting the invoice in the
+// company's name. Presentation only — the participant stays the registrant
+// and the payer. Empty strings are dropped so a cleared field reads as absent.
+const optionalLine = z
+  .string()
+  .trim()
+  .max(300)
+  .transform((value) => (value === '' ? undefined : value))
+  .optional();
+export const invoiceBillToSchema = z.object({
+  name: z.string().trim().min(2, 'The company or organisation name is required.').max(200),
+  attention: optionalLine,
+  address: optionalLine,
+  email: z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? undefined : value))
+    .pipe(z.string().email('Enter a valid billing email address.').optional())
+    .optional(),
+});
+export type InvoiceBillTo = z.infer<typeof invoiceBillToSchema>;
+
+export const invoiceOptionsSchema = z.object({
+  dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  message: z.string().max(1500).nullable().optional(),
+  // Present → saved on the registration before rendering; null → cleared
+  // (billed to the participant); absent → whatever is stored stands.
+  billTo: invoiceBillToSchema.nullable().optional(),
+});
+export type InvoiceOptions = z.infer<typeof invoiceOptionsSchema>;
+
 export interface AutoLapseSweepSummary {
   // The first real run closes out the entire historic backlog at once, so the
   // manual trigger defaults to a dry run — see /api/cron/registrations/auto-lapse.
@@ -260,6 +291,8 @@ export interface Registration360 {
     lapsedAt: string | null;
     lapsedByName: string | null;
     lapsedReason: string | null;
+    // Who the invoice is addressed to (2026-09-18); null = the participant.
+    invoiceBillTo: InvoiceBillTo | null;
   };
   participant: {
     // id (2026-09-03) — lets the staff UI link to the participant-scoped

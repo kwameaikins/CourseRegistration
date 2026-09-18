@@ -3493,6 +3493,7 @@ export type Database = {
           company_allocation_id: string | null
           consent_given: boolean
           id: string
+          invoice_bill_to: Json | null
           lapsed_at: string | null
           lapsed_by: string | null
           lapsed_reason: string | null
@@ -3509,6 +3510,7 @@ export type Database = {
           company_allocation_id?: string | null
           consent_given: boolean
           id?: string
+          invoice_bill_to?: Json | null
           lapsed_at?: string | null
           lapsed_by?: string | null
           lapsed_reason?: string | null
@@ -3525,6 +3527,7 @@ export type Database = {
           company_allocation_id?: string | null
           consent_given?: boolean
           id?: string
+          invoice_bill_to?: Json | null
           lapsed_at?: string | null
           lapsed_by?: string | null
           lapsed_reason?: string | null

@@ -647,6 +647,13 @@ emails the same PDF to the registrant as an attachment, in the branded frame
 (the `sendEmailToRegistration` precedent); the staff action audit log records it. 400 when the
 registrant has no email; 404 when the registration, its batch or its payment row is missing.
 
+`PATCH /api/registrations/[id]/invoice` `{ billTo: { name, attention?, address?, email? } | null }` —
+saves who the invoice is addressed to (an employer wanting it in the company name; later the
+same day, 2026-09-18) without sending; `null` bills the participant again. Stored on
+`registrations.invoice_bill_to` so GET, POST and every re-send agree. POST also accepts `billTo`
+and saves it first. When the bill-to carries an `email`, POST sends the same email and attachment
+to it as well as to the participant, and `sentTo` lists both.
+
 The due date defaults to seven days from issue, or the batch start date if that comes first.
 Built for one-to-one tuition (an unlisted Batch — see `batches.is_unlisted`, Doc 03); it works
 for any registration.

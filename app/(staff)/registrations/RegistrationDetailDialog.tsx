@@ -36,6 +36,7 @@ interface Registration360 {
     lapsedAt: string | null;
     lapsedByName: string | null;
     lapsedReason: string | null;
+    invoiceBillTo: { name: string; attention?: string; address?: string; email?: string } | null;
   };
   participant: {
     id: string;
@@ -198,6 +199,12 @@ export function RegistrationDetailDialog(props: {
   const [invoiceSending, setInvoiceSending] = useState(false);
   const [invoiceError, setInvoiceError] = useState<string | null>(null);
   const [invoiceSent, setInvoiceSent] = useState<{ reference: string; sentTo: string } | null>(null);
+  // Bill to a company (2026-09-18: "my boss wants the invoice in the company
+  // name"). Pre-filled from the participant's own company; stored on the
+  // registration so preview and every re-send agree.
+  const [billToCompany, setBillToCompany] = useState(false);
+  const [billTo, setBillTo] = useState({ name: '', attention: '', address: '', email: '' });
+  const [invoicePreviewing, setInvoicePreviewing] = useState(false);
 
   function openInvoice() {
     const inSevenDays = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
@@ -206,7 +213,43 @@ export function RegistrationDetailDialog(props: {
     setInvoiceDueDate(start && start >= today && start < inSevenDays ? start : inSevenDays);
     setInvoiceMessage('');
     setInvoiceError(null);
+    const stored = data?.registration.invoiceBillTo ?? null;
+    setBillToCompany(Boolean(stored));
+    setBillTo({
+      name: stored?.name ?? data?.participant?.company ?? '',
+      attention: stored?.attention ?? data?.participant?.fullName ?? '',
+      address: stored?.address ?? '',
+      email: stored?.email ?? '',
+    });
     setInvoicing(true);
+  }
+
+  function billToPayload() {
+    return billToCompany
+      ? { name: billTo.name.trim(), attention: billTo.attention.trim(), address: billTo.address.trim(), email: billTo.email.trim() }
+      : null;
+  }
+
+  // Preview must show what will be sent, so the bill-to is saved first.
+  async function handlePreviewInvoice() {
+    setInvoicePreviewing(true);
+    setInvoiceError(null);
+    try {
+      await apiFetch(`/api/registrations/${props.registrationId}/invoice`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ billTo: billToPayload() }),
+      });
+      window.open(
+        `/api/registrations/${props.registrationId}/invoice?dueDate=${encodeURIComponent(invoiceDueDate)}`,
+        '_blank',
+        'noopener',
+      );
+    } catch (err) {
+      setInvoiceError(err instanceof Error ? err.message : 'Failed to save the billing details.');
+    } finally {
+      setInvoicePreviewing(false);
+    }
   }
 
   async function handleSendInvoice() {
@@ -221,11 +264,13 @@ export function RegistrationDetailDialog(props: {
           body: JSON.stringify({
             dueDate: invoiceDueDate || null,
             message: invoiceMessage.trim() || null,
+            billTo: billToPayload(),
           }),
         },
       );
       setInvoiceSent({ reference: result.reference, sentTo: result.sentTo });
       setInvoicing(false);
+      void loadData(); // the stored bill-to is now part of the row
     } catch (err) {
       setInvoiceError(err instanceof Error ? err.message : 'Failed to send the invoice.');
     } finally {
@@ -629,8 +674,66 @@ export function RegistrationDetailDialog(props: {
                       ) : (
                         <> (paid in full — a receipted invoice)</>
                       )}
-                      , to <strong>{data.participant.email}</strong>.
+                      , to <strong>{data.participant.email}</strong>
+                      {billToCompany && billTo.email.trim() && (
+                        <> and <strong>{billTo.email.trim()}</strong></>
+                      )}
+                      .
                     </p>
+                    <div className="space-y-2 rounded-md bg-muted/40 p-3">
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4"
+                          checked={billToCompany}
+                          onChange={(event) => setBillToCompany(event.target.checked)}
+                        />
+                        Bill to a company instead
+                        <span className="text-xs text-muted-foreground">
+                          — the invoice is made out to the company, with {data.participant.fullName.split(' ')[0]} as the attention line
+                        </span>
+                      </label>
+                      {billToCompany && (
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          <div className="space-y-1 sm:col-span-2">
+                            <Label htmlFor="billToName" className="text-xs text-muted-foreground">Company or organisation</Label>
+                            <Input
+                              id="billToName"
+                              placeholder="e.g. Noohra Business Consult"
+                              value={billTo.name}
+                              onChange={(event) => setBillTo({ ...billTo, name: event.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="billToAttention" className="text-xs text-muted-foreground">Attention</Label>
+                            <Input
+                              id="billToAttention"
+                              value={billTo.attention}
+                              onChange={(event) => setBillTo({ ...billTo, attention: event.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label htmlFor="billToEmail" className="text-xs text-muted-foreground">Billing email (also receives the invoice)</Label>
+                            <Input
+                              id="billToEmail"
+                              type="email"
+                              placeholder="accounts@company.com"
+                              value={billTo.email}
+                              onChange={(event) => setBillTo({ ...billTo, email: event.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-1 sm:col-span-2">
+                            <Label htmlFor="billToAddress" className="text-xs text-muted-foreground">Address (optional)</Label>
+                            <Input
+                              id="billToAddress"
+                              placeholder="e.g. PMB 12, Koforidua"
+                              value={billTo.address}
+                              onChange={(event) => setBillTo({ ...billTo, address: event.target.value })}
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
                     <div className="space-y-1">
                       <Label htmlFor="invoiceMessage" className="text-xs text-muted-foreground">
                         A note to include (optional)
@@ -644,8 +747,20 @@ export function RegistrationDetailDialog(props: {
                     </div>
                     {invoiceError && <p className="text-sm text-destructive">{invoiceError}</p>}
                     <div className="flex items-center gap-2">
-                      <Button size="sm" disabled={invoiceSending || (data.payment.balance > 0 && !invoiceDueDate)} onClick={handleSendInvoice}>
+                      <Button
+                        size="sm"
+                        disabled={invoiceSending || invoicePreviewing || (data.payment.balance > 0 && !invoiceDueDate) || (billToCompany && billTo.name.trim().length < 2)}
+                        onClick={handleSendInvoice}
+                      >
                         {invoiceSending ? 'Sending…' : 'Send invoice'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={invoiceSending || invoicePreviewing || (billToCompany && billTo.name.trim().length < 2)}
+                        onClick={handlePreviewInvoice}
+                      >
+                        {invoicePreviewing ? 'Opening…' : 'Preview'}
                       </Button>
                       <Button variant="ghost" size="sm" disabled={invoiceSending} onClick={() => setInvoicing(false)}>
                         Cancel

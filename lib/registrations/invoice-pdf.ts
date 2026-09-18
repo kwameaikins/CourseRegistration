@@ -29,6 +29,10 @@ export interface RegistrationInvoicePdfData {
   participantName: string;
   participantEmail: string;
   participantPhone: string | null;
+  // Who the invoice is addressed to when not the participant (2026-09-18:
+  // "my boss wants the invoice in the company name"). The participant is
+  // then the "Attention" line under the company.
+  billTo?: { name: string; attention?: string; address?: string; email?: string } | null;
   courseName: string;
   courseCode: string;
   cohortLabel: string;
@@ -90,7 +94,7 @@ export async function generateRegistrationInvoicePdf(data: RegistrationInvoicePd
   page.drawText(headline, { x: left, y: y(top), size: 34, font: bold, color: paid ? GREEN : INK });
   top += 22;
   const sub = paid
-    ? `Received in full. Thank you, ${data.participantName.split(' ')[0]}.`
+    ? (data.billTo ? 'Received in full. Thank you.' : `Received in full. Thank you, ${data.participantName.split(' ')[0]}.`)
     : `due by ${formatDate(data.dueDate)}`;
   page.drawText(sub, { x: left, y: y(top), size: 13, font: helvetica, color: GREY });
   if (!paid && data.amountPaid > 0) {
@@ -120,13 +124,28 @@ export async function generateRegistrationInvoicePdf(data: RegistrationInvoicePd
   top += 40;
   page.drawText('BILLED TO', { x: left, y: y(top), size: 8.5, font: bold, color: FAINT });
   top += 16;
-  page.drawText(data.participantName, { x: left, y: y(top), size: 12, font: bold, color: INK });
-  top += 15;
-  page.drawText(data.participantEmail, { x: left, y: y(top), size: 10.5, font: helvetica, color: GREY });
-  if (data.participantPhone) {
-    top += 14;
-    page.drawText(data.participantPhone, { x: left, y: y(top), size: 10.5, font: helvetica, color: GREY });
+  const quiet = (text: string) => {
+    for (const line of wrapText(text, right - left, 10.5, (t, s) => helvetica.widthOfTextAtSize(t, s))) {
+      page.drawText(line, { x: left, y: y(top), size: 10.5, font: helvetica, color: GREY });
+      top += 14;
+    }
+  };
+  if (data.billTo) {
+    // The company at size; the participant as the attention line under it,
+    // so the finance office knows whose seat this is.
+    page.drawText(data.billTo.name, { x: left, y: y(top), size: 12, font: bold, color: INK });
+    top += 15;
+    quiet(`Attention: ${data.billTo.attention || data.participantName}`);
+    if (data.billTo.address) quiet(data.billTo.address);
+    if (data.billTo.email) quiet(data.billTo.email);
+    quiet(`Participant: ${data.participantName} · ${data.participantEmail}`);
+  } else {
+    page.drawText(data.participantName, { x: left, y: y(top), size: 12, font: bold, color: INK });
+    top += 15;
+    quiet(data.participantEmail);
+    if (data.participantPhone) quiet(data.participantPhone);
   }
+  top -= 14;
 
   // The line — fee, received, due — as three quiet rows with a hairline.
   top += 34;
@@ -152,7 +171,12 @@ export async function generateRegistrationInvoicePdf(data: RegistrationInvoicePd
     page.drawText('HOW TO PAY', { x: left, y: y(top), size: 8.5, font: bold, color: FAINT });
     top += 18;
     const ways: Array<[string, string]> = [
-      ['Online', `Sign in at ${appUrl()}/portal/login and pay by card or MoMo — it is matched to you at once.`],
+      [
+        'Online',
+        data.billTo
+          ? `The participant can sign in at ${appUrl()}/portal/login and pay by card or MoMo — matched at once.`
+          : `Sign in at ${appUrl()}/portal/login and pay by card or MoMo — it is matched to you at once.`,
+      ],
       ['MoMo', `${PAYMENT_DETAILS.momoNumber}, or MoMo Pay code ${PAYMENT_DETAILS.momoMerchantCode} (${PAYMENT_DETAILS.momoAccountName}).`],
       ['Bank', `${PAYMENT_DETAILS.bankName}, ${PAYMENT_DETAILS.bankAccountName}, account ${PAYMENT_DETAILS.bankAccountNumber}, ${PAYMENT_DETAILS.bankBranch}.`],
     ];

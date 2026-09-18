@@ -57,6 +57,11 @@ import * as attendanceService from '@/modules/attendance/service';
 // the authoritative record is the lapsed_* columns on the registration itself.
 import { insertStaffActionAuditLog } from '@/modules/agent-tools/repository';
 import { AUTO_LAPSE_GRACE_DAYS, AUTO_LAPSE_REASON } from '@/modules/registrations/types';
+import {
+  invoiceBillToSchema,
+  type InvoiceBillTo,
+  type InvoiceOptions,
+} from '@/modules/registrations/types';
 import type {
   AutoLapseSweepSummary,
   BulkImportRequest,
@@ -991,6 +996,7 @@ export async function getRegistration360(registrationId: string): Promise<Regist
       lapsedAt: data.registration.lapsed_at,
       lapsedByName: data.lapsedByName,
       lapsedReason: data.registration.lapsed_reason,
+      invoiceBillTo: parseInvoiceBillTo(data.registration.invoice_bill_to),
     },
     participant: data.participant
       ? {
@@ -1216,11 +1222,37 @@ export async function sendEmailToRegistration(
 // otherwise for one send.
 const INVOICE_DUE_DAYS = 7;
 
+// The stored bill-to, or null. Read through the schema so a row written by an
+// older shape (or by hand) can never crash the invoice — a bad value reads as
+// "billed to the participant".
+function parseInvoiceBillTo(raw: unknown): InvoiceBillTo | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const parsed = invoiceBillToSchema.safeParse(raw);
+  return parsed.success ? parsed.data : null;
+}
+
+// Bill-to (2026-09-18: the student's employer "wants the invoice in the
+// company name"). Presentation only — who registered and who pays are
+// untouched; the corporate module is the route for a company buying seats.
+// Stored on the registration so preview, send and every re-send agree.
+export async function setInvoiceBillTo(
+  registrationId: string,
+  billTo: InvoiceBillTo | null,
+): Promise<InvoiceBillTo | null> {
+  await usersService.requireRole(['admin', 'finance']);
+  const clean = billTo ? invoiceBillToSchema.parse(billTo) : null;
+  await registrationsRepository.updateRegistrationInvoiceBillTo(registrationId, clean);
+  return clean;
+}
+
 export async function getInvoiceData(
   registrationId: string,
-  options: { dueDate?: string | null } = {},
+  options: InvoiceOptions = {},
 ): Promise<RegistrationInvoicePdfData> {
   await usersService.requireRole(['admin', 'finance']);
+  if (options.billTo !== undefined) {
+    await setInvoiceBillTo(registrationId, options.billTo);
+  }
   const data = await registrationsRepository.selectRegistration360(registrationId);
   if (!data || !data.participant || !data.batch || !data.payment) {
     throw new AppError('NOT_FOUND', 'Registration not found.', 404);
@@ -1240,6 +1272,7 @@ export async function getInvoiceData(
     participantName: data.participant.full_name,
     participantEmail: data.participant.email,
     participantPhone: data.participant.phone,
+    billTo: parseInvoiceBillTo(data.registration.invoice_bill_to),
     courseName: data.course?.course_name ?? '',
     courseCode: data.course?.course_code ?? '',
     cohortLabel: data.batch.cohort_label,
@@ -1256,20 +1289,22 @@ export async function getInvoiceData(
 
 export async function getInvoicePdf(
   registrationId: string,
-  options: { dueDate?: string | null } = {},
+  options: InvoiceOptions = {},
 ): Promise<{ filename: string; pdf: Uint8Array }> {
   const data = await getInvoiceData(registrationId, options);
   const pdf = await generateRegistrationInvoicePdf(data);
   return { filename: `${invoiceReference(registrationId)}.pdf`, pdf };
 }
 
-// Emails the invoice to the registrant as an attachment, with a short
-// covering note in the same frame every template wears. Free-text sends are
-// not written to email_log (see sendEmailToRegistration); the staff action
-// audit log records it.
+// Emails the invoice as an attachment, with a short covering note in the
+// same frame every template wears — to the registrant, and to the billing
+// email as well when the bill-to names one (the boss who asked for it gets
+// it without the student forwarding). Free-text sends are not written to
+// email_log (see sendEmailToRegistration); the staff action audit log
+// records it.
 export async function sendInvoice(
   registrationId: string,
-  options: { dueDate?: string | null; message?: string | null } = {},
+  options: InvoiceOptions = {},
 ): Promise<{ sentTo: string; reference: string; balance: number }> {
   const data = await getInvoiceData(registrationId, options);
   const pdf = await generateRegistrationInvoicePdf(data);
@@ -1279,34 +1314,50 @@ export async function sendInvoice(
   const ghs = (n: number) => `GHS ${n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const longDate = (iso: string) =>
     new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const escape = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;');
   const note = options.message?.trim()
-    ? `<p>${options.message.trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br/>')}</p>`
+    ? `<p>${escape(options.message.trim()).replace(/\n/g, '<br/>')}</p>`
     : '';
   const portalUrl = `${appUrl()}/portal/login`;
-  const html = communicationsService.wrapEmailHtml(
-    paid
-      ? `<p>Dear ${firstName},</p>
-<p>Thank you — your fee for <strong>${data.courseName}</strong> (${data.cohortLabel}) has been received in full. Your receipted invoice <strong>${reference}</strong> is attached for your records.</p>
-${note}`
-      : `<p>Dear ${firstName},</p>
-<p>Please find attached invoice <strong>${reference}</strong> for <strong>${data.courseName}</strong> (${data.cohortLabel}), starting ${longDate(data.startDate)}.</p>
+  const billedTo = data.billTo
+    ? `<p style="color:#5a5a64;">Billed to <strong>${escape(data.billTo.name)}</strong>${
+      data.billTo.attention ? `, attention ${escape(data.billTo.attention)}` : ''
+    }.</p>`
+    : '';
+  const body = paid
+    ? `<p>Thank you — the fee for <strong>${escape(data.courseName)}</strong> (${escape(data.cohortLabel)}) has been received in full. Receipted invoice <strong>${reference}</strong> is attached for your records.</p>
+${billedTo}${note}`
+    : `<p>Please find attached invoice <strong>${reference}</strong> for <strong>${escape(data.courseName)}</strong> (${escape(data.cohortLabel)}), starting ${longDate(data.startDate)}.</p>
 <p style="font-size:22px;margin:20px 0 4px;"><strong>${ghs(data.balance)}</strong></p>
 <p style="margin-top:0;color:#5a5a64;">due by ${longDate(data.dueDate)}</p>
-${note}
-<p>The quickest way to pay is through your <a href="${portalUrl}">student portal</a> — card or MoMo, matched to you at once. MoMo and bank details are on the invoice; please quote <strong>${reference}</strong> if you pay that way so we can match it to you.</p>
-<p>If anything on the invoice needs changing, simply reply to this email.</p>`,
-  );
+${billedTo}${note}
+<p>The quickest way to pay is through the <a href="${portalUrl}">student portal</a> — card or MoMo, matched at once. MoMo and bank details are on the invoice; please quote <strong>${reference}</strong> if you pay that way so we can match it.</p>
+<p>If anything on the invoice needs changing, simply reply to this email.</p>`;
+  const subject = paid
+    ? `Receipted invoice ${reference} — ${data.courseName}`
+    : `Invoice ${reference} — ${data.courseName}, ${ghs(data.balance)} due by ${longDate(data.dueDate)}`;
+  const attachments = [
+    { filename: `${reference}.pdf`, content: Buffer.from(pdf).toString('base64'), contentType: 'application/pdf' },
+  ];
+
   await sendTransactionalEmail({
     to: data.participantEmail,
-    subject: paid
-      ? `Receipted invoice ${reference} — ${data.courseName}`
-      : `Invoice ${reference} — ${data.courseName}, ${ghs(data.balance)} due by ${longDate(data.dueDate)}`,
-    html,
-    attachments: [
-      { filename: `${reference}.pdf`, content: Buffer.from(pdf).toString('base64'), contentType: 'application/pdf' },
-    ],
+    subject,
+    html: communicationsService.wrapEmailHtml(`<p>Dear ${escape(firstName)},</p>\n${body}`),
+    attachments,
   });
-  return { sentTo: data.participantEmail, reference, balance: data.balance };
+  const billingEmail = data.billTo?.email;
+  const recipients = [data.participantEmail];
+  if (billingEmail && billingEmail.toLowerCase() !== data.participantEmail.toLowerCase()) {
+    await sendTransactionalEmail({
+      to: billingEmail,
+      subject,
+      html: communicationsService.wrapEmailHtml(`<p>Dear ${escape(data.billTo?.name ?? '')},</p>\n${body}`),
+      attachments,
+    });
+    recipients.push(billingEmail);
+  }
+  return { sentTo: recipients.join(', '), reference, balance: data.balance };
 }
 
 export async function updateNotes(registrationId: string, notes: string | null): Promise<void> {

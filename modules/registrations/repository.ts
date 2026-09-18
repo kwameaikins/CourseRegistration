@@ -8,7 +8,7 @@
 // RLS applies per role.
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
-import type { Database } from '@/lib/supabase/database.types';
+import type { Database, Json } from '@/lib/supabase/database.types';
 import type { RegistrationListFilters } from '@/modules/registrations/types';
 
 type ParticipantRow = Database['public']['Tables']['participants']['Row'];
@@ -635,6 +635,21 @@ export async function updateRegistrationNotes(
   const { error } = await supabase
     .from('registrations')
     .update({ notes, updated_at: new Date().toISOString() })
+    .eq('id', registrationId);
+  if (error) throw error;
+}
+
+// Invoice bill-to (2026-09-18). Service-role for the same reason as the
+// write-off below: finance issues invoices and has no RLS UPDATE policy on
+// registrations; the service layer checks the role first.
+export async function updateRegistrationInvoiceBillTo(
+  registrationId: string,
+  billTo: Json | null,
+): Promise<void> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase
+    .from('registrations')
+    .update({ invoice_bill_to: billTo, updated_at: new Date().toISOString() })
     .eq('id', registrationId);
   if (error) throw error;
 }

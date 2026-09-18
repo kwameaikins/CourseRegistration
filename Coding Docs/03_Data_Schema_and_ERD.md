@@ -203,6 +203,12 @@ create table registrations (
     lead_source             text not null check (lead_source in ('WhatsApp','Facebook','LinkedIn','Referral','Website','Other','Returning')),
     consent_given            boolean not null,
     notes                   text,
+    -- 202609180069 (2026-09-18): optional bill-to for the registration invoice —
+    -- {name, attention?, address?, email?} — for an employer wanting the invoice
+    -- in the company's name. Presentation only: NULL bills the participant, and
+    -- nothing about who registered or who pays changes. A company BUYING seats
+    -- is the corporate module (companies / company_allocations), not this.
+    invoice_bill_to         jsonb,
     registered_at           timestamptz not null default now(),
     updated_at              timestamptz not null default now(),
     unique (participant_id, batch_id)
