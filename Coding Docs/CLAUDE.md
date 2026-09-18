@@ -173,6 +173,11 @@ npx playwright test          # E2E tests (Section 6, Document 9)
   communicationsService.wrapEmailHtml. Registration 360 has "Preview
   invoice" / "Email invoice". PAYMENT_DETAILS (MoMo, bank) now live ONLY in
   lib/organisation.ts — the seeded templates and the invoice read them.
+  Bill-to (later the same day, "his boss wants the invoice in the company
+  name"): registrations.invoice_bill_to (202609180069) — a name on the
+  paper, NOT the corporate module, which stays the route for a company
+  buying seats. PATCH …/invoice saves it; POST also sends to the billing
+  email. Every batch row on /courses has "Copy registration link".
   Vitest here: run with --pool=threads; the forks pool dies with kill EPERM
   in the sandboxed shell before it prints results.
 
