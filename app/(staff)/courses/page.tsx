@@ -130,6 +130,21 @@ export default function CourseControlPanelPage() {
   const [waitlistByBatch, setWaitlistByBatch] = useState<Record<string, WaitlistEntry[]>>({});
   const [loadingWaitlist, setLoadingWaitlist] = useState(false);
   const [tutors, setTutors] = useState<Array<{ id: string; fullName: string }>>([]);
+  // "Copy registration link" (2026-09-18): the batch id is a UUID nobody can
+  // type, and for an UNLISTED batch the direct link is the only way in, so
+  // the row hands it over. The button's own label reports success — no toast.
+  const [copiedLinkBatchId, setCopiedLinkBatchId] = useState<string | null>(null);
+
+  async function copyRegistrationLink(batchId: string) {
+    const link = `${window.location.origin}/register?batchId=${batchId}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopiedLinkBatchId(batchId);
+      window.setTimeout(() => setCopiedLinkBatchId((current) => (current === batchId ? null : current)), 2000);
+    } catch {
+      window.prompt('Copy this registration link:', link);
+    }
+  }
 
   const reload = useCallback(async () => {
     try {
@@ -876,6 +891,15 @@ export default function CourseControlPanelPage() {
                           )}
                         </div>
                         <div className="flex items-center gap-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-8 px-3"
+                            onClick={() => copyRegistrationLink(batch.id)}
+                            title="The direct registration link for this batch — the only way into an unlisted one"
+                          >
+                            {copiedLinkBatchId === batch.id ? 'Link copied' : 'Copy registration link'}
+                          </Button>
                           <Button
                             type="button"
                             variant="outline"
