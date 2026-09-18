@@ -156,6 +156,11 @@ create table batches (
     payment_reminder_enabled    boolean not null default true,
     class_reminder_enabled      boolean not null default true,
     is_active                   boolean not null default true,
+    -- 202609180068 (2026-09-18): a private Batch — one-to-one tuition, a
+    -- bespoke run — hidden from every PUBLIC listing (programmes pages,
+    -- catalogue API, the register dropdown) and reachable only by a direct
+    -- /register?batchId= link. Staff screens are unaffected.
+    is_unlisted                 boolean not null default false,
     created_at                  timestamptz not null default now(),
     updated_at                  timestamptz not null default now(),
     unique (course_id, cohort_label)

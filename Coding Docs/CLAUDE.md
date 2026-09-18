@@ -161,6 +161,21 @@ npx playwright test          # E2E tests (Section 6, Document 9)
 > session (or a new context window) to know where things stand without re-reading everything.
 
 ```
+2026-09-18 — One-to-one tuition (commit 79d53c9; PLAN.md §One-to-one tuition):
+  A private tuition run is an ORDINARY Course + Batch (one seat, the agreed
+  fee) — never a new entity — so payment, portal, LMS grant and certificate
+  work unchanged. batches.is_unlisted (202609180068, applied) keeps it off
+  every PUBLIC listing; /register?batchId= includes that one Batch, so it is
+  reachable by its link and by nothing else. Staff screens unchanged.
+  GET/POST /api/registrations/[id]/invoice (admin + finance): the PDF from
+  lib/registrations/invoice-pdf.ts, rendered from the live payment row, never
+  stored, reference INV-<id8>; POST emails it as an attachment through
+  communicationsService.wrapEmailHtml. Registration 360 has "Preview
+  invoice" / "Email invoice". PAYMENT_DETAILS (MoMo, bank) now live ONLY in
+  lib/organisation.ts — the seeded templates and the invoice read them.
+  Vitest here: run with --pool=threads; the forks pool dies with kill EPERM
+  in the sandboxed shell before it prints results.
+
 2026-09-17 — Seam IV, one certificate registry (Coding Docs/19 §4):
   POST /api/integration/certificates/issue and GET
   /api/integration/certificates/{number}/pdf (service key) let Knowsia Study

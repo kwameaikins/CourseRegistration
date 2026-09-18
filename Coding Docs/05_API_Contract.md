@@ -631,3 +631,22 @@ Zoom meeting. A batch whose meeting has registration disabled is reported as suc
 This joins the two existing manual-trigger repair endpoints — `POST /api/cron/attendance/backfill`
 and `POST /api/cron/registrations/auto-lapse` — which share the same posture: `CRON_SECRET`, dry-run
 by default, and out of `vercel.json` so they only ever run when a human asks.
+
+## 20. Registration Invoice (2026-09-18)
+
+`GET /api/registrations/[id]/invoice?dueDate=YYYY-MM-DD` — the invoice PDF for one Registration,
+rendered on demand from the live payment row (`lib/registrations/invoice-pdf.ts`); **no stored
+invoice record**, the same posture as `corporate/allocations/[id]/invoice`. Reference
+`INV-<id8>`. Balance 0 renders as a receipted invoice. Admin and finance (role checked in the
+service). `Content-Disposition: inline`, `Cache-Control: private, no-store`.
+
+`POST /api/registrations/[id]/invoice` `{ dueDate?: 'YYYY-MM-DD' | null, message?: string | null }` —
+emails the same PDF to the registrant as an attachment, in the branded frame
+(`communicationsService.wrapEmailHtml`), with an optional covering note. Returns
+`{ registrationId, sentTo, reference, balance }`. Free-text sends are not written to `email_log`
+(the `sendEmailToRegistration` precedent); the staff action audit log records it. 400 when the
+registrant has no email; 404 when the registration, its batch or its payment row is missing.
+
+The due date defaults to seven days from issue, or the batch start date if that comes first.
+Built for one-to-one tuition (an unlisted Batch — see `batches.is_unlisted`, Doc 03); it works
+for any registration.
