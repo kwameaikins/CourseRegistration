@@ -946,8 +946,12 @@ new column; the shadow call is fire-and-forget and off unless `CORE_DUAL_READ=tr
       verdict (`ok` / `invalid` / `locked`) → knowsia-api `POST /api/v1/service/identity/check`;
       3 s timeout, Sentry on failure, never awaited by the sign-in
 - [x] Contract test asserts the new route (5 passed)
-- [ ] `npx supabase db push` for 202609180070; deploy; when the founder turns the dual-read on,
-      set `CORE_DUAL_READ=true` on Vercel as well as Railway
+- [x] 202609180070 applied; deployed (`52d6ba7`). The link was applied from knowsia-api the same
+      evening: 379 of 381 participants (the 2 unlinked are soft-deleted) and 3/3 staff carry a
+      `core_identity_id`. The link route's first version did one UPDATE at a time and outlived
+      the function on 382 rows; it now runs parallel batches of 40 under `maxDuration = 60`.
+- [ ] When the founder turns the dual-read on, set `CORE_DUAL_READ=true` on Vercel as well as
+      Railway
 
 ---
 
