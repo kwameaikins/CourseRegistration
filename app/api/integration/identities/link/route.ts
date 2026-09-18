@@ -1,6 +1,10 @@
 import { AppError, errorResponse, handleRouteError, successResponse } from '@/lib/errors';
 import * as knowsiaCoreService from '@/modules/knowsia-core/service';
 
+// A few hundred rows in parallel batches take seconds; the default function
+// life did not cover the first, sequential version (2026-09-18).
+export const maxDuration = 60;
+
 // POST /api/integration/identities/link — knowsia-api's linker writes the
 // Core identity id onto participants and staff (Coding Docs/22 §3, Phase 2).
 // A row already carrying a different identity is skipped and counted, never

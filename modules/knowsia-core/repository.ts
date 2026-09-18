@@ -65,39 +65,48 @@ export async function selectPeopleForIdentityExportSystem(): Promise<{
   };
 }
 
-// One UPDATE per row: a few hundred at most, and the linker runs rarely. A
-// row already carrying a DIFFERENT identity is left alone and counted, so a
-// re-link can never silently move a person — that is a conflict for the
-// linker's plan to report, not for this side to resolve.
+// One UPDATE per row, run in parallel batches: the first version did them in
+// sequence and 382 round trips outlived the Vercel function (the first
+// apply on 2026-09-18 timed out half-way; the linker is idempotent, so the
+// re-run finished it). A row already carrying a DIFFERENT identity is left
+// alone and counted, so a re-link can never silently move a person — that
+// is a conflict for the linker's plan to report, not for this side to resolve.
+const LINK_BATCH = 40;
+
 export async function updateCoreIdentityLinksSystem(
   participants: Array<{ id: string; coreIdentityId: string }>,
   staff: Array<{ id: string; coreIdentityId: string }>,
 ): Promise<{ participants: number; staff: number; skipped: number }> {
   const supabase = createSupabaseServiceRoleClient();
-  let participantsLinked = 0;
-  let staffLinked = 0;
-  let skipped = 0;
-  for (const link of participants) {
-    const { data, error } = await supabase
-      .from('participants')
-      .update({ core_identity_id: link.coreIdentityId })
-      .eq('id', link.id)
-      .or(`core_identity_id.is.null,core_identity_id.eq.${link.coreIdentityId}`)
-      .select('id');
-    if (error) throw error;
-    if (data && data.length > 0) participantsLinked += 1;
-    else skipped += 1;
+
+  async function linkAll(
+    table: 'participants' | 'staff_users',
+    links: Array<{ id: string; coreIdentityId: string }>,
+  ): Promise<{ linked: number; skipped: number }> {
+    let linked = 0;
+    let skipped = 0;
+    for (let i = 0; i < links.length; i += LINK_BATCH) {
+      const results = await Promise.all(
+        links.slice(i, i + LINK_BATCH).map(async (link) => {
+          const { data, error } = await supabase
+            .from(table)
+            .update({ core_identity_id: link.coreIdentityId })
+            .eq('id', link.id)
+            .or(`core_identity_id.is.null,core_identity_id.eq.${link.coreIdentityId}`)
+            .select('id');
+          if (error) throw error;
+          return data && data.length > 0;
+        }),
+      );
+      for (const ok of results) {
+        if (ok) linked += 1;
+        else skipped += 1;
+      }
+    }
+    return { linked, skipped };
   }
-  for (const link of staff) {
-    const { data, error } = await supabase
-      .from('staff_users')
-      .update({ core_identity_id: link.coreIdentityId })
-      .eq('id', link.id)
-      .or(`core_identity_id.is.null,core_identity_id.eq.${link.coreIdentityId}`)
-      .select('id');
-    if (error) throw error;
-    if (data && data.length > 0) staffLinked += 1;
-    else skipped += 1;
-  }
-  return { participants: participantsLinked, staff: staffLinked, skipped };
+
+  const p = await linkAll('participants', participants);
+  const s = await linkAll('staff_users', staff);
+  return { participants: p.linked, staff: s.linked, skipped: p.skipped + s.skipped };
 }
