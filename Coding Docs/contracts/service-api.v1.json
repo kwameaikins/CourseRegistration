@@ -328,6 +328,18 @@
       },
       "LoginCheckRequest": {
         "properties": {
+          "app_role": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "App Role"
+          },
           "app_verdict": {
             "pattern": "^(ok|invalid|locked)$",
             "title": "App Verdict",

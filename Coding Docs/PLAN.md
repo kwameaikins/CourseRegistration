@@ -950,6 +950,13 @@ new column; the shadow call is fire-and-forget and off unless `CORE_DUAL_READ=tr
       evening: 379 of 381 participants (the 2 unlinked are soft-deleted) and 3/3 staff carry a
       `core_identity_id`. The link route's first version did one UPDATE at a time and outlived
       the function on 382 rows; it now runs parallel batches of 40 under `maxDuration = 60`.
+- [x] The rest of Phase 2, this side (later on 2026-09-18): `GET /api/integration/identities/
+      participants/[id]/export` — what this app holds about one participant, for the
+      subject-access export Core assembles (`portalService.exportParticipantSystem`, the
+      dashboard's own read, never a PIN hash or a session); the PIN shadow check now states the
+      role it grants (`app_role: student`). **Erasure stays this app's**: Core's erase routes the
+      participant to the Staff Users screen (`fn_soft_delete_participant` requires one of OUR
+      admins and is not bypassed with a service role) and its request stays open until done.
 - [ ] When the founder turns the dual-read on, set `CORE_DUAL_READ=true` on Vercel as well as
       Railway
 

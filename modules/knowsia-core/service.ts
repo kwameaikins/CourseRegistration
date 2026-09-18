@@ -59,6 +59,7 @@ export function shadowLoginCheck(input: {
       external_id: input.participantId,
       email: input.email,
       app_verdict: input.verdict,
+      app_role: 'student',   // a portal PIN only ever signs a participant in
     }),
     signal: AbortSignal.timeout(3000),
   })

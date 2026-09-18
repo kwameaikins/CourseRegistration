@@ -505,6 +505,62 @@ function assertNotWrittenOff(registrationStatus: string): void {
   }
 }
 
+// Subject-access export for Knowsia Core (Coding Docs/22 §3, Phase 2): what
+// this app holds about one participant, in plain fields — the same read the
+// participant's own dashboard makes, without a session (the caller is
+// knowsia-api through the service door, on an admin's audited request).
+// Never a PIN hash, a session or a token.
+export async function exportParticipantSystem(participantId: string): Promise<{
+  participant: { fullName: string; email: string; phone: string };
+  registrations: Array<{
+    registrationId: string;
+    course: string | null;
+    courseCode: string | null;
+    cohort: string | null;
+    startDate: string | null;
+    endDate: string | null;
+    registrationStatus: string;
+    registeredAt: string;
+    payment: { courseFee: number; amountPaid: number; balance: number; status: string } | null;
+    attendance: Array<{ sessionDate: string; durationMinutes: number }>;
+    certificates: Array<{ certificateNumber: string; issuedDate: string; revoked: boolean }>;
+  }>;
+} | null> {
+  const data = await portalRepository.selectPortalDashboardData(participantId);
+  if (!data.participant) return null;
+  return {
+    participant: {
+      fullName: data.participant.full_name,
+      email: data.participant.email,
+      phone: data.participant.phone,
+    },
+    registrations: data.registrations.map((row) => ({
+      registrationId: row.registration.id,
+      course: row.course?.course_name ?? null,
+      courseCode: row.course?.course_code ?? null,
+      cohort: row.batch?.cohort_label ?? null,
+      startDate: row.batch?.start_date ?? null,
+      endDate: row.batch?.end_date ?? null,
+      registrationStatus: row.registration.registration_status,
+      registeredAt: row.registration.registered_at,
+      payment: row.payment
+        ? {
+            courseFee: Number(row.payment.course_fee),
+            amountPaid: Number(row.payment.amount_paid),
+            balance: Number(row.payment.balance),
+            status: row.payment.payment_status,
+          }
+        : null,
+      attendance: row.attendance.map((a) => ({ sessionDate: a.session_date, durationMinutes: a.duration_minutes })),
+      certificates: row.certificates.map((c) => ({
+        certificateNumber: c.certificate_number,
+        issuedDate: c.issued_date,
+        revoked: c.revoked,
+      })),
+    })),
+  };
+}
+
 export async function setUpInstallmentPlan(
   sessionId: string | undefined,
   input: PortalSetUpInstallmentPlanInput,

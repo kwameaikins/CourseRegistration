@@ -657,3 +657,21 @@ to it as well as to the participant, and `sentTo` lists both.
 The due date defaults to seven days from issue, or the batch start date if that comes first.
 Built for one-to-one tuition (an unlisted Batch — see `batches.is_unlisted`, Doc 03); it works
 for any registration.
+
+## 21. Knowsia Core identity seam (2026-09-18)
+
+Service key (`Authorization: Bearer <KNOWSIA_APP_SERVICE_KEY>`), called by knowsia-api only.
+
+- `GET /api/integration/identities/export` — every participant and staff account with what an
+  identity is made of (id, name, email, phone, consent, deletedAt, coreIdentityId; staff: role).
+- `POST /api/integration/identities/link` `{ participants: [{id, coreIdentityId}], staff: [...] }` —
+  writes the identity id; a row already carrying a DIFFERENT identity is skipped and counted
+  (`{ participants, staff, skipped }`). Parallel batches of 40, `maxDuration = 60`.
+- `GET /api/integration/identities/participants/[id]/export` — the participant, their
+  registrations (course, cohort, dates, status, payment summary, attendance, certificates by
+  number) for the subject-access export Core assembles. 404 when unknown. Never a PIN hash.
+
+Outbound: after every portal PIN verdict, `modules/knowsia-core/service.ts:shadowLoginCheck`
+posts `{ path: 'pin', product: 'registration', external_id, email, app_verdict, app_role: 'student' }`
+to knowsia-api `POST /api/v1/service/identity/check` — fire-and-forget, 3 s timeout, only when
+`CORE_DUAL_READ=true`, never a factor in the sign-in.
