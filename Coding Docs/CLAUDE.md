@@ -171,6 +171,11 @@ npx playwright test          # E2E tests (Section 6, Document 9)
   fire-and-forget to knowsia-api's /api/v1/service/identity/check, and OFF
   unless CORE_DUAL_READ=true on Vercel (not before the pilot ends 30 Nov).
   It can never refuse a sign-in: the portal's own table has answered first.
+  Later the same day: GET /api/integration/identities/participants/[id]/
+  export (the subject-access door; the dashboard's own read, never a PIN
+  hash), app_role on the shadow check, and the rule that ERASURE STAYS
+  OURS — Core routes a participant to the Staff Users screen and never
+  calls fn_soft_delete_participant with a service role.
 
 2026-09-18 — One-to-one tuition (commit 79d53c9; PLAN.md §One-to-one tuition):
   A private tuition run is an ORDINARY Course + Batch (one seat, the agreed
