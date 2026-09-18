@@ -161,6 +161,17 @@ npx playwright test          # E2E tests (Section 6, Document 9)
 > session (or a new context window) to know where things stand without re-reading everything.
 
 ```
+2026-09-18 — Knowsia Core Phase 2, this side (Coding Docs/22 §3; PLAN.md
+  §Knowsia Core Phase 2): participants/staff_users.core_identity_id
+  (202609180070, applied) — a shared KEY set by knowsia-api's linker, exact
+  email only, never a merge. modules/knowsia-core/: GET/POST
+  /api/integration/identities/{export,link} (service key; a row already
+  carrying a DIFFERENT identity is skipped, never moved) and
+  shadowLoginCheck, called by verifyCredentials after every PIN verdict —
+  fire-and-forget to knowsia-api's /api/v1/service/identity/check, and OFF
+  unless CORE_DUAL_READ=true on Vercel (not before the pilot ends 30 Nov).
+  It can never refuse a sign-in: the portal's own table has answered first.
+
 2026-09-18 — One-to-one tuition (commit 79d53c9; PLAN.md §One-to-one tuition):
   A private tuition run is an ORDINARY Course + Batch (one seat, the agreed
   fee) — never a new entity — so payment, portal, LMS grant and certificate

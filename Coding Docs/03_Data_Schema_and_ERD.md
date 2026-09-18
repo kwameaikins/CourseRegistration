@@ -181,6 +181,11 @@ create table participants (
     consent_given   boolean not null default false,
     consent_at      timestamptz,
     deleted_at      timestamptz,
+    -- 202609180070 (Knowsia Core Phase 2, Doc 22 §3): the Core identity this
+    -- participant belongs to. A shared KEY written by knowsia-api's linker,
+    -- exact email only, never a merge; staff_users carries the same column.
+    -- Nothing about sign-in reads it yet — the dual-read only compares and logs.
+    core_identity_id uuid,
     created_at      timestamptz not null default now(),
     updated_at      timestamptz not null default now()
 );
