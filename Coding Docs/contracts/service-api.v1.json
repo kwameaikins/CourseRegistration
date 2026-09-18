@@ -1,0 +1,1411 @@
+{
+  "components": {
+    "schemas": {
+      "AdminBootstrapRequest": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "name"
+        ],
+        "title": "AdminBootstrapRequest",
+        "type": "object"
+      },
+      "AdminBootstrapResponse": {
+        "properties": {
+          "created": {
+            "title": "Created",
+            "type": "boolean"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "promoted": {
+            "title": "Promoted",
+            "type": "boolean"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "email",
+          "created",
+          "promoted"
+        ],
+        "title": "AdminBootstrapResponse",
+        "type": "object"
+      },
+      "ExplanationPatch": {
+        "properties": {
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation"
+          },
+          "explanation_state": {
+            "title": "Explanation State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "explanation_state"
+        ],
+        "title": "ExplanationPatch",
+        "type": "object"
+      },
+      "GrantEnrolmentRequest": {
+        "properties": {
+          "access_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Days"
+          },
+          "course_code": {
+            "title": "Course Code",
+            "type": "string"
+          },
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "participant_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participant Id"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          }
+        },
+        "required": [
+          "email",
+          "course_code"
+        ],
+        "title": "GrantEnrolmentRequest",
+        "type": "object"
+      },
+      "GrantEnrolmentResponse": {
+        "properties": {
+          "course_id": {
+            "title": "Course Id",
+            "type": "string"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "course_id",
+          "status"
+        ],
+        "title": "GrantEnrolmentResponse",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "ImportLesson": {
+        "properties": {
+          "captions_synced": {
+            "default": false,
+            "title": "Captions Synced",
+            "type": "boolean"
+          },
+          "captions_vtt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captions Vtt"
+          },
+          "duration_seconds": {
+            "default": 0,
+            "title": "Duration Seconds",
+            "type": "integer"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "title": {
+            "default": "",
+            "title": "Title",
+            "type": "string"
+          },
+          "video_guid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Video Guid"
+          }
+        },
+        "required": [
+          "index"
+        ],
+        "title": "ImportLesson",
+        "type": "object"
+      },
+      "ImportSectionRequest": {
+        "properties": {
+          "course_code": {
+            "title": "Course Code",
+            "type": "string"
+          },
+          "course_title": {
+            "default": "",
+            "title": "Course Title",
+            "type": "string"
+          },
+          "lessons": {
+            "items": {
+              "$ref": "#/components/schemas/ImportLesson"
+            },
+            "title": "Lessons",
+            "type": "array"
+          },
+          "publish_course": {
+            "default": false,
+            "title": "Publish Course",
+            "type": "boolean"
+          },
+          "replace_section": {
+            "default": false,
+            "title": "Replace Section",
+            "type": "boolean"
+          },
+          "section_part": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section Part"
+          },
+          "section_title": {
+            "title": "Section Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "course_code",
+          "section_title",
+          "lessons"
+        ],
+        "title": "ImportSectionRequest",
+        "type": "object"
+      },
+      "ImportSectionResponse": {
+        "properties": {
+          "course_created": {
+            "title": "Course Created",
+            "type": "boolean"
+          },
+          "course_id": {
+            "title": "Course Id",
+            "type": "string"
+          },
+          "course_published": {
+            "title": "Course Published",
+            "type": "boolean"
+          },
+          "lessons": {
+            "title": "Lessons",
+            "type": "integer"
+          },
+          "lessons_with_video": {
+            "title": "Lessons With Video",
+            "type": "integer"
+          },
+          "section_created": {
+            "title": "Section Created",
+            "type": "boolean"
+          },
+          "section_id": {
+            "title": "Section Id",
+            "type": "string"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "course_id",
+          "slug",
+          "section_id",
+          "section_created",
+          "course_created",
+          "lessons",
+          "lessons_with_video",
+          "course_published"
+        ],
+        "title": "ImportSectionResponse",
+        "type": "object"
+      },
+      "ParticipantEnrolmentSummary": {
+        "properties": {
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "course_id": {
+            "title": "Course Id",
+            "type": "string"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "last_accessed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Accessed At"
+          },
+          "progress_percentage": {
+            "title": "Progress Percentage",
+            "type": "number"
+          },
+          "slug": {
+            "title": "Slug",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "total_lessons": {
+            "title": "Total Lessons",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "course_id",
+          "title",
+          "slug",
+          "total_lessons",
+          "progress_percentage",
+          "status"
+        ],
+        "title": "ParticipantEnrolmentSummary",
+        "type": "object"
+      },
+      "ParticipantStudySummary": {
+        "properties": {
+          "enrolments": {
+            "items": {
+              "$ref": "#/components/schemas/ParticipantEnrolmentSummary"
+            },
+            "title": "Enrolments",
+            "type": "array"
+          },
+          "linked": {
+            "title": "Linked",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "linked",
+          "enrolments"
+        ],
+        "title": "ParticipantStudySummary",
+        "type": "object"
+      },
+      "PublishPatch": {
+        "properties": {
+          "published_by": {
+            "title": "Published By",
+            "type": "string"
+          }
+        },
+        "required": [
+          "published_by"
+        ],
+        "title": "PublishPatch",
+        "type": "object"
+      },
+      "QuestionBankGrantRequest": {
+        "properties": {
+          "access_days": {
+            "maximum": 730.0,
+            "minimum": 1.0,
+            "title": "Access Days",
+            "type": "integer"
+          },
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "participant_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participant Id"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "source": {
+            "default": "cohort",
+            "maxLength": 50,
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "access_days"
+        ],
+        "title": "QuestionBankGrantRequest",
+        "type": "object"
+      },
+      "QuestionBankGrantResponse": {
+        "properties": {
+          "access_until": {
+            "default": "",
+            "title": "Access Until",
+            "type": "string"
+          },
+          "extended": {
+            "default": false,
+            "title": "Extended",
+            "type": "boolean"
+          },
+          "granted": {
+            "default": false,
+            "title": "Granted",
+            "type": "boolean"
+          },
+          "tier": {
+            "title": "Tier",
+            "type": "string"
+          },
+          "trial_days_on_first_sign_in": {
+            "default": 14,
+            "title": "Trial Days On First Sign In",
+            "type": "integer"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "tier"
+        ],
+        "title": "QuestionBankGrantResponse",
+        "type": "object"
+      },
+      "QuestionBankRevokeRequest": {
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "format": "email",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "participant_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participant Id"
+          }
+        },
+        "title": "QuestionBankRevokeRequest",
+        "type": "object"
+      },
+      "QuestionBankRevokeResponse": {
+        "properties": {
+          "revoked": {
+            "title": "Revoked",
+            "type": "boolean"
+          },
+          "tier": {
+            "title": "Tier",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "revoked",
+          "tier"
+        ],
+        "title": "QuestionBankRevokeResponse",
+        "type": "object"
+      },
+      "QuestionCreatePayload": {
+        "properties": {
+          "approved": {
+            "default": true,
+            "title": "Approved",
+            "type": "boolean"
+          },
+          "correct_option": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correct Option"
+          },
+          "difficulty": {
+            "title": "Difficulty",
+            "type": "string"
+          },
+          "exam_diet": {
+            "title": "Exam Diet",
+            "type": "string"
+          },
+          "examiner_verb": {
+            "title": "Examiner Verb",
+            "type": "string"
+          },
+          "institute": {
+            "title": "Institute",
+            "type": "string"
+          },
+          "level": {
+            "title": "Level",
+            "type": "string"
+          },
+          "marks": {
+            "title": "Marks",
+            "type": "integer"
+          },
+          "marks_allocation": {
+            "title": "Marks Allocation",
+            "type": "number"
+          },
+          "option_a": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Option A"
+          },
+          "option_b": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Option B"
+          },
+          "option_c": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Option C"
+          },
+          "option_d": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Option D"
+          },
+          "option_e": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Option E"
+          },
+          "paper": {
+            "title": "Paper",
+            "type": "string"
+          },
+          "question_text": {
+            "title": "Question Text",
+            "type": "string"
+          },
+          "question_type": {
+            "title": "Question Type",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "subtopic": {
+            "title": "Subtopic",
+            "type": "string"
+          },
+          "suggested_solution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggested Solution"
+          },
+          "topic": {
+            "title": "Topic",
+            "type": "string"
+          }
+        },
+        "required": [
+          "institute",
+          "level",
+          "paper",
+          "topic",
+          "subtopic",
+          "question_type",
+          "marks",
+          "difficulty",
+          "exam_diet",
+          "examiner_verb",
+          "marks_allocation",
+          "question_text",
+          "source"
+        ],
+        "title": "QuestionCreatePayload",
+        "type": "object"
+      },
+      "TopicScoreResponse": {
+        "properties": {
+          "attempts_count": {
+            "title": "Attempts Count",
+            "type": "integer"
+          },
+          "correct_count": {
+            "title": "Correct Count",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "institute": {
+            "title": "Institute",
+            "type": "string"
+          },
+          "last_attempted": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Attempted"
+          },
+          "paper": {
+            "title": "Paper",
+            "type": "string"
+          },
+          "score_percent": {
+            "readOnly": true,
+            "title": "Score Percent",
+            "type": "number"
+          },
+          "student_id": {
+            "title": "Student Id",
+            "type": "string"
+          },
+          "topic": {
+            "title": "Topic",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "student_id",
+          "institute",
+          "paper",
+          "topic",
+          "attempts_count",
+          "correct_count",
+          "score_percent"
+        ],
+        "title": "TopicScoreResponse",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Knowsia API",
+    "version": "v1"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/service/auth/admins": {
+      "post": {
+        "operationId": "bootstrap_admin_api_v1_service_auth_admins_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminBootstrapRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBootstrapResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Bootstrap Admin",
+        "tags": [
+          "service-auth"
+        ]
+      }
+    },
+    "/api/v1/service/auth/question-bank-access": {
+      "post": {
+        "description": "RETIRED as a grant (founder, 2026-09-17: \"remove the cohort grant\naccess. they would have to subscribe to get access or try for free for\n14 days after\"). The Registration app still calls this on every paid\ncohort transition (Seam III), so it keeps answering 201 and still\ncreates or links the account \u2014 but grants NOTHING. The account is owed\nthe ordinary 14-day trial, started the first time the person signs in\n(`auth.start_trial_if_owed`), and must subscribe after it. The 327\ngrants that existed were ended by scripts/retire_cohort_grants.py.",
+        "operationId": "grant_question_bank_access_api_v1_service_auth_question_bank_access_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionBankGrantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionBankGrantResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Grant Question Bank Access",
+        "tags": [
+          "service-auth"
+        ]
+      }
+    },
+    "/api/v1/service/auth/question-bank-access/revoke": {
+      "post": {
+        "description": "End a grant now (a refunded or cancelled registration). Leaves any\nsubscription or trial untouched \u2014 only the grant is withdrawn.",
+        "operationId": "revoke_question_bank_access_api_v1_service_auth_question_bank_access_revoke_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionBankRevokeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionBankRevokeResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Question Bank Access",
+        "tags": [
+          "service-auth"
+        ]
+      }
+    },
+    "/api/v1/service/lms/enrolments": {
+      "post": {
+        "operationId": "grant_enrolment_api_v1_service_lms_enrolments_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantEnrolmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantEnrolmentResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Grant Enrolment",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/participants/{participant_id}/enrolments": {
+      "get": {
+        "operationId": "participant_enrolments_api_v1_service_lms_participants__participant_id__enrolments_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "participant_id",
+            "required": true,
+            "schema": {
+              "title": "Participant Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParticipantStudySummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Participant Enrolments",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/sections/import": {
+      "post": {
+        "operationId": "import_section_api_v1_service_lms_sections_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportSectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportSectionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Section",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/questions": {
+      "get": {
+        "operationId": "list_questions_service_api_v1_service_questions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "explanation_state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Explanation State"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Questions Service Api V1 Service Questions Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Questions Service",
+        "tags": [
+          "service"
+        ]
+      },
+      "post": {
+        "operationId": "create_question_service_api_v1_service_questions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionCreatePayload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Question Service Api V1 Service Questions Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Question Service",
+        "tags": [
+          "service"
+        ]
+      }
+    },
+    "/api/v1/service/questions/{question_id}": {
+      "get": {
+        "operationId": "get_question_detail_api_v1_service_questions__question_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "question_id",
+            "required": true,
+            "schema": {
+              "title": "Question Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Question Detail Api V1 Service Questions  Question Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Question Detail",
+        "tags": [
+          "service"
+        ]
+      }
+    },
+    "/api/v1/service/questions/{question_id}/explanation": {
+      "patch": {
+        "operationId": "patch_explanation_api_v1_service_questions__question_id__explanation_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "question_id",
+            "required": true,
+            "schema": {
+              "title": "Question Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExplanationPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch Explanation",
+        "tags": [
+          "service"
+        ]
+      }
+    },
+    "/api/v1/service/questions/{question_id}/marking-points": {
+      "get": {
+        "operationId": "get_marking_points_api_v1_service_questions__question_id__marking_points_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "question_id",
+            "required": true,
+            "schema": {
+              "title": "Question Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Get Marking Points Api V1 Service Questions  Question Id  Marking Points Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Marking Points",
+        "tags": [
+          "service"
+        ]
+      }
+    },
+    "/api/v1/service/questions/{question_id}/publish": {
+      "patch": {
+        "operationId": "publish_question_service_api_v1_service_questions__question_id__publish_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "question_id",
+            "required": true,
+            "schema": {
+              "title": "Question Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Publish Question Service",
+        "tags": [
+          "service"
+        ]
+      }
+    },
+    "/api/v1/service/students/{student_id}/topic-scores": {
+      "get": {
+        "operationId": "get_topic_scores_api_v1_service_students__student_id__topic_scores_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "student_id",
+            "required": true,
+            "schema": {
+              "title": "Student Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TopicScoreResponse"
+                  },
+                  "title": "Response Get Topic Scores Api V1 Service Students  Student Id  Topic Scores Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Topic Scores",
+        "tags": [
+          "service"
+        ]
+      }
+    }
+  }
+}

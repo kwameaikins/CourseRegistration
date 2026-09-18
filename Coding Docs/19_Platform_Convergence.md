@@ -7,6 +7,13 @@
 > is now the module map for that migration — it still decides where a new feature goes until the
 > module it belongs to has moved. §4's seams remain the interim mechanism and are still being
 > completed; §5's definition of "integrated" is now a milestone on the way rather than the end state.
+>
+> **And since 2026-09-18, `22_Knowsia_Core.md` names WHERE the shared capabilities go.** The
+> rows of §3's table that are not products — identity, organisations, payments, catalogue,
+> affiliates, communications, leads, support, files, audit, analytics — migrate into one platform
+> layer, Knowsia Core, in the order Doc 22 §7 sets. Doc 22 also pins the service-door contract
+> (`Coding Docs/contracts/service-api.v1.json`, asserted by `tests/unit/knowsia-core-contract.test.ts`)
+> that §4's seams run over. Read Doc 22 before touching a seam.
 
 **Status:** Approved direction (2026-08-13), §2 superseded 2026-09-07
 **Owner:** Knowsia Operations and Engineering

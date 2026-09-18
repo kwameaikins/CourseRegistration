@@ -6,6 +6,12 @@ the ownership table in §3, which becomes the module map for the migration rathe
 boundary between two systems.
 **Owner:** Knowsia Operations and Engineering
 **Applies to both repos.** KnowsiaApp needs a mirror of §3 and §4 in its own CLAUDE.md.
+**Extended by `22_Knowsia_Core.md` (2026-09-18):** this document says the codebases merge and in
+what order; Doc 22 says what the shared part of the merged backend IS — Knowsia Core, eleven
+modules with hard boundaries inside `knowsia-api` (`app/platform/`, prefix `core_`) — and replaces
+§4's order with its own seven-phase roadmap (§7), which keeps this document's two rules: one
+cutover in flight at a time, and money last. The identity decision (one person, separate app
+records, no merge, exact-email linking in December) is recorded there.
 
 ---
 
