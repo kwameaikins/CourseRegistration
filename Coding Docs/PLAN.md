@@ -909,6 +909,11 @@ unchanged (the free-event reasoning). Two things an ordinary Batch could not do:
       date in the middle of it, and the sentence changes in place on success.
 - [x] `PAYMENT_DETAILS` centralised in `lib/organisation.ts` (templates and the invoice read the
       same MoMo and bank details).
+- [x] **Copy registration link** on every batch row of `/courses` (later on 2026-09-18): the
+      batch id is a UUID nobody can type — the founder tried `?batchId=<course code>` — and for
+      an unlisted batch the link is the only way in. The button's label reports success.
+- [x] Course page draft `Coding Docs/excel-data-analytics.md` (EDA01; fee, hours and batch link
+      left as placeholders for the founder).
 
 Still the founder's to do: create the course "Excel Data Analytics — One-to-One Tuition" and its
 unlisted Batch (fee, dates, one seat) on `/courses`, register the student, open the registration
