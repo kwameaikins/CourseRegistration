@@ -668,7 +668,7 @@ const IFRS_18: CoursePublicContent = {
     'A cohort WhatsApp support group with the facilitator',
     'A Certificate of Competence recording 12 CPD hours, for participants scoring 70% or above',
   ],
-  facilitator: { name: 'Mr. Stephen Kwame Aikins', credentials: 'CA' },
+  facilitator: { name: 'Fuseini Sumaila', credentials: 'CA, ACMA' },
   faq: [
     {
       question: 'Does IFRS 18 change my profit?',

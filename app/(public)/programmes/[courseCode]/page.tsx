@@ -64,6 +64,16 @@ export default async function ProgrammeDetailPage({
 
   const content = course.content;
   const next = course.nextSession;
+  // The facilitator shown is the one ASSIGNED to the next cohort (the batch's
+  // facilitator, set when the cohort is scheduled) — the marketing copy's
+  // name is only the fallback when no cohort is scheduled. Found 2026-09-19:
+  // IFRS02's copy named the wrong person while its batch named the right one,
+  // and two sources for one fact will drift again.
+  const facilitatorLine = next?.facilitatorName?.trim()
+    ? next.facilitatorName.trim()
+    : content?.facilitator.name
+      ? `${content.facilitator.name}${content.facilitator.credentials ? `, ${content.facilitator.credentials}` : ''}`
+      : null;
   const registerHref = next ? `/register?batchId=${next.batchId}` : '/register';
   const registerLabel = course.isFreeProgramme ? 'Register free' : 'Register now';
   // A programme with its own FAQ answers the specific questions people ask
@@ -272,14 +282,10 @@ export default async function ProgrammeDetailPage({
                             <dd>{row.value}</dd>
                           </div>
                         ))}
-                        {content.facilitator.name && (
+                        {facilitatorLine && (
                           <div>
                             <dt>Facilitator</dt>
-                            <dd>
-                              {content.facilitator.name}
-                              {content.facilitator.credentials &&
-                                `, ${content.facilitator.credentials}`}
-                            </dd>
+                            <dd>{facilitatorLine}</dd>
                           </div>
                         )}
                       </dl>
