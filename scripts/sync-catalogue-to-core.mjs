@@ -74,8 +74,17 @@ const couponBody = (row, externalRef, name) => {
   };
 };
 for (const c of coupons) note(await core('PUT', '/api/v1/service/catalogue/coupons', couponBody(c, `coupon:${c.id}`, c.description ?? null)), 'coupons');
+// A code string is ONE thing in Core. Three deactivated partner codes carry
+// the same string as the live coupon that replaced them (the 2026-08-07
+// split of standalone coupons out of partner codes): the coupon is the record,
+// the retired code is skipped and said so.
+const couponStrings = new Set(coupons.map((c) => c.code.toUpperCase()));
 for (const c of codes) {
   if (!c.discount_type || !(Number(c.discount_value) > 0)) continue;
+  if (!c.is_active && couponStrings.has(c.code.toUpperCase())) {
+    console.log(`  code ${c.code} skipped: retired, superseded by the coupon of the same string`);
+    continue;
+  }
   note(await core('PUT', '/api/v1/service/catalogue/coupons', couponBody(c, `code:${c.id}`, 'Partner code')), 'codes');
 }
 
