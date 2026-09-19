@@ -723,3 +723,16 @@ subject_id? }` → the priced quote (`total_minor`, `subtotal_minor`, `price_sou
 only under `CORE_QUOTE_SHADOW=1`. `GET …/catalogue/fx?quote=` → `{ USD: { rate, rate_id, effective_date, source } }`.
 `createBatch` / `updateBatch` call the first, `createCoupon` / `updateCoupon` / `createCode` the second, the registration
 path the third and fourth. Asserted by `tests/unit/knowsia-core-contract.test.ts`; Coding Docs/24 §1.
+
+## 26. Knowsia Core Organisations — this side (2026-09-19)
+
+Outbound only (`lib/knowsia-core/organisations.ts`, `X-Service-Key`). `PUT {KNOWSIA_APP_API_URL}/api/v1/service/organisations`
+`{ product: 'registration', external_ref (companies.id), name, kind: 'company', tin, email (billing), phone (billing),
+billing_contact: { name, email, phone, address }, address, notes }` → 200 the organisation (`id`, `status`, `created`); by
+(product, external_ref). `GET …/organisations/by-ref?product=&external_ref=` → the organisation, 404 when unknown.
+`PUT …/organisations/{org_id}/deals` `{ product, external_ref (allocation id), sku_code ('cohort.<course>.<cohort>'), seats,
+unit_price_minor (price_per_seat × 100), currency: 'GHS', status, status_reason, notes }` → 200 the deal (`id`, `total_minor`,
+`created`); 422 when the batch has no SKU in Core. `POST …/organisations/deals/{external_ref}/status` `{ product, status,
+reason }` → 200 the deal; 404 when Core never saw the allocation. `PUT …/organisations/{org_id}/members` exists for a
+member list and is not called from here yet. `createCompany`, `createSeatAllocation` and `updateSeatAllocationStatus` call
+them. Asserted by `tests/unit/knowsia-core-contract.test.ts`; Coding Docs/24 §2.

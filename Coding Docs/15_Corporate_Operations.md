@@ -38,6 +38,10 @@ Section 5's capacity mechanism for why this shape was chosen).
 - **Company** — `name`, `tin`, `billing_contact_name/email/phone/address`, `notes`.
 - **Seat Allocation** (`company_batch_allocations`) — one company buying N seats in one batch:
   `seats_purchased`, `price_per_seat`, `status` (`active`/`completed`/`cancelled`).
+  **`price_per_seat` is the price the employee's registration is created at** (fixed 2026-09-19 —
+  until then `addEmployeesToAllocation` copied the batch's public fee, so every corporate employee
+  was invoiced at the wrong price). Since Core Phase 4 R2 the company is also an organisation in
+  Knowsia Core and the allocation a deal there (Coding Docs/24 §2); the roster stays here.
 - **Employee Registration** — a normal `registrations` row with `company_allocation_id` set.
 - **Company Admin** — the company's own portal identity (`company_admin_auth`/
   `company_admin_sessions`), one per company for v1 (not per named contact).

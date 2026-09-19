@@ -998,10 +998,14 @@ each. This app's price and commission accrual stay authoritative until Phases 5 
       11 batches, 6 coupons, 3 live codes, 14 redemptions; three retired codes superseded by coupons
       of the same string are skipped (a code string is one thing in Core). Contract test covers the
       five routes. Coding Docs/24 §1, 05 §25
-- [ ] **Organisations** — `forwardCompanyToCore`, `forwardSeatAllocationToCore`; nullable
-      `companies.core_organisation_id`, `company_batch_allocations.core_deal_id`; **fix**: an
-      employee registration from an allocation pays `price_per_seat`, not the batch fee.
-      Coding Docs/24 §2
+- [x] **Organisations** (built 2026-09-19; released after Release 1's watch): `forwardCompanyToCore`
+      from `createCompany`, `forwardSeatAllocationToCore` from `createSeatAllocation` (the batch's
+      SKU at the allocation's `price_per_seat`), `forwardAllocationStatusToCore`; the Core ids
+      written back (`companies.core_organisation_id`, `company_batch_allocations.core_deal_id`,
+      migration `202609190071` — `npx supabase db push` at release); `scripts/sync-companies-to-
+      core.mjs`. **Fixed**: `addEmployeesToAllocation` charged the batch's public fee, not the
+      allocation's `price_per_seat` (unit test). Contract test covers the door. Coding Docs/24 §2,
+      05 §26. Commit `bdf9aec`
 - [ ] **Analytics across products** — `raisePaymentSettledToCore` from the paid transition
       (`POST /api/v1/service/events`), `scripts/backfill-payments-to-core.mjs`. Coding Docs/24 §3
 - [ ] **Affiliates, attribution half** — partners, codes, clicks and attributions forwarded;

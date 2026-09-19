@@ -71,18 +71,41 @@ jobs `core-catalogue:*`; then turn `CORE_QUOTE_SHADOW=1` on for a week and read 
 count — the expected sources of difference are rounding (`round2` here vs pesewa arithmetic there)
 and a coupon consumed here that Core's `one_per_subject` would have refused.
 
-## 2. Release 2 — Organisations (planned)
+## 2. Release 2 — Organisations (built 2026-09-19; released after Release 1's 24-hour watch)
 
-`core_organisations`, `core_organisation_members`, `core_organisation_deals` (platform 009). Core
-records what was sold to whom at what price; **who sits in which seat stays this app's product object**
-(`registrations.company_allocation_id`). This side: `forwardCompanyToCore` from create / update company,
-`forwardSeatAllocationToCore` from `createSeatAllocation` (sku_code the batch SKU from Release 1,
-unit price the allocation's `price_per_seat`), status changes; nullable `companies.core_organisation_id`
-and `company_batch_allocations.core_deal_id`. **The bug fixed in the same release:** an employee
-registration from an allocation pays the batch fee today, not the allocation's `price_per_seat`
-(`modules/corporate/service.ts` → `registrations/service.ts`); it will pass `courseFee:
-allocation.pricePerSeat`, with a unit test. Study's `app/corporate/**` (two stub tables, no screens) is
-deleted and copied into Core by the migration.
+**What Core holds.** `core_organisations` — one per (product, external_ref): this app's `companies`
+row, and Study's retired `corp_groups` (copied in by platform 009 with `product = 'study'`, then
+dropped). Contacts, a `billing_contact`, a TIN, a status with its reason. `core_organisation_members` —
+email unique per organisation per product; a repeat updates and reinstates. `core_organisation_deals` —
+seats × unit price, recomputed on write, naming a Release 1 SKU (a deal with no SKU is refused, 422).
+**Core records what was sold to whom at what price; who sits in which seat stays this app's product
+object** (`registrations.company_allocation_id`). A name or TIN match between two organisations is shown
+to a person on `/admin/organisations` over there as a suggestion and never merged — the identity rule.
+
+**This side (`lib/knowsia-core/organisations.ts`), best effort in every direction.**
+
+| From | To Core | Notes |
+|---|---|---|
+| `createCompany` | `PUT /api/v1/service/organisations` | one organisation per `companies.id`; the Core id written back to `companies.core_organisation_id` |
+| `createSeatAllocation` | `PUT …/organisations/{org_id}/deals` | one deal per allocation id; the batch's `cohort.<course>.<cohort>` SKU at the allocation's own `price_per_seat`; forwards the company first when Core has not seen it; 422 (the batch has no SKU yet) is silent — the sync backfills; the Core id written back to `company_batch_allocations.core_deal_id` |
+| `updateSeatAllocationStatus` | `POST …/organisations/deals/{allocation id}/status` | completed / cancelled with the reason; 404 (Core never saw it) is silent |
+
+Migration `202609190071_core_organisation_refs.sql` adds the two nullable key columns (`npx supabase db
+push`). `scripts/sync-companies-to-core.mjs --dry-run` backfills companies then allocations — run
+`sync-catalogue-to-core.mjs` first, since a deal names the batch's SKU.
+
+**The bug fixed with it.** `addEmployeesToAllocation` registered every corporate employee at the batch's
+PUBLIC fee (`courseFee: batch.courseFee`), not the allocation's `price_per_seat` — the price the company
+actually agreed and is invoiced at (BR-27's "the seat is the sale"). It now passes the allocation's
+price (0 for a free batch), and `tests/unit/corporate-service.test.ts` pins it. Registrations created
+before 2026-09-19 from an allocation carry the batch fee on their payment row; the invoice totals on
+the allocation detail read from those rows, so a person should compare `amountInvoiced` with
+`seats_used × price_per_seat` on the live allocations before relying on either figure.
+
+**Verification.** Over there `tests/platform/test_organisations.py` (9); the full suite 1454; migration 009
+proved on a throwaway database with a seeded `corp_groups` stub (the row became an organisation with its
+admin and member; the tables were gone; downgrade / upgrade round-trips). Here `corporate-service.test.ts`
+(+1) and the contract test pin the four routes; the full suite 1133.
 
 ## 3. Release 3 — Analytics across products (planned)
 
