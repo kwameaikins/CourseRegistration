@@ -542,8 +542,8 @@ Tutor-portal-facing (`app/api/tutor-portal/**`):
 
 | Route | Method | Purpose |
 |---|---|---|
-| `materials` | POST | Share a resource — JSON link or multipart file |
-| `materials/[id]` | GET / DELETE | `id` is a **batchId** on GET (list), a **material id** on DELETE — the App Router forbids differing slug names at one path position |
+| `materials` | POST | Share a resource — JSON link or multipart file. `scope: 'course'` (default) puts it in the course library every cohort sees; `'cohort'` keeps it to this cohort (2026-09-19) |
+| `materials/[id]` | GET / DELETE | `id` is a **batchId** on GET (list — the course library plus this cohort's own, each row carrying `scope`), a **material id** on DELETE — the App Router forbids differing slug names at one path position |
 | `materials/[id]/download-url` | GET | Presigned URL for a file-backed material |
 | `assignments?batchId=` | GET / POST | List (with submission/review counts) / create |
 | `assignments/[id]` | PATCH / DELETE | Edit, open/close, or delete (cascades to submissions) |
@@ -555,8 +555,8 @@ Student-portal-facing (`app/api/portal/**`, participant session cookie):
 
 | Route | Method | Purpose |
 |---|---|---|
-| `materials/[registrationId]` | GET | Resources for that registration's batch |
-| `materials/[registrationId]/download-url?materialId=` | GET | Presigned URL, 404 if the material is another cohort's |
+| `materials/[registrationId]` | GET | Resources for that registration's batch: its course's library plus the cohort's own (2026-09-19) |
+| `materials/[registrationId]/download-url?materialId=` | GET | Presigned URL, 404 unless the material is the course library's or this cohort's (`isSessionMaterialVisibleToBatchSystem`) |
 | `assignments/[registrationId]` | GET | Batch assignments, each carrying **only this learner's own** submission |
 | `assignments` | POST | Submit or resubmit (multipart) |
 | `assignments/[registrationId]/download-url?submissionId=` | GET | The learner's own submission back; 404 on anyone else's |
@@ -565,8 +565,9 @@ Staff-facing (`app/api/live-sessions/**`, admin authors / management reads):
 
 | Route | Method | Purpose |
 |---|---|---|
-| `materials?batchId=` | GET | Resources on a batch (tutor- or staff-authored) |
-| `materials` | POST | Share a resource — JSON link or multipart file (admin) |
+| `materials?batchId=` | GET | Resources a cohort sees — the course library plus its own, each with `scope` (tutor- or staff-authored) |
+| `materials` | POST | Share a resource — JSON link or multipart file (admin); `scope` as on the tutor door |
+| `materials/[id]` | PATCH | `{ scope: 'course' }` moves a resource into the course library; `{ scope: 'cohort', batchId }` back to one cohort of the same course (admin, 2026-09-19) |
 | `materials/[id]` | DELETE | Remove any material, including a tutor's (admin) |
 | `materials/[id]/download-url` | GET | Presigned URL (admin/management) |
 | `assignments?batchId=` | GET / POST | List with counts / create (admin) |

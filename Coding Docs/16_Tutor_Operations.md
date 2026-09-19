@@ -195,6 +195,24 @@ slips had previously been written to the bucket *root* as `<registrationId>/<uui
 the prefixes as fixed now: changing one orphans existing objects (old rows keep resolving, since
 the database stores whole keys, but new writes land elsewhere).
 
+### Learning resources belong to the course (2026-09-19)
+
+Founder: "course materials and resources uploaded are per cohort, meaning every cohort you would
+have to re-upload the same materials again. This should be fixed as per best practice." The
+resource is the course's, not the cohort's: `session_materials.course_id` (always) with `batch_id`
+only when a resource is for one cohort. The tutor portal's and staff `/live-sessions` "Share
+with" defaults to **every cohort of this course**; "this cohort only" is for a session recording or
+a one-off handout, and a resource pinned to a live session is always that cohort's. A cohort's
+Materials tab (student portal, tutor portal, staff) shows its course's library plus its own.
+Visibility is one rule in `modules/live-sessions` (`isSessionMaterialVisibleToBatchSystem`) that
+both portals ask — a tutor may download a library resource of any course they teach a cohort of;
+a student of a cohort sees its course's library. Staff can move a resource between the library and
+a cohort (`PATCH /api/live-sessions/materials/[id]`). A tutor removes only what they uploaded, as
+before. Migration `202609190072` promoted every existing unpinned resource to its course's library
+(20 rows, all links, one cohort per course — nothing conflicted) and added `courses.resources_link`
+as the folder default every cohort inherits (`batches.resources_link` overrides). Assignments stay
+per cohort: they carry due dates and submissions, which are a cohort's.
+
 ### Assignments and student submissions — NEW SCOPE, flagged
 
 **This exceeds the documented product scope and was built at explicit founder request.** PRD §9

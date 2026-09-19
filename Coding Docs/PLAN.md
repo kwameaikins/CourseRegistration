@@ -930,6 +930,26 @@ and click "Email invoice".
 
 ---
 
+## Learning resources belong to the course (2026-09-19)
+
+Founder: materials uploaded per cohort meant re-uploading them for every cohort. Fixed as per best
+practice — the resource is the course's; a cohort inherits its course's library.
+
+- [x] `session_materials.course_id` (NOT NULL) + nullable `batch_id` (migration `202609190072`;
+      existing unpinned rows promoted to the library — 20 rows, all links, one cohort per course);
+      `courses.resources_link` as the folder default every cohort inherits. **`npx supabase db push`
+      at release.** Coding Docs/03, 14 §4, 16
+- [x] `scope: 'course' | 'cohort'` on the tutor and staff share doors (default course), each row
+      carrying `scope`; staff `PATCH materials/[id]` moves a resource between the library and one
+      cohort; one visibility rule (`isSessionMaterialVisibleToBatchSystem`) for both portals; R2 key
+      owner = course or batch. Coding Docs/05 §17
+- [x] UI: "Share with — every cohort of this course / this cohort only" on the tutor portal and
+      `/live-sessions`; a Course library / This cohort label per row; "Move to course library";
+      the course edit form's Resources folder; the batch form says it overrides the course's.
+- [x] Tests: `live-sessions-service.test.ts` (+4: default scope, session-pinned, unknown cohort,
+      visibility across cohorts and courses), `tutors-service.test.ts` (+2), portal access tests
+      updated; full suite green.
+
 ## Knowsia Core Phase 2 — this side of the identity link (2026-09-18)
 
 Coding Docs/22 §3 and §7. The linker lives in knowsia-api; this app opens the door it reads

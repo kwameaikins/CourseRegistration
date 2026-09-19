@@ -42,7 +42,7 @@ app/ -> modules/live-sessions/service.ts -> repository.ts -> lib/supabase
 | `live_sessions` | One scheduled learning occurrence for a batch | Status workflow; `Africa/Accra` timestamps; no hard delete after publishing |
 | `live_session_tutors` | Tutor and substitute assignments | Tutor sees only assigned sessions; substitution reason required |
 | `live_session_access` | Per-registration eligibility and provider join reference | Paid/approved gate; overrides record actor, reason, and expiry |
-| `session_materials` | Agenda, slides, readings | Link or R2-backed file upload (exactly one); enrolled-role access only. **No version history** — superseded 2026-08-04, see Document 16 Phase 5 |
+| `session_materials` | Agenda, slides, readings | Link or R2-backed file upload (exactly one); enrolled-role access only. **Belongs to the course** since 2026-09-19 (`course_id`; `batch_id` only for one cohort's own) — every cohort inherits the library, nothing is uploaded twice. **No version history** — superseded 2026-08-04, see Document 16 Phase 5 |
 | `assignments` / `assignment_submissions` | Coursework set by a tutor/admin, and one current submission per Registration | **New scope 2026-08-04**, added at founder request against PRD §9's "not an LMS" exclusion — see Document 16 Phase 5 before touching |
 | `attendance_exceptions` | Learner technical issue, excused absence, or manual correction request | Tutor/admin decision and immutable review evidence |
 | `session_recordings` | Provider recording reference, consent, release, and retention metadata | Tutor approval before release; no raw provider credentials |

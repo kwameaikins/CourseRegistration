@@ -658,6 +658,19 @@ enforces that a row is **either** a link **or** a file, never both and never nei
 is set. Every pre-existing row is a link and remains valid. `file_path` is a Cloudflare R2 object
 key — never bytes, never a public URL — matching `payment_submissions.slip_file_path`.
 
+**`session_materials` belongs to the COURSE (migration `202609190072`, 2026-09-19).** Founder:
+"course materials and resources uploaded are per cohort, meaning every cohort you would have to
+re-upload the same materials again." A row now carries `course_id` (NOT NULL, FK `courses`) and
+`batch_id` became NULLABLE: `batch_id IS NULL` is the course library, seen by every cohort of the
+course; `batch_id` set is one cohort's alone (a session recording, a one-off handout; a row pinned
+to a `live_session_id` is always that cohort's). The migration backfilled `course_id` from each
+row's batch and promoted every unpinned row to the library — measured first: 20 rows, all links,
+every course with one cohort, so nothing conflicted. Index `(course_id, created_at desc)`. The
+same shape for the Drive folder: `courses.resources_link` is the default every cohort inherits,
+`batches.resources_link` the per-cohort override (existing batch links copied up as the default).
+R2 keys for new uploads are `materials/<course id>/…` for the library and `materials/<batch id>/…`
+for a cohort's own; old keys keep resolving, the database stores whole keys.
+
 **Two new tables.** `assignments` (batch-scoped coursework; `status` `open`/`closed`,
 `allow_resubmission`, optional `due_at`, and exactly one of `created_by_tutor_id` /
 `created_by_staff_id`) and `assignment_submissions` (`file_path`/`file_name`/`file_size_bytes`/
