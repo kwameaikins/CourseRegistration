@@ -675,3 +675,12 @@ Outbound: after every portal PIN verdict, `modules/knowsia-core/service.ts:shado
 posts `{ path: 'pin', product: 'registration', external_id, email, app_verdict, app_role: 'student' }`
 to knowsia-api `POST /api/v1/service/identity/check` — fire-and-forget, 3 s timeout, only when
 `CORE_DUAL_READ=true`, never a factor in the sign-in.
+
+## 22. Knowsia Core Files — this side (2026-09-19)
+
+Outbound only (`lib/knowsia-core/files.ts`, `X-Service-Key`): `POST {KNOWSIA_APP_API_URL}/api/v1/service/files`
+`{ product: 'registration', purpose, visibility, owner_type, owner_id, filename, content_base64, retention_days? }`
+→ 201 the file record (`id`, `media_type`, `byte_size`, `storage`, `public_url`); `GET …/files/{id}/link` →
+`{ url, expires_in_seconds }` (a CDN URL for a public file, a signed 15-minute path for a private one);
+`DELETE …/files/{id}`. Payment slips use it (`payment_submissions.slip_file_path = core:<id>`); R2 is the
+fallback when Core is unreachable, reported to Sentry. Asserted by `tests/unit/knowsia-core-contract.test.ts`.

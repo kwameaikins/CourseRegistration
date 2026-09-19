@@ -79,4 +79,16 @@ describe('KnowsiaApp service-door contract (what modules/knowsia-app/service.ts 
     expect(reply).toContain('recorded');
     expect(reply).toContain('dual_read_on');
   });
+
+  it('Core Files (Doc 23 §1): POST …/files and GET …/files/{file_id}/link', () => {
+    const fields = requestFields('/api/v1/service/files', 'post');
+    for (const f of ['product', 'purpose', 'visibility', 'owner_type', 'owner_id', 'filename', 'content_base64']) {
+      expect(fields, `request field ${f}`).toContain(f);
+    }
+    const stored = responseFields('/api/v1/service/files', 'post', '201');
+    expect(stored).toContain('id');
+    expect(stored).toContain('public_url');
+    const link = responseFields('/api/v1/service/files/{file_id}/link', 'get');
+    expect(link).toContain('url');
+  });
 });

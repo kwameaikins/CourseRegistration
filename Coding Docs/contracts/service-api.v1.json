@@ -72,6 +72,29 @@
         "title": "ExplanationPatch",
         "type": "object"
       },
+      "FileLink": {
+        "properties": {
+          "expires_in_seconds": {
+            "title": "Expires In Seconds",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "url",
+          "expires_in_seconds"
+        ],
+        "title": "FileLink",
+        "type": "object"
+      },
       "GrantEnrolmentRequest": {
         "properties": {
           "access_days": {
@@ -810,6 +833,165 @@
         "title": "QuestionCreatePayload",
         "type": "object"
       },
+      "StoreFileRequest": {
+        "properties": {
+          "content_base64": {
+            "minLength": 1,
+            "title": "Content Base64",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "filename": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Filename",
+            "type": "string"
+          },
+          "owner_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Id"
+          },
+          "owner_type": {
+            "pattern": "^(user|participant|identity|system|staff)$",
+            "title": "Owner Type",
+            "type": "string"
+          },
+          "product": {
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          },
+          "purpose": {
+            "maxLength": 30,
+            "title": "Purpose",
+            "type": "string"
+          },
+          "retention_days": {
+            "anyOf": [
+              {
+                "maximum": 3660.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retention Days"
+          },
+          "visibility": {
+            "pattern": "^(public|private)$",
+            "title": "Visibility",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product",
+          "purpose",
+          "visibility",
+          "owner_type",
+          "filename",
+          "content_base64"
+        ],
+        "title": "StoreFileRequest",
+        "type": "object"
+      },
+      "StoredFile": {
+        "properties": {
+          "byte_size": {
+            "title": "Byte Size",
+            "type": "integer"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "media_type": {
+            "title": "Media Type",
+            "type": "string"
+          },
+          "public_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Public Url"
+          },
+          "purpose": {
+            "title": "Purpose",
+            "type": "string"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "storage": {
+            "title": "Storage",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "visibility": {
+            "title": "Visibility",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "purpose",
+          "visibility",
+          "filename",
+          "media_type",
+          "byte_size",
+          "sha256",
+          "storage",
+          "status",
+          "public_url",
+          "url"
+        ],
+        "title": "StoredFile",
+        "type": "object"
+      },
       "TopicScoreResponse": {
         "properties": {
           "attempts_count": {
@@ -1041,6 +1223,135 @@
         "summary": "Revoke Question Bank Access",
         "tags": [
           "service-auth"
+        ]
+      }
+    },
+    "/api/v1/service/files": {
+      "post": {
+        "operationId": "service_store_file_api_v1_service_files_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StoreFileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredFile"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Store File",
+        "tags": [
+          "service-files"
+        ]
+      }
+    },
+    "/api/v1/service/files/{file_id}": {
+      "delete": {
+        "operationId": "service_delete_file_api_v1_service_files__file_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "file_id",
+            "required": true,
+            "schema": {
+              "title": "File Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Service Delete File Api V1 Service Files  File Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Delete File",
+        "tags": [
+          "service-files"
+        ]
+      }
+    },
+    "/api/v1/service/files/{file_id}/link": {
+      "get": {
+        "operationId": "service_file_link_api_v1_service_files__file_id__link_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "file_id",
+            "required": true,
+            "schema": {
+              "title": "File Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileLink"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service File Link",
+        "tags": [
+          "service-files"
         ]
       }
     },

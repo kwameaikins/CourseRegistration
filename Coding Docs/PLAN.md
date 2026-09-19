@@ -962,6 +962,19 @@ new column; the shadow call is fire-and-forget and off unless `CORE_DUAL_READ=tr
 
 ---
 
+## Knowsia Core Phase 3 — this side (from 2026-09-19; Coding Docs/23)
+
+Files → Communications → Support → Leads & CRM, one release each; this app becomes a caller.
+
+- [x] **Files** (2026-09-19): payment slips stored through `POST /api/v1/service/files`
+      (`lib/knowsia-core/files.ts`); `slip_file_path` = `core:<id>`; the staff slip link from
+      `GET …/files/{id}/link`; R2 the fallback with Sentry on every fallback. Contract test covers
+      the door. Materials and assignment submissions follow on the same door.
+- [ ] Communications: the four provider clients call `POST /api/v1/service/messages`; opt-outs synced
+- [ ] Support: none here to move (feedback stays); the unsubscribe/consent link posts to Core
+- [ ] Leads & CRM: `/api/enquiries` forwards to `POST /api/v1/service/leads`
+
+---
 ## Risk watch (carried from `/docs/01_PRD.md` risk register)
 
 | ID | Risk | Status |

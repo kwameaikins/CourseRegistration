@@ -12,6 +12,7 @@ import * as leadsService from '@/modules/leads/service';
 import * as knowsiaAppService from '@/modules/knowsia-app/service';
 import * as r2Client from '@/lib/r2/client';
 import { paymentSlipKey } from '@/lib/r2/keys';
+import * as coreFiles from '@/lib/knowsia-core/files';
 // Permitted cross-module call, same posture as leads/opportunities/
 // attendance below — commission accrual only ever fires once a payment
 // actually clears (Knowsia Growth Partner Programme, 2026-08-02).
@@ -832,23 +833,44 @@ export async function submitPaymentProofSystem(
 
   let slipFilePath: string | null = null;
   if (slip) {
-    if (!r2Client.isR2Configured()) {
-      throw new AppError(
-        'VALIDATION_ERROR',
-        'Slip uploads are not available right now — please submit without one, or contact us.',
-        400,
-      );
+    // Since 2026-09-19 a slip is a Knowsia Core FILE (Doc 23 §1): one record,
+    // one gate (sniffed from its bytes), private, served only against a
+    // 15-minute link. `slip_file_path` carries `core:<id>`. R2 remains the
+    // fallback when Core is unreachable, so a student is never refused for
+    // a reason on our side — and Sentry hears about every fallback.
+    let stored = false;
+    if (coreFiles.isCoreFilesConfigured()) {
+      try {
+        const file = await coreFiles.storeCoreFile({
+          purpose: 'payment_slip',
+          visibility: 'private',
+          ownerType: 'participant',
+          ownerId: null,
+          filename: `slip-${input.registrationId.slice(0, 8)}.${slip.extension}`,
+          buffer: slip.buffer,
+        });
+        slipFilePath = `${coreFiles.CORE_FILE_PREFIX}${file.id}`;
+        stored = true;
+      } catch (err) {
+        coreFiles.reportCoreFilesFailure(err, 'core_files_payment_slip');
+      }
     }
-    // Was a bare `<registrationId>/<uuid>.<ext>` at the bucket root until
-    // 2026-08-05 — normalised under the `slips/` prefix once two more upload
-    // types joined the same bucket. Safe to change: no slip had ever been
-    // uploaded in production, so nothing was orphaned. See lib/r2/keys.ts.
-    slipFilePath = paymentSlipKey(input.registrationId, slip.extension);
-    await r2Client.uploadObject({
-      key: slipFilePath,
-      body: slip.buffer,
-      contentType: slip.contentType,
-    });
+    if (!stored) {
+      if (!r2Client.isR2Configured()) {
+        throw new AppError(
+          'VALIDATION_ERROR',
+          'Slip uploads are not available right now — please submit without one, or contact us.',
+          400,
+        );
+      }
+      // The pre-Core path: `slips/<registrationId>/<uuid>.<ext>` on R2 (lib/r2/keys.ts).
+      slipFilePath = paymentSlipKey(input.registrationId, slip.extension);
+      await r2Client.uploadObject({
+        key: slipFilePath,
+        body: slip.buffer,
+        contentType: slip.contentType,
+      });
+    }
   }
 
   const row = await paymentsRepository.insertPaymentSubmissionSystem({
@@ -896,6 +918,9 @@ export async function getPaymentSubmissionSlipUrl(submissionId: string): Promise
   const submission = await paymentsRepository.selectPaymentSubmissionById(submissionId);
   if (!submission?.slip_file_path) {
     throw new AppError('NOT_FOUND', 'No slip on file for this submission.', 404);
+  }
+  if (coreFiles.isCoreFilePath(submission.slip_file_path)) {
+    return coreFiles.coreFileLink(coreFiles.coreFileId(submission.slip_file_path));
   }
   return r2Client.getSignedDownloadUrl(submission.slip_file_path);
 }
