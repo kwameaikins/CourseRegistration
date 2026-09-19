@@ -6,11 +6,17 @@ const repositoryMock = {
   insertLiveSession: vi.fn(),
   updateLiveSessionById: vi.fn(),
   insertLiveSessionAuditEvent: vi.fn(),
+  // Learning resources (course-level since 2026-09-19)
+  insertSessionMaterialSystem: vi.fn(),
+  selectSessionMaterialByIdSystem: vi.fn(),
+  selectSessionMaterialsVisibleToBatchSystem: vi.fn(),
+  selectBatchCourseIdSystem: vi.fn(),
+  updateSessionMaterialSystem: vi.fn(),
 };
 
 vi.mock('@/modules/live-sessions/repository', () => repositoryMock);
 
-const { createLiveSession, updateLiveSession } = await import('@/modules/live-sessions/service');
+const { createLiveSession, updateLiveSession, addSessionMaterial, isSessionMaterialVisibleToBatchSystem, getSessionMaterialsForBatchSystem } = await import('@/modules/live-sessions/service');
 
 function sessionRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -105,5 +111,61 @@ describe('updateLiveSession', () => {
     await expect(updateLiveSession(existing.id, { status: 'cancelled' }, actorStaffId)).rejects.toMatchObject({
       code: 'VALIDATION_ERROR',
     });
+  });
+});
+// A resource belongs to the COURSE (founder, 2026-09-19: every cohort meant
+// re-uploading the same materials). The default scope is the course library;
+// a cohort sees its course's library plus its own; a session-pinned resource
+// is that cohort's whatever was asked.
+describe('learning resources belong to the course', () => {
+  const materialRow = (overrides: Record<string, unknown> = {}) => ({
+    id: 'mat-1', course_id: 'course-1', batch_id: null, live_session_id: null, uploaded_by_tutor_id: 'tutor-1', uploaded_by_staff_id: null,
+    title: 'Slides', link: 'https://example.com/slides', file_path: null, file_name: null, file_size_bytes: null, content_type: null,
+    created_at: '2026-09-19T00:00:00Z', ...overrides,
+  });
+
+  beforeEach(() => {
+    repositoryMock.selectBatchCourseIdSystem.mockImplementation(async (batchId: string) => (batchId.startsWith('batch-c1') ? 'course-1' : batchId === 'batch-c2' ? 'course-2' : null));
+    repositoryMock.insertSessionMaterialSystem.mockImplementation(async (input: Record<string, unknown>) => materialRow(input));
+  });
+
+  it('files a new resource in the course library by default, and with the cohort only when asked or when pinned to a session', async () => {
+    const library = await addSessionMaterial({ batchId: 'batch-c1-nov', liveSessionId: null, uploadedByTutorId: 'tutor-1', title: 'Slides', link: 'https://example.com/a' });
+    expect(library.scope).toBe('course');
+    expect(repositoryMock.insertSessionMaterialSystem).toHaveBeenLastCalledWith(expect.objectContaining({ course_id: 'course-1', batch_id: null }));
+
+    const cohortOnly = await addSessionMaterial({ batchId: 'batch-c1-nov', liveSessionId: null, scope: 'cohort', uploadedByTutorId: 'tutor-1', title: 'Recording', link: 'https://example.com/b' });
+    expect(cohortOnly.scope).toBe('cohort');
+    expect(repositoryMock.insertSessionMaterialSystem).toHaveBeenLastCalledWith(expect.objectContaining({ course_id: 'course-1', batch_id: 'batch-c1-nov' }));
+
+    await addSessionMaterial({ batchId: 'batch-c1-nov', liveSessionId: 'session-3', scope: 'course', uploadedByTutorId: 'tutor-1', title: 'Session 3', link: 'https://example.com/c' });
+    expect(repositoryMock.insertSessionMaterialSystem).toHaveBeenLastCalledWith(expect.objectContaining({ batch_id: 'batch-c1-nov', live_session_id: 'session-3' }));
+  });
+
+  it('refuses a resource for a cohort that does not exist', async () => {
+    await expect(
+      addSessionMaterial({ batchId: 'batch-nope', liveSessionId: null, uploadedByTutorId: 'tutor-1', title: 'x', link: 'https://example.com' }),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    expect(repositoryMock.insertSessionMaterialSystem).not.toHaveBeenCalled();
+  });
+
+  it('a cohort sees its course library and its own resources, never another course\'s', async () => {
+    repositoryMock.selectSessionMaterialByIdSystem.mockImplementation(async (id: string) => (
+      id === 'lib' ? materialRow() : id === 'own' ? materialRow({ id: 'own', batch_id: 'batch-c1-nov' }) : id === 'other-cohort' ? materialRow({ id: 'other-cohort', batch_id: 'batch-c1-jan' }) : materialRow({ id: 'other-course', course_id: 'course-2' })
+    ));
+    expect(await isSessionMaterialVisibleToBatchSystem('lib', 'batch-c1-nov')).toBe(true);
+    expect(await isSessionMaterialVisibleToBatchSystem('lib', 'batch-c1-jan')).toBe(true);
+    expect(await isSessionMaterialVisibleToBatchSystem('own', 'batch-c1-nov')).toBe(true);
+    expect(await isSessionMaterialVisibleToBatchSystem('other-cohort', 'batch-c1-nov')).toBe(false);
+    expect(await isSessionMaterialVisibleToBatchSystem('other-course', 'batch-c1-nov')).toBe(false);
+    expect(await isSessionMaterialVisibleToBatchSystem('lib', 'batch-c2')).toBe(false);
+  });
+
+  it('lists what a cohort sees through the course, and nothing for an unknown cohort', async () => {
+    repositoryMock.selectSessionMaterialsVisibleToBatchSystem.mockResolvedValue([materialRow(), materialRow({ id: 'own', batch_id: 'batch-c1-nov' })]);
+    const rows = await getSessionMaterialsForBatchSystem('batch-c1-nov');
+    expect(rows.map((r) => r.scope)).toEqual(['course', 'cohort']);
+    expect(repositoryMock.selectSessionMaterialsVisibleToBatchSystem).toHaveBeenCalledWith('batch-c1-nov', 'course-1');
+    expect(await getSessionMaterialsForBatchSystem('batch-nope')).toEqual([]);
   });
 });

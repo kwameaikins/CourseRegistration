@@ -188,26 +188,56 @@ export async function deleteSessionMaterialSystem(id: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function selectSessionMaterialsForBatchSystem(
+// What a cohort sees (2026-09-19): its course's library (batch_id null)
+// plus anything shared with that cohort alone. Ordered so the course library
+// and cohort rows interleave by date, newest first.
+export async function selectSessionMaterialsVisibleToBatchSystem(
   batchId: string,
+  courseId: string,
 ): Promise<SessionMaterialRow[]> {
   const supabase = createSupabaseServiceRoleClient();
   const { data, error } = await supabase
     .from('session_materials')
     .select('*')
-    .eq('batch_id', batchId)
+    .eq('course_id', courseId)
+    .or(`batch_id.is.null,batch_id.eq.${batchId}`)
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data ?? [];
 }
 
+export async function updateSessionMaterialSystem(
+  id: string,
+  changes: Pick<Database['public']['Tables']['session_materials']['Update'], 'batch_id' | 'live_session_id'>,
+): Promise<SessionMaterialRow> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('session_materials')
+    .update(changes)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// The course a batch belongs to — read here rather than through
+// modules/courses, which imports this module (a cycle). Null for an unknown batch.
+export async function selectBatchCourseIdSystem(batchId: string): Promise<string | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase.from('batches').select('course_id').eq('id', batchId).maybeSingle();
+  if (error) throw error;
+  return data?.course_id ?? null;
+}
+
 // Staff-facing read (RLS enforces admin/management, same as /live-sessions).
-export async function selectSessionMaterialsForBatch(batchId: string): Promise<SessionMaterialRow[]> {
+export async function selectSessionMaterialsVisibleToBatch(batchId: string, courseId: string): Promise<SessionMaterialRow[]> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from('session_materials')
     .select('*')
-    .eq('batch_id', batchId)
+    .eq('course_id', courseId)
+    .or(`batch_id.is.null,batch_id.eq.${batchId}`)
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data ?? [];

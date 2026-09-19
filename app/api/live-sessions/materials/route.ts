@@ -35,6 +35,7 @@ export async function POST(request: Request) {
       const parsed = uploadSessionMaterialSchema.safeParse({
         batchId: formData.get('batchId') ?? undefined,
         liveSessionId: formData.get('liveSessionId') || undefined,
+        scope: formData.get('scope') || undefined,
         title: formData.get('title') ?? undefined,
       });
       if (!parsed.success) {
@@ -51,6 +52,7 @@ export async function POST(request: Request) {
       const material = await liveSessionsService.uploadSessionMaterialFileAsStaff({
         batchId: parsed.data.batchId,
         liveSessionId: parsed.data.liveSessionId ?? null,
+        scope: parsed.data.scope,
         title: parsed.data.title,
         file,
       });
@@ -68,6 +70,7 @@ export async function POST(request: Request) {
     const material = await liveSessionsService.addSessionMaterialAsStaff({
       batchId: parsed.data.batchId,
       liveSessionId: parsed.data.liveSessionId ?? null,
+      scope: parsed.data.scope,
       title: parsed.data.title,
       link: parsed.data.link,
     });

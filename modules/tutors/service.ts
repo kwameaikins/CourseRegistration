@@ -496,6 +496,7 @@ export async function addMaterialForBatch(
   const material = await liveSessionsService.addSessionMaterial({
     batchId: input.batchId,
     liveSessionId: input.liveSessionId ?? null,
+    scope: input.scope,
     uploadedByTutorId: tutorId,
     title: input.title,
     link: input.link,
@@ -528,6 +529,7 @@ export async function uploadMaterialForBatch(
   const material = await liveSessionsService.uploadSessionMaterialFile({
     batchId: input.batchId,
     liveSessionId: input.liveSessionId ?? null,
+    scope: input.scope,
     uploadedByTutorId: tutorId,
     title: input.title,
     file,
@@ -550,9 +552,18 @@ export async function getMaterialDownloadUrl(
   // Authorize BEFORE anything is signed (2026-08-13). This used to mint the
   // presigned URL first and then decide whether the caller was allowed it —
   // safe only because the throw came before the return.
-  const batchId = await liveSessionsService.getSessionMaterialBatchIdSystem(materialId);
-  const batch = await tutorsRepository.selectBatchForTutorSystem(batchId, tutorId);
-  if (!batch) throw new AppError('NOT_FOUND', 'Material not found.', 404);
+  const scope = await liveSessionsService.getSessionMaterialScopeSystem(materialId);
+  if (scope.batchId) {
+    const batch = await tutorsRepository.selectBatchForTutorSystem(scope.batchId, tutorId);
+    if (!batch) throw new AppError('NOT_FOUND', 'Material not found.', 404);
+  } else {
+    // A course-library resource (2026-09-19): visible to a tutor who teaches
+    // any cohort of that course.
+    const mine = await tutorsRepository.selectBatchesForTutorSystem(tutorId);
+    if (!mine.some((batch) => batch.course_id === scope.courseId)) {
+      throw new AppError('NOT_FOUND', 'Material not found.', 404);
+    }
+  }
   const material = await liveSessionsService.getSessionMaterialDownloadUrlSystem(materialId);
   return material.url;
 }

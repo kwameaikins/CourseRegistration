@@ -80,6 +80,7 @@ interface CertificateCandidate {
 interface MaterialEntry {
   id: string;
   title: string;
+  scope: 'course' | 'cohort';
   kind: 'link' | 'file';
   link: string | null;
   fileName: string | null;
@@ -228,6 +229,7 @@ export default function TutorPortalDashboardPage() {
 
   const [materialForm, setMaterialForm] = useState({ title: '', link: '' });
   const [materialMode, setMaterialMode] = useState<'link' | 'file'>('file');
+  const [materialScope, setMaterialScope] = useState<'course' | 'cohort'>('course');
   const [materialFile, setMaterialFile] = useState<File | null>(null);
   const [materialSaving, setMaterialSaving] = useState(false);
   const [materialError, setMaterialError] = useState<string | null>(null);
@@ -367,6 +369,7 @@ export default function TutorPortalDashboardPage() {
       if (materialMode === 'file' && materialFile) {
         const formData = new FormData();
         formData.append('batchId', selectedBatchId);
+        formData.append('scope', materialScope);
         formData.append('title', materialForm.title.trim());
         formData.append('file', materialFile);
         await apiFetch('/api/tutor-portal/materials', { method: 'POST', body: formData });
@@ -375,6 +378,7 @@ export default function TutorPortalDashboardPage() {
           method: 'POST',
           body: JSON.stringify({
             batchId: selectedBatchId,
+            scope: materialScope,
             title: materialForm.title.trim(),
             link: materialForm.link.trim(),
           }),
@@ -1033,6 +1037,19 @@ export default function TutorPortalDashboardPage() {
                           </div>
 
                           <div className="field">
+                            <label htmlFor="materialScope">Share with</label>
+                            <select
+                              id="materialScope"
+                              value={materialScope}
+                              onChange={(event) => setMaterialScope(event.target.value as 'course' | 'cohort')}
+                            >
+                              <option value="course">Every cohort of this course</option>
+                              <option value="cohort">This cohort only</option>
+                            </select>
+                            <p className="field-hint">Course resources are kept for the next cohort — nothing to upload twice.</p>
+                          </div>
+
+                          <div className="field">
                             <label htmlFor="materialMode">Share as</label>
                             <select
                               id="materialMode"
@@ -1112,6 +1129,7 @@ export default function TutorPortalDashboardPage() {
                                   </a>
                                 )}
                                 <span className="duration">
+                                  {material.scope === 'cohort' ? 'This cohort · ' : 'Course · '}
                                   {material.kind === 'file' && material.fileSizeBytes !== null && (
                                     <>{formatFileSize(material.fileSizeBytes)}{' · '}</>
                                   )}

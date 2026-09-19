@@ -11,6 +11,7 @@ import type {
   LiveSession,
   LiveSessionInput,
   LiveSessionStatus,
+  MaterialScope,
   LiveSessionUpdate,
   SessionMaterial,
 } from '@/modules/live-sessions/types';
@@ -274,7 +275,9 @@ function toSessionMaterial(
 ): SessionMaterial {
   return {
     id: row.id,
+    courseId: row.course_id,
     batchId: row.batch_id,
+    scope: row.batch_id ? 'cohort' : 'course',
     liveSessionId: row.live_session_id,
     uploadedByTutorId: row.uploaded_by_tutor_id,
     uploadedByStaffId: row.uploaded_by_staff_id,
@@ -288,17 +291,37 @@ function toSessionMaterial(
   };
 }
 
+// Where a new resource lives (2026-09-19). The caller names the cohort it is
+// working in; the default scope is the COURSE, so the next cohort inherits the
+// resource instead of somebody re-uploading it. A resource pinned to a live
+// session is that cohort's whatever was asked — a session is one cohort's
+// occurrence.
+async function resolveMaterialScope(input: {
+  batchId: string;
+  liveSessionId: string | null;
+  scope?: MaterialScope;
+}): Promise<{ course_id: string; batch_id: string | null }> {
+  const courseId = await liveSessionsRepository.selectBatchCourseIdSystem(input.batchId);
+  if (!courseId) {
+    throw new AppError('NOT_FOUND', 'That course intake does not exist.', 404);
+  }
+  const cohortOnly = input.scope === 'cohort' || input.liveSessionId !== null;
+  return { course_id: courseId, batch_id: cohortOnly ? input.batchId : null };
+}
+
 // Called only by modules/tutors, after it has verified the batch belongs
 // to the calling tutor's own session.
 export async function addSessionMaterial(input: {
   batchId: string;
   liveSessionId: string | null;
+  scope?: MaterialScope;
   uploadedByTutorId: string;
   title: string;
   link: string;
 }): Promise<SessionMaterial> {
+  const placed = await resolveMaterialScope(input);
   const row = await liveSessionsRepository.insertSessionMaterialSystem({
-    batch_id: input.batchId,
+    ...placed,
     live_session_id: input.liveSessionId,
     uploaded_by_tutor_id: input.uploadedByTutorId,
     title: input.title,
@@ -319,6 +342,7 @@ export async function addSessionMaterial(input: {
 export async function uploadSessionMaterialFile(input: {
   batchId: string;
   liveSessionId: string | null;
+  scope?: MaterialScope;
   uploadedByTutorId?: string;
   uploadedByStaffId?: string;
   title: string;
@@ -332,7 +356,10 @@ export async function uploadSessionMaterialFile(input: {
     );
   }
 
-  const filePath = learningResourceKey(input.batchId, input.file.extension);
+  const placed = await resolveMaterialScope(input);
+  // The key is filed under its owner: the course for a library resource, the
+  // cohort for a one-off — so an end-of-course listing finds everything.
+  const filePath = learningResourceKey(placed.batch_id ?? placed.course_id, input.file.extension);
   await r2Client.uploadObject({
     key: filePath,
     body: input.file.buffer,
@@ -340,7 +367,7 @@ export async function uploadSessionMaterialFile(input: {
   });
 
   const row = await liveSessionsRepository.insertSessionMaterialSystem({
-    batch_id: input.batchId,
+    ...placed,
     live_session_id: input.liveSessionId,
     uploaded_by_tutor_id: input.uploadedByTutorId ?? null,
     uploaded_by_staff_id: input.uploadedByStaffId ?? null,
@@ -364,12 +391,28 @@ export async function uploadSessionMaterialFile(input: {
 // returning), but "sign first, authorize second" is one stray log line or
 // refactor away from leaking, and the documented contract was unsatisfiable as
 // written. This makes it satisfiable.
-export async function getSessionMaterialBatchIdSystem(id: string): Promise<string> {
+export async function getSessionMaterialScopeSystem(
+  id: string,
+): Promise<{ courseId: string; batchId: string | null }> {
   const existing = await liveSessionsRepository.selectSessionMaterialByIdSystem(id);
   if (!existing) {
     throw new AppError('NOT_FOUND', 'Material not found.', 404);
   }
-  return existing.batch_id;
+  return { courseId: existing.course_id, batchId: existing.batch_id };
+}
+
+// The one visibility rule (2026-09-19), so the student and tutor portals
+// cannot drift: a cohort sees a resource when it is that cohort's own, or
+// when it is in the library of the cohort's course. Anything else reads as
+// 404 to the caller — never as a download.
+export async function isSessionMaterialVisibleToBatchSystem(
+  materialId: string,
+  batchId: string,
+): Promise<boolean> {
+  const scope = await getSessionMaterialScopeSystem(materialId);
+  if (scope.batchId) return scope.batchId === batchId;
+  const courseId = await liveSessionsRepository.selectBatchCourseIdSystem(batchId);
+  return courseId !== null && courseId === scope.courseId;
 }
 
 // Short-lived presigned GET URL for a file-backed material, same pattern as
@@ -379,7 +422,7 @@ export async function getSessionMaterialBatchIdSystem(id: string): Promise<strin
 // key, it has no session context of its own.
 export async function getSessionMaterialDownloadUrlSystem(
   id: string,
-): Promise<{ url: string; batchId: string; fileName: string }> {
+): Promise<{ url: string; batchId: string | null; courseId: string; fileName: string }> {
   const existing = await liveSessionsRepository.selectSessionMaterialByIdSystem(id);
   if (!existing || !existing.file_path) {
     throw new AppError('NOT_FOUND', 'Material not found.', 404);
@@ -388,7 +431,7 @@ export async function getSessionMaterialDownloadUrlSystem(
     throw new AppError('VALIDATION_ERROR', 'File downloads are not available right now.', 400);
   }
   const url = await r2Client.getSignedDownloadUrl(existing.file_path);
-  return { url, batchId: existing.batch_id, fileName: existing.file_name ?? 'download' };
+  return { url, batchId: existing.batch_id, courseId: existing.course_id, fileName: existing.file_name ?? 'download' };
 }
 
 // Only the uploading tutor may remove their own material. Staff removal goes
@@ -421,15 +464,50 @@ export async function removeSessionMaterialAsStaff(id: string): Promise<void> {
 // Used by the tutor portal and the student portal — both non-staff
 // contexts, hence the service-role-backed system read.
 export async function getSessionMaterialsForBatchSystem(batchId: string): Promise<SessionMaterial[]> {
-  const rows = await liveSessionsRepository.selectSessionMaterialsForBatchSystem(batchId);
+  const courseId = await liveSessionsRepository.selectBatchCourseIdSystem(batchId);
+  if (!courseId) return [];
+  const rows = await liveSessionsRepository.selectSessionMaterialsVisibleToBatchSystem(batchId, courseId);
   return rows.map(toSessionMaterial);
 }
 
 // Staff-facing read (RLS enforces admin/management, matching /live-sessions).
 export async function getSessionMaterialsForBatch(batchId: string): Promise<SessionMaterial[]> {
   await usersService.requireRole(['admin', 'management']);
-  const rows = await liveSessionsRepository.selectSessionMaterialsForBatch(batchId);
+  const courseId = await liveSessionsRepository.selectBatchCourseIdSystem(batchId);
+  if (!courseId) return [];
+  const rows = await liveSessionsRepository.selectSessionMaterialsVisibleToBatch(batchId, courseId);
   return rows.map(toSessionMaterial);
+}
+
+// Staff moves a resource into the course library (every cohort sees it) or
+// back to one cohort. Moving to a cohort needs that cohort to be of the
+// resource's own course; a resource pinned to a live session stays with it.
+export async function setSessionMaterialScopeAsStaff(
+  id: string,
+  scope: MaterialScope,
+  batchId?: string,
+): Promise<SessionMaterial> {
+  await usersService.requireRole(['admin']);
+  const existing = await liveSessionsRepository.selectSessionMaterialByIdSystem(id);
+  if (!existing) {
+    throw new AppError('NOT_FOUND', 'Material not found.', 404);
+  }
+  if (scope === 'course') {
+    if (existing.live_session_id) {
+      throw new AppError('VALIDATION_ERROR', 'A resource pinned to a live session belongs to that cohort.', 400);
+    }
+    const row = await liveSessionsRepository.updateSessionMaterialSystem(id, { batch_id: null });
+    return toSessionMaterial(row);
+  }
+  if (!batchId) {
+    throw new AppError('VALIDATION_ERROR', 'Choose the cohort this resource is for.', 400);
+  }
+  const courseId = await liveSessionsRepository.selectBatchCourseIdSystem(batchId);
+  if (courseId !== existing.course_id) {
+    throw new AppError('VALIDATION_ERROR', 'That cohort is not one of this course.', 400);
+  }
+  const row = await liveSessionsRepository.updateSessionMaterialSystem(id, { batch_id: batchId });
+  return toSessionMaterial(row);
 }
 
 // --- Staff-authored materials (founder-requested 2026-08-04: "tutors or
@@ -440,12 +518,14 @@ export async function getSessionMaterialsForBatch(batchId: string): Promise<Sess
 export async function addSessionMaterialAsStaff(input: {
   batchId: string;
   liveSessionId: string | null;
+  scope?: MaterialScope;
   title: string;
   link: string;
 }): Promise<SessionMaterial> {
   const staffUser = await usersService.requireRole(['admin']);
+  const placed = await resolveMaterialScope(input);
   const row = await liveSessionsRepository.insertSessionMaterialSystem({
-    batch_id: input.batchId,
+    ...placed,
     live_session_id: input.liveSessionId,
     uploaded_by_staff_id: staffUser.id,
     title: input.title,
@@ -457,6 +537,7 @@ export async function addSessionMaterialAsStaff(input: {
 export async function uploadSessionMaterialFileAsStaff(input: {
   batchId: string;
   liveSessionId: string | null;
+  scope?: MaterialScope;
   title: string;
   file: ParsedUpload;
 }): Promise<SessionMaterial> {

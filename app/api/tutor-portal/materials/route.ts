@@ -25,6 +25,7 @@ export async function POST(request: Request) {
       const parsed = uploadTutorSessionMaterialSchema.safeParse({
         batchId: formData.get('batchId') ?? undefined,
         liveSessionId: formData.get('liveSessionId') || undefined,
+        scope: formData.get('scope') || undefined,
         title: formData.get('title') ?? undefined,
       });
       if (!parsed.success) {

@@ -43,7 +43,7 @@ const certificatesServiceMock = {
 const liveSessionsServiceMock = {
   addSessionMaterial: vi.fn(),
   uploadSessionMaterialFile: vi.fn(),
-  getSessionMaterialBatchIdSystem: vi.fn(),
+  getSessionMaterialScopeSystem: vi.fn(),
   getSessionMaterialDownloadUrlSystem: vi.fn(),
   removeSessionMaterial: vi.fn(),
   getSessionMaterialsForBatchSystem: vi.fn(),
@@ -503,7 +503,7 @@ describe('batch-scoped reads reject a batch that does not belong to the calling 
     await expect(
       uploadMaterialForBatch(
         'session-1',
-        { batchId: 'batch-not-mine', title: 'Slides' },
+        { batchId: 'batch-not-mine', scope: 'course', title: 'Slides' },
         {
           buffer: Buffer.from('x'),
           contentType: 'application/pdf',
@@ -517,13 +517,30 @@ describe('batch-scoped reads reject a batch that does not belong to the calling 
   });
 
   it('getMaterialDownloadUrl rejects a material belonging to another tutor’s batch', async () => {
-    liveSessionsServiceMock.getSessionMaterialBatchIdSystem.mockResolvedValue('batch-not-mine');
+    liveSessionsServiceMock.getSessionMaterialScopeSystem.mockResolvedValue({ batchId: 'batch-not-mine', courseId: 'course-1' });
     tutorsRepositoryMock.selectBatchForTutorSystem.mockResolvedValue(null);
     await expect(getMaterialDownloadUrl('session-1', 'material-1')).rejects.toMatchObject({
       code: 'NOT_FOUND',
     });
     // Authorization now precedes signing (2026-08-13): a refused request must
     // never have caused a presigned URL to exist in the first place.
+    expect(liveSessionsServiceMock.getSessionMaterialDownloadUrlSystem).not.toHaveBeenCalled();
+  });
+
+  // Course-library resources (2026-09-19): a tutor who teaches any cohort of
+  // the course may download them; a tutor of another course may not.
+  it('getMaterialDownloadUrl allows a course-library resource to a tutor of that course', async () => {
+    liveSessionsServiceMock.getSessionMaterialScopeSystem.mockResolvedValue({ batchId: null, courseId: 'course-1' });
+    tutorsRepositoryMock.selectBatchesForTutorSystem.mockResolvedValue([{ id: 'batch-1', course_id: 'course-1' }]);
+    liveSessionsServiceMock.getSessionMaterialDownloadUrlSystem.mockResolvedValue({ url: 'https://r2/signed', batchId: null, courseId: 'course-1', fileName: 'x.pdf' });
+    await expect(getMaterialDownloadUrl('session-1', 'material-1')).resolves.toBe('https://r2/signed');
+    expect(tutorsRepositoryMock.selectBatchForTutorSystem).not.toHaveBeenCalled();
+  });
+
+  it('getMaterialDownloadUrl refuses a course-library resource of a course this tutor does not teach', async () => {
+    liveSessionsServiceMock.getSessionMaterialScopeSystem.mockResolvedValue({ batchId: null, courseId: 'course-9' });
+    tutorsRepositoryMock.selectBatchesForTutorSystem.mockResolvedValue([{ id: 'batch-1', course_id: 'course-1' }]);
+    await expect(getMaterialDownloadUrl('session-1', 'material-1')).rejects.toMatchObject({ code: 'NOT_FOUND' });
     expect(liveSessionsServiceMock.getSessionMaterialDownloadUrlSystem).not.toHaveBeenCalled();
   });
 
@@ -759,7 +776,7 @@ describe('Session Materials (Tutor Portal Phase 4)', () => {
   it('addMaterialForBatch rejects a batch that does not belong to the calling tutor', async () => {
     tutorsRepositoryMock.selectBatchForTutorSystem.mockResolvedValue(null);
     await expect(
-      addMaterialForBatch('session-1', { batchId: 'batch-not-mine', title: 'Slides', link: 'https://example.com/x' }),
+      addMaterialForBatch('session-1', { batchId: 'batch-not-mine', scope: 'course', title: 'Slides', link: 'https://example.com/x' }),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
     expect(liveSessionsServiceMock.addSessionMaterial).not.toHaveBeenCalled();
   });
@@ -768,6 +785,7 @@ describe('Session Materials (Tutor Portal Phase 4)', () => {
     liveSessionsServiceMock.addSessionMaterial.mockResolvedValue({ id: 'mat-1' });
     await addMaterialForBatch('session-1', {
       batchId: 'batch-1',
+      scope: 'course',
       title: 'Session 3 slides',
       link: 'https://example.com/slides',
     });
@@ -775,6 +793,7 @@ describe('Session Materials (Tutor Portal Phase 4)', () => {
     expect(liveSessionsServiceMock.addSessionMaterial).toHaveBeenCalledWith({
       batchId: 'batch-1',
       liveSessionId: null,
+      scope: 'course',
       uploadedByTutorId: 'tutor-1',
       title: 'Session 3 slides',
       link: 'https://example.com/slides',

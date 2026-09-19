@@ -25,7 +25,7 @@ const assignmentsServiceMock = {
 };
 const liveSessionsServiceMock = {
   getSessionMaterialsForBatchSystem: vi.fn(),
-  getSessionMaterialBatchIdSystem: vi.fn(),
+  isSessionMaterialVisibleToBatchSystem: vi.fn(),
   getSessionMaterialDownloadUrlSystem: vi.fn(),
 };
 
@@ -187,7 +187,7 @@ describe('getMySubmissionDownloadUrl', () => {
 
 describe('getMaterialDownloadUrl', () => {
   it('refuses a material from another cohort even for an owned registration', async () => {
-    liveSessionsServiceMock.getSessionMaterialBatchIdSystem.mockResolvedValue('batch-other');
+    liveSessionsServiceMock.isSessionMaterialVisibleToBatchSystem.mockResolvedValue(false);
     await expect(
       getMaterialDownloadUrl('session-1', 'reg-mine', 'material-1'),
     ).rejects.toMatchObject({ code: 'NOT_FOUND' });
@@ -197,14 +197,19 @@ describe('getMaterialDownloadUrl', () => {
   });
 
   it('returns the signed URL for a material on the registration’s own batch', async () => {
-    liveSessionsServiceMock.getSessionMaterialBatchIdSystem.mockResolvedValue('batch-1');
+    liveSessionsServiceMock.isSessionMaterialVisibleToBatchSystem.mockResolvedValue(true);
     liveSessionsServiceMock.getSessionMaterialDownloadUrlSystem.mockResolvedValue({
       url: 'https://r2.example/signed',
       batchId: 'batch-1',
+      courseId: 'course-1',
       fileName: 'slides.pdf',
     });
+    // The visibility rule is the live-sessions module's (2026-09-19): the
+    // portal asks it for THIS registration's batch and never compares ids itself.
+    expect(liveSessionsServiceMock.isSessionMaterialVisibleToBatchSystem).not.toHaveBeenCalled();
     await expect(getMaterialDownloadUrl('session-1', 'reg-mine', 'material-1')).resolves.toBe(
       'https://r2.example/signed',
     );
+    expect(liveSessionsServiceMock.isSessionMaterialVisibleToBatchSystem).toHaveBeenCalledWith('material-1', 'batch-1');
   });
 });

@@ -442,8 +442,9 @@ export async function getPortalDashboard(sessionId: string | undefined): Promise
             row.course?.zoom_link ??
             null)
           : null,
+      // The cohort's own folder, else the course's default (2026-09-19).
       resourcesLink: accessStates.get(row.registration.id)?.hasAccess
-        ? (row.batch?.resources_link ?? null)
+        ? (row.batch?.resources_link ?? row.course?.resources_link ?? null)
         : null,
       accessExpiresOn: accessStates.get(row.registration.id)?.until ?? null,
       // Free event / webinar: nothing was ever owed, so the portal hides the
@@ -893,8 +894,8 @@ export async function getMaterialDownloadUrl(
   // Authorize BEFORE anything is signed (2026-08-13) — same reordering as the
   // tutor portal's equivalent. Resolving the owning batch first means a
   // presigned URL is never created for a material this session cannot have.
-  const materialBatchId = await liveSessionsService.getSessionMaterialBatchIdSystem(materialId);
-  if (materialBatchId !== match.batch.id) {
+  // The course library counts as this cohort's (2026-09-19); anything else is 404.
+  if (!(await liveSessionsService.isSessionMaterialVisibleToBatchSystem(materialId, match.batch.id))) {
     throw new AppError('NOT_FOUND', 'Material not found.', 404);
   }
   const material = await liveSessionsService.getSessionMaterialDownloadUrlSystem(materialId);

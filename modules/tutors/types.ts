@@ -141,6 +141,8 @@ export type FlagAttendanceExceptionInput = z.infer<typeof flagAttendanceExceptio
 export const addTutorSessionMaterialSchema = z.object({
   batchId: z.uuid(),
   liveSessionId: z.uuid().nullable().optional(),
+  // 'course' (default): every cohort of the course sees it; 'cohort': this one only (2026-09-19).
+  scope: z.enum(['course', 'cohort']).default('course'),
   title: z.string().trim().min(2).max(200),
   link: z.url().max(2000),
 });
@@ -151,6 +153,7 @@ export type AddTutorSessionMaterialInput = z.infer<typeof addTutorSessionMateria
 export const uploadTutorSessionMaterialSchema = z.object({
   batchId: z.uuid(),
   liveSessionId: z.uuid().nullable().optional(),
+  scope: z.enum(['course', 'cohort']).default('course'),
   title: z.string().trim().min(2).max(200),
 });
 export type UploadTutorSessionMaterialInput = z.infer<typeof uploadTutorSessionMaterialSchema>;

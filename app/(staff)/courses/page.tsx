@@ -23,6 +23,7 @@ interface Course {
   // every Batch inherits this at creation time.
   zoomLink: string | null;
   zoomMeetingId: string | null;
+  resourcesLink: string | null;
 }
 
 const EMPTY_COURSE_FORM = {
@@ -33,6 +34,7 @@ const EMPTY_COURSE_FORM = {
   cpdCredit: 'TBD',
   zoomLink: '',
   zoomMeetingId: '',
+  resourcesLink: '',
 };
 
 interface Batch {
@@ -210,6 +212,7 @@ export default function CourseControlPanelPage() {
       cpdCredit: course.cpdCredit || 'TBD',
       zoomLink: course.zoomLink ?? '',
       zoomMeetingId: course.zoomMeetingId ?? '',
+      resourcesLink: course.resourcesLink ?? '',
     });
   }
 
@@ -226,6 +229,7 @@ export default function CourseControlPanelPage() {
           cpdCredit: editCourseForm.cpdCredit || 'TBD',
           zoomLink: editCourseForm.zoomLink || null,
           zoomMeetingId: editCourseForm.zoomMeetingId || null,
+          resourcesLink: editCourseForm.resourcesLink || null,
         }),
       });
       setEditingCourseId(null);
@@ -593,6 +597,21 @@ export default function CourseControlPanelPage() {
                         }
                       />
                     </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`edit-resourcesLink-${course.id}`}>
+                        Resources folder{' '}
+                        <span className="text-muted-foreground">(every cohort inherits it; a cohort can override)</span>
+                      </Label>
+                      <Input
+                        id={`edit-resourcesLink-${course.id}`}
+                        type="url"
+                        placeholder="https://drive.google.com/…"
+                        value={editCourseForm.resourcesLink}
+                        onChange={(event) =>
+                          setEditCourseForm({ ...editCourseForm, resourcesLink: event.target.value })
+                        }
+                      />
+                    </div>
                     <div className="col-span-2 flex gap-2">
                       <Button type="submit" disabled={saving}>
                         {saving ? 'Saving…' : 'Save Course'}
@@ -808,7 +827,7 @@ export default function CourseControlPanelPage() {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor={`edit-resourcesLink-${batch.id}`}>
-                          Resources Link <span className="text-muted-foreground">(optional)</span>
+                          Resources Link <span className="text-muted-foreground">(optional — leave empty to use the course&apos;s folder)</span>
                         </Label>
                         <Input
                           id={`edit-resourcesLink-${batch.id}`}

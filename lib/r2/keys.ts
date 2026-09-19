@@ -60,10 +60,12 @@ export function paymentSlipKey(registrationId: string, extension: string): strin
 }
 
 /** Tutor- or staff-uploaded learning resource for one batch (modules/live-sessions). */
-export function learningResourceKey(batchId: string, extension: string): string {
+// `ownerId` is the course id for a course-library resource (2026-09-19) or the
+// batch id for a cohort-only one — `materials/<owner>/<uuid>.<ext>`.
+export function learningResourceKey(ownerId: string, extension: string): string {
   return [
     R2_PREFIXES.learningResource,
-    assertKeySegment(batchId, 'batchId'),
+    assertKeySegment(ownerId, 'ownerId'),
     `${crypto.randomUUID()}.${assertKeySegment(extension, 'extension')}`,
   ].join('/');
 }

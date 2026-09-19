@@ -78,9 +78,18 @@ export type LiveSessionUpdate = z.infer<typeof liveSessionUpdateSchema>;
 // DB enforces it (chk_session_materials_link_xor_file, migration
 // 202608040049). `kind` is the discriminator the UI switches on so it never
 // has to null-check its way to the same conclusion.
+// Scope (2026-09-19; founder: materials were per cohort, so every cohort meant
+// re-uploading the same files). A resource belongs to the COURSE: `scope:
+// 'course'` (batchId null) is the course library every cohort sees;
+// `'cohort'` (batchId set) is one cohort's alone — a session recording, a
+// one-off handout.
+export type MaterialScope = 'course' | 'cohort';
+
 export interface SessionMaterial {
   id: string;
-  batchId: string;
+  courseId: string;
+  batchId: string | null;
+  scope: MaterialScope;
   liveSessionId: string | null;
   uploadedByTutorId: string | null;
   uploadedByStaffId: string | null;
@@ -96,9 +105,12 @@ export interface SessionMaterial {
   createdAt: string;
 }
 
+export const materialScopeSchema = z.enum(['course', 'cohort']).default('course');
+
 export const addSessionMaterialSchema = z.object({
   batchId: z.uuid(),
   liveSessionId: z.uuid().nullable().optional(),
+  scope: materialScopeSchema,
   title: z.string().trim().min(2).max(200),
   link: z.url().max(2000),
 });
@@ -109,6 +121,13 @@ export type AddSessionMaterialInput = z.infer<typeof addSessionMaterialSchema>;
 export const uploadSessionMaterialSchema = z.object({
   batchId: z.uuid(),
   liveSessionId: z.uuid().nullable().optional(),
+  scope: materialScopeSchema,
   title: z.string().trim().min(2).max(200),
+});
+
+// Staff moves a resource between the course library and one cohort.
+export const setMaterialScopeSchema = z.object({
+  scope: z.enum(['course', 'cohort']),
+  batchId: z.uuid().optional(),
 });
 export type UploadSessionMaterialInput = z.infer<typeof uploadSessionMaterialSchema>;

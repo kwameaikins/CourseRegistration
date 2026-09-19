@@ -1409,6 +1409,7 @@ export type Database = {
       }
       courses: {
         Row: {
+          resources_link: string | null
           certificate_description: string
           certificate_hours: number
           certificate_serial_floor: number
@@ -1422,6 +1423,7 @@ export type Database = {
           zoom_meeting_id: string | null
         }
         Insert: {
+          resources_link?: string | null
           certificate_description?: string
           certificate_hours?: number
           certificate_serial_floor?: number
@@ -1435,6 +1437,7 @@ export type Database = {
           zoom_meeting_id?: string | null
         }
         Update: {
+          resources_link?: string | null
           certificate_description?: string
           certificate_hours?: number
           certificate_serial_floor?: number
@@ -3580,7 +3583,8 @@ export type Database = {
       }
       session_materials: {
         Row: {
-          batch_id: string
+          batch_id: string | null
+          course_id: string
           content_type: string | null
           created_at: string
           file_name: string | null
@@ -3594,7 +3598,8 @@ export type Database = {
           uploaded_by_tutor_id: string | null
         }
         Insert: {
-          batch_id: string
+          batch_id?: string | null
+          course_id: string
           content_type?: string | null
           created_at?: string
           file_name?: string | null
@@ -3608,7 +3613,8 @@ export type Database = {
           uploaded_by_tutor_id?: string | null
         }
         Update: {
-          batch_id?: string
+          batch_id?: string | null
+          course_id?: string
           content_type?: string | null
           created_at?: string
           file_name?: string | null

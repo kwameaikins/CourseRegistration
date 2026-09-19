@@ -19,6 +19,9 @@ export interface Course {
   // manual fallback if auto-create failed or wasn't configured yet.
   zoomLink: string | null;
   zoomMeetingId: string | null;
+  // Default materials folder every cohort inherits (2026-09-19);
+  // Batch.resourcesLink overrides it for one cohort.
+  resourcesLink: string | null;
   createdAt: string;
 }
 
@@ -137,6 +140,7 @@ export const courseUpdateSchema = z.object({
   // Manual fallback/override for the auto-created course meeting.
   zoomLink: httpsUrl,
   zoomMeetingId: zoomMeetingIdField,
+  resourcesLink: httpsUrl,
 });
 
 export type CourseUpdate = z.infer<typeof courseUpdateSchema>;

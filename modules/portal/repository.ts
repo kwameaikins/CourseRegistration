@@ -416,7 +416,7 @@ export async function selectPortalDashboardData(participantId: string): Promise<
     batch: Database['public']['Tables']['batches']['Row'] | null;
     // zoom_link is the Course's shared classroom meeting — the fallback for a
     // Batch whose own zoom_link is null. See the service's zoomLink chain.
-    course: { course_name: string; course_code: string; zoom_link: string | null } | null;
+    course: { course_name: string; course_code: string; zoom_link: string | null; resources_link: string | null } | null;
     payment: Database['public']['Tables']['payments']['Row'] | null;
     zoomRegistrant: { join_url: string } | null;
     attendance: Array<{
@@ -485,7 +485,7 @@ export async function selectPortalDashboardData(participantId: string): Promise<
   const courseIds = [...new Set(batchesResult.data.map((b) => b.course_id))];
   const { data: courses, error: coursesError } = await supabase
     .from('courses')
-    .select('id, course_name, course_code, zoom_link')
+    .select('id, course_name, course_code, zoom_link, resources_link')
     .in('id', courseIds);
   if (coursesError) throw coursesError;
 
@@ -507,6 +507,7 @@ export async function selectPortalDashboardData(participantId: string): Promise<
               course_name: course.course_name,
               course_code: course.course_code,
               zoom_link: course.zoom_link,
+              resources_link: course.resources_link,
             }
           : null,
         payment: paymentByRegId.get(registration.id) ?? null,

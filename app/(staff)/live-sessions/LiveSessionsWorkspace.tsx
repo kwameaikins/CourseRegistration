@@ -41,6 +41,8 @@ type TutorOption = { id: string; fullName: string };
 type MaterialOption = {
   id: string;
   title: string;
+  // 'course' = the course library, seen by every cohort; 'cohort' = this one only (2026-09-19).
+  scope: 'course' | 'cohort';
   kind: 'link' | 'file';
   link: string | null;
   fileName: string | null;
@@ -122,6 +124,7 @@ export function LiveSessionsWorkspace({
   // the service's role gate.
   const [materialTitle, setMaterialTitle] = useState('');
   const [materialMode, setMaterialMode] = useState<'file' | 'link'>('file');
+  const [materialScope, setMaterialScope] = useState<'course' | 'cohort'>('course');
   const [materialLink, setMaterialLink] = useState('');
   const [materialFile, setMaterialFile] = useState<File | null>(null);
   const [materialSaving, setMaterialSaving] = useState(false);
@@ -243,6 +246,7 @@ export function LiveSessionsWorkspace({
       if (materialMode === 'file' && materialFile) {
         const formData = new FormData();
         formData.append('batchId', materialsBatchId);
+        formData.append('scope', materialScope);
         formData.append('title', materialTitle.trim());
         formData.append('file', materialFile);
         await apiFetch('/api/live-sessions/materials', { method: 'POST', body: formData });
@@ -251,6 +255,7 @@ export function LiveSessionsWorkspace({
           method: 'POST',
           body: JSON.stringify({
             batchId: materialsBatchId,
+            scope: materialScope,
             title: materialTitle.trim(),
             link: materialLink.trim(),
           }),
@@ -280,6 +285,20 @@ export function LiveSessionsWorkspace({
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Could not open that file.');
+    }
+  }
+
+  // Move a cohort-only resource into the course library so the next cohort
+  // inherits it, or a library one back to this cohort.
+  async function moveMaterial(id: string, scope: 'course' | 'cohort') {
+    try {
+      await apiFetch(`/api/live-sessions/materials/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(scope === 'course' ? { scope } : { scope, batchId: materialsBatchId }),
+      });
+      reloadMaterials();
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Could not move the resource.');
     }
   }
 
@@ -575,8 +594,8 @@ export function LiveSessionsWorkspace({
               ))}
             </select>
             <p className="text-xs text-muted-foreground">
-              Resources can be added to any course, whether or not it has scheduled live
-              sessions. Students see them in their portal under the course.
+              A resource belongs to the course: every cohort sees it, so nothing is uploaded
+              twice. Share with one cohort only for a session recording or a one-off handout.
             </p>
           </div>
 
@@ -590,6 +609,18 @@ export function LiveSessionsWorkspace({
                   onChange={(event) => setMaterialTitle(event.target.value)}
                   placeholder="e.g. Slides — Session 3"
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="materialScope">Share with</Label>
+                <select
+                  id="materialScope"
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value={materialScope}
+                  onChange={(event) => setMaterialScope(event.target.value as 'course' | 'cohort')}
+                >
+                  <option value="course">Every cohort of this course</option>
+                  <option value="cohort">This cohort only</option>
+                </select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="materialMode">Share as</Label>
@@ -644,7 +675,7 @@ export function LiveSessionsWorkspace({
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : materials.length === 0 ? (
             materialsBatchId && (
-              <p className="text-sm text-muted-foreground">Nothing shared yet for this batch.</p>
+              <p className="text-sm text-muted-foreground">Nothing in this course&apos;s library yet.</p>
             )
           ) : (
             <ul className="space-y-1 text-sm">
@@ -658,8 +689,18 @@ export function LiveSessionsWorkspace({
                     {material.title}
                   </button>
                   <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="rounded bg-muted px-1.5 py-0.5">{material.scope === 'course' ? 'Course library' : 'This cohort'}</span>
                     {material.kind === 'file' ? 'File' : 'Link'}
                     <span>{formatDate(material.createdAt)}</span>
+                    {canManage && (
+                      <button
+                        type="button"
+                        className="underline"
+                        onClick={() => void moveMaterial(material.id, material.scope === 'course' ? 'cohort' : 'course')}
+                      >
+                        {material.scope === 'course' ? 'This cohort only' : 'Move to course library'}
+                      </button>
+                    )}
                     {canManage && (
                       <button
                         type="button"

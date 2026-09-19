@@ -21,7 +21,7 @@ describe('R2 key layout', () => {
     expect(key.split('/')).toHaveLength(3);
   });
 
-  it('files a learning resource under materials/<batchId>/', () => {
+  it('files a learning resource under materials/<owner>/ (a course or a batch)', () => {
     const key = learningResourceKey('batch-1', 'pptx');
     expect(key.startsWith('materials/batch-1/')).toBe(true);
     expect(key.split('/')).toHaveLength(3);

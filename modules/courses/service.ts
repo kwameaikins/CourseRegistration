@@ -52,6 +52,7 @@ function toCourse(row: Database['public']['Tables']['courses']['Row']): Course {
     certificateSerialFloor: row.certificate_serial_floor,
     zoomLink: row.zoom_link,
     zoomMeetingId: row.zoom_meeting_id,
+    resourcesLink: row.resources_link ?? null,
     createdAt: row.created_at,
   };
 }
@@ -169,6 +170,7 @@ export async function updateCourse(courseId: string, changes: CourseUpdate): Pro
     ...(changes.cpdCredit !== undefined && { cpd_credit: changes.cpdCredit }),
     ...(changes.zoomLink !== undefined && { zoom_link: changes.zoomLink }),
     ...(changes.zoomMeetingId !== undefined && { zoom_meeting_id: changes.zoomMeetingId }),
+    ...(changes.resourcesLink !== undefined && { resources_link: changes.resourcesLink }),
   });
   return toCourse(row);
 }
