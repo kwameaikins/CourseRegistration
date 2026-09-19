@@ -96,6 +96,13 @@ export async function runPaidTransitionSideEffects(
       console.error('[payment_confirmation partner commission accrual]', err);
     }
   }
+  // Knowsia Core (Phase 4 R3): the payment on the cross-product ledger. Paid
+  // path only — a free seat is not revenue. Non-blocking like everything here.
+  try {
+    await knowsiaAppService.raisePaymentSettledToCoreSystem(registrationId);
+  } catch (err) {
+    console.error('[core payment settled]', err);
+  }
   try {
     await communicationsService.sendEmailOnce(registrationId, 'payment_confirmation');
   } catch (err) {

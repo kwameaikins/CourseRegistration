@@ -11,6 +11,8 @@
 // deploy order forgiving — this code can ship before KnowsiaApp is live.
 import { AppError, captureToSentry } from '@/lib/errors';
 import { reportConversionToCore } from '@/lib/knowsia-core/leads';
+import { isCoreEventsConfigured, raisePaymentSettledToCore } from '@/lib/knowsia-core/events';
+import { batchSkuCode } from '@/lib/knowsia-core/catalogue';
 import * as knowsiaAppRepository from '@/modules/knowsia-app/repository';
 import * as usersService from '@/modules/users/service';
 
@@ -130,6 +132,29 @@ export type QuestionBankGrantOutcome =
 // Knowsia Core Leads & CRM (Doc 23 §5): a paid seat is a sale, so the person's
 // lead over there — if they ever enquired — converts and the opportunity is
 // won. Nobody types it. Best effort; never fails the payment.
+// Knowsia Core Analytics (Phase 4 R3): the settled payment as a ledger row,
+// keyed by this registration + the payment event that settled it. The
+// amount is the payment EVENT's (what just landed), not the running total.
+export async function raisePaymentSettledToCoreSystem(registrationId: string): Promise<boolean> {
+  if (!isCoreEventsConfigured()) return false;
+  const context = await knowsiaAppRepository.selectPaymentSettledContextSystem(registrationId);
+  if (!context || context.participantDeleted || !context.latestEvent) return false;
+  const out = await raisePaymentSettledToCore({
+    registrationId,
+    paymentEventId: context.latestEvent.id,
+    transactionId: context.latestEvent.transactionId,
+    amountMinor: Math.round(context.latestEvent.amount * 100),
+    currency: 'GHS',
+    email: context.participantEmail,
+    participantId: context.participantId,
+    skuCode: batchSkuCode(context.courseCode, context.cohortLabel),
+    organisationRef: context.companyId,
+    occurredAt: context.latestEvent.recordedAt,
+    source: context.latestEvent.source,
+  });
+  return Boolean(out?.accepted);
+}
+
 export async function reportPaidSeatToCoreSystem(
   registrationId: string,
   amountPaid?: number,

@@ -1622,6 +1622,61 @@
         "title": "ServiceEnquiry",
         "type": "object"
       },
+      "ServiceEvent": {
+        "properties": {
+          "actor_ref": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Ref"
+          },
+          "event_type": {
+            "pattern": "^(PAYMENT_SETTLED|PAYMENT_REFUNDED|REGISTRATION_CREATED|SEAT_GRANTED)$",
+            "title": "Event Type",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "occurred_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurred At"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "product": {
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product",
+          "event_type",
+          "idempotency_key"
+        ],
+        "title": "ServiceEvent",
+        "type": "object"
+      },
       "ServiceMember": {
         "properties": {
           "email": {
@@ -2708,6 +2763,49 @@
         "summary": "Service Upsert Sku",
         "tags": [
           "service-catalogue"
+        ]
+      }
+    },
+    "/api/v1/service/events": {
+      "post": {
+        "operationId": "service_record_event_api_v1_service_events_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceEvent"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Record Event Api V1 Service Events Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Record Event",
+        "tags": [
+          "service-events"
         ]
       }
     },

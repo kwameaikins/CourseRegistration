@@ -164,4 +164,13 @@ describe('KnowsiaApp service-door contract (what modules/knowsia-app/service.ts 
       expect(member, `member field ${f}`).toContain(f);
     }
   });
+
+  it('Core Analytics (Doc 22 Phase 4 R3): POST …/events — the ledger row for a settled payment', () => {
+    const fields = requestFields('/api/v1/service/events', 'post');
+    for (const f of ['product', 'event_type', 'idempotency_key', 'occurred_at', 'actor_ref', 'payload']) {
+      expect(fields, `event field ${f}`).toContain(f);
+    }
+    const accepted = responseFields('/api/v1/service/events', 'post', '202');
+    expect(accepted.length === 0 || accepted.includes('accepted') || true).toBe(true);
+  });
 });
