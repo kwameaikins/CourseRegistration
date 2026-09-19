@@ -14,6 +14,7 @@ import * as waitlistService from '@/modules/waitlist/service';
 // only asks for them to be generated.
 import * as liveSessionsService from '@/modules/live-sessions/service';
 import * as usersService from '@/modules/users/service';
+import { upsertBatchSkuToCore } from '@/lib/knowsia-core/catalogue';
 import {
   createBatchClassroomMeeting,
   createZoomMeeting,
@@ -269,7 +270,11 @@ export async function createBatch(input: BatchInput): Promise<Batch> {
     console.error('[batch session generation]', err);
   }
 
-  return toBatch(row);
+  // Knowsia Core (Phase 4): the batch is a SKU in the shared catalogue, its
+  // early-bird price a rule. Best effort; this app's fee stays authoritative.
+  const created = toBatch(row);
+  if (course) void upsertBatchSkuToCore(created, { courseCode: course.course_code, courseName: course.course_name });
+  return created;
 }
 
 // Deliberately NOT role-gated here, unlike the other Batch writes above.
@@ -324,6 +329,12 @@ export async function updateBatch(batchId: string, changes: BatchUpdate): Promis
     ...(changes.discountedFee !== undefined && { discounted_fee: changes.discountedFee }),
   });
   const batch = toBatch(row);
+
+  // Knowsia Core (Phase 4): keep the SKU and its early-bird rule in step.
+  void (async () => {
+    const course = await coursesRepository.selectCourseByIdSystem(batch.courseId);
+    if (course) await upsertBatchSkuToCore(batch, { courseCode: course.course_code, courseName: course.course_name });
+  })().catch((err) => console.error('[core batch sku]', err));
 
   // Flipping an existing Batch to free needs the same free_welcome backfill
   // as createBatch — see the comment there.

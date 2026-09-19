@@ -9,6 +9,7 @@ import * as usersService from '@/modules/users/service';
 // into courses for a read-only batch/course lookup (e.g. modules/payments,
 // modules/registrations).
 import * as coursesService from '@/modules/courses/service';
+import { upsertCodeDiscountToCore } from '@/lib/knowsia-core/catalogue';
 import type {
   Code,
   CodePreview,
@@ -280,7 +281,16 @@ export async function createCode(input: CreateCodeInput): Promise<Code> {
   const staffUser = await usersService.requireRole([...STAFF_MANAGE_ROLES]);
   try {
     const row = await partnersRepository.insertCode(input, staffUser.id);
-    return toCode(row);
+    const created = toCode(row);
+    // Knowsia Core (Phase 4): a code that carries a discount is a Core coupon
+    // (attribution itself is Release 4's). Best effort.
+    if (created.discountType && created.discountValue) {
+      void (async () => {
+        const course = created.appliesToCourseId ? await coursesService.getCourseByIdSystem(created.appliesToCourseId) : null;
+        await upsertCodeDiscountToCore(created, course?.courseCode ?? null);
+      })().catch((err) => console.error('[core code discount]', err));
+    }
+    return created;
   } catch (err) {
     if (isUniqueViolation(err)) {
       throw new AppError('DUPLICATE_CODE', 'That code is already in use.', 409);

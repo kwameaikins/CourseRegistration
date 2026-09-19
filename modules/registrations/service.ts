@@ -82,6 +82,7 @@ import type { Attribution } from '@/lib/attribution';
 // owns win-back nurture; this module only signals the lapse moment,
 // fail-soft, after the write commits.
 import * as sequencesService from '@/modules/sequences/service';
+import { forwardCouponRedemptionToCore, shadowQuote } from '@/lib/knowsia-core/catalogue';
 
 function isUniqueViolation(err: unknown): boolean {
   return (
@@ -320,6 +321,16 @@ export async function createRegistration(
     } catch (err) {
       console.error('[registration code redemption]', err);
     }
+    // Knowsia Core (Phase 4): a discount given is a redemption in Core's
+    // ledger too. Only when the code moved the price; attribution is Release 4.
+    if (discountAmountApplied > 0) {
+      void forwardCouponRedemptionToCore({
+        code: attributionCode as string,
+        participantId: participant.id,
+        registrationId: registration.id,
+        discountGhs: discountAmountApplied,
+      });
+    }
   }
 
   // The coupon is only consumed when it actually won the price comparison —
@@ -338,6 +349,26 @@ export async function createRegistration(
     } catch (err) {
       console.error('[registration coupon redemption]', err);
     }
+    void forwardCouponRedemptionToCore({
+      code: couponPreview.code as string,
+      participantId: participant.id,
+      registrationId: registration.id,
+      discountGhs: couponDiscountApplied,
+    });
+  }
+
+  // Knowsia Core (Phase 4): ask what Core would have charged and report any
+  // disagreement — the measurement that lets checkout move in Phase 5.
+  // Never awaited on the student's path; runs only with CORE_QUOTE_SHADOW=1.
+  if (course) {
+    void shadowQuote({
+      courseCode: course.courseCode,
+      cohortLabel: batch.cohortLabel,
+      couponCode: (couponPreview?.valid ? couponPreview.code : null) ?? (codePreview ? attributionCode : null),
+      participantId: participant.id,
+      chargedGhs: courseFee,
+      registrationId: registration.id,
+    });
   }
 
   let createdLeadId: string | null = null;

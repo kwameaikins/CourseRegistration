@@ -26,7 +26,7 @@ function resolve(schema: Schema | undefined): Schema {
   return schema;
 }
 
-function requestFields(routePath: string, method: 'post' | 'get'): string[] {
+function requestFields(routePath: string, method: 'post' | 'get' | 'put'): string[] {
   const op = contract.paths[routePath]?.[method];
   expect(op, `${method.toUpperCase()} ${routePath} is missing from the contract`).toBeDefined();
   const body = op?.requestBody?.content?.['application/json']?.schema;
@@ -123,5 +123,25 @@ describe('KnowsiaApp service-door contract (what modules/knowsia-app/service.ts 
     for (const f of ['product', 'email', 'kind', 'amount', 'currency', 'source_ref']) {
       expect(conv, `converted field ${f}`).toContain(f);
     }
+  });
+
+  it('Core Catalogue & pricing (Doc 22 Phase 4): PUT …/catalogue/skus, PUT …/coupons, POST …/coupons/redemptions, POST …/quote', () => {
+    const sku = requestFields('/api/v1/service/catalogue/skus', 'put');
+    for (const f of ['product', 'kind', 'code', 'name', 'price_minor', 'currency', 'pricing', 'external_ref', 'tax_treatment', 'valid_to', 'active', 'rules']) {
+      expect(sku, `sku field ${f}`).toContain(f);
+    }
+    const coupon = requestFields('/api/v1/service/catalogue/coupons', 'put');
+    for (const f of ['code', 'name', 'discount_type', 'discount_value', 'product_scope', 'applies_to', 'max_uses', 'one_per_subject', 'starts_at', 'expires_at', 'is_active', 'external_ref']) {
+      expect(coupon, `coupon field ${f}`).toContain(f);
+    }
+    const redemption = requestFields('/api/v1/service/catalogue/coupons/redemptions', 'post');
+    for (const f of ['code', 'product', 'subject_type', 'subject_id', 'reference', 'discount_minor', 'stage', 'applied_by', 'external_ref']) {
+      expect(redemption, `redemption field ${f}`).toContain(f);
+    }
+    const quote = requestFields('/api/v1/service/catalogue/quote', 'post');
+    for (const f of ['product', 'sku_code', 'qty', 'coupon_code', 'subject_type', 'subject_id']) {
+      expect(quote, `quote field ${f}`).toContain(f);
+    }
+    expect(contract.paths['/api/v1/service/catalogue/fx']?.get, 'GET fx is missing').toBeDefined();
   });
 });

@@ -1287,6 +1287,108 @@
         "title": "SendMessageRequest",
         "type": "object"
       },
+      "ServiceCoupon": {
+        "properties": {
+          "applies_to": {
+            "additionalProperties": true,
+            "title": "Applies To",
+            "type": "object"
+          },
+          "code": {
+            "maxLength": 40,
+            "minLength": 2,
+            "title": "Code",
+            "type": "string"
+          },
+          "discount_type": {
+            "pattern": "^(percentage|fixed_amount)$",
+            "title": "Discount Type",
+            "type": "string"
+          },
+          "discount_value": {
+            "exclusiveMinimum": 0.0,
+            "title": "Discount Value",
+            "type": "number"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "external_ref": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "External Ref",
+            "type": "string"
+          },
+          "is_active": {
+            "default": true,
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "max_uses": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Uses"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "one_per_subject": {
+            "default": true,
+            "title": "One Per Subject",
+            "type": "boolean"
+          },
+          "product_scope": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Product Scope",
+            "type": "array"
+          },
+          "starts_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Starts At"
+          }
+        },
+        "required": [
+          "code",
+          "discount_type",
+          "discount_value",
+          "external_ref"
+        ],
+        "title": "ServiceCoupon",
+        "type": "object"
+      },
       "ServiceEnquiry": {
         "properties": {
           "acknowledge": {
@@ -1408,6 +1510,272 @@
           "email"
         ],
         "title": "ServiceEnquiry",
+        "type": "object"
+      },
+      "ServiceQuote": {
+        "properties": {
+          "coupon_code": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coupon Code"
+          },
+          "currency": {
+            "default": "GHS",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "type": "string"
+          },
+          "product": {
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          },
+          "qty": {
+            "default": 1,
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Qty",
+            "type": "integer"
+          },
+          "sku_code": {
+            "maxLength": 80,
+            "minLength": 2,
+            "title": "Sku Code",
+            "type": "string"
+          },
+          "subject_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Id"
+          },
+          "subject_type": {
+            "anyOf": [
+              {
+                "pattern": "^(user|participant)$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Type"
+          },
+          "unit_price_minor": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Price Minor"
+          }
+        },
+        "required": [
+          "product",
+          "sku_code"
+        ],
+        "title": "ServiceQuote",
+        "type": "object"
+      },
+      "ServiceRedemption": {
+        "properties": {
+          "applied_by": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applied By"
+          },
+          "code": {
+            "maxLength": 40,
+            "minLength": 2,
+            "title": "Code",
+            "type": "string"
+          },
+          "discount_minor": {
+            "minimum": 0.0,
+            "title": "Discount Minor",
+            "type": "integer"
+          },
+          "external_ref": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Ref"
+          },
+          "product": {
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          },
+          "reference": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Reference",
+            "type": "string"
+          },
+          "stage": {
+            "default": "registration",
+            "pattern": "^(registration|checkout|staff)$",
+            "title": "Stage",
+            "type": "string"
+          },
+          "subject_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Subject Id",
+            "type": "string"
+          },
+          "subject_type": {
+            "pattern": "^(user|participant)$",
+            "title": "Subject Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "product",
+          "subject_type",
+          "subject_id",
+          "reference",
+          "discount_minor"
+        ],
+        "title": "ServiceRedemption",
+        "type": "object"
+      },
+      "ServiceSku": {
+        "properties": {
+          "active": {
+            "default": true,
+            "title": "Active",
+            "type": "boolean"
+          },
+          "code": {
+            "maxLength": 80,
+            "minLength": 2,
+            "pattern": "^[a-z0-9][a-z0-9._-]*$",
+            "title": "Code",
+            "type": "string"
+          },
+          "currency": {
+            "default": "GHS",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "type": "string"
+          },
+          "external_ref": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Ref"
+          },
+          "kind": {
+            "pattern": "^(plan|credit_pack|cohort_seat|corporate_seat|course|tuition|webinar)$",
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "price_minor": {
+            "minimum": 0.0,
+            "title": "Price Minor",
+            "type": "integer"
+          },
+          "pricing": {
+            "additionalProperties": true,
+            "title": "Pricing",
+            "type": "object"
+          },
+          "product": {
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          },
+          "rules": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Rules",
+            "type": "array"
+          },
+          "tax_treatment": {
+            "default": "none",
+            "pattern": "^(none|inclusive|exclusive)$",
+            "title": "Tax Treatment",
+            "type": "string"
+          },
+          "valid_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid From"
+          },
+          "valid_to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid To"
+          }
+        },
+        "required": [
+          "product",
+          "kind",
+          "code",
+          "name",
+          "price_minor"
+        ],
+        "title": "ServiceSku",
         "type": "object"
       },
       "StoreFileRequest": {
@@ -1845,6 +2213,229 @@
         "summary": "Revoke Question Bank Access",
         "tags": [
           "service-auth"
+        ]
+      }
+    },
+    "/api/v1/service/catalogue/coupons": {
+      "put": {
+        "operationId": "service_upsert_coupon_api_v1_service_catalogue_coupons_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceCoupon"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Upsert Coupon Api V1 Service Catalogue Coupons Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Upsert Coupon",
+        "tags": [
+          "service-catalogue"
+        ]
+      }
+    },
+    "/api/v1/service/catalogue/coupons/redemptions": {
+      "post": {
+        "operationId": "service_redeem_coupon_api_v1_service_catalogue_coupons_redemptions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceRedemption"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Redeem Coupon Api V1 Service Catalogue Coupons Redemptions Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Redeem Coupon",
+        "tags": [
+          "service-catalogue"
+        ]
+      }
+    },
+    "/api/v1/service/catalogue/fx": {
+      "get": {
+        "operationId": "service_fx_api_v1_service_catalogue_fx_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "quote",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Quote"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Fx Api V1 Service Catalogue Fx Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Fx",
+        "tags": [
+          "service-catalogue"
+        ]
+      }
+    },
+    "/api/v1/service/catalogue/quote": {
+      "post": {
+        "operationId": "service_quote_api_v1_service_catalogue_quote_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceQuote"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Quote Api V1 Service Catalogue Quote Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Quote",
+        "tags": [
+          "service-catalogue"
+        ]
+      }
+    },
+    "/api/v1/service/catalogue/skus": {
+      "put": {
+        "operationId": "service_upsert_sku_api_v1_service_catalogue_skus_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceSku"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Upsert Sku Api V1 Service Catalogue Skus Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Upsert Sku",
+        "tags": [
+          "service-catalogue"
         ]
       }
     },

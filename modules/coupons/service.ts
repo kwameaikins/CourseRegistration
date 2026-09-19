@@ -19,6 +19,7 @@ import type {
   UpdateCouponInput,
 } from '@/modules/coupons/types';
 import * as usersService from '@/modules/users/service';
+import { upsertCouponToCore } from '@/lib/knowsia-core/catalogue';
 
 const COUPON_MANAGE_ROLES = ['admin', 'marketing'] as const;
 const COUPON_READ_ROLES = ['admin', 'marketing', 'finance'] as const;
@@ -196,7 +197,9 @@ export async function createCoupon(input: CreateCouponInput): Promise<Coupon> {
   const staffUser = await usersService.requireRole([...COUPON_MANAGE_ROLES]);
   try {
     const row = await couponsRepository.insertCoupon(input, staffUser.id);
-    return toCoupon(row);
+    const coupon = toCoupon(row);
+    void mirrorToCore(coupon);
+    return coupon;
   } catch (err) {
     if (isUniqueViolation(err)) {
       throw new AppError('DUPLICATE_COUPON', 'That code is already in use.', 409);
@@ -211,7 +214,21 @@ export async function updateCoupon(
 ): Promise<Coupon> {
   await usersService.requireRole([...COUPON_MANAGE_ROLES]);
   const row = await couponsRepository.updateCouponById(couponId, changes);
-  return toCoupon(row);
+  const coupon = toCoupon(row);
+  void mirrorToCore(coupon);
+  return coupon;
+}
+
+// Knowsia Core (Phase 4): the coupon is a Core coupon too, scoped to the
+// course's cohorts when it is course-scoped. Best effort; this app's
+// previewCoupon still decides the price until Phase 5.
+async function mirrorToCore(coupon: Coupon): Promise<void> {
+  try {
+    const course = coupon.appliesToCourseId ? await coursesService.getCourseByIdSystem(coupon.appliesToCourseId) : null;
+    await upsertCouponToCore(coupon, course?.courseCode ?? null);
+  } catch (err) {
+    console.error('[core coupon]', err);
+  }
 }
 
 function isUniqueViolation(err: unknown): boolean {
