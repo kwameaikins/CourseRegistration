@@ -140,6 +140,16 @@ Conversion from `PAYMENT_SETTLED` (outbox) and this app's paid transition. Doors
 `POST /api/v1/leads/enquire` (honeypot, rate limit, attribution) for the study landing page;
 `POST /api/v1/service/leads` — this app's `/api/enquiries` forwards every enquiry.
 
+## 5a. Phase 3 released (2026-09-19)
+
+All four modules live on the study API the same day, one release each: Files (Railway
+`5ff4bb21`, platform 004), Communications (`f007e070`, 005), Support (`951c409a`, 006), Leads &
+CRM (`aecf73ec`, 007). This app is a caller over the service door for files, messages and leads;
+nothing of its own was deleted yet — Phase 7 retires the TypeScript modules once the Core record
+has carried live traffic. Still the founder's: the Arkesel / WhatsApp / Vapi keys and the Resend
+webhook secret on Railway (until then those channels record `skipped/not_configured`), and a
+Vapi server URL pointing at `/api/v1/webhooks/vapi`.
+
 ## 6. Not built, on purpose
 
 HubSpot (excluded by the founder). Email-to-ticket parsing (the inbox is info@ for now). Affiliates
