@@ -40,19 +40,43 @@ staff slip link comes from `GET …/files/{id}/link`. R2 stays as the fallback w
 unreachable, with Sentry on every fallback. Learning materials and assignment submissions follow
 in a later pass on the same door.
 
-## 3. Communications (next)
+## 3. Communications (built 2026-09-19)
 
 `core_messages` (one log, every channel: email|sms|whatsapp|voice|in_app; template + version;
-status queued→sent→delivered/opened/clicked/bounced/failed/skipped; idempotency key unique per
-channel), `core_message_templates` (key, channel, version; `{{var}}` with an unknown token an
-ERROR — never sent with a hole), `core_comm_preferences` (per person: marketing, per-channel,
-quiet hours), `core_suppressions` (bounce, complaint, unsubscribe, staff, invalid — fail-closed
-for marketing). Adapters for the four channels; unconfigured → the row says `skipped/not_configured`,
-never an exception at the caller. Dispatcher every minute with bounded retries; Resend and Vapi
-webhooks update the rows. **This side:** `lib/resend/client.ts`, `lib/arkesel/client.ts`,
-`lib/whatsapp/client.ts`, `lib/vapi/client.ts` call `POST /api/v1/service/messages` so Core's log
-is complete without rewriting the engines; `marketing_opt_outs` synced into `core_suppressions`;
-the unsubscribe route posts to Core too.
+recipient user|participant|lead|staff|address plus the Core identity when linked; status
+queued→sending→sent→delivered/opened/clicked/bounced/failed/skipped/cancelled; the provider's id;
+`idempotency_key` UNIQUE per channel), `core_message_templates` (key, channel, version; `{{var}}`
+with an unknown token an ERROR — never sent with a hole; a new version every save, the old one
+stays attached to what it sent), `core_comm_preferences` (per person, keyed `identity:<id>` or
+`email:`/`phone:<address>`: marketing, a switch per channel, quiet hours), `core_suppressions`
+(unsubscribe | bounce | complaint | staff | invalid; UNIQUE per channel + address).
+
+**The gates run at queue time and answer with a row that says why**, never an exception at the
+caller: `invalid_address`; `suppressed:<reason>` — marketing is stopped by any suppression,
+transactional/system by bounce, complaint or invalid, SECURITY mail (a password reset) only by
+invalid; `channel_off` / `marketing_off` from the person's own choices, which security mail
+ignores (nobody opts out of their own reset); marketing is moved past quiet hours; a call is held
+to the 10:00–18:00 UTC calling window. A channel with no key writes `skipped/not_configured`.
+Adapters: Resend, Arkesel, Meta WhatsApp (approved template + positional params), Vapi (the
+assistant lives in the dashboard; variables per call; `schedulePlan.earliestAt`); one Ghana-aware
+phone normaliser. A dispatcher tick every minute sends what is due (SKIP LOCKED, per-channel cap,
+three attempts with backoff); `immediate` sends before returning. Webhooks: `POST /api/v1/webhooks/
+resend` (Svix-signed; a bounce or complaint suppresses the address) and `POST /api/v1/webhooks/vapi`
+(end-of-call summary, transcript, outcome on the row). Every Study sender now goes through it.
+Admin `/admin/messages`; a student's choices as three sentences on `/account`; `/unsubscribe`.
+
+**This side:** `lib/knowsia-core/messages.ts` speaks the door. `lib/resend/client.ts`,
+`lib/arkesel/client.ts`, `lib/whatsapp/client.ts` and `lib/vapi/client.ts` send THROUGH
+`POST /api/v1/service/messages` first (product `registration`, `immediate: true`) so Core's log is
+complete without rewriting the engines; direct to the provider only when Core is not configured,
+unreachable, or answers `skipped/not_configured` for that channel (Sentry on every fallback). A
+refusal on the person's behalf — unsubscribed, bounced, channel off — raises
+`MessageSuppressedError` and is NOT retried direct: that is a decision, not an outage. Each client
+takes an optional `idempotencyKey`, `category`, `templateKey` and `recipient`, so an engine that
+already deduplicates (`email_log`) can pass its key through and a marketing send can say so.
+`marketingConsentService.optOut` also writes Core's suppression list;
+`scripts/sync-opt-outs-to-core.mjs` backfills the rows that exist. The Registration cron, Vercel
+and Cloudflare-worker schedulers are unchanged: Core holds the record, this app still decides when.
 
 ## 4. Support (next)
 

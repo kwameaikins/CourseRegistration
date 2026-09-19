@@ -970,7 +970,12 @@ Files → Communications → Support → Leads & CRM, one release each; this app
       (`lib/knowsia-core/files.ts`); `slip_file_path` = `core:<id>`; the staff slip link from
       `GET …/files/{id}/link`; R2 the fallback with Sentry on every fallback. Contract test covers
       the door. Materials and assignment submissions follow on the same door.
-- [ ] Communications: the four provider clients call `POST /api/v1/service/messages`; opt-outs synced
+- [x] **Communications** (2026-09-19): `lib/resend/client.ts`, `lib/arkesel/client.ts`,
+      `lib/whatsapp/client.ts`, `lib/vapi/client.ts` send through `POST /api/v1/service/messages`
+      (`lib/knowsia-core/messages.ts`) and direct to the provider only when Core cannot take it;
+      a refusal on the person's behalf raises `MessageSuppressedError`; `optOut` writes Core's
+      list; `scripts/sync-opt-outs-to-core.mjs` backfills. Contract test covers the door.
+      Coding Docs/05 §23
 - [ ] Support: none here to move (feedback stays); the unsubscribe/consent link posts to Core
 - [ ] Leads & CRM: `/api/enquiries` forwards to `POST /api/v1/service/leads`
 

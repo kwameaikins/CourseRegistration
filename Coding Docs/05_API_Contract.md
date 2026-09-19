@@ -684,3 +684,15 @@ Outbound only (`lib/knowsia-core/files.ts`, `X-Service-Key`): `POST {KNOWSIA_APP
 `{ url, expires_in_seconds }` (a CDN URL for a public file, a signed 15-minute path for a private one);
 `DELETE …/files/{id}`. Payment slips use it (`payment_submissions.slip_file_path = core:<id>`); R2 is the
 fallback when Core is unreachable, reported to Sentry. Asserted by `tests/unit/knowsia-core-contract.test.ts`.
+
+## 23. Knowsia Core Communications — this side (2026-09-19)
+
+Outbound only (`lib/knowsia-core/messages.ts`, `X-Service-Key`): `POST {KNOWSIA_APP_API_URL}/api/v1/service/messages`
+`{ product: 'registration', channel: email|sms|whatsapp|voice, category: transactional|marketing|security|system,
+to, idempotency_key, subject?, body?, template_key?, variables?, recipient_type?, recipient_id?, recipient_name?,
+from_address?, reply_to?, attachments?, scheduled_at?, correlation_id?, immediate }` → 201 the message record
+(`id`, `status`, `skip_reason`, `provider`, `provider_message_id`, `error`, `idempotency_key`, the timestamps).
+A repeated `idempotency_key` on a channel returns the existing row. `GET …/messages/by-key?channel=&idempotency_key=`
+reads one back. `POST …/messages/suppressions` `{ channel, address, reason, source, detail? }` adds an address to
+Core's do-not-contact list. The four provider clients call the first (direct provider as the fallback, never after
+a `skipped` that is not `not_configured`), `optOut` calls the third. Asserted by `tests/unit/knowsia-core-contract.test.ts`.
