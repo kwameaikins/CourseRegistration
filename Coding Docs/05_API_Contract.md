@@ -706,3 +706,20 @@ external_ref (this app's leads.id), tags, acknowledge }` → 201 the lead (`id`,
 `GET …/leads/by-email?email=&product=` reads one back. `POST …/leads/converted` `{ product, email, kind, amount,
 currency, source_ref (registration id), title? }` → `{ converted, opportunity_id }`. `createEnquiryLead` calls the
 first, `runPaidTransitionSideEffects` the third. Asserted by `tests/unit/knowsia-core-contract.test.ts`.
+
+## 25. Knowsia Core Catalogue & pricing — this side (2026-09-19)
+
+Outbound only (`lib/knowsia-core/catalogue.ts`, `X-Service-Key`). `PUT {KNOWSIA_APP_API_URL}/api/v1/service/catalogue/skus`
+`{ product: 'registration', kind: 'cohort_seat', code: 'cohort.<course>.<cohort>', name, price_minor, currency: 'GHS',
+pricing, external_ref (batch id), tax_treatment: 'none', valid_to, active, rules: [{ kind: 'early_bird', unit_price_minor,
+min_qty: 1, ends_at, external_ref }] }` → 200 the SKU (`id`, `code`, `price_minor`, `created`, `rules`); by (product, code),
+rules of the same shape replaced. `PUT …/catalogue/coupons` `{ code, name?, discount_type, discount_value, product_scope:
+['registration'], applies_to ({ code_prefixes } when course-scoped), max_uses, one_per_subject, starts_at?, expires_at,
+is_active, external_ref ('coupon:<id>' | 'code:<id>') }` → 200 (`id`, `code`, `created`); 409 when the code string belongs
+to another record. `POST …/catalogue/coupons/redemptions` `{ code, product, subject_type: 'participant', subject_id,
+reference (registration id), discount_minor, stage, applied_by?, external_ref? }` → 201 (`created` false on a repeat);
+404 when Core has no such coupon. `POST …/catalogue/quote` `{ product, sku_code, qty, coupon_code?, subject_type?,
+subject_id? }` → the priced quote (`total_minor`, `subtotal_minor`, `price_source`, `coupon`, `tax`, `display`); used
+only under `CORE_QUOTE_SHADOW=1`. `GET …/catalogue/fx?quote=` → `{ USD: { rate, rate_id, effective_date, source } }`.
+`createBatch` / `updateBatch` call the first, `createCoupon` / `updateCoupon` / `createCode` the second, the registration
+path the third and fourth. Asserted by `tests/unit/knowsia-core-contract.test.ts`; Coding Docs/24 §1.

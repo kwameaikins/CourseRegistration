@@ -985,6 +985,28 @@ Files → Communications → Support → Leads & CRM, one release each; this app
       over there. Own screens unchanged until Phase 7. Contract test covers the door. Coding
       Docs/23 §5, 05 §24
 
+## Knowsia Core Phase 4 — this side (from 2026-09-19; Coding Docs/24)
+
+Catalogue → Organisations → Analytics across products → Affiliates (attribution half), one release
+each. This app's price and commission accrual stay authoritative until Phases 5 and 6.
+
+- [x] **Catalogue & pricing** (2026-09-19): every batch is a `cohort_seat` SKU in Core
+      (`lib/knowsia-core/catalogue.ts` from `createBatch` / `updateBatch`, early-bird as a rule),
+      every coupon and discounting partner code a Core coupon, every price-changing redemption
+      forwarded from the registration path; `CORE_QUOTE_SHADOW=1` asks Core what it would have
+      charged and reports a disagreement to Sentry. `scripts/sync-catalogue-to-core.mjs` backfilled
+      11 batches, 6 coupons, 3 live codes, 14 redemptions; three retired codes superseded by coupons
+      of the same string are skipped (a code string is one thing in Core). Contract test covers the
+      five routes. Coding Docs/24 §1, 05 §25
+- [ ] **Organisations** — `forwardCompanyToCore`, `forwardSeatAllocationToCore`; nullable
+      `companies.core_organisation_id`, `company_batch_allocations.core_deal_id`; **fix**: an
+      employee registration from an allocation pays `price_per_seat`, not the batch fee.
+      Coding Docs/24 §2
+- [ ] **Analytics across products** — `raisePaymentSettledToCore` from the paid transition
+      (`POST /api/v1/service/events`), `scripts/backfill-payments-to-core.mjs`. Coding Docs/24 §3
+- [ ] **Affiliates, attribution half** — partners, codes, clicks and attributions forwarded;
+      `reportPaidSeatToCoreSystem` and `POST …/leads/converted` retired. Coding Docs/24 §4
+
 ---
 ## Risk watch (carried from `/docs/01_PRD.md` risk register)
 
