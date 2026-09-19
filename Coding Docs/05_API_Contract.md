@@ -737,3 +737,13 @@ unit_price_minor (price_per_seat × 100), currency: 'GHS', status, status_reason
 reason }` → 200 the deal; 404 when Core never saw the allocation. `PUT …/organisations/{org_id}/members` exists for a
 member list and is not called from here yet. `createCompany`, `createSeatAllocation` and `updateSeatAllocationStatus` call
 them. Asserted by `tests/unit/knowsia-core-contract.test.ts`; Coding Docs/24 §2.
+
+## 27. Knowsia Core Analytics — this side (2026-09-19)
+
+Outbound only (`lib/knowsia-core/events.ts`, `X-Service-Key`). `POST {KNOWSIA_APP_API_URL}/api/v1/service/events`
+`{ product: 'registration', event_type: 'PAYMENT_SETTLED', idempotency_key: 'registration:<registration id>:<transaction
+id ?? payment event id>', occurred_at (the event's recorded_at), actor_ref (participant id), payload: { amount_minor,
+currency: 'GHS', reference, email, participant_id, registration_id, sku_code, organisation_ref, source } }` → 202
+`{ accepted, duplicate, outbox_id }`; 422 when the payload cannot be reported (amount, currency, reference, email);
+a repeat of the same key answers `duplicate: true` and writes nothing. Raised from `runPaidTransitionSideEffects`
+(paid path only). Asserted by `tests/unit/knowsia-core-contract.test.ts`; Coding Docs/24 §3.

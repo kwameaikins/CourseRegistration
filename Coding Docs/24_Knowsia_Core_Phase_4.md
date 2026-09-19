@@ -71,7 +71,7 @@ jobs `core-catalogue:*`; then turn `CORE_QUOTE_SHADOW=1` on for a week and read 
 count — the expected sources of difference are rounding (`round2` here vs pesewa arithmetic there)
 and a coupon consumed here that Core's `one_per_subject` would have refused.
 
-## 2. Release 2 — Organisations (built 2026-09-19; released after Release 1's 24-hour watch)
+## 2. Release 2 — Organisations (released 2026-09-19)
 
 **What Core holds.** `core_organisations` — one per (product, external_ref): this app's `companies`
 row, and Study's retired `corp_groups` (copied in by platform 009 with `product = 'study'`, then
@@ -102,19 +102,33 @@ before 2026-09-19 from an allocation carry the batch fee on their payment row; t
 the allocation detail read from those rows, so a person should compare `amountInvoiced` with
 `seats_used × price_per_seat` on the live allocations before relying on either figure.
 
+**Released 2026-09-19** (Railway `5be9b09d`; `202609190071` pushed; `sync-companies-to-core.mjs` created 2 organisations and 1 deal).
+
 **Verification.** Over there `tests/platform/test_organisations.py` (9); the full suite 1454; migration 009
 proved on a throwaway database with a seeded `corp_groups` stub (the row became an organisation with its
 admin and member; the tables were gone; downgrade / upgrade round-trips). Here `corporate-service.test.ts`
 (+1) and the contract test pin the four routes; the full suite 1133.
 
-## 3. Release 3 — Analytics across products (planned)
+## 3. Release 3 — Analytics across products (released 2026-09-19)
 
-No new table. `POST /api/v1/service/events` — this app raises `PAYMENT_SETTLED` from
-`runPaidTransitionSideEffects` (paid path only), key `registration:<registration id>:<transaction id>`,
-payload `amount_minor, currency, reference, email, participant_id, registration_id, sku_code,
-organisation_ref, source`. The idempotency key is the door's key. Core's KPI page gains "By product";
-a non-GHS payment without an FX row is listed as unconverted, never invented.
-`scripts/backfill-payments-to-core.mjs` for paid `payment_events` since 2026-01-01.
+**What Core does.** Reads its own ledger (`core_events`) by product: revenue, payments, payers and new
+customers, with a payment in another currency counted only when an FX row converted it and otherwise
+LISTED, never invented. Study's ledger is reconciled with its payments table by a test. The KPI page
+over there shows "Where the money came from" — one card per product.
+
+**This side (`lib/knowsia-core/events.ts`).** `raisePaymentSettledToCoreSystem` runs in
+`runPaidTransitionSideEffects` (paid path only — a free seat is not revenue): `POST
+/api/v1/service/events` with `event_type: 'PAYMENT_SETTLED'`, key
+`registration:<registration id>:<transaction id ?? payment event id>`, payload `{amount_minor (the
+payment EVENT's amount, what just landed), currency: 'GHS', reference, email, participant_id,
+registration_id, sku_code (the batch's Release 1 code), organisation_ref (the company when the seat came
+from an allocation), source}`. The idempotency key is the door's key: a repeat answers `duplicate: true`.
+Core's CRM consumer converts this app's lead by email from the same row, so `reportPaidSeatToCoreSystem`
+(Release 1's Leads door) becomes redundant and is retired in Release 4.
+`scripts/backfill-payments-to-core.mjs` raised the 20 payment events since 2026-01-01 on release day
+(`--dry-run` first; re-runnable — the door answers `duplicate` for what is already there).
+
+**Released 2026-09-19** — Railway `d2858c09`; `core_alembic_version = 010_core_analytics`; contract §27.
 
 ## 4. Release 4 — Affiliates, attribution half (planned)
 

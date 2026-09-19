@@ -1026,7 +1026,7 @@ each. This app's price and commission accrual stay authoritative until Phases 5 
       11 batches, 6 coupons, 3 live codes, 14 redemptions; three retired codes superseded by coupons
       of the same string are skipped (a code string is one thing in Core). Contract test covers the
       five routes. Coding Docs/24 §1, 05 §25
-- [x] **Organisations** (built 2026-09-19; released after Release 1's watch): `forwardCompanyToCore`
+- [x] **Organisations** (released 2026-09-19 — Railway `5be9b09d`, `202609190071` pushed, 2 companies + 1 allocation synced): `forwardCompanyToCore`
       from `createCompany`, `forwardSeatAllocationToCore` from `createSeatAllocation` (the batch's
       SKU at the allocation's `price_per_seat`), `forwardAllocationStatusToCore`; the Core ids
       written back (`companies.core_organisation_id`, `company_batch_allocations.core_deal_id`,
@@ -1034,8 +1034,11 @@ each. This app's price and commission accrual stay authoritative until Phases 5 
       core.mjs`. **Fixed**: `addEmployeesToAllocation` charged the batch's public fee, not the
       allocation's `price_per_seat` (unit test). Contract test covers the door. Coding Docs/24 §2,
       05 §26. Commit `bdf9aec`
-- [ ] **Analytics across products** — `raisePaymentSettledToCore` from the paid transition
-      (`POST /api/v1/service/events`), `scripts/backfill-payments-to-core.mjs`. Coding Docs/24 §3
+- [x] **Analytics across products** (released 2026-09-19 — Railway `d2858c09`): `raisePaymentSettledToCoreSystem`
+      from the paid transition (`POST /api/v1/service/events`, keyed by registration + payment event; the
+      payment event's amount; the batch's SKU; the company for an allocation seat);
+      `scripts/backfill-payments-to-core.mjs` raised the 20 events since January. Contract test covers
+      the door. Coding Docs/24 §3, 05 §27
 - [ ] **Affiliates, attribution half** — partners, codes, clicks and attributions forwarded;
       `reportPaidSeatToCoreSystem` and `POST …/leads/converted` retired. Coding Docs/24 §4
 
