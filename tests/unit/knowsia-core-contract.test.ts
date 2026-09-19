@@ -144,4 +144,24 @@ describe('KnowsiaApp service-door contract (what modules/knowsia-app/service.ts 
     }
     expect(contract.paths['/api/v1/service/catalogue/fx']?.get, 'GET fx is missing').toBeDefined();
   });
+
+  it('Core Organisations (Doc 22 Phase 4 R2): PUT …/organisations, GET …/by-ref, PUT …/{org_id}/deals, POST …/deals/{external_ref}/status', () => {
+    const org = requestFields('/api/v1/service/organisations', 'put');
+    for (const f of ['product', 'external_ref', 'name', 'kind', 'tin', 'email', 'phone', 'billing_contact', 'address', 'notes']) {
+      expect(org, `organisation field ${f}`).toContain(f);
+    }
+    expect(contract.paths['/api/v1/service/organisations/by-ref']?.get, 'GET by-ref is missing').toBeDefined();
+    const deal = requestFields('/api/v1/service/organisations/{org_id}/deals', 'put');
+    for (const f of ['product', 'external_ref', 'sku_code', 'seats', 'unit_price_minor', 'currency', 'status', 'status_reason', 'notes']) {
+      expect(deal, `deal field ${f}`).toContain(f);
+    }
+    const status = requestFields('/api/v1/service/organisations/deals/{external_ref}/status', 'post');
+    for (const f of ['product', 'status', 'reason']) {
+      expect(status, `deal status field ${f}`).toContain(f);
+    }
+    const member = requestFields('/api/v1/service/organisations/{org_id}/members', 'put');
+    for (const f of ['product', 'email', 'full_name', 'role', 'external_ref']) {
+      expect(member, `member field ${f}`).toContain(f);
+    }
+  });
 });

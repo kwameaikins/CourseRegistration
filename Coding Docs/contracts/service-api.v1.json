@@ -1389,6 +1389,116 @@
         "title": "ServiceCoupon",
         "type": "object"
       },
+      "ServiceDeal": {
+        "properties": {
+          "currency": {
+            "default": "GHS",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "type": "string"
+          },
+          "external_ref": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "External Ref",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "product": {
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          },
+          "seats": {
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Seats",
+            "type": "integer"
+          },
+          "sku_code": {
+            "maxLength": 80,
+            "minLength": 2,
+            "title": "Sku Code",
+            "type": "string"
+          },
+          "status": {
+            "default": "active",
+            "pattern": "^(active|completed|cancelled)$",
+            "title": "Status",
+            "type": "string"
+          },
+          "status_reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Reason"
+          },
+          "unit_price_minor": {
+            "minimum": 0.0,
+            "title": "Unit Price Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "product",
+          "external_ref",
+          "sku_code",
+          "seats",
+          "unit_price_minor"
+        ],
+        "title": "ServiceDeal",
+        "type": "object"
+      },
+      "ServiceDealStatus": {
+        "properties": {
+          "product": {
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "status": {
+            "pattern": "^(active|completed|cancelled)$",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product",
+          "status"
+        ],
+        "title": "ServiceDealStatus",
+        "type": "object"
+      },
       "ServiceEnquiry": {
         "properties": {
           "acknowledge": {
@@ -1510,6 +1620,168 @@
           "email"
         ],
         "title": "ServiceEnquiry",
+        "type": "object"
+      },
+      "ServiceMember": {
+        "properties": {
+          "email": {
+            "maxLength": 255,
+            "minLength": 5,
+            "title": "Email",
+            "type": "string"
+          },
+          "external_ref": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Ref"
+          },
+          "full_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
+          "product": {
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          },
+          "role": {
+            "default": "member",
+            "pattern": "^(admin|member|billing)$",
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "product",
+          "email"
+        ],
+        "title": "ServiceMember",
+        "type": "object"
+      },
+      "ServiceOrganisation": {
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "billing_contact": {
+            "additionalProperties": true,
+            "title": "Billing Contact",
+            "type": "object"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "external_ref": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "External Ref",
+            "type": "string"
+          },
+          "kind": {
+            "default": "company",
+            "pattern": "^(company|institution|partner|government)$",
+            "title": "Kind",
+            "type": "string"
+          },
+          "legal_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Legal Name"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 2,
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "product": {
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          },
+          "tin": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tin"
+          }
+        },
+        "required": [
+          "product",
+          "external_ref",
+          "name"
+        ],
+        "title": "ServiceOrganisation",
         "type": "object"
       },
       "ServiceQuote": {
@@ -3001,6 +3273,264 @@
         "summary": "Service Suppress",
         "tags": [
           "service-messages"
+        ]
+      }
+    },
+    "/api/v1/service/organisations": {
+      "put": {
+        "operationId": "service_upsert_organisation_api_v1_service_organisations_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceOrganisation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Upsert Organisation Api V1 Service Organisations Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Upsert Organisation",
+        "tags": [
+          "service-organisations"
+        ]
+      }
+    },
+    "/api/v1/service/organisations/by-ref": {
+      "get": {
+        "operationId": "service_organisation_by_ref_api_v1_service_organisations_by_ref_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "product",
+            "required": true,
+            "schema": {
+              "title": "Product",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "external_ref",
+            "required": true,
+            "schema": {
+              "title": "External Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Organisation By Ref Api V1 Service Organisations By Ref Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Organisation By Ref",
+        "tags": [
+          "service-organisations"
+        ]
+      }
+    },
+    "/api/v1/service/organisations/deals/{external_ref}/status": {
+      "post": {
+        "operationId": "service_deal_status_api_v1_service_organisations_deals__external_ref__status_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "external_ref",
+            "required": true,
+            "schema": {
+              "title": "External Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceDealStatus"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Deal Status Api V1 Service Organisations Deals  External Ref  Status Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Deal Status",
+        "tags": [
+          "service-organisations"
+        ]
+      }
+    },
+    "/api/v1/service/organisations/{org_id}/deals": {
+      "put": {
+        "operationId": "service_upsert_deal_api_v1_service_organisations__org_id__deals_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "org_id",
+            "required": true,
+            "schema": {
+              "title": "Org Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceDeal"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Upsert Deal Api V1 Service Organisations  Org Id  Deals Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Upsert Deal",
+        "tags": [
+          "service-organisations"
+        ]
+      }
+    },
+    "/api/v1/service/organisations/{org_id}/members": {
+      "put": {
+        "operationId": "service_upsert_member_api_v1_service_organisations__org_id__members_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "org_id",
+            "required": true,
+            "schema": {
+              "title": "Org Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceMember"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Upsert Member Api V1 Service Organisations  Org Id  Members Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Upsert Member",
+        "tags": [
+          "service-organisations"
         ]
       }
     },

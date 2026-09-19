@@ -44,6 +44,12 @@ vi.mock('@/modules/corporate/repository', () => corporateRepositoryMock);
 vi.mock('@/modules/courses/service', () => coursesServiceMock);
 vi.mock('@/modules/users/service', () => usersServiceMock);
 vi.mock('@/modules/registrations/service', () => registrationsServiceMock);
+const coreOrganisationsMock = {
+  forwardCompanyToCore: vi.fn().mockResolvedValue(null),
+  forwardSeatAllocationToCore: vi.fn().mockResolvedValue(null),
+  forwardAllocationStatusToCore: vi.fn().mockResolvedValue(false),
+};
+vi.mock('@/lib/knowsia-core/organisations', () => coreOrganisationsMock);
 
 const {
   createCompany,
@@ -201,6 +207,23 @@ describe('addEmployeesToAllocation', () => {
     expect(coursesServiceMock.adjustBatchCapacityInternal).toHaveBeenCalledWith('batch-1', 1);
     // Fill events must never go through the audited/waitlist-notifying path.
     expect(coursesServiceMock.updateBatch).not.toHaveBeenCalled();
+  });
+
+  it('charges the employee the allocation price per seat, never the batch fee', async () => {
+    // Every corporate employee had been invoiced at the batch's public fee
+    // (Core Phase 4 R2, 2026-09-19). The allocation is the sale.
+    corporateRepositoryMock.selectAllocationByIdSystem.mockResolvedValue(allocationRow({ seats_purchased: 2, price_per_seat: 800 }));
+    coursesServiceMock.getBatchByIdSystem.mockResolvedValue({ id: 'batch-1', courseId: 'course-1', courseFee: 1500, isFree: false, cohortLabel: 'Nov 2026' });
+    await addEmployeesToAllocation('allocation-1', {
+      leadSource: 'Other',
+      paymentMethod: 'Bank Transfer',
+      rows: [row({ email: 'a@acme.com' })],
+    }, actor);
+    expect(registrationsServiceMock.createCorporateEmployeeRegistration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ courseFee: 800, isFree: false, companyAllocationId: 'allocation-1' }),
+      actor,
+    );
   });
 
   it('rejects rows beyond the purchased seat count as seats_exhausted', async () => {

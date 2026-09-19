@@ -213,6 +213,26 @@ export async function selectCompanyAuth(companyId: string): Promise<CompanyAdmin
   return data;
 }
 
+// Knowsia Core (Phase 4 R2): the Core id is a shared KEY written back once
+// the forwarder has answered — never a merge, and nothing reads it yet.
+export async function setCompanyCoreIdSystem(companyId: string, coreOrganisationId: string): Promise<void> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase
+    .from('companies')
+    .update({ core_organisation_id: coreOrganisationId })
+    .eq('id', companyId);
+  if (error) throw error;
+}
+
+export async function setAllocationCoreIdSystem(allocationId: string, coreDealId: string): Promise<void> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase
+    .from('company_batch_allocations')
+    .update({ core_deal_id: coreDealId })
+    .eq('id', allocationId);
+  if (error) throw error;
+}
+
 export async function insertCompanyAuthIfMissing(companyId: string, pinHash: string): Promise<void> {
   const supabase = createSupabaseServiceRoleClient();
   const { error } = await supabase

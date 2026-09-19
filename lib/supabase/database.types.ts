@@ -981,6 +981,7 @@ export type Database = {
       }
       companies: {
         Row: {
+          core_organisation_id: string | null
           billing_address: string | null
           billing_contact_name: string
           billing_email: string
@@ -994,6 +995,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          core_organisation_id?: string | null
           billing_address?: string | null
           billing_contact_name: string
           billing_email: string
@@ -1007,6 +1009,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          core_organisation_id?: string | null
           billing_address?: string | null
           billing_contact_name?: string
           billing_email?: string
@@ -1101,6 +1104,7 @@ export type Database = {
       }
       company_batch_allocations: {
         Row: {
+          core_deal_id: string | null
           batch_id: string
           company_id: string
           created_at: string
@@ -1114,6 +1118,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          core_deal_id?: string | null
           batch_id: string
           company_id: string
           created_at?: string
@@ -1127,6 +1132,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          core_deal_id?: string | null
           batch_id?: string
           company_id?: string
           created_at?: string

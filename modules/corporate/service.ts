@@ -7,6 +7,7 @@ import * as coursesService from '@/modules/courses/service';
 import * as usersService from '@/modules/users/service';
 import * as registrationsService from '@/modules/registrations/service';
 import { parsePaymentStatus } from '@/lib/domain/parsers';
+import { forwardAllocationStatusToCore, forwardCompanyToCore, forwardSeatAllocationToCore } from '@/lib/knowsia-core/organisations';
 import type {
   AddEmployeesInput,
   AddEmployeesResult,
@@ -75,7 +76,13 @@ export async function createCompany(input: CreateCompanyInput): Promise<Company>
     console.error('[corporate createCompany portal auth provision]', err);
   }
 
-  return toCompany(row);
+  // Knowsia Core (Phase 4 R2): Core holds the organisation record; this row
+  // keeps the Core id as a key. Best effort — Core down never costs a company.
+  const company = toCompany(row);
+  void forwardCompanyToCore(company)
+    .then((core) => (core ? corporateRepository.setCompanyCoreIdSystem(company.id, core.id) : undefined))
+    .catch((err) => console.error('[core organisation]', err));
+  return company;
 }
 
 export async function listCompanies(): Promise<Company[]> {
@@ -127,7 +134,16 @@ export async function createSeatAllocation(
   // A reservation failure must not silently lose the sale; surface it.
   await coursesService.adjustBatchCapacityInternal(input.batchId, -input.seatsPurchased);
 
-  return toAllocation(row);
+  // Knowsia Core (Phase 4 R2): the sale is a DEAL in Core — the batch's SKU
+  // at the allocation's own price per seat. The roster stays here.
+  const allocation = toAllocation(row);
+  void (async () => {
+    const course = await coursesService.getCourseByIdSystem(batch.courseId);
+    if (!course) return;
+    const deal = await forwardSeatAllocationToCore(allocation, toCompany(company), batch, course);
+    if (deal) await corporateRepository.setAllocationCoreIdSystem(allocation.id, deal.id);
+  })().catch((err) => console.error('[core deal]', err));
+  return allocation;
 }
 
 export async function getAllocationById(id: string): Promise<CompanyAllocationDetail> {
@@ -227,7 +243,10 @@ export async function addEmployeesToAllocation(
           batchId: row.batch_id,
           leadSource: input.leadSource,
           paymentMethod: input.paymentMethod,
-          courseFee: batch.courseFee,
+          // The seat was sold at the allocation's price, not the batch's
+          // public fee (found preparing Core Phase 4 R2, 2026-09-19: every
+          // corporate employee had been invoiced at the batch fee).
+          courseFee: batch.isFree ? 0 : Number(row.price_per_seat),
           isFree: batch.isFree,
           companyAllocationId: allocationId,
           companyName: company?.name ?? 'Corporate client',
@@ -299,6 +318,8 @@ export async function updateSeatAllocationStatus(
     status: input.status,
     status_reason: input.reason,
   });
+  // Knowsia Core (Phase 4 R2): the deal follows. Best effort.
+  void forwardAllocationStatusToCore(allocationId, input.status, input.reason);
   return toAllocation(updated);
 }
 
