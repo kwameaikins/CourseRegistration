@@ -5,6 +5,12 @@
 // vars: ARKESEL_API_KEY, ARKESEL_SENDER_ID (the sender ID must be registered
 // and approved in the Arkesel dashboard first). When they are unset (local
 // dev, pre-setup), isSmsConfigured() gates all sending.
+//
+// Since Doc 23 §3 (2026-09-19) a message goes THROUGH Knowsia Core first —
+// one log for both products, the person's channel choices honoured — and
+// direct to Arkesel only when Core cannot take it.
+import { coreHandledIt, coreRefusedIt, sendViaCore } from '@/lib/knowsia-core/messages';
+import { MessageSuppressedError } from '@/lib/resend/client';
 import { normalizeWhatsappPhone } from '@/lib/whatsapp/client';
 
 const ARKESEL_SEND_URL = 'https://sms.arkesel.com/api/v2/sms/send';
@@ -22,11 +28,29 @@ export function normalizeSmsPhone(rawPhone: string): string | null {
 export async function sendSmsMessage(params: {
   toPhone: string;
   message: string;
+  idempotencyKey?: string;
+  category?: 'transactional' | 'marketing' | 'system';
+  templateKey?: string;
+  recipient?: { type: 'participant' | 'lead' | 'staff'; id: string; name?: string | null };
 }): Promise<void> {
   const to = normalizeSmsPhone(params.toPhone);
   if (!to) {
     throw new Error(`Unusable SMS phone number: ${params.toPhone}`);
   }
+
+  const record = await sendViaCore({
+    channel: 'sms',
+    to,
+    category: params.category ?? 'transactional',
+    body: params.message,
+    templateKey: params.templateKey,
+    idempotencyKey: params.idempotencyKey,
+    recipientType: params.recipient?.type,
+    recipientId: params.recipient?.id,
+    recipientName: params.recipient?.name ?? null,
+  });
+  if (coreHandledIt(record)) return;
+  if (coreRefusedIt(record)) throw new MessageSuppressedError(record!.skip_reason ?? 'suppressed');
 
   const response = await fetch(ARKESEL_SEND_URL, {
     method: 'POST',

@@ -429,6 +429,140 @@
         "title": "LoginCheckResponse",
         "type": "object"
       },
+      "MessageRecord": {
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "clicked_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clicked At"
+          },
+          "delivered_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivered At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "opened_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opened At"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "provider_message_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Message Id"
+          },
+          "sent_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent At"
+          },
+          "skip_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skip Reason"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "to_address": {
+            "title": "To Address",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "channel",
+          "category",
+          "to_address",
+          "status",
+          "skip_reason",
+          "provider",
+          "provider_message_id",
+          "error",
+          "idempotency_key",
+          "sent_at",
+          "delivered_at",
+          "opened_at",
+          "clicked_at"
+        ],
+        "title": "MessageRecord",
+        "type": "object"
+      },
       "ParticipantEnrolmentSummary": {
         "properties": {
           "completed_at": {
@@ -833,6 +967,183 @@
         "title": "QuestionCreatePayload",
         "type": "object"
       },
+      "SendMessageRequest": {
+        "properties": {
+          "attachments": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attachments"
+          },
+          "body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body"
+          },
+          "category": {
+            "default": "transactional",
+            "pattern": "^(transactional|marketing|security|system)$",
+            "title": "Category",
+            "type": "string"
+          },
+          "channel": {
+            "pattern": "^(email|sms|whatsapp|voice)$",
+            "title": "Channel",
+            "type": "string"
+          },
+          "correlation_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correlation Id"
+          },
+          "from_address": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Address"
+          },
+          "idempotency_key": {
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "immediate": {
+            "default": false,
+            "title": "Immediate",
+            "type": "boolean"
+          },
+          "product": {
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          },
+          "recipient_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipient Id"
+          },
+          "recipient_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipient Name"
+          },
+          "recipient_type": {
+            "default": "address",
+            "pattern": "^(user|participant|lead|staff|address)$",
+            "title": "Recipient Type",
+            "type": "string"
+          },
+          "reply_to": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply To"
+          },
+          "scheduled_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduled At"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          },
+          "template_key": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template Key"
+          },
+          "to": {
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "To",
+            "type": "string"
+          },
+          "variables": {
+            "additionalProperties": true,
+            "title": "Variables",
+            "type": "object"
+          }
+        },
+        "required": [
+          "product",
+          "channel",
+          "to",
+          "idempotency_key"
+        ],
+        "title": "SendMessageRequest",
+        "type": "object"
+      },
       "StoreFileRequest": {
         "properties": {
           "content_base64": {
@@ -990,6 +1301,51 @@
           "url"
         ],
         "title": "StoredFile",
+        "type": "object"
+      },
+      "SuppressRequest": {
+        "properties": {
+          "address": {
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "Address",
+            "type": "string"
+          },
+          "channel": {
+            "pattern": "^(email|sms|whatsapp|voice)$",
+            "title": "Channel",
+            "type": "string"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "reason": {
+            "pattern": "^(unsubscribe|bounce|complaint|staff|invalid)$",
+            "title": "Reason",
+            "type": "string"
+          },
+          "source": {
+            "default": "registration",
+            "maxLength": 40,
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "address",
+          "reason"
+        ],
+        "title": "SuppressRequest",
         "type": "object"
       },
       "TopicScoreResponse": {
@@ -1517,6 +1873,141 @@
         "summary": "Import Section",
         "tags": [
           "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/messages": {
+      "post": {
+        "operationId": "service_send_message_api_v1_service_messages_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Send Message",
+        "tags": [
+          "service-messages"
+        ]
+      }
+    },
+    "/api/v1/service/messages/by-key": {
+      "get": {
+        "operationId": "service_message_by_key_api_v1_service_messages_by_key_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "title": "Channel",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "idempotency_key",
+            "required": true,
+            "schema": {
+              "title": "Idempotency Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Message By Key",
+        "tags": [
+          "service-messages"
+        ]
+      }
+    },
+    "/api/v1/service/messages/suppressions": {
+      "post": {
+        "operationId": "service_suppress_api_v1_service_messages_suppressions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuppressRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Suppress Api V1 Service Messages Suppressions Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Suppress",
+        "tags": [
+          "service-messages"
         ]
       }
     },

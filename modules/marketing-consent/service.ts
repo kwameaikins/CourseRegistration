@@ -6,6 +6,7 @@
 // reminders, certificates) are deliberately exempt — they are the service
 // someone registered for, not marketing, and suppressing them would harm the
 // very person the opt-out protects.
+import { suppressInCore } from '@/lib/knowsia-core/messages';
 import * as repository from '@/modules/marketing-consent/repository';
 
 function normalize(email: string): string {
@@ -27,4 +28,13 @@ export async function optOut(
   reason?: string | null,
 ): Promise<void> {
   await repository.upsertOptOut({ email: normalize(email), source, reason });
+  // Knowsia Core keeps the list every product's marketing checks (Doc 23 §3);
+  // this app's row is the local copy. Best effort — Core is told, not asked.
+  await suppressInCore({
+    channel: 'email',
+    address: normalize(email),
+    reason: source === 'bounce' ? 'bounce' : source === 'staff' ? 'staff' : 'unsubscribe',
+    source: `registration_${source}`,
+    detail: reason ?? null,
+  });
 }

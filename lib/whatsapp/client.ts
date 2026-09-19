@@ -4,6 +4,12 @@
 // the API sends a template name plus positional text parameters. Required
 // env vars: WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID. When they are
 // unset (local dev, pre-setup), isWhatsappConfigured() gates all sending.
+//
+// Since Doc 23 §3 (2026-09-19) a message goes THROUGH Knowsia Core first —
+// the template name is the log's `template_key`, the parameters travel as
+// `variables.params` — and direct to Meta only when Core cannot take it.
+import { coreHandledIt, coreRefusedIt, sendViaCore } from '@/lib/knowsia-core/messages';
+import { MessageSuppressedError } from '@/lib/resend/client';
 
 const GRAPH_API_VERSION = 'v20.0';
 
@@ -40,11 +46,29 @@ export async function sendWhatsappTemplateMessage(params: {
   toPhone: string;
   templateName: string;
   bodyParameters: string[];
+  idempotencyKey?: string;
+  category?: 'transactional' | 'marketing' | 'system';
+  recipient?: { type: 'participant' | 'lead' | 'staff'; id: string; name?: string | null };
 }): Promise<void> {
   const to = normalizeWhatsappPhone(params.toPhone);
   if (!to) {
     throw new Error(`Unusable WhatsApp phone number: ${params.toPhone}`);
   }
+
+  const record = await sendViaCore({
+    channel: 'whatsapp',
+    to,
+    category: params.category ?? 'transactional',
+    body: params.bodyParameters.join(' · '),
+    templateKey: params.templateName,
+    variables: { params: params.bodyParameters },
+    idempotencyKey: params.idempotencyKey,
+    recipientType: params.recipient?.type,
+    recipientId: params.recipient?.id,
+    recipientName: params.recipient?.name ?? null,
+  });
+  if (coreHandledIt(record)) return;
+  if (coreRefusedIt(record)) throw new MessageSuppressedError(record!.skip_reason ?? 'suppressed');
 
   const response = await fetch(
     `https://graph.facebook.com/${GRAPH_API_VERSION}/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`,

@@ -91,4 +91,21 @@ describe('KnowsiaApp service-door contract (what modules/knowsia-app/service.ts 
     const link = responseFields('/api/v1/service/files/{file_id}/link', 'get');
     expect(link).toContain('url');
   });
+
+  it('Core Communications (Doc 23 §3): POST …/messages, GET …/messages/by-key, POST …/messages/suppressions', () => {
+    const fields = requestFields('/api/v1/service/messages', 'post');
+    for (const f of ['product', 'channel', 'category', 'to', 'idempotency_key', 'subject', 'body', 'template_key', 'variables',
+      'recipient_type', 'recipient_id', 'recipient_name', 'from_address', 'reply_to', 'attachments', 'scheduled_at', 'immediate']) {
+      expect(fields, `request field ${f}`).toContain(f);
+    }
+    const record = responseFields('/api/v1/service/messages', 'post', '201');
+    for (const f of ['id', 'status', 'skip_reason', 'provider_message_id', 'idempotency_key']) {
+      expect(record, `response field ${f}`).toContain(f);
+    }
+    expect(contract.paths['/api/v1/service/messages/by-key']?.get, 'GET by-key is missing').toBeDefined();
+    const sup = requestFields('/api/v1/service/messages/suppressions', 'post');
+    for (const f of ['channel', 'address', 'reason', 'source']) {
+      expect(sup, `suppression field ${f}`).toContain(f);
+    }
+  });
 });

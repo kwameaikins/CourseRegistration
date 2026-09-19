@@ -10,6 +10,13 @@
 // ID), VAPI_OUTBOUND_ASSISTANT_ID (the dashboard assistant), and
 // VAPI_WEBHOOK_SECRET (shared secret Vapi sends on webhooks/tool calls).
 // When unset (pre-setup, local dev), isVoiceConfigured() gates all dialing.
+//
+// Since Doc 23 §3 (2026-09-19) a call is placed THROUGH Knowsia Core first
+// (same Vapi keys; Core holds the call to its 10:00–18:00 window and takes
+// the end-of-call report) and direct only when Core cannot take it. Vapi's
+// call id comes back either way, so `call_log` is unchanged.
+import { coreHandledIt, coreRefusedIt, sendViaCore } from '@/lib/knowsia-core/messages';
+import { MessageSuppressedError } from '@/lib/resend/client';
 import { normalizeWhatsappPhone } from '@/lib/whatsapp/client';
 
 const VAPI_API_BASE = 'https://api.vapi.ai';
@@ -34,11 +41,34 @@ export async function startOutboundCall(params: {
   variableValues: Record<string, string>;
   // ISO timestamp — Vapi holds the call until this time (calling window).
   earliestAt?: string;
+  idempotencyKey?: string;
+  recipient?: { type: 'participant' | 'lead' | 'staff'; id: string; name?: string | null };
 }): Promise<{ vapiCallId: string }> {
   const number = normalizeCallPhone(params.toPhone);
   if (!number) {
     throw new Error(`Unusable phone number for voice call: ${params.toPhone}`);
   }
+
+  const record = await sendViaCore({
+    channel: 'voice',
+    to: number,
+    category: 'transactional',
+    body: Object.entries(params.variableValues).map(([k, v]) => `${k}: ${v}`).join('\n'),
+    templateKey: 'outbound_call',
+    variables: params.variableValues,
+    scheduledAt: params.earliestAt,
+    idempotencyKey: params.idempotencyKey,
+    recipientType: params.recipient?.type,
+    recipientId: params.recipient?.id,
+    recipientName: params.recipient?.name ?? null,
+  });
+  // Placed at once: Vapi's id is on the record. Queued (held to the calling
+  // window): the id arrives when Core places it, so the row is keyed by
+  // Core's message id until then.
+  if (coreHandledIt(record) && (record.provider_message_id || record.status === 'queued')) {
+    return { vapiCallId: record.provider_message_id ?? `core:${record.id}` };
+  }
+  if (coreRefusedIt(record)) throw new MessageSuppressedError(record!.skip_reason ?? 'suppressed');
 
   const response = await fetch(`${VAPI_API_BASE}/call`, {
     method: 'POST',
