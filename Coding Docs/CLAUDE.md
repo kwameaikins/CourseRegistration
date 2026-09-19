@@ -161,6 +161,14 @@ npx playwright test          # E2E tests (Section 6, Document 9)
 > session (or a new context window) to know where things stand without re-reading everything.
 
 ```
+2026-09-19 — Knowsia Core Phase 3, Files (Coding Docs/23 §2; commit fa3b41a):
+  payment slips go through Core's one door — lib/knowsia-core/files.ts →
+  POST /api/v1/service/files; slip_file_path = core:<id>; the staff slip
+  link from GET …/files/{id}/link (private, 15 minutes). R2 stays the
+  FALLBACK while Core is unreachable, and every fallback reaches Sentry.
+  Communications, Support, Leads & CRM follow in that order; this app
+  becomes a caller of each and its TS modules retire in Phase 7.
+
 2026-09-18 — Knowsia Core Phase 2, this side (Coding Docs/22 §3; PLAN.md
   §Knowsia Core Phase 2): participants/staff_users.core_identity_id
   (202609180070, applied) — a shared KEY set by knowsia-api's linker, exact
