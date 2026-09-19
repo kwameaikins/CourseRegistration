@@ -10,6 +10,7 @@
 // simply does not exist yet, and every call is a cheap no-op. That keeps the
 // deploy order forgiving — this code can ship before KnowsiaApp is live.
 import { AppError, captureToSentry } from '@/lib/errors';
+import { reportConversionToCore } from '@/lib/knowsia-core/leads';
 import * as knowsiaAppRepository from '@/modules/knowsia-app/repository';
 import * as usersService from '@/modules/users/service';
 
@@ -125,6 +126,26 @@ export type QuestionBankGrantOutcome =
   | 'skipped_not_configured'
   | 'skipped_gated'
   | 'failed';
+
+// Knowsia Core Leads & CRM (Doc 23 §5): a paid seat is a sale, so the person's
+// lead over there — if they ever enquired — converts and the opportunity is
+// won. Nobody types it. Best effort; never fails the payment.
+export async function reportPaidSeatToCoreSystem(
+  registrationId: string,
+  amountPaid?: number,
+): Promise<boolean> {
+  if (!isKnowsiaAppLmsConfigured()) return false;
+  const context = await knowsiaAppRepository.selectLmsGrantContextSystem(registrationId);
+  if (!context || context.participantDeleted) return false;
+  return reportConversionToCore({
+    email: context.participantEmail,
+    kind: 'cohort_seat',
+    amount: amountPaid ?? 0,
+    currency: 'GHS',
+    sourceRef: registrationId,
+    title: `${context.participantFullName} — ${context.courseCode}`,
+  });
+}
 
 export async function grantQuestionBankAccessSystem(
   registrationId: string,

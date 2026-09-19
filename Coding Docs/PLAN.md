@@ -979,7 +979,11 @@ Files → Communications → Support → Leads & CRM, one release each; this app
 - [x] **Support** (2026-09-19): nothing here to move (`feedback` stays); the unsubscribe route
       already posts to Core; a request that reaches info@knowsia.com is logged on the study
       app's `/admin/support`. Coding Docs/23 §4
-- [ ] Leads & CRM: `/api/enquiries` forwards to `POST /api/v1/service/leads`
+- [x] **Leads & CRM** (2026-09-19): `createEnquiryLead` forwards every enquiry to
+      `POST /api/v1/service/leads` (`lib/knowsia-core/leads.ts`, this row's id as `external_ref`);
+      the paid transition reports the seat through `POST …/leads/converted` so the lead converts
+      over there. Own screens unchanged until Phase 7. Contract test covers the door. Coding
+      Docs/23 §5, 05 §24
 
 ---
 ## Risk watch (carried from `/docs/01_PRD.md` risk register)

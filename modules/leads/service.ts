@@ -1,3 +1,4 @@
+import { forwardEnquiryToCore } from '@/lib/knowsia-core/leads';
 import { sendTransactionalEmail } from '@/lib/resend/client';
 import { sendSmsMessage } from '@/lib/arkesel/client';
 import { AppError } from '@/lib/errors';
@@ -285,6 +286,20 @@ export async function createEnquiryLead(
       console.error('[leads enquiry follow-up]', err);
     }
   }
+
+  // Knowsia Core keeps the one record per person across both products
+  // (Doc 23 §5): the enquiry is forwarded with this row's id as its
+  // external_ref. Best effort — Core down never costs an enquiry.
+  await forwardEnquiryToCore({
+    fullName: input.fullName,
+    email: input.email,
+    phone: input.phone,
+    source: 'website',
+    interest: input.courseName ?? null,
+    message: input.message,
+    attribution: attribution ? { ...attribution } : null,
+    externalRef: lead.id,
+  });
   return { leadId: lead.id };
 }
 

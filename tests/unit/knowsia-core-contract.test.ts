@@ -108,4 +108,20 @@ describe('KnowsiaApp service-door contract (what modules/knowsia-app/service.ts 
       expect(sup, `suppression field ${f}`).toContain(f);
     }
   });
+
+  it('Core Leads & CRM (Doc 23 §5): POST …/leads, GET …/leads/by-email, POST …/leads/converted', () => {
+    const fields = requestFields('/api/v1/service/leads', 'post');
+    for (const f of ['product', 'full_name', 'email', 'phone', 'source', 'interest', 'message', 'attribution', 'external_ref', 'acknowledge']) {
+      expect(fields, `lead field ${f}`).toContain(f);
+    }
+    const lead = responseFields('/api/v1/service/leads', 'post', '201');
+    for (const f of ['id', 'status', 'score', 'external_ref', 'created']) {
+      expect(lead, `lead response field ${f}`).toContain(f);
+    }
+    expect(contract.paths['/api/v1/service/leads/by-email']?.get, 'GET by-email is missing').toBeDefined();
+    const conv = requestFields('/api/v1/service/leads/converted', 'post');
+    for (const f of ['product', 'email', 'kind', 'amount', 'currency', 'source_ref']) {
+      expect(conv, `converted field ${f}`).toContain(f);
+    }
+  });
 });

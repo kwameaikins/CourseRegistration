@@ -104,7 +104,32 @@ info@), `core_reports` (the generalised flag: question, explanation, comment, le
 unique per reporter and target; threshold behaviour kept). In-app "Report a problem" everywhere a
 student can be stuck; the mailbox stays info@knowsia.com for now with "Log an email" for staff.
 
-## 5. Leads & CRM (next) — without HubSpot, with what it adds
+## 5. Leads & CRM (built 2026-09-19) — without HubSpot, with what it adds
+
+**Built as designed below, with these particulars.** One lead per (product, email): a second
+enquiry from the same address is an `enquiry` activity on the same lead, the fuller fields win,
+the score never goes down, and a lead marked lost or unresponsive who asks again is `new` again.
+Scoring is pure and small (base 10, +20 a job title, +15 a company, a source weight, cap 100;
++25 on conversion; −10 for every 30 days without contact, computed on read). Assignment is a
+`core_lead_rules` row per source (or `*`) with owners taken in turn; no rule → the lead sits on
+Today as "nobody's yet". `lost` needs a reason. A logged contact resets the clock and clears a
+follow-up whose time had passed. **Conversion is an event**: Study's `PAYMENT_SETTLED` (the
+outbox) and this app's paid transition (`POST /api/v1/service/leads/converted`) mark the lead
+converted and the opportunity won, keyed by `source_ref` so a webhook and a verify are one sale.
+Today = overdue tasks and follow-ups → due today → new unowned, each row with its reason; the
+timeline is activities ∪ messages sent to the address ∪ tickets from it; a segment is its
+definition run now; owners of overdue follow-ups are emailed once a day (`follow_up_due`).
+Public door `POST /api/v1/leads/enquire` (honeypot, five an hour per IP, attribution kept,
+`lead_enquiry_ack` sent). Admin `/admin/crm`. The study landing page posts to Core now.
+
+**This side:** `lib/knowsia-core/leads.ts`. `createEnquiryLead` forwards every enquiry to
+`POST /api/v1/service/leads` with this app's `leads.id` as `external_ref` (this app's row and
+screens are unchanged); `runPaidTransitionSideEffects` → `reportPaidSeatToCoreSystem` tells Core
+the seat was paid (`kind: cohort_seat`, `source_ref: registration id`). Both best effort with
+Sentry — Core down never costs an enquiry or a payment. This app's `/leads`, `/sales` and
+`/follow-up` stay until Phase 7 retires them; Core holds the record across both products.
+
+Original design, for the record:
 
 `core_leads` (exact-email dedup, source, interest, status new|contacted|qualified|converted|lost|
 unresponsive, score, owner, next action, attribution), `core_lead_activities` (the FULL enum —

@@ -349,6 +349,149 @@
         "title": "ImportSectionResponse",
         "type": "object"
       },
+      "LeadConverted": {
+        "properties": {
+          "amount": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Amount",
+            "type": "number"
+          },
+          "currency": {
+            "default": "GHS",
+            "maxLength": 3,
+            "minLength": 3,
+            "title": "Currency",
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 200,
+            "minLength": 5,
+            "title": "Email",
+            "type": "string"
+          },
+          "kind": {
+            "default": "cohort_seat",
+            "pattern": "^(cohort_seat|subscription|corporate|tuition|other)$",
+            "title": "Kind",
+            "type": "string"
+          },
+          "product": {
+            "default": "registration",
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          },
+          "source_ref": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Source Ref",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "email",
+          "source_ref"
+        ],
+        "title": "LeadConverted",
+        "type": "object"
+      },
+      "LeadRecord": {
+        "properties": {
+          "created": {
+            "default": false,
+            "title": "Created",
+            "type": "boolean"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "external_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Ref"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "owner_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Id"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "product": {
+            "title": "Product",
+            "type": "string"
+          },
+          "score": {
+            "title": "Score",
+            "type": "integer"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "product",
+          "full_name",
+          "email",
+          "phone",
+          "source",
+          "status",
+          "score",
+          "owner_id",
+          "external_ref"
+        ],
+        "title": "LeadRecord",
+        "type": "object"
+      },
       "LoginCheckRequest": {
         "properties": {
           "app_role": {
@@ -1144,6 +1287,129 @@
         "title": "SendMessageRequest",
         "type": "object"
       },
+      "ServiceEnquiry": {
+        "properties": {
+          "acknowledge": {
+            "default": false,
+            "title": "Acknowledge",
+            "type": "boolean"
+          },
+          "attribution": {
+            "additionalProperties": true,
+            "title": "Attribution",
+            "type": "object"
+          },
+          "company": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "email": {
+            "maxLength": 200,
+            "minLength": 5,
+            "title": "Email",
+            "type": "string"
+          },
+          "external_ref": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Ref"
+          },
+          "full_name": {
+            "maxLength": 150,
+            "minLength": 1,
+            "title": "Full Name",
+            "type": "string"
+          },
+          "interest": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interest"
+          },
+          "job_title": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Title"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "product": {
+            "default": "registration",
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          },
+          "source": {
+            "default": "website",
+            "maxLength": 20,
+            "title": "Source",
+            "type": "string"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "full_name",
+          "email"
+        ],
+        "title": "ServiceEnquiry",
+        "type": "object"
+      },
       "StoreFileRequest": {
         "properties": {
           "content_base64": {
@@ -1749,6 +2015,142 @@
         "summary": "Login Check",
         "tags": [
           "service-identity"
+        ]
+      }
+    },
+    "/api/v1/service/leads": {
+      "post": {
+        "operationId": "service_record_enquiry_api_v1_service_leads_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceEnquiry"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Record Enquiry",
+        "tags": [
+          "service-leads"
+        ]
+      }
+    },
+    "/api/v1/service/leads/by-email": {
+      "get": {
+        "operationId": "service_lead_by_email_api_v1_service_leads_by_email_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "email",
+            "required": true,
+            "schema": {
+              "title": "Email",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "product",
+            "required": false,
+            "schema": {
+              "default": "registration",
+              "title": "Product",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadRecord"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Lead By Email",
+        "tags": [
+          "service-leads"
+        ]
+      }
+    },
+    "/api/v1/service/leads/converted": {
+      "post": {
+        "operationId": "service_lead_converted_api_v1_service_leads_converted_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeadConverted"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Lead Converted Api V1 Service Leads Converted Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Lead Converted",
+        "tags": [
+          "service-leads"
         ]
       }
     },

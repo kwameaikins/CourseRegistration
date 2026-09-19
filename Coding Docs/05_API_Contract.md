@@ -696,3 +696,13 @@ A repeated `idempotency_key` on a channel returns the existing row. `GET …/mes
 reads one back. `POST …/messages/suppressions` `{ channel, address, reason, source, detail? }` adds an address to
 Core's do-not-contact list. The four provider clients call the first (direct provider as the fallback, never after
 a `skipped` that is not `not_configured`), `optOut` calls the third. Asserted by `tests/unit/knowsia-core-contract.test.ts`.
+
+## 24. Knowsia Core Leads & CRM — this side (2026-09-19)
+
+Outbound only (`lib/knowsia-core/leads.ts`, `X-Service-Key`): `POST {KNOWSIA_APP_API_URL}/api/v1/service/leads`
+`{ product: 'registration', full_name, email, phone?, company?, job_title?, source, interest?, message?, attribution,
+external_ref (this app's leads.id), tags, acknowledge }` → 201 the lead (`id`, `status`, `score`, `owner_id`,
+`external_ref`, `created` — false when the email was already a lead and the enquiry became an activity).
+`GET …/leads/by-email?email=&product=` reads one back. `POST …/leads/converted` `{ product, email, kind, amount,
+currency, source_ref (registration id), title? }` → `{ converted, opportunity_id }`. `createEnquiryLead` calls the
+first, `runPaidTransitionSideEffects` the third. Asserted by `tests/unit/knowsia-core-contract.test.ts`.
