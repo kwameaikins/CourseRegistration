@@ -930,6 +930,14 @@ and click "Email invoice".
 
 ---
 
+## The programme page names the assigned facilitator (2026-09-19)
+
+- [x] `/programmes/[courseCode]` shows the NEXT cohort's assigned facilitator (`batches.facilitator_name`,
+      set when the cohort is scheduled) and falls back to the marketing copy's `facilitator` only when
+      no cohort is scheduled. Found because IFRS02's copy (saved 21 Aug, and the code default in
+      `public-content.ts`) named Stephen Kwame Aikins where the batch named Fuseini Sumaila (CA, ACMA);
+      the saved row and the code default were corrected too. Rule: one fact, one source — the batch.
+
 ## Learning resources belong to the course (2026-09-19)
 
 Founder: materials uploaded per cohort meant re-uploading them for every cohort. Fixed as per best
