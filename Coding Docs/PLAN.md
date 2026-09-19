@@ -976,7 +976,9 @@ Files → Communications → Support → Leads & CRM, one release each; this app
       a refusal on the person's behalf raises `MessageSuppressedError`; `optOut` writes Core's
       list; `scripts/sync-opt-outs-to-core.mjs` backfills. Contract test covers the door.
       Coding Docs/05 §23
-- [ ] Support: none here to move (feedback stays); the unsubscribe/consent link posts to Core
+- [x] **Support** (2026-09-19): nothing here to move (`feedback` stays); the unsubscribe route
+      already posts to Core; a request that reaches info@knowsia.com is logged on the study
+      app's `/admin/support`. Coding Docs/23 §4
 - [ ] Leads & CRM: `/api/enquiries` forwards to `POST /api/v1/service/leads`
 
 ---

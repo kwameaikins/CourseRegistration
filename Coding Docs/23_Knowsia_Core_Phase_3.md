@@ -78,8 +78,25 @@ already deduplicates (`email_log`) can pass its key through and a marketing send
 `scripts/sync-opt-outs-to-core.mjs` backfills the rows that exist. The Registration cron, Vercel
 and Cloudflare-worker schedulers are unchanged: Core holds the record, this app still decides when.
 
-## 4. Support (next)
+## 4. Support (built 2026-09-19)
 
+**Built as designed below, with these particulars.** Numbers run from #1001 on a sequence. The
+first-response clock is `FIRST_RESPONSE_HOURS` by priority (urgent 4, high 8, normal 24, low 48)
+and a due moment that lands on a weekend rolls to Monday 09:00 UTC. A ticket is acknowledged at
+once through Communications (`ticket_received`, from `CORE_SUPPORT_FROM` = info@knowsia.com,
+Reply-To the same, so a reply lands in the inbox the team reads); a staff reply is the FIRST
+RESPONSE, moves the ticket to `waiting_on_customer` and is emailed (`ticket_reply`); an internal
+note is neither; resolving without a cause is refused; a requester's reply after resolution
+reopens it and `reopened_count` grows. The queue is ordered breaching → new → last movement.
+The old flag doors (`POST /api/v1/flags`, `POST /tutor/lessons/{id}/flag`) keep their
+threshold-hide and now also write a `core_reports` row, so the reason survives; reports are read
+grouped by target, most reported first, every reason kept. `lms/index.py:unanswered_qna_internal`
+feeds the Support queue. Student: "Report a problem" at the foot of every question and lesson
+page (the page supplies the context), "Your requests" on `/account`. Admin: `/admin/support`.
+KPIs gain a Support section. **This side:** nothing to move — `feedback` stays with Registration;
+a request that arrives at info@knowsia.com is logged on `/admin/support` by hand for now.
+
+Original design, for the record:
 `core_tickets` (number, requester, channel, category, priority, status new|open|waiting_on_customer|
 resolved|closed, context from the page, assignee, SLA clocks, a CAUSE tag at resolution),
 `core_ticket_messages` (requester|staff|system; emailed replies from info@knowsia.com with Reply-To
