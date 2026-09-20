@@ -124,18 +124,33 @@ payment EVENT's amount, what just landed), currency: 'GHS', reference, email, pa
 registration_id, sku_code (the batch's Release 1 code), organisation_ref (the company when the seat came
 from an allocation), source}`. The idempotency key is the door's key: a repeat answers `duplicate: true`.
 Core's CRM consumer converts this app's lead by email from the same row, so `reportPaidSeatToCoreSystem`
-(Release 1's Leads door) becomes redundant and is retired in Release 4.
+(Release 1's Leads door) became redundant and was retired in Release 4.
 `scripts/backfill-payments-to-core.mjs` raised the 20 payment events since 2026-01-01 on release day
 (`--dry-run` first; re-runnable — the door answers `duplicate` for what is already there).
 
 **Released 2026-09-19** — Railway `d2858c09`; `core_alembic_version = 010_core_analytics`; contract §27.
 
-## 4. Release 4 — Affiliates, attribution half (planned)
+## 4. Release 4 — Affiliates, attribution half (released 2026-09-20)
 
 `core_partners`, `core_referral_codes`, `core_referral_clicks`, `core_referral_attributions` (one per
 person per product; method code | link | qr | manual; flags self_referral / existing_lead / repeat /
-late). This side forwards partners (create, approve, suspend), codes, clicks (`/r/<code>`) and
-attributions (from `redeemCodeSystem`, with the flags it already computes). Commission accrual is
-untouched. `POST …/leads/converted` and `reportPaidSeatToCoreSystem` are deleted then — Release 3's
-payment event converts the lead. The exit criterion is one test over there: a referral survives a
-cross-product sign-up.
+late; the 30-day window; the conversion once the payment lands). A referral is ONE record across both
+products; nothing there pays anyone until Phase 6.
+
+| This app | Core door | Notes |
+|---|---|---|
+| `submitPartnerApplication`, `createPartner`, `updatePartner`, `approvePartnerApplication`, `rejectPartnerApplication`, `ensurePartnerFor{Tutor,Participant}System` | `PUT …/affiliates/partners` | one partner per `partners.id`; institutional partners carry the company name |
+| `suspendPartner`, `reactivatePartner` | `POST …/affiliates/partners/{id}/status` | 404 when Core never saw the partner — the sync script backfills |
+| `createCode`, the auto-generated code | `PUT …/affiliates/codes` | a discounting code names its Release 1 coupon (`code:<id>`); 409 when the string is another partner's |
+| `/r/<code>` | `POST …/affiliates/clicks` | best effort, never awaited past the redirect |
+| `redeemCodeSystem` | `POST …/affiliates/attributions` | with the flags this app already computes; Core answers `created: false` for a repeat and `attributed: false` for a code it cannot honour — this app's row stands regardless |
+
+**Retired**: `reportConversionToCore` / `reportPaidSeatToCoreSystem` and `POST …/leads/converted` — the
+settled payment this app raises (§3) is what converts the lead AND the referral over there
+(`crm_conversion` and `affiliate_conversion` consumers). Commission accrual (`accrueCommissionOnPaymentSystem`)
+is untouched. `scripts/sync-partners-to-core.mjs` mirrored 8 partners, 8 codes and 2 attributions on the
+day, neither yet paid (9 redemptions were of partnerless codes — a coupon, not a referral). The exit criterion holds over
+there: `test_a_referral_survives_a_cross_product_sign_up`. Contract §28.
+
+**Released 2026-09-20** — Railway `ef75635b`; `core_alembic_version = 011_core_affiliates`, `auth = 019`.
+Phase 4 is complete; Phases 5 (Payments) and 6 (affiliate money) are next.

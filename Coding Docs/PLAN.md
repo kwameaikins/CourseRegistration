@@ -1009,8 +1009,8 @@ Files → Communications → Support → Leads & CRM, one release each; this app
       app's `/admin/support`. Coding Docs/23 §4
 - [x] **Leads & CRM** (2026-09-19): `createEnquiryLead` forwards every enquiry to
       `POST /api/v1/service/leads` (`lib/knowsia-core/leads.ts`, this row's id as `external_ref`);
-      the paid transition reports the seat through `POST …/leads/converted` so the lead converts
-      over there. Own screens unchanged until Phase 7. Contract test covers the door. Coding
+      the lead converts over there by the payment event (Phase 4 R3; the `…/leads/converted`
+      door was retired in R4). Own screens unchanged until Phase 7. Contract test covers the door. Coding
       Docs/23 §5, 05 §24
 
 ## Knowsia Core Phase 4 — this side (from 2026-09-19; Coding Docs/24)
@@ -1039,8 +1039,13 @@ each. This app's price and commission accrual stay authoritative until Phases 5 
       payment event's amount; the batch's SKU; the company for an allocation seat);
       `scripts/backfill-payments-to-core.mjs` raised the 20 events since January. Contract test covers
       the door. Coding Docs/24 §3, 05 §27
-- [ ] **Affiliates, attribution half** — partners, codes, clicks and attributions forwarded;
-      `reportPaidSeatToCoreSystem` and `POST …/leads/converted` retired. Coding Docs/24 §4
+- [x] **Affiliates, attribution half** (released 2026-09-20 — Railway `ef75635b`): partners, codes,
+      clicks and attributions forwarded (`lib/knowsia-core/affiliates.ts`, best effort, from the
+      partners service, `/r/[code]` and `redeemCodeSystem`); `reportPaidSeatToCoreSystem` and
+      `POST …/leads/converted` retired — the payment event converts the lead and the referral;
+      `scripts/sync-partners-to-core.mjs` mirrored 8 partners, 8 codes, 2 attributions. Commission
+      accrual untouched until Phase 6. Contract test pins the five doors. Coding Docs/24 §4, 05 §28.
+      **Phase 4 complete.**
 
 ---
 ## Risk watch (carried from `/docs/01_PRD.md` risk register)

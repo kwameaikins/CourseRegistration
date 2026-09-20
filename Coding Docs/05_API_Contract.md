@@ -704,9 +704,9 @@ Outbound only (`lib/knowsia-core/leads.ts`, `X-Service-Key`): `POST {KNOWSIA_APP
 `{ product: 'registration', full_name, email, phone?, company?, job_title?, source, interest?, message?, attribution,
 external_ref (this app's leads.id), tags, acknowledge }` → 201 the lead (`id`, `status`, `score`, `owner_id`,
 `external_ref`, `created` — false when the email was already a lead and the enquiry became an activity).
-`GET …/leads/by-email?email=&product=` reads one back. `POST …/leads/converted` `{ product, email, kind, amount,
-currency, source_ref (registration id), title? }` → `{ converted, opportunity_id }`. `createEnquiryLead` calls the
-first, `runPaidTransitionSideEffects` the third. Asserted by `tests/unit/knowsia-core-contract.test.ts`.
+`GET …/leads/by-email?email=&product=` reads one back. `createEnquiryLead` calls the first. The lead CONVERTS by
+event — the settled payment raised in §27 — so `POST …/leads/converted` was retired on 2026-09-20 (Phase 4 R4) and
+the contract test asserts it is gone. Asserted by `tests/unit/knowsia-core-contract.test.ts`.
 
 ## 25. Knowsia Core Catalogue & pricing — this side (2026-09-19)
 
@@ -747,3 +747,18 @@ currency: 'GHS', reference, email, participant_id, registration_id, sku_code, or
 `{ accepted, duplicate, outbox_id }`; 422 when the payload cannot be reported (amount, currency, reference, email);
 a repeat of the same key answers `duplicate: true` and writes nothing. Raised from `runPaidTransitionSideEffects`
 (paid path only). Asserted by `tests/unit/knowsia-core-contract.test.ts`; Coding Docs/24 §3.
+
+## 28. Knowsia Core Affiliates — this side (2026-09-20)
+
+Outbound only (`lib/knowsia-core/affiliates.ts`, `X-Service-Key`). `PUT {KNOWSIA_APP_API_URL}/api/v1/service/affiliates/partners`
+`{ product: 'registration', external_ref (partners.id), display_name, category (ambassador | tutor | institutional), email, phone,
+status (pending | active | suspended | rejected), status_reason?, organisation_external_ref?, notes }` → 200 the partner (`id`, `status`,
+`created`); by (product, external_ref). `POST …/affiliates/partners/{external_ref}/status` `{ product, status, reason }` → 200; 404 when
+Core never saw the partner. `PUT …/affiliates/codes` `{ product, partner_external_ref, code, coupon_external_ref ('code:<id>' when it
+discounts), product_scope: ['*'], is_active, expires_at, max_uses, external_ref (codes.id) }` → 200 the code (`id`, `coupon_id`,
+`is_active`, `created`); 404 when the partner is unknown, 409 when the string is another partner's. `POST …/affiliates/clicks`
+`{ product, code, landing, referrer }` → 202 `{ recorded }`. `POST …/affiliates/attributions` `{ product, code, subject_type: 'participant',
+subject_id, subject_email, subject_phone, method (code | link), existing_lead, self_referral, external_ref (code_redemptions.id),
+attributed_at }` → 201 `{ attributed, created, id, status, flags }` — idempotent on (product, participant); `attributed: false` when
+Core cannot honour the code. `GET …/affiliates/attributions/by-subject?product=&subject_type=&subject_id=` reads one back. The
+partners service, `/r/[code]` and `redeemCodeSystem` call them. Asserted by `tests/unit/knowsia-core-contract.test.ts`; Coding Docs/24 §4.
