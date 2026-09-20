@@ -19,24 +19,36 @@ type Contract = { paths: Record<string, Record<string, Operation>>; components: 
 const contract: Contract = JSON.parse(
   readFileSync(path.resolve(__dirname, '../../Coding Docs/contracts/service-api.v1.json'), 'utf8'),
 );
+// The LMS is its own service since Coding Docs/26 R0 (2026-09-20): its door
+// (/api/v1/service/lms/*) has its own artifact, written by that service's
+// contract test and copied here the same way.
+const lmsContract: Contract = JSON.parse(
+  readFileSync(path.resolve(__dirname, '../../Coding Docs/contracts/lms-api.v1.json'), 'utf8'),
+);
 
-function resolve(schema: Schema | undefined): Schema {
+function contractFor(routePath: string): Contract {
+  return routePath.startsWith('/api/v1/service/lms/') ? lmsContract : contract;
+}
+
+function resolve(schema: Schema | undefined, c: Contract = contract): Schema {
   if (!schema) return {};
-  if (schema.$ref) return contract.components.schemas[schema.$ref.replace('#/components/schemas/', '')] ?? {};
+  if (schema.$ref) return c.components.schemas[schema.$ref.replace('#/components/schemas/', '')] ?? {};
   return schema;
 }
 
 function requestFields(routePath: string, method: 'post' | 'get' | 'put'): string[] {
-  const op = contract.paths[routePath]?.[method];
+  const c = contractFor(routePath);
+  const op = c.paths[routePath]?.[method];
   expect(op, `${method.toUpperCase()} ${routePath} is missing from the contract`).toBeDefined();
   const body = op?.requestBody?.content?.['application/json']?.schema;
-  return Object.keys(resolve(body).properties ?? {});
+  return Object.keys(resolve(body, c).properties ?? {});
 }
 
 function responseFields(routePath: string, method: 'post' | 'get', status = '200'): string[] {
-  const op = contract.paths[routePath]?.[method];
+  const c = contractFor(routePath);
+  const op = c.paths[routePath]?.[method];
   const body = op?.responses?.[status]?.content?.['application/json']?.schema;
-  return Object.keys(resolve(body).properties ?? {});
+  return Object.keys(resolve(body, c).properties ?? {});
 }
 
 describe('KnowsiaApp service-door contract (what modules/knowsia-app/service.ts sends)', () => {
@@ -64,7 +76,7 @@ describe('KnowsiaApp service-door contract (what modules/knowsia-app/service.ts 
   });
 
   it("a participant's LMS courses: GET …/lms/participants/{participant_id}/enrolments", () => {
-    const op = contract.paths['/api/v1/service/lms/participants/{participant_id}/enrolments']?.get;
+    const op = lmsContract.paths['/api/v1/service/lms/participants/{participant_id}/enrolments']?.get;
     expect(op, 'GET participants enrolments is missing').toBeDefined();
     const reply = responseFields('/api/v1/service/lms/participants/{participant_id}/enrolments', 'get');
     expect(reply).toContain('enrolments');
