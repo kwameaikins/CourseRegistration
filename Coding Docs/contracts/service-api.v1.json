@@ -1337,6 +1337,125 @@
         "title": "ServiceAttribution",
         "type": "object"
       },
+      "ServiceCheckout": {
+        "properties": {
+          "amount_minor": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Minor"
+          },
+          "callback_url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Callback Url"
+          },
+          "channels": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channels"
+          },
+          "coupon_code": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coupon Code"
+          },
+          "external_ref": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Ref"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "payer_email": {
+            "maxLength": 255,
+            "minLength": 5,
+            "title": "Payer Email",
+            "type": "string"
+          },
+          "payer_ref": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payer Ref"
+          },
+          "product": {
+            "default": "registration",
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          },
+          "qty": {
+            "default": 1,
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Qty",
+            "type": "integer"
+          },
+          "sku_code": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sku Code"
+          }
+        },
+        "required": [
+          "payer_email"
+        ],
+        "title": "ServiceCheckout",
+        "type": "object"
+      },
       "ServiceCoupon": {
         "properties": {
           "applies_to": {
@@ -2318,6 +2437,51 @@
           "code"
         ],
         "title": "ServiceReferralCode",
+        "type": "object"
+      },
+      "ServiceRefund": {
+        "properties": {
+          "amount_minor": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount Minor"
+          },
+          "at_provider": {
+            "default": true,
+            "title": "At Provider",
+            "type": "boolean"
+          },
+          "product": {
+            "default": "registration",
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 255,
+            "minLength": 2,
+            "title": "Reason",
+            "type": "string"
+          },
+          "reference": {
+            "maxLength": 100,
+            "minLength": 3,
+            "title": "Reference",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference",
+          "reason"
+        ],
+        "title": "ServiceRefund",
         "type": "object"
       },
       "ServiceSku": {
@@ -4196,6 +4360,136 @@
         "summary": "Service Upsert Member",
         "tags": [
           "service-organisations"
+        ]
+      }
+    },
+    "/api/v1/service/payments/by-reference": {
+      "get": {
+        "operationId": "service_payment_by_reference_api_v1_service_payments_by_reference_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "reference",
+            "required": true,
+            "schema": {
+              "title": "Reference",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Payment By Reference Api V1 Service Payments By Reference Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Payment By Reference",
+        "tags": [
+          "service-payments"
+        ]
+      }
+    },
+    "/api/v1/service/payments/checkout": {
+      "post": {
+        "operationId": "service_checkout_api_v1_service_payments_checkout_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceCheckout"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Checkout Api V1 Service Payments Checkout Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Checkout",
+        "tags": [
+          "service-payments"
+        ]
+      }
+    },
+    "/api/v1/service/payments/refunds": {
+      "post": {
+        "operationId": "service_refund_api_v1_service_payments_refunds_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceRefund"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Refund Api V1 Service Payments Refunds Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Refund",
+        "tags": [
+          "service-payments"
         ]
       }
     },

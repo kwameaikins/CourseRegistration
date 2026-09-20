@@ -2,38 +2,47 @@
 
 // Paystack checkout initialisation (Document 7, Section 1.1).
 //
-// ⚠️ metadata.registration_id is NOT optional — it is the webhook's only
-// reliable key for matching a payment to a Registration (EC-02). Removing it
-// breaks payment confirmation end-to-end.
+// Two doors, one button (Doc 25 §1, decision 3). With CORE_CHECKOUT=1 the
+// server asks Knowsia Core for an access code — Core quotes the batch's SKU
+// through the catalogue, initialises with Paystack and records the reference
+// and the amount — and the browser RESUMES that transaction in Paystack's
+// inline v2, so the amount never comes from the client. Off, or when Core
+// cannot answer, the old inline v1 flow runs exactly as before.
+//
+// ⚠️ metadata.registration_id is NOT optional on either door — it is the
+// webhook's only reliable key for matching a payment to a Registration
+// (EC-02). Core's checkout carries it in the metadata it sends to Paystack.
 import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 
-interface PaystackPopInterface {
+interface PaystackPopV1 {
   setup(config: Record<string, unknown>): { openIframe(): void };
+}
+
+interface PaystackPopV2 {
+  resumeTransaction(accessCode: string, callbacks?: { onSuccess?: (t: { reference: string }) => void; onCancel?: () => void }): void;
 }
 
 declare global {
   interface Window {
-    PaystackPop?: PaystackPopInterface;
+    PaystackPop?: PaystackPopV1 & (new () => PaystackPopV2);
   }
 }
 
-const PAYSTACK_INLINE_SRC = 'https://js.paystack.co/v1/inline.js';
+const PAYSTACK_INLINE_V1 = 'https://js.paystack.co/v1/inline.js';
+const PAYSTACK_INLINE_V2 = 'https://js.paystack.co/v2/inline.js';
 
-function loadPaystackScript(): Promise<PaystackPopInterface> {
+function loadScript(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    if (window.PaystackPop) {
-      resolve(window.PaystackPop);
+    if (document.querySelector(`script[src="${src}"]`) && window.PaystackPop) {
+      resolve();
       return;
     }
     const script = document.createElement('script');
-    script.src = PAYSTACK_INLINE_SRC;
+    script.src = src;
     script.async = true;
-    script.onload = () => {
-      if (window.PaystackPop) resolve(window.PaystackPop);
-      else reject(new Error('Paystack failed to initialise.'));
-    };
+    script.onload = () => (window.PaystackPop ? resolve() : reject(new Error('Paystack failed to initialise.')));
     script.onerror = () => reject(new Error('Could not load the Paystack checkout.'));
     document.body.appendChild(script);
   });
@@ -51,11 +60,39 @@ export function PaystackCheckout(props: {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  async function coreAccessCode(): Promise<{ accessCode: string; reference: string } | null> {
+    try {
+      const response = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registrationId: props.registrationId }),
+      });
+      if (!response.ok) return null;
+      const body = (await response.json()) as { data?: { enabled?: boolean; accessCode?: string; reference?: string } };
+      const data = body.data ?? (body as { enabled?: boolean; accessCode?: string; reference?: string });
+      if (data?.enabled && data.accessCode && data.reference) return { accessCode: data.accessCode, reference: data.reference };
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   async function handlePay() {
     setLoading(true);
     setErrorMessage(null);
     try {
-      const paystack = await loadPaystackScript();
+      const core = await coreAccessCode();
+      if (core) {
+        await loadScript(PAYSTACK_INLINE_V2);
+        const Pop = window.PaystackPop as unknown as new () => PaystackPopV2;
+        new Pop().resumeTransaction(core.accessCode, {
+          onSuccess: (t) => props.onCompleted(t?.reference ?? core.reference),
+          onCancel: () => setLoading(false),
+        });
+        return;
+      }
+      await loadScript(PAYSTACK_INLINE_V1);
+      const paystack = window.PaystackPop as unknown as PaystackPopV1;
       const reference = `REG-${props.registrationId}-${Date.now()}`; // unique per attempt
       const handler = paystack.setup({
         key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY,

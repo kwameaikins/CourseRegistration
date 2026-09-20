@@ -122,6 +122,17 @@ describe('KnowsiaApp service-door contract (what modules/knowsia-app/service.ts 
     expect(contract.paths['/api/v1/service/leads/converted'], 'the converted door was retired; conversion is by payment event').toBeUndefined();
   });
 
+  it('Core Payments (Doc 25 §1): POST …/payments/checkout, GET …/payments/by-reference, POST …/payments/refunds', () => {
+    const checkout = requestFields('/api/v1/service/payments/checkout', 'post');
+    for (const f of ['product', 'payer_email', 'payer_ref', 'sku_code', 'qty', 'coupon_code', 'external_ref', 'amount_minor', 'callback_url', 'metadata', 'channels']) {
+      expect(checkout, `checkout field ${f}`).toContain(f);
+    }
+    expect(contract.paths['/api/v1/service/payments/by-reference']?.get, 'GET by-reference is missing').toBeDefined();
+    const refund = requestFields('/api/v1/service/payments/refunds', 'post');
+    for (const f of ['product', 'reference', 'amount_minor', 'reason', 'at_provider']) {
+      expect(refund, `refund field ${f}`).toContain(f);
+    }
+  });
   it('Core Affiliates (Doc 22 Phase 4 R4): PUT …/affiliates/partners, POST …/partners/{ref}/status, PUT …/codes, POST …/clicks, POST …/attributions', () => {
     const partner = requestFields('/api/v1/service/affiliates/partners', 'put');
     for (const f of ['product', 'external_ref', 'display_name', 'category', 'email', 'phone', 'status', 'status_reason', 'notes']) {
