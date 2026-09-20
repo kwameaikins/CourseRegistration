@@ -11,6 +11,16 @@ import * as usersService from '@/modules/users/service';
 import * as coursesService from '@/modules/courses/service';
 import { upsertCodeDiscountToCore } from '@/lib/knowsia-core/catalogue';
 import { forwardAttributionToCore, forwardPartnerStatusToCore, forwardPartnerToCore, forwardReferralCodeToCore } from '@/lib/knowsia-core/affiliates';
+import {
+  isCoreCommissionsConfigured,
+  listCoreCommissions,
+  markPayableOnCore,
+  readPartnerLedger,
+  recordPayoutOnCore,
+  redeemOnCore,
+  type CoreCommissionRecord,
+  type CorePayoutRecord,
+} from '@/lib/knowsia-core/commissions';
 import type {
   Code,
   CodePreview,
@@ -40,10 +50,6 @@ const STAFF_FINANCE_ROLES = ['finance', 'admin'] as const;
 // warning at record-payout time, never a hard block (founder may still
 // want to close out a small final balance).
 export const MINIMUM_PAYOUT_BALANCE = 100;
-
-// Doc SS3: 14-day hold, reconciled with the batch-start risk window —
-// whichever is later.
-const COMMISSION_HOLD_DAYS = 14;
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
@@ -141,55 +147,10 @@ export function institutionalFlatFee(annualPaidCount: number): number {
   return 30;
 }
 
-// Tutor Partners: fixed 10% of the first payment (doc SSB) — no tiering.
-// Subscription-renewal commissions are explicitly out of scope (no
-// subscription/recurring-billing product exists in this codebase).
-const TUTOR_COMMISSION_RATE = 10;
-
-async function computeCommissionAmount(
-  partner: PartnerRow,
-  amountPaid: number,
-): Promise<number | null> {
-  // Nothing was collected, so there is nothing to commission on — a free
-  // event/webinar, a 100% code discount, or a fully-waived fee. This guard is
-  // NOT redundant: the institutional branch below returns a FLAT GHS 30-50
-  // that never looks at amountPaid, so without it a free signup would pay a
-  // real cash commission. Every other tier multiplies by amountPaid and would
-  // already yield zero. Free events still record their referral attribution
-  // (registrations/service.ts calls redeemCodeSystem regardless) — they just
-  // never earn.
-  if (amountPaid <= 0) {
-    return 0;
-  }
-  if (partner.category === 'ambassador') {
-    const since = new Date();
-    since.setDate(since.getDate() - 30);
-    const monthlyCount = await partnersRepository.countCommissionsForPartnerSinceSystem(
-      partner.id,
-      since.toISOString(),
-    );
-    return round2(amountPaid * (ambassadorRate(monthlyCount) / 100));
-  }
-  if (partner.category === 'tutor') {
-    return round2(amountPaid * (TUTOR_COMMISSION_RATE / 100));
-  }
-  if (partner.category === 'institutional') {
-    const since = new Date();
-    since.setFullYear(since.getFullYear() - 1);
-    const annualCount = await partnersRepository.countCommissionsForPartnerSinceSystem(
-      partner.id,
-      since.toISOString(),
-    );
-    return institutionalFlatFee(annualCount);
-  }
-  // strategic: only if a manual rate was negotiated; otherwise no automatic
-  // commission (doc SSD — "should not be placed under the normal affiliate
-  // commission table").
-  if (partner.commission_rate !== null) {
-    return round2(amountPaid * (Number(partner.commission_rate) / 100));
-  }
-  return null;
-}
+// Since Knowsia Core Phase 6 (2026-09-20) the two functions above DESCRIBE
+// the programme (and hold its unit tests); the rate that pays is Core's
+// `core_commission_rules` table, applied by Core when the payment lands on
+// its ledger. Nothing in this app computes a commission any more.
 
 // --- Public application (doc SS5) ---
 
@@ -429,82 +390,88 @@ export async function recordLinkClickSystem(codeStr: string): Promise<void> {
   await partnersRepository.insertLinkClickSystem(code.id);
 }
 
-// Called from modules/payments' runPaidTransitionSideEffects, once a
-// registration's payment actually clears — "Pending" starts here, using the
-// amount ACTUALLY paid (doc SS2: "calculated on the amount actually
-// collected... not the advertised course fee").
-export async function accrueCommissionOnPaymentSystem(
-  registrationId: string,
-  amountPaid: number,
-): Promise<void> {
-  const redemption = await partnersRepository.selectRedemptionByRegistrationSystem(registrationId);
-  if (!redemption) return;
-  if (redemption.existing_lead_at_redemption || redemption.self_referral_at_redemption) return;
-
-  const code = await partnersRepository.selectCodeByIdSystem(redemption.code_id);
-  if (!code?.partner_id) return;
-  const partner = await partnersRepository.selectPartnerByIdSystem(code.partner_id);
-  if (!partner || partner.status !== 'active') return;
-
-  const existingCommission = await partnersRepository.selectCommissionByRegistrationSystem(registrationId);
-  if (existingCommission) return; // already accrued (e.g. a second payment top-up)
-
-  const commissionAmount = await computeCommissionAmount(partner, amountPaid);
-  if (commissionAmount === null || commissionAmount <= 0) return;
-
-  const batchStartDate = await partnersRepository.selectBatchStartDateForRegistrationSystem(
-    registrationId,
-  );
-
-  const holdUntil = new Date();
-  holdUntil.setDate(holdUntil.getDate() + COMMISSION_HOLD_DAYS);
-  const batchStart = batchStartDate ? new Date(batchStartDate) : holdUntil;
-  const qualifiesAt = holdUntil > batchStart ? holdUntil : batchStart;
-
-  await partnersRepository.insertCommissionSystem({
-    partner_id: partner.id,
-    registration_id: registrationId,
-    code_redemption_id: redemption.id,
-    commission_amount: commissionAmount,
-    qualifies_at: qualifiesAt.toISOString().slice(0, 10),
-  });
-}
-
-// Bundled into the existing 07:00 cron — pending -> approved once
-// qualifies_at has passed.
-export async function runCommissionQualificationDispatch(
-  now = new Date(),
-): Promise<{ approved: number }> {
-  const todayIso = now.toISOString().slice(0, 10);
-  const due = await partnersRepository.selectPendingCommissionsDueSystem(todayIso);
-  for (const commission of due) {
-    await partnersRepository.updateCommissionStatusSystem(commission.id, {
-      status: 'approved',
-      approved_at: now.toISOString(),
-    });
-  }
-  return { approved: due.length };
-}
+// Accrual and qualification left this app on 2026-09-20 (Knowsia Core
+// Phase 6, Doc 25 §2): the payment this app raises on Core's ledger
+// (modules/knowsia-app: raisePaymentSettledToCoreSystem) is what earns
+// the commission, in the same delivery that converts the attribution, and
+// Core's daily tick moves it out of its 14-day hold. `partner_commissions`
+// and `partner_payouts` stay as history for 30 days (carried over by
+// scripts/sync-commissions-to-core.mjs) and are read only when Core is not
+// configured.
 
 // --- Staff commissions & payouts ---
 
+function coreCommissionToLocal(c: CoreCommissionRecord): PartnerCommission {
+  return {
+    id: c.id,
+    partnerId: c.partner_external_ref ?? c.partner_id,
+    registrationId: '',
+    codeRedemptionId: c.attribution_external_ref ?? '',
+    commissionAmount: round2(c.amount_minor / 100),
+    status: c.status,
+    qualifiesAt: c.qualifies_at ?? '',
+    payoutId: c.payout_id,
+    paidAt: c.paid_at,
+    clawbackReason: c.reversal_of ? 'Reversed after a refund' : c.void_reason,
+    redeemedAgainstRegistrationId: c.redeemed_ref,
+    createdAt: c.created_at ?? '',
+  };
+}
+
+function corePayoutToLocal(p: CorePayoutRecord, partnerId: string): PartnerPayout {
+  return {
+    id: p.id,
+    partnerId,
+    totalAmount: round2(p.total_minor / 100),
+    method: p.method === 'redeemed' ? 'Course credit' : p.method === 'transfer' ? 'Paystack transfer' : p.reference ?? 'Manual',
+    reference: p.reference,
+    periodStart: null,
+    periodEnd: null,
+    paidAt: p.paid_at ?? p.created_at ?? '',
+  };
+}
+
+// The staff queue reads Core's rows for this product. Context (who paid,
+// which cohort) still comes from this app's own tables, keyed by the
+// attribution's external ref — that is this app's code_redemptions.id.
 export async function listCommissions(filters?: {
   status?: string;
   partnerId?: string;
 }): Promise<PartnerCommissionView[]> {
   await usersService.requireRole([...STAFF_FINANCE_ROLES]);
-  const rows = await partnersRepository.selectCommissions(filters);
-  const partnerIds = [...new Set(rows.map((r) => r.partner_id))];
-  const partners = await Promise.all(partnerIds.map((id) => partnersRepository.selectPartnerById(id)));
-  const partnerById = new Map(partners.filter((p): p is PartnerRow => p !== null).map((p) => [p.id, p]));
-  const context = await partnersRepository.selectCommissionContextSystem(rows.map((r) => r.registration_id));
-  return rows.map((row) => {
-    const partner = partnerById.get(row.partner_id);
-    const info = context.get(row.registration_id);
+  const partnerRows = await partnersRepository.selectPartners();
+  const partnerById = new Map(partnerRows.map((p) => [p.id, p]));
+  const core = await listCoreCommissions({ status: filters?.status || 'all', partnerId: filters?.partnerId });
+  if (core === null) {
+    const rows = await partnersRepository.selectCommissions(filters);
+    const context = await partnersRepository.selectCommissionContextSystem(rows.map((r) => r.registration_id));
+    return rows.map((row) => {
+      const partner = partnerById.get(row.partner_id);
+      const info = context.get(row.registration_id);
+      return {
+        ...toCommission(row),
+        partnerName: partner?.full_name ?? '',
+        partnerCategory: (partner?.category as PartnerCategory) ?? 'ambassador',
+        participantName: info?.participantName ?? '',
+        courseName: info?.courseName ?? '',
+        cohortLabel: info?.cohortLabel ?? '',
+      };
+    });
+  }
+  const redemptionIds = core.map((c) => c.attribution_external_ref).filter((id): id is string => Boolean(id));
+  const redemptions = await partnersRepository.selectRedemptionsByIdsSystem(redemptionIds);
+  const registrationByRedemption = new Map(redemptions.map((r) => [r.id, r.registration_id]));
+  const context = await partnersRepository.selectCommissionContextSystem([...new Set(redemptions.map((r) => r.registration_id))]);
+  return core.map((c) => {
+    const local = coreCommissionToLocal(c);
+    const partner = partnerById.get(local.partnerId);
+    const registrationId = registrationByRedemption.get(c.attribution_external_ref ?? '') ?? '';
+    const info = registrationId ? context.get(registrationId) : undefined;
     return {
-      ...toCommission(row),
-      partnerName: partner?.full_name ?? '',
-      partnerCategory: (partner?.category as PartnerCategory) ?? 'ambassador',
+      ...local,
+      registrationId,
+      partnerName: partner?.full_name ?? c.partner_display_name ?? '',
+      partnerCategory: (partner?.category as PartnerCategory) ?? ((c.partner_category as PartnerCategory) ?? 'ambassador'),
       participantName: info?.participantName ?? '',
       courseName: info?.courseName ?? '',
       cohortLabel: info?.cohortLabel ?? '',
@@ -512,55 +479,24 @@ export async function listCommissions(filters?: {
   });
 }
 
+// The finance-review checkpoint (doc SS3) — Core moves approved → payable
+// and refuses anything else (409), audited as this app's staff user.
 export async function markCommissionsPayable(commissionIds: string[]): Promise<void> {
   const staffUser = await usersService.requireRole([...STAFF_FINANCE_ROLES]);
-  for (const id of commissionIds) {
-    const commission = await partnersRepository.selectCommissionById(id);
-    if (!commission) continue;
-    if (commission.status !== 'approved') {
-      throw new AppError('CONFLICT', 'Only approved commissions can be marked payable.', 409);
-    }
-    await partnersRepository.updateCommissionStatus(id, {
-      status: 'payable',
-      marked_payable_at: new Date().toISOString(),
-      marked_payable_by: staffUser.id,
-    });
-  }
+  await markPayableOnCore(commissionIds, staffUser.id);
 }
 
+// A payout finance made by hand: Core records it against the partner's
+// payable commissions, once, and the statement shows the reference typed.
 export async function recordPayout(input: RecordPayoutInput): Promise<PartnerPayout> {
-  await usersService.requireRole([...STAFF_FINANCE_ROLES]);
-  let total = 0;
-  const commissions: CommissionRow[] = [];
-  for (const id of input.commissionIds) {
-    const commission = await partnersRepository.selectCommissionById(id);
-    if (!commission) throw new AppError('NOT_FOUND', 'Commission not found.', 404);
-    if (commission.partner_id !== input.partnerId) {
-      throw new AppError('VALIDATION_ERROR', 'All commissions in a payout must belong to the same partner.', 400);
-    }
-    if (commission.status !== 'payable') {
-      throw new AppError('CONFLICT', 'Only commissions marked payable can be paid out.', 409);
-    }
-    total += Number(commission.commission_amount);
-    commissions.push(commission);
-  }
-
-  const payoutRow = await partnersRepository.insertPayout({
-    partner_id: input.partnerId,
-    total_amount: round2(total),
-    method: input.method,
-    reference: input.reference ?? null,
+  const staffUser = await usersService.requireRole([...STAFF_FINANCE_ROLES]);
+  const payout = await recordPayoutOnCore({
+    partnerId: input.partnerId,
+    commissionIds: input.commissionIds,
+    reference: [input.method, input.reference?.trim()].filter(Boolean).join(' · ') || null,
+    actorRef: staffUser.id,
   });
-
-  for (const commission of commissions) {
-    await partnersRepository.updateCommissionStatus(commission.id, {
-      status: 'paid',
-      payout_id: payoutRow.id,
-      paid_at: new Date().toISOString(),
-    });
-  }
-
-  return toPayout(payoutRow);
+  return corePayoutToLocal(payout, input.partnerId);
 }
 
 // --- Partner portal auth (non-tutor categories only) — mirrors
@@ -649,20 +585,34 @@ export async function logoutOfPartnerPortal(sessionId: string | undefined): Prom
   await partnersRepository.revokePartnerSession(sessionId);
 }
 
+function emptyTotals(): Record<CommissionStatus, number> {
+  return { pending: 0, approved: 0, payable: 0, paid: 0, clawed_back: 0, redeemed: 0, reversed: 0, void: 0 };
+}
+
+// What a partner's portal shows: Core's ledger — every commission by
+// status, the payouts, and the ids a "redeem as course credit" would spend.
+// This app's own rows answer only while Core is not configured (a local
+// checkout with no key), never as a second opinion beside Core's.
 async function summarizeCommissions(partnerId: string): Promise<{
   totals: Record<CommissionStatus, number>;
   payouts: PartnerPayout[];
   payableIds: string[];
 }> {
+  if (isCoreCommissionsConfigured()) {
+    const ledger = await readPartnerLedger(partnerId);
+    if (ledger === null) return { totals: emptyTotals(), payouts: [], payableIds: [] };
+    const totals = emptyTotals();
+    for (const [status, minor] of Object.entries(ledger.totals_minor)) {
+      if (status in totals) totals[status as CommissionStatus] = round2(minor / 100);
+    }
+    return {
+      totals,
+      payouts: ledger.payouts.map((p) => corePayoutToLocal(p, partnerId)),
+      payableIds: ledger.payable_ids,
+    };
+  }
   const commissionRows = await partnersRepository.selectCommissions({ partnerId });
-  const totals: Record<CommissionStatus, number> = {
-    pending: 0,
-    approved: 0,
-    payable: 0,
-    paid: 0,
-    clawed_back: 0,
-    redeemed: 0,
-  };
+  const totals = emptyTotals();
   const payableIds: string[] = [];
   for (const row of commissionRows) {
     const status = row.status as CommissionStatus;
@@ -830,16 +780,32 @@ export async function validateAndTotalRedeemableCommissionsSystem(
   commissionIds: string[],
 ): Promise<number> {
   let total = 0;
-  for (const id of commissionIds) {
-    const commission = await partnersRepository.selectCommissionByIdSystem(id);
-    if (!commission) throw new AppError('NOT_FOUND', 'Commission not found.', 404);
-    if (commission.partner_id !== partnerId) {
-      throw new AppError('FORBIDDEN', 'That commission does not belong to you.', 403);
+  if (isCoreCommissionsConfigured()) {
+    const ledger = await readPartnerLedger(partnerId);
+    if (ledger === null) {
+      throw new AppError('SERVICE_UNAVAILABLE', 'Your commission balance could not be read just now. Nothing was changed.', 503);
     }
-    if (commission.status !== 'payable') {
-      throw new AppError('CONFLICT', 'Only payable commissions can be redeemed as course credit.', 409);
+    const byId = new Map(ledger.commissions.map((c) => [c.id, c]));
+    for (const id of commissionIds) {
+      const commission = byId.get(id);
+      if (!commission) throw new AppError('FORBIDDEN', 'That commission does not belong to you.', 403);
+      if (commission.status !== 'payable') {
+        throw new AppError('CONFLICT', 'Only payable commissions can be redeemed as course credit.', 409);
+      }
+      total += commission.amount_minor / 100;
     }
-    total += Number(commission.commission_amount);
+  } else {
+    for (const id of commissionIds) {
+      const commission = await partnersRepository.selectCommissionByIdSystem(id);
+      if (!commission) throw new AppError('NOT_FOUND', 'Commission not found.', 404);
+      if (commission.partner_id !== partnerId) {
+        throw new AppError('FORBIDDEN', 'That commission does not belong to you.', 403);
+      }
+      if (commission.status !== 'payable') {
+        throw new AppError('CONFLICT', 'Only payable commissions can be redeemed as course credit.', 409);
+      }
+      total += Number(commission.commission_amount);
+    }
   }
   if (total <= 0) {
     throw new AppError('VALIDATION_ERROR', 'Select at least one payable commission to redeem.', 400);
@@ -847,10 +813,17 @@ export async function validateAndTotalRedeemableCommissionsSystem(
   return round2(total);
 }
 
+// The spend itself: Core marks the rows `redeemed` against the registration
+// and records the course-credit payout — one door, one transaction there.
 export async function markCommissionsRedeemedSystem(
+  partnerId: string,
   commissionIds: string[],
   registrationId: string,
 ): Promise<void> {
+  if (isCoreCommissionsConfigured()) {
+    await redeemOnCore({ partnerId, commissionIds, registrationId });
+    return;
+  }
   for (const id of commissionIds) {
     await partnersRepository.updateCommissionStatusSystem(id, {
       status: 'redeemed',

@@ -173,8 +173,12 @@ export const COMMISSION_STATUSES = [
   'approved',
   'payable',
   'paid',
-  'clawed_back',
   'redeemed',
+  // Core's names since Phase 6 (2026-09-20); 'clawed_back' is this app's
+  // history and reads as 'reversed' once carried over.
+  'reversed',
+  'void',
+  'clawed_back',
 ] as const;
 export type CommissionStatus = (typeof COMMISSION_STATUSES)[number];
 

@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Knowsia Growth Partner Programme (founder-requested 2026-08-02, per
-// Coding Docs/knowsia_growth_partner_programme.md). Covers the commission
-// pipeline's core business rules: tiered rates, the Tracked (derived,
-// unstored) -> Pending transition firing only on payment, the
-// qualifies_at = GREATEST(...) hold-period math, the existing-lead/
-// self-referral exclusions, and the payable/payout double-review guards.
+// Coding Docs/knowsia_growth_partner_programme.md). Covers the tiered
+// rates that describe the programme, code redemption, and — since Knowsia
+// Core Phase 6 (2026-09-20) — that every commission action this app offers
+// goes through Core's doors: this app no longer accrues, qualifies, marks
+// payable, pays out or redeems a commission on its own rows.
 
 const partnersRepositoryMock = {
   selectCodeByCodeSystem: vi.fn(),
@@ -29,6 +29,8 @@ const partnersRepositoryMock = {
   selectPartners: vi.fn(),
   selectCommissions: vi.fn(),
   selectCommissionContextSystem: vi.fn(),
+  selectCommissionByIdSystem: vi.fn(),
+  selectRedemptionsByIdsSystem: vi.fn(),
 };
 const usersServiceMock = {
   requireRole: vi.fn(),
@@ -36,19 +38,28 @@ const usersServiceMock = {
 const coursesServiceMock = {
   getBatchByIdSystem: vi.fn(),
 };
+const coreCommissionsMock = {
+  isCoreCommissionsConfigured: vi.fn(() => true),
+  listCoreCommissions: vi.fn(),
+  markPayableOnCore: vi.fn(),
+  readPartnerLedger: vi.fn(),
+  recordPayoutOnCore: vi.fn(),
+  redeemOnCore: vi.fn(),
+};
 
 vi.mock('@/modules/partners/repository', () => partnersRepositoryMock);
 vi.mock('@/modules/users/service', () => usersServiceMock);
 vi.mock('@/modules/courses/service', () => coursesServiceMock);
+vi.mock('@/lib/knowsia-core/commissions', () => coreCommissionsMock);
 
 const {
   ambassadorRate,
   institutionalFlatFee,
   redeemCodeSystem,
-  accrueCommissionOnPaymentSystem,
-  runCommissionQualificationDispatch,
   markCommissionsPayable,
   recordPayout,
+  validateAndTotalRedeemableCommissionsSystem,
+  markCommissionsRedeemedSystem,
   previewCode,
   buildReferralUrl,
 } = await import('@/modules/partners/service');
@@ -104,6 +115,7 @@ function codeRow(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   usersServiceMock.requireRole.mockResolvedValue(STAFF);
+  coreCommissionsMock.isCoreCommissionsConfigured.mockReturnValue(true);
 });
 
 describe('ambassadorRate (doc SS2 tiers)', () => {
@@ -270,271 +282,88 @@ describe('redeemCodeSystem — records the Tracked state, never a commission (20
   });
 });
 
-describe('accrueCommissionOnPaymentSystem — Pending starts only once payment clears (2026-08-02)', () => {
-  const REGISTRATION_ID = 'reg-1';
-
-  function redemptionRow(overrides: Record<string, unknown> = {}) {
-    return {
-      id: 'redemption-1',
-      code_id: 'code-1',
-      registration_id: REGISTRATION_ID,
-      participant_id: 'participant-1',
-      discount_amount_applied: 100,
-      attribution_method: 'code',
-      existing_lead_at_redemption: false,
-      self_referral_at_redemption: false,
-      created_at: '2026-08-01T00:00:00Z',
-      ...overrides,
-    };
-  }
-
-  beforeEach(() => {
-    partnersRepositoryMock.selectRedemptionByRegistrationSystem.mockResolvedValue(redemptionRow());
-    partnersRepositoryMock.selectCodeByIdSystem.mockResolvedValue(codeRow());
-    partnersRepositoryMock.selectPartnerByIdSystem.mockResolvedValue(partnerRow());
-    partnersRepositoryMock.selectCommissionByRegistrationSystem.mockResolvedValue(null);
-    partnersRepositoryMock.countCommissionsForPartnerSinceSystem.mockResolvedValue(0);
-    partnersRepositoryMock.selectBatchStartDateForRegistrationSystem.mockResolvedValue(null);
-    partnersRepositoryMock.insertCommissionSystem.mockResolvedValue({ id: 'commission-1' });
-  });
-
-  it('does nothing when the registration was never attributed to a code', async () => {
-    partnersRepositoryMock.selectRedemptionByRegistrationSystem.mockResolvedValue(null);
-    await accrueCommissionOnPaymentSystem(REGISTRATION_ID, 1000);
-    expect(partnersRepositoryMock.insertCommissionSystem).not.toHaveBeenCalled();
-  });
-
-  it('withholds commission when the registrant was an existing lead', async () => {
-    partnersRepositoryMock.selectRedemptionByRegistrationSystem.mockResolvedValue(
-      redemptionRow({ existing_lead_at_redemption: true }),
-    );
-    await accrueCommissionOnPaymentSystem(REGISTRATION_ID, 1000);
-    expect(partnersRepositoryMock.insertCommissionSystem).not.toHaveBeenCalled();
-  });
-
-  it('withholds commission for a self-referral', async () => {
-    partnersRepositoryMock.selectRedemptionByRegistrationSystem.mockResolvedValue(
-      redemptionRow({ self_referral_at_redemption: true }),
-    );
-    await accrueCommissionOnPaymentSystem(REGISTRATION_ID, 1000);
-    expect(partnersRepositoryMock.insertCommissionSystem).not.toHaveBeenCalled();
-  });
-
-  it('does nothing for a pure-coupon code with no partner attached', async () => {
-    partnersRepositoryMock.selectCodeByIdSystem.mockResolvedValue(codeRow({ partner_id: null }));
-    await accrueCommissionOnPaymentSystem(REGISTRATION_ID, 1000);
-    expect(partnersRepositoryMock.insertCommissionSystem).not.toHaveBeenCalled();
-  });
-
-  it('does nothing when the partner is suspended/pending/rejected, not active', async () => {
-    partnersRepositoryMock.selectPartnerByIdSystem.mockResolvedValue(partnerRow({ status: 'suspended' }));
-    await accrueCommissionOnPaymentSystem(REGISTRATION_ID, 1000);
-    expect(partnersRepositoryMock.insertCommissionSystem).not.toHaveBeenCalled();
-  });
-
-  it('never double-accrues a second time for the same registration (e.g. a part-payment top-up)', async () => {
-    partnersRepositoryMock.selectCommissionByRegistrationSystem.mockResolvedValue({ id: 'commission-existing' });
-    await accrueCommissionOnPaymentSystem(REGISTRATION_ID, 1000);
-    expect(partnersRepositoryMock.insertCommissionSystem).not.toHaveBeenCalled();
-  });
-
-  it('computes the commission on the amount ACTUALLY paid, not any listed course fee', async () => {
-    partnersRepositoryMock.selectPartnerByIdSystem.mockResolvedValue(partnerRow({ category: 'ambassador' }));
-    partnersRepositoryMock.countCommissionsForPartnerSinceSystem.mockResolvedValue(0); // Starter tier, 12%
-    await accrueCommissionOnPaymentSystem(REGISTRATION_ID, 850); // a discounted amount actually collected
-    expect(partnersRepositoryMock.insertCommissionSystem).toHaveBeenCalledWith(
-      expect.objectContaining({ commission_amount: 102 }), // 850 * 0.12
-    );
-  });
-
-  it('a tutor partner earns a flat 10% of the amount paid', async () => {
-    partnersRepositoryMock.selectPartnerByIdSystem.mockResolvedValue(partnerRow({ category: 'tutor' }));
-    await accrueCommissionOnPaymentSystem(REGISTRATION_ID, 1000);
-    expect(partnersRepositoryMock.insertCommissionSystem).toHaveBeenCalledWith(
-      expect.objectContaining({ commission_amount: 100 }),
-    );
-  });
-
-  it('an institutional partner earns a tiered flat fee, not a percentage', async () => {
-    partnersRepositoryMock.selectPartnerByIdSystem.mockResolvedValue(partnerRow({ category: 'institutional' }));
-    partnersRepositoryMock.countCommissionsForPartnerSinceSystem.mockResolvedValue(60); // Gold tier
-    await accrueCommissionOnPaymentSystem(REGISTRATION_ID, 5000);
-    expect(partnersRepositoryMock.insertCommissionSystem).toHaveBeenCalledWith(
-      expect.objectContaining({ commission_amount: 40 }),
-    );
-  });
-
-  // Free events (2026-08-03): attribution is still recorded (redeemCodeSystem
-  // runs at registration regardless of fee), but nothing was collected, so
-  // nothing is earned. The institutional case is the one that actually leaks
-  // money without the guard — its flat fee never looks at amountPaid.
-  it('accrues nothing for an institutional partner when the amount paid is zero (free event)', async () => {
-    partnersRepositoryMock.selectPartnerByIdSystem.mockResolvedValue(
-      partnerRow({ category: 'institutional' }),
-    );
-    partnersRepositoryMock.countCommissionsForPartnerSinceSystem.mockResolvedValue(60);
-    await accrueCommissionOnPaymentSystem(REGISTRATION_ID, 0);
-    expect(partnersRepositoryMock.insertCommissionSystem).not.toHaveBeenCalled();
-  });
-
-  it('accrues nothing for an ambassador or tutor partner on a zero-fee registration', async () => {
-    partnersRepositoryMock.selectPartnerByIdSystem.mockResolvedValue(
-      partnerRow({ category: 'ambassador' }),
-    );
-    await accrueCommissionOnPaymentSystem(REGISTRATION_ID, 0);
-
-    partnersRepositoryMock.selectPartnerByIdSystem.mockResolvedValue(
-      partnerRow({ category: 'tutor' }),
-    );
-    await accrueCommissionOnPaymentSystem(REGISTRATION_ID, 0);
-
-    expect(partnersRepositoryMock.insertCommissionSystem).not.toHaveBeenCalled();
-  });
-
-  it('a strategic partner with no negotiated rate earns no automatic commission (doc SSD)', async () => {
-    partnersRepositoryMock.selectPartnerByIdSystem.mockResolvedValue(
-      partnerRow({ category: 'strategic', commission_rate: null }),
-    );
-    await accrueCommissionOnPaymentSystem(REGISTRATION_ID, 1000);
-    expect(partnersRepositoryMock.insertCommissionSystem).not.toHaveBeenCalled();
-  });
-
-  it('a strategic partner with a negotiated rate earns that percentage', async () => {
-    partnersRepositoryMock.selectPartnerByIdSystem.mockResolvedValue(
-      partnerRow({ category: 'strategic', commission_rate: 25 }),
-    );
-    await accrueCommissionOnPaymentSystem(REGISTRATION_ID, 1000);
-    expect(partnersRepositoryMock.insertCommissionSystem).toHaveBeenCalledWith(
-      expect.objectContaining({ commission_amount: 250 }),
-    );
-  });
-
-  describe('qualifies_at = GREATEST(payment + 14 days, batch start date)', () => {
-    it('uses payment + 14 days when the batch has already started', async () => {
-      partnersRepositoryMock.selectBatchStartDateForRegistrationSystem.mockResolvedValue('2020-01-01');
-      await accrueCommissionOnPaymentSystem(REGISTRATION_ID, 1000);
-      const [[call]] = partnersRepositoryMock.insertCommissionSystem.mock.calls;
-      const expected = new Date();
-      expected.setDate(expected.getDate() + 14);
-      expect(call.qualifies_at).toBe(expected.toISOString().slice(0, 10));
-    });
-
-    it('uses the batch start date when it is later than payment + 14 days', async () => {
-      const farFuture = new Date();
-      farFuture.setDate(farFuture.getDate() + 90);
-      const farFutureIso = farFuture.toISOString().slice(0, 10);
-      partnersRepositoryMock.selectBatchStartDateForRegistrationSystem.mockResolvedValue(farFutureIso);
-      await accrueCommissionOnPaymentSystem(REGISTRATION_ID, 1000);
-      const [[call]] = partnersRepositoryMock.insertCommissionSystem.mock.calls;
-      expect(call.qualifies_at).toBe(farFutureIso);
-    });
-  });
-});
-
-describe('runCommissionQualificationDispatch — pending -> approved once qualifies_at has passed', () => {
-  it('approves every commission due as of today and reports the count', async () => {
-    partnersRepositoryMock.selectPendingCommissionsDueSystem.mockResolvedValue([
-      { id: 'commission-1' },
-      { id: 'commission-2' },
-    ]);
-    const result = await runCommissionQualificationDispatch(new Date('2026-09-01'));
-    expect(result).toEqual({ approved: 2 });
-    expect(partnersRepositoryMock.updateCommissionStatusSystem).toHaveBeenCalledWith(
-      'commission-1',
-      expect.objectContaining({ status: 'approved' }),
-    );
-    expect(partnersRepositoryMock.updateCommissionStatusSystem).toHaveBeenCalledWith(
-      'commission-2',
-      expect.objectContaining({ status: 'approved' }),
-    );
-  });
-
-  it('reports zero when nothing is due yet', async () => {
-    partnersRepositoryMock.selectPendingCommissionsDueSystem.mockResolvedValue([]);
-    const result = await runCommissionQualificationDispatch();
-    expect(result).toEqual({ approved: 0 });
-    expect(partnersRepositoryMock.updateCommissionStatusSystem).not.toHaveBeenCalled();
-  });
-});
-
-describe('markCommissionsPayable — the manual finance-review checkpoint', () => {
-  it('moves an approved commission to payable', async () => {
-    partnersRepositoryMock.selectCommissionById.mockResolvedValue({ id: 'commission-1', status: 'approved' });
+describe('markCommissionsPayable — the finance-review checkpoint, through Core (Phase 6)', () => {
+  it('asks Core to move the rows and passes the staff user as the actor', async () => {
+    coreCommissionsMock.markPayableOnCore.mockResolvedValue([{ id: 'commission-1', status: 'payable' }]);
     await markCommissionsPayable(['commission-1']);
-    expect(partnersRepositoryMock.updateCommissionStatus).toHaveBeenCalledWith(
-      'commission-1',
-      expect.objectContaining({ status: 'payable', marked_payable_by: 'staff-1' }),
-    );
+    expect(coreCommissionsMock.markPayableOnCore).toHaveBeenCalledWith(['commission-1'], 'staff-1');
+    expect(partnersRepositoryMock.updateCommissionStatus).not.toHaveBeenCalled();
   });
 
-  it('rejects a commission that is not currently approved (double-review guard)', async () => {
-    partnersRepositoryMock.selectCommissionById.mockResolvedValue({ id: 'commission-1', status: 'payable' });
+  it("Core's refusal (a row that is not approved) surfaces as the error, never a silent no-op", async () => {
+    coreCommissionsMock.markPayableOnCore.mockRejectedValue(Object.assign(new Error('only an approved commission can be marked payable'), { code: 'CONFLICT' }));
     await expect(markCommissionsPayable(['commission-1'])).rejects.toMatchObject({ code: 'CONFLICT' });
   });
 
   it('requires finance or admin', async () => {
-    partnersRepositoryMock.selectCommissionById.mockResolvedValue({ id: 'commission-1', status: 'approved' });
+    coreCommissionsMock.markPayableOnCore.mockResolvedValue([]);
     await markCommissionsPayable(['commission-1']);
     expect(usersServiceMock.requireRole).toHaveBeenCalledWith(['finance', 'admin']);
   });
 });
 
-describe('recordPayout — payable -> paid, one payout per partner', () => {
-  function payableCommission(overrides: Record<string, unknown> = {}) {
-    return { id: 'commission-1', partner_id: 'partner-1', status: 'payable', commission_amount: 120, ...overrides };
-  }
-
-  beforeEach(() => {
-    partnersRepositoryMock.insertPayout.mockResolvedValue({
-      id: 'payout-1',
-      partner_id: 'partner-1',
-      total_amount: 120,
-      method: 'MTN MoMo',
-      reference: null,
-      period_start: null,
-      period_end: null,
-      paid_at: '2026-08-15T00:00:00Z',
+describe('recordPayout — a hand payout recorded on Core, once (Phase 6)', () => {
+  it('sends the partner, the rows and the typed method + reference to Core and reads the payout back', async () => {
+    coreCommissionsMock.recordPayoutOnCore.mockResolvedValue({
+      id: 'payout-1', partner_id: 'core-partner', total_minor: 20000, currency: 'GHS', method: 'manual', reference: 'MTN MoMo · TX-9',
+      commission_ids: ['commission-1', 'commission-2'], status: 'paid', paid_at: '2026-09-20T09:00:00Z', created_at: '2026-09-20T09:00:00Z',
     });
-  });
-
-  it('rejects a commission that is not payable (double-review guard)', async () => {
-    partnersRepositoryMock.selectCommissionById.mockResolvedValue(payableCommission({ status: 'pending' }));
-    await expect(
-      recordPayout({ partnerId: 'partner-1', commissionIds: ['commission-1'], method: 'MTN MoMo' }),
-    ).rejects.toMatchObject({ code: 'CONFLICT' });
+    const payout = await recordPayout({ partnerId: 'partner-1', commissionIds: ['commission-1', 'commission-2'], method: 'MTN MoMo', reference: 'TX-9' });
+    expect(coreCommissionsMock.recordPayoutOnCore).toHaveBeenCalledWith({
+      partnerId: 'partner-1', commissionIds: ['commission-1', 'commission-2'], reference: 'MTN MoMo · TX-9', actorRef: 'staff-1',
+    });
+    expect(payout).toMatchObject({ id: 'payout-1', partnerId: 'partner-1', totalAmount: 200, reference: 'MTN MoMo · TX-9', paidAt: '2026-09-20T09:00:00Z' });
     expect(partnersRepositoryMock.insertPayout).not.toHaveBeenCalled();
   });
 
-  it('rejects mixing commissions from a different partner into one payout', async () => {
-    partnersRepositoryMock.selectCommissionById.mockResolvedValue(
-      payableCommission({ partner_id: 'a-different-partner' }),
-    );
+  it("Core's refusal (a row not payable, or another partner's) is the error", async () => {
+    coreCommissionsMock.recordPayoutOnCore.mockRejectedValue(Object.assign(new Error('every commission in a payout must be payable and this partner\'s'), { code: 'CONFLICT' }));
     await expect(
       recordPayout({ partnerId: 'partner-1', commissionIds: ['commission-1'], method: 'MTN MoMo' }),
-    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
-  });
-
-  it('sums the commission amounts into one payout and marks every commission paid', async () => {
-    partnersRepositoryMock.selectCommissionById
-      .mockResolvedValueOnce(payableCommission({ id: 'commission-1', commission_amount: 120 }))
-      .mockResolvedValueOnce(payableCommission({ id: 'commission-2', commission_amount: 80 }));
-
-    await recordPayout({
-      partnerId: 'partner-1',
-      commissionIds: ['commission-1', 'commission-2'],
-      method: 'MTN MoMo',
-    });
-
-    expect(partnersRepositoryMock.insertPayout).toHaveBeenCalledWith(
-      expect.objectContaining({ partner_id: 'partner-1', total_amount: 200, method: 'MTN MoMo' }),
-    );
-    expect(partnersRepositoryMock.updateCommissionStatus).toHaveBeenCalledWith(
-      'commission-1',
-      expect.objectContaining({ status: 'paid', payout_id: 'payout-1' }),
-    );
-    expect(partnersRepositoryMock.updateCommissionStatus).toHaveBeenCalledWith(
-      'commission-2',
-      expect.objectContaining({ status: 'paid', payout_id: 'payout-1' }),
-    );
+    ).rejects.toMatchObject({ code: 'CONFLICT' });
   });
 });
+
+describe('commission credit redemption — validated against Core\'s ledger, spent through Core\'s door (Phase 6)', () => {
+  function ledger(commissions: Array<Record<string, unknown>>) {
+    return { partner_id: 'core-partner', totals_minor: {}, payable_balance_minor: 0, payable_ids: [], min_payout_minor: 10000, can_pay_out: false, commissions, payouts: [], statements: [] };
+  }
+
+  it('totals the chosen payable rows from the ledger in GHS', async () => {
+    coreCommissionsMock.readPartnerLedger.mockResolvedValue(ledger([
+      { id: 'c1', status: 'payable', amount_minor: 12000 },
+      { id: 'c2', status: 'payable', amount_minor: 8050 },
+      { id: 'c3', status: 'approved', amount_minor: 5000 },
+    ]));
+    await expect(validateAndTotalRedeemableCommissionsSystem('partner-1', ['c1', 'c2'])).resolves.toBe(200.5);
+  });
+
+  it('refuses a row that is not payable, and a row that is not in this partner\'s ledger', async () => {
+    coreCommissionsMock.readPartnerLedger.mockResolvedValue(ledger([{ id: 'c1', status: 'approved', amount_minor: 12000 }]));
+    await expect(validateAndTotalRedeemableCommissionsSystem('partner-1', ['c1'])).rejects.toMatchObject({ code: 'CONFLICT' });
+    await expect(validateAndTotalRedeemableCommissionsSystem('partner-1', ['someone-elses'])).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('a ledger Core cannot serve refuses the redemption rather than guessing from local rows', async () => {
+    coreCommissionsMock.readPartnerLedger.mockResolvedValue(null);
+    await expect(validateAndTotalRedeemableCommissionsSystem('partner-1', ['c1'])).rejects.toMatchObject({ code: 'SERVICE_UNAVAILABLE' });
+    expect(partnersRepositoryMock.selectCommissionByIdSystem).not.toHaveBeenCalled();
+  });
+
+  it('the spend goes through Core, keyed by the registration it pays', async () => {
+    coreCommissionsMock.redeemOnCore.mockResolvedValue({ total_minor: 12000, payout_id: 'po-1' });
+    await markCommissionsRedeemedSystem('partner-1', ['c1'], 'reg-9');
+    expect(coreCommissionsMock.redeemOnCore).toHaveBeenCalledWith({ partnerId: 'partner-1', commissionIds: ['c1'], registrationId: 'reg-9' });
+    expect(partnersRepositoryMock.updateCommissionStatusSystem).not.toHaveBeenCalled();
+  });
+
+  it('without Core configured (a local checkout with no key) the local rows still answer', async () => {
+    coreCommissionsMock.isCoreCommissionsConfigured.mockReturnValue(false);
+    partnersRepositoryMock.selectCommissionByIdSystem.mockResolvedValue({ id: 'c1', partner_id: 'partner-1', status: 'payable', commission_amount: 120 });
+    await expect(validateAndTotalRedeemableCommissionsSystem('partner-1', ['c1'])).resolves.toBe(120);
+    await markCommissionsRedeemedSystem('partner-1', ['c1'], 'reg-9');
+    expect(partnersRepositoryMock.updateCommissionStatusSystem).toHaveBeenCalledWith('c1', expect.objectContaining({ status: 'redeemed', redeemed_against_registration_id: 'reg-9' }));
+    expect(coreCommissionsMock.redeemOnCore).not.toHaveBeenCalled();
+  });
+});
+

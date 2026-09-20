@@ -1456,6 +1456,159 @@
         "title": "ServiceCheckout",
         "type": "object"
       },
+      "ServiceCommissionImport": {
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "approved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "attribution_external_ref": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attribution External Ref"
+          },
+          "base_minor": {
+            "minimum": 0.0,
+            "title": "Base Minor",
+            "type": "integer"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "external_ref": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "External Ref",
+            "type": "string"
+          },
+          "paid_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid At"
+          },
+          "partner_external_ref": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Partner External Ref",
+            "type": "string"
+          },
+          "payable_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payable At"
+          },
+          "payment_reference": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment Reference"
+          },
+          "product": {
+            "default": "registration",
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          },
+          "qualifies_at": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qualifies At"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "redeemed_ref": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redeemed Ref"
+          },
+          "status": {
+            "pattern": "^(pending|approved|payable|paid|redeemed|reversed|void)$",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "partner_external_ref",
+          "external_ref",
+          "base_minor",
+          "amount_minor",
+          "status"
+        ],
+        "title": "ServiceCommissionImport",
+        "type": "object"
+      },
       "ServiceCoupon": {
         "properties": {
           "applies_to": {
@@ -2140,6 +2293,223 @@
         "title": "ServicePartnerStatus",
         "type": "object"
       },
+      "ServicePayable": {
+        "properties": {
+          "actor_ref": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Ref"
+          },
+          "commission_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Commission Ids",
+            "type": "array"
+          },
+          "product": {
+            "default": "registration",
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          }
+        },
+        "required": [
+          "commission_ids"
+        ],
+        "title": "ServicePayable",
+        "type": "object"
+      },
+      "ServicePayout": {
+        "properties": {
+          "actor_ref": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Ref"
+          },
+          "commission_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commission Ids"
+          },
+          "method": {
+            "default": "manual",
+            "pattern": "^(transfer|manual)$",
+            "title": "Method",
+            "type": "string"
+          },
+          "product": {
+            "default": "registration",
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          }
+        },
+        "title": "ServicePayout",
+        "type": "object"
+      },
+      "ServicePayoutDetails": {
+        "properties": {
+          "account_name": {
+            "maxLength": 255,
+            "minLength": 2,
+            "title": "Account Name",
+            "type": "string"
+          },
+          "account_number": {
+            "maxLength": 40,
+            "minLength": 4,
+            "title": "Account Number",
+            "type": "string"
+          },
+          "bank_code": {
+            "maxLength": 20,
+            "minLength": 2,
+            "title": "Bank Code",
+            "type": "string"
+          },
+          "method": {
+            "pattern": "^(mobile_money|bank)$",
+            "title": "Method",
+            "type": "string"
+          },
+          "product": {
+            "default": "registration",
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "bank_code",
+          "account_number",
+          "account_name"
+        ],
+        "title": "ServicePayoutDetails",
+        "type": "object"
+      },
+      "ServicePayoutImport": {
+        "properties": {
+          "commission_external_refs": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 500,
+            "title": "Commission External Refs",
+            "type": "array"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "external_ref": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "External Ref",
+            "type": "string"
+          },
+          "method": {
+            "default": "manual",
+            "pattern": "^(transfer|manual|redeemed)$",
+            "title": "Method",
+            "type": "string"
+          },
+          "paid_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid At"
+          },
+          "partner_external_ref": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Partner External Ref",
+            "type": "string"
+          },
+          "product": {
+            "default": "registration",
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "total_minor": {
+            "minimum": 0.0,
+            "title": "Total Minor",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "partner_external_ref",
+          "external_ref",
+          "total_minor"
+        ],
+        "title": "ServicePayoutImport",
+        "type": "object"
+      },
       "ServiceQuote": {
         "properties": {
           "coupon_code": {
@@ -2221,6 +2591,37 @@
           "sku_code"
         ],
         "title": "ServiceQuote",
+        "type": "object"
+      },
+      "ServiceRedeem": {
+        "properties": {
+          "commission_ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Commission Ids",
+            "type": "array"
+          },
+          "product": {
+            "default": "registration",
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          },
+          "reference": {
+            "maxLength": 100,
+            "minLength": 3,
+            "title": "Reference",
+            "type": "string"
+          }
+        },
+        "required": [
+          "commission_ids",
+          "reference"
+        ],
+        "title": "ServiceRedeem",
         "type": "object"
       },
       "ServiceRedemption": {
@@ -3095,6 +3496,165 @@
         ]
       }
     },
+    "/api/v1/service/affiliates/commissions": {
+      "get": {
+        "description": "The staff console over there reads Core's rows for its product, each\ncarrying the ids it needs to show context: the partner's external ref and\nthe attribution's (that app's code_redemptions.id).",
+        "operationId": "service_commissions_api_v1_service_affiliates_commissions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "product",
+            "required": false,
+            "schema": {
+              "default": "registration",
+              "title": "Product",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "partner_external_ref",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Partner External Ref"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Commissions Api V1 Service Affiliates Commissions Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Commissions",
+        "tags": [
+          "service-affiliates"
+        ]
+      }
+    },
+    "/api/v1/service/affiliates/commissions/import": {
+      "post": {
+        "description": "History, once (scripts/sync-commissions-to-core.mjs over there). 404\nwhen the partner or the attribution is not in Core yet \u2014 run the\npartners sync first; nothing is invented to make a row fit.",
+        "operationId": "service_import_commission_api_v1_service_affiliates_commissions_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceCommissionImport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Import Commission Api V1 Service Affiliates Commissions Import Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Import Commission",
+        "tags": [
+          "service-affiliates"
+        ]
+      }
+    },
+    "/api/v1/service/affiliates/commissions/payable": {
+      "post": {
+        "operationId": "service_mark_payable_api_v1_service_affiliates_commissions_payable_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServicePayable"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Mark Payable Api V1 Service Affiliates Commissions Payable Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Mark Payable",
+        "tags": [
+          "service-affiliates"
+        ]
+      }
+    },
     "/api/v1/service/affiliates/partners": {
       "put": {
         "operationId": "service_upsert_partner_api_v1_service_affiliates_partners_put",
@@ -3133,6 +3693,223 @@
           }
         },
         "summary": "Service Upsert Partner",
+        "tags": [
+          "service-affiliates"
+        ]
+      }
+    },
+    "/api/v1/service/affiliates/partners/{external_ref}/ledger": {
+      "get": {
+        "operationId": "service_partner_ledger_api_v1_service_affiliates_partners__external_ref__ledger_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "external_ref",
+            "required": true,
+            "schema": {
+              "title": "External Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "product",
+            "required": false,
+            "schema": {
+              "default": "registration",
+              "title": "Product",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Partner Ledger Api V1 Service Affiliates Partners  External Ref  Ledger Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Partner Ledger",
+        "tags": [
+          "service-affiliates"
+        ]
+      }
+    },
+    "/api/v1/service/affiliates/partners/{external_ref}/payout-details": {
+      "put": {
+        "operationId": "service_payout_details_api_v1_service_affiliates_partners__external_ref__payout_details_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "external_ref",
+            "required": true,
+            "schema": {
+              "title": "External Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServicePayoutDetails"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Payout Details Api V1 Service Affiliates Partners  External Ref  Payout Details Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Payout Details",
+        "tags": [
+          "service-affiliates"
+        ]
+      }
+    },
+    "/api/v1/service/affiliates/partners/{external_ref}/payouts": {
+      "post": {
+        "description": "Finance over there paid a partner by hand (or asks for a transfer):\nthe payout row and the commissions it covers move here, once.",
+        "operationId": "service_payout_api_v1_service_affiliates_partners__external_ref__payouts_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "external_ref",
+            "required": true,
+            "schema": {
+              "title": "External Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServicePayout"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Payout Api V1 Service Affiliates Partners  External Ref  Payouts Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Payout",
+        "tags": [
+          "service-affiliates"
+        ]
+      }
+    },
+    "/api/v1/service/affiliates/partners/{external_ref}/redeem": {
+      "post": {
+        "operationId": "service_redeem_api_v1_service_affiliates_partners__external_ref__redeem_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "external_ref",
+            "required": true,
+            "schema": {
+              "title": "External Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceRedeem"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Redeem Api V1 Service Affiliates Partners  External Ref  Redeem Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Redeem",
         "tags": [
           "service-affiliates"
         ]
@@ -3187,6 +3964,49 @@
           }
         },
         "summary": "Service Partner Status",
+        "tags": [
+          "service-affiliates"
+        ]
+      }
+    },
+    "/api/v1/service/affiliates/payouts/import": {
+      "post": {
+        "operationId": "service_import_payout_api_v1_service_affiliates_payouts_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServicePayoutImport"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Import Payout Api V1 Service Affiliates Payouts Import Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Import Payout",
         "tags": [
           "service-affiliates"
         ]

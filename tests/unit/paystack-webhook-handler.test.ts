@@ -9,9 +9,7 @@ const sendEmailOnceMock = vi.fn();
 const sendWhatsappOnceMock = vi.fn();
 const sendSmsOnceMock = vi.fn();
 const issuePortalLoginTokenMock = vi.fn();
-const partnersServiceMock = {
-  accrueCommissionOnPaymentSystem: vi.fn(),
-};
+const partnersServiceMock = {};
 
 vi.mock('@/modules/payments/repository', () => repositoryMock);
 vi.mock('@/modules/communications/service', () => ({
@@ -60,7 +58,6 @@ beforeEach(() => {
   });
   sendEmailOnceMock.mockResolvedValue('sent');
   issuePortalLoginTokenMock.mockResolvedValue(undefined);
-  partnersServiceMock.accrueCommissionOnPaymentSystem.mockResolvedValue(undefined);
 });
 
 describe('BR-14 — webhook idempotency (T-BR14-01 logic)', () => {
@@ -77,7 +74,9 @@ describe('BR-14 — webhook idempotency (T-BR14-01 logic)', () => {
       }),
     );
     expect(sendEmailOnceMock).toHaveBeenCalledWith('reg-1', 'payment_confirmation');
-    expect(partnersServiceMock.accrueCommissionOnPaymentSystem).toHaveBeenCalledWith('reg-1', 1200);
+    // Since Core Phase 6 (2026-09-20) no commission is computed here: the payment
+    // raised on Core's ledger by the paid transition is what earns it.
+    expect('accrueCommissionOnPaymentSystem' in partnersServiceMock).toBe(false);
   });
 
   it('returns already_processed for a repeated reference without touching the payment', async () => {

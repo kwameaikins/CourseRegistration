@@ -3,7 +3,6 @@ import * as communicationsService from '@/modules/communications/service';
 import * as feedbackService from '@/modules/feedback/service';
 import * as voiceService from '@/modules/voice/service';
 import * as leadsService from '@/modules/leads/service';
-import * as partnersService from '@/modules/partners/service';
 import * as accessGrantsService from '@/modules/access-grants/service';
 import * as registrationsService from '@/modules/registrations/service';
 import * as certificatesService from '@/modules/certificates/service';
@@ -42,10 +41,8 @@ export async function GET(request: Request) {
     // ("3 days after end date"), so a daily check suffices for it too.
     const classReminders = await communicationsService.runClassReminderDispatch();
     const upsell = await communicationsService.runUpsellMessageDispatch();
-    // Partner commission qualification (2026-08-02) — flips pending ->
-    // approved once qualifies_at has passed. Bundled here for the same
-    // Vercel Hobby two-cron-job cap reason as everything else above.
-    const partnerCommissions = await partnersService.runCommissionQualificationDispatch();
+    // Partner commission qualification left this cron on 2026-09-20: Core's
+    // daily tick moves a commission out of its hold (Knowsia Core Phase 6).
     // Time-boxed access (2026-08-08) — warns before a grant lapses, then
     // withdraws the seat and kills the personal Zoom join link once it has.
     // Note this is NOT what enforces expiry: the portal gates re-derive
@@ -86,7 +83,6 @@ export async function GET(request: Request) {
       leadFollowUps,
       classReminders,
       upsell,
-      partnerCommissions,
       accessSweep,
       autoLapse,
       certificateIssuance,

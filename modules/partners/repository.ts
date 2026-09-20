@@ -359,6 +359,17 @@ export async function selectRedemptionByRegistrationSystem(
   return data;
 }
 
+// Core's commission rows carry this app's code_redemptions.id as the
+// attribution's external ref; the staff queue maps them back to a
+// registration for its participant/course context (Phase 6).
+export async function selectRedemptionsByIdsSystem(ids: string[]): Promise<CodeRedemptionRow[]> {
+  if (ids.length === 0) return [];
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase.from('code_redemptions').select('*').in('id', ids);
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function countRedemptionsForCodeAndParticipantSystem(
   codeId: string,
   participantId: string,

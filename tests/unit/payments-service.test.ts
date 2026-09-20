@@ -39,8 +39,13 @@ const r2ClientMock = {
   uploadObject: vi.fn(),
   getSignedDownloadUrl: vi.fn(),
 };
+const knowsiaAppServiceMock = {
+  raisePaymentSettledToCoreSystem: vi.fn(),
+  grantQuestionBankAccessSystem: vi.fn(),
+};
 const partnersServiceMock = {
-  accrueCommissionOnPaymentSystem: vi.fn(),
+  validateAndTotalRedeemableCommissionsSystem: vi.fn(),
+  markCommissionsRedeemedSystem: vi.fn(),
 };
 const couponsServiceMock = {
   previewCoupon: vi.fn(),
@@ -59,6 +64,7 @@ vi.mock('@/modules/opportunities/service', () => opportunitiesServiceMock);
 vi.mock('@/modules/leads/service', () => leadsServiceMock);
 vi.mock('@/lib/r2/client', () => r2ClientMock);
 vi.mock('@/modules/partners/service', () => partnersServiceMock);
+vi.mock('@/modules/knowsia-app/service', () => knowsiaAppServiceMock);
 vi.mock('@/modules/coupons/service', () => couponsServiceMock);
 
 const {
@@ -139,7 +145,6 @@ beforeEach(() => {
   paymentsRepositoryMock.selectInstallmentsForRegistration.mockResolvedValue([]);
   paymentsRepositoryMock.updateInstallmentAmountPaid.mockResolvedValue(undefined);
   paymentsRepositoryMock.updateInstallmentAmountDue.mockResolvedValue(undefined);
-  partnersServiceMock.accrueCommissionOnPaymentSystem.mockResolvedValue(undefined);
 });
 
 describe('BR-12 — verified_by is always the session staff id', () => {
@@ -246,33 +251,19 @@ describe('E07 — confirmation email only on the transition to Paid', () => {
   });
 });
 
-describe('Knowsia Growth Partner Programme — commission accrual on the Paid transition (2026-08-02)', () => {
-  it('accrues using the ACTUAL amount paid, only on the transition to Paid', async () => {
+describe('Knowsia Growth Partner Programme — a commission is Core\'s, derived from the ledger (Phase 6, 2026-09-20)', () => {
+  it('the Paid transition raises the payment on Core\'s ledger and computes no commission here', async () => {
     await updatePaymentByStaff('reg-1', { amountPaid: 1200, paymentMethod: 'Bank Transfer' });
-    expect(partnersServiceMock.accrueCommissionOnPaymentSystem).toHaveBeenCalledWith('reg-1', 1200);
+    expect(knowsiaAppServiceMock.raisePaymentSettledToCoreSystem).toHaveBeenCalledWith('reg-1');
+    expect('accrueCommissionOnPaymentSystem' in partnersServiceMock).toBe(false);
   });
 
-  it('never accrues for a part payment (still Pending/Part Payment, not yet Paid)', async () => {
+  it('a part payment raises nothing (still Pending/Part Payment, not yet Paid)', async () => {
     paymentsRepositoryMock.updatePaymentByRegistrationId.mockResolvedValue(
       existingPayment({ amount_paid: 400, balance: 800, payment_status: 'Part Payment' }),
     );
     await updatePaymentByStaff('reg-1', { amountPaid: 400, paymentMethod: 'MTN MoMo' });
-    expect(partnersServiceMock.accrueCommissionOnPaymentSystem).not.toHaveBeenCalled();
-  });
-
-  it('never re-accrues on a payment that was already Paid (EC-05 double-mark)', async () => {
-    paymentsRepositoryMock.selectPaymentByRegistrationId.mockResolvedValue(
-      existingPayment({ amount_paid: 1200, balance: 0, payment_status: 'Paid' }),
-    );
-    await updatePaymentByStaff('reg-1', { amountPaid: 1200, paymentMethod: 'Bank Transfer' });
-    expect(partnersServiceMock.accrueCommissionOnPaymentSystem).not.toHaveBeenCalled();
-  });
-
-  it('a commission-accrual failure never fails the payment update itself', async () => {
-    partnersServiceMock.accrueCommissionOnPaymentSystem.mockRejectedValue(new Error('db down'));
-    await expect(
-      updatePaymentByStaff('reg-1', { amountPaid: 1200, paymentMethod: 'Bank Transfer' }),
-    ).resolves.toBeDefined();
+    expect(knowsiaAppServiceMock.raisePaymentSettledToCoreSystem).not.toHaveBeenCalled();
   });
 });
 
@@ -394,7 +385,7 @@ describe('applyDiscount — staff-granted discretionary discount / fee waiver', 
     // ...but no "we received your payment of GHS 0.00", and no commission on
     // money that was never collected.
     expect(sendEmailOnceMock).not.toHaveBeenCalledWith('reg-1', 'payment_confirmation');
-    expect(partnersServiceMock.accrueCommissionOnPaymentSystem).not.toHaveBeenCalled();
+    expect(knowsiaAppServiceMock.raisePaymentSettledToCoreSystem).not.toHaveBeenCalled();
   });
 
   it('rejects a discount exceeding the original fee', async () => {

@@ -154,6 +154,27 @@ describe('KnowsiaApp service-door contract (what modules/knowsia-app/service.ts 
     expect(contract.paths['/api/v1/service/affiliates/attributions/by-subject']?.get, 'GET by-subject is missing').toBeDefined();
   });
 
+  it('Core Affiliates, the money half (Doc 25 §2, Phase 6): the ledger, mark payable, a hand payout, redeem as credit, payout details, and the history import', () => {
+    expect(contract.paths['/api/v1/service/affiliates/partners/{external_ref}/ledger']?.get, 'GET ledger is missing').toBeDefined();
+    expect(contract.paths['/api/v1/service/affiliates/commissions']?.get, 'GET commissions is missing').toBeDefined();
+    const payable = requestFields('/api/v1/service/affiliates/commissions/payable', 'post');
+    for (const f of ['product', 'commission_ids', 'actor_ref']) expect(payable, `payable field ${f}`).toContain(f);
+    const payout = requestFields('/api/v1/service/affiliates/partners/{external_ref}/payouts', 'post');
+    for (const f of ['product', 'commission_ids', 'method', 'reference', 'actor_ref']) expect(payout, `payout field ${f}`).toContain(f);
+    const redeem = requestFields('/api/v1/service/affiliates/partners/{external_ref}/redeem', 'post');
+    for (const f of ['product', 'commission_ids', 'reference']) expect(redeem, `redeem field ${f}`).toContain(f);
+    const details = requestFields('/api/v1/service/affiliates/partners/{external_ref}/payout-details', 'put');
+    for (const f of ['product', 'method', 'bank_code', 'account_number', 'account_name']) expect(details, `payout-details field ${f}`).toContain(f);
+    const imported = requestFields('/api/v1/service/affiliates/commissions/import', 'post');
+    for (const f of ['product', 'partner_external_ref', 'attribution_external_ref', 'external_ref', 'payment_reference', 'base_minor', 'amount_minor', 'status', 'qualifies_at', 'paid_at', 'reason', 'redeemed_ref', 'created_at']) {
+      expect(imported, `commission import field ${f}`).toContain(f);
+    }
+    const payoutImport = requestFields('/api/v1/service/affiliates/payouts/import', 'post');
+    for (const f of ['product', 'partner_external_ref', 'external_ref', 'total_minor', 'method', 'reference', 'commission_external_refs', 'paid_at']) {
+      expect(payoutImport, `payout import field ${f}`).toContain(f);
+    }
+  });
+
   it('Core Catalogue & pricing (Doc 22 Phase 4): PUT …/catalogue/skus, PUT …/coupons, POST …/coupons/redemptions, POST …/quote', () => {
     const sku = requestFields('/api/v1/service/catalogue/skus', 'put');
     for (const f of ['product', 'kind', 'code', 'name', 'price_minor', 'currency', 'pricing', 'external_ref', 'tax_treatment', 'valid_to', 'active', 'rules']) {

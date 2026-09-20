@@ -85,19 +85,12 @@ type PaymentUpdateResult = {
 // (BR-07 makes a repeat call harmless regardless). Each side effect is
 // independently non-blocking — one failing must never sink the others or
 // the caller's write, which has already committed by the time this runs.
-export async function runPaidTransitionSideEffects(
-  registrationId: string,
-  amountPaid?: number,
-): Promise<void> {
-  if (amountPaid !== undefined) {
-    try {
-      await partnersService.accrueCommissionOnPaymentSystem(registrationId, amountPaid);
-    } catch (err) {
-      console.error('[payment_confirmation partner commission accrual]', err);
-    }
-  }
+export async function runPaidTransitionSideEffects(registrationId: string): Promise<void> {
   // Knowsia Core (Phase 4 R3): the payment on the cross-product ledger. Paid
   // path only — a free seat is not revenue. Non-blocking like everything here.
+  // Since Phase 6 (2026-09-20) this is ALSO what earns the partner's
+  // commission: Core derives it from the ledger row in the same delivery that
+  // converts the referral. Nothing here computes one.
   try {
     await knowsiaAppService.raisePaymentSettledToCoreSystem(registrationId);
   } catch (err) {
@@ -273,7 +266,7 @@ export async function applyPaymentUpdate(
     if (Number(updated.amount_paid) <= 0) {
       await runZeroFeeEnrollmentSideEffects(registrationId);
     } else {
-      await runPaidTransitionSideEffects(registrationId, Number(updated.amount_paid));
+      await runPaidTransitionSideEffects(registrationId);
     }
   } else if (updated.payment_status === 'Part Payment') {
     await runPartPaymentSideEffects(registrationId);
@@ -543,7 +536,7 @@ export async function applyDiscount(
     if (Number(updated.amount_paid) <= 0) {
       await runZeroFeeEnrollmentSideEffects(registrationId);
     } else {
-      await runPaidTransitionSideEffects(registrationId, Number(updated.amount_paid));
+      await runPaidTransitionSideEffects(registrationId);
     }
   }
 
@@ -642,7 +635,7 @@ export async function redeemCommissionCreditSystem(
     if (Number(updated.amount_paid) <= 0) {
       await runZeroFeeEnrollmentSideEffects(targetRegistrationId);
     } else {
-      await runPaidTransitionSideEffects(targetRegistrationId, Number(updated.amount_paid));
+      await runPaidTransitionSideEffects(targetRegistrationId);
     }
   }
 
@@ -656,7 +649,7 @@ export async function redeemCommissionCreditSystem(
   // if this throws, the redemption itself already succeeded and the
   // failure needs to surface loudly (money's involved) rather than being
   // silently swallowed.
-  await partnersService.markCommissionsRedeemedSystem(commissionIds, targetRegistrationId);
+  await partnersService.markCommissionsRedeemedSystem(partnerId, commissionIds, targetRegistrationId);
 
   const payment = toPayment(updated);
   return {
@@ -756,7 +749,7 @@ export async function applyCouponToRegistrationSystem(
     if (Number(updated.amount_paid) <= 0) {
       await runZeroFeeEnrollmentSideEffects(registrationId);
     } else {
-      await runPaidTransitionSideEffects(registrationId, Number(updated.amount_paid));
+      await runPaidTransitionSideEffects(registrationId);
     }
   }
 

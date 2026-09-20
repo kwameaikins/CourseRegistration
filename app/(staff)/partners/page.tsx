@@ -3,7 +3,9 @@
 // Knowsia Growth Partner Programme staff console (2026-08-02) — one page,
 // four sections, same single-page-multi-view pattern as the Payment
 // Submissions screen (app/(staff)/payments/page.tsx): Applications review,
-// Partners management, Codes, and Commissions & Payouts.
+// Partners management, Codes, and Commissions & Payouts. Since Knowsia Core
+// Phase 6 (2026-09-20) the commissions view reads Core's ledger and every
+// action on it goes through Core — this app computes nothing.
 import { useCallback, useEffect, useState } from 'react';
 
 import { apiFetch } from '@/components/api-client';
@@ -31,7 +33,7 @@ import { formatGhs } from '@/lib/utils';
 
 type Category = 'ambassador' | 'tutor' | 'institutional' | 'strategic';
 type PartnerStatus = 'pending' | 'active' | 'suspended' | 'rejected';
-type CommissionStatus = 'pending' | 'approved' | 'payable' | 'paid' | 'clawed_back' | 'redeemed';
+type CommissionStatus = 'pending' | 'approved' | 'payable' | 'paid' | 'redeemed' | 'reversed' | 'void' | 'clawed_back';
 
 interface Partner {
   id: string;
@@ -104,7 +106,8 @@ function commissionStatusBadge(status: CommissionStatus) {
   if (status === 'redeemed') return <Badge className="bg-emerald-600">Redeemed as credit</Badge>;
   if (status === 'payable') return <Badge className="bg-sky-600">Payable</Badge>;
   if (status === 'approved') return <Badge className="bg-amber-500">Approved</Badge>;
-  if (status === 'clawed_back') return <Badge variant="destructive">Clawed back</Badge>;
+  if (status === 'clawed_back' || status === 'reversed') return <Badge variant="destructive">Reversed</Badge>;
+  if (status === 'void') return <Badge variant="outline">Not owed</Badge>;
   return <Badge variant="outline">Pending</Badge>;
 }
 
@@ -618,7 +621,8 @@ export default function PartnersPage() {
               <option value="payable">Payable</option>
               <option value="paid">Paid</option>
               <option value="redeemed">Redeemed as credit</option>
-              <option value="clawed_back">Clawed back</option>
+              <option value="reversed">Reversed</option>
+              <option value="void">Not owed</option>
             </select>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" disabled={selectedCommissionIds.size === 0} onClick={() => void markSelectedPayable()}>
@@ -666,7 +670,7 @@ export default function PartnersPage() {
                     <p className="text-xs text-muted-foreground">{commission.courseName} — {commission.cohortLabel}</p>
                   </TableCell>
                   <TableCell>{formatGhs(commission.commissionAmount)}</TableCell>
-                  <TableCell>{commission.qualifiesAt}</TableCell>
+                  <TableCell>{commission.qualifiesAt || '—'}</TableCell>
                   <TableCell>{commissionStatusBadge(commission.status)}</TableCell>
                 </TableRow>
               ))}
