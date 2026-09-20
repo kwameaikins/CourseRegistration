@@ -230,6 +230,13 @@ into Core SKUs (Phase 4 R1) — best effort, the seam pattern this repo already 
 | **R3** | **One registry** | Numbering, eligibility, daily issuance and the PDF in the LMS; the 312 rows migrated with their numbers; Registration's `/verify` reads the LMS; Registration's issue door forwards to the LMS; the LMS's own registry client retired | **Replay**: every number Registration issued or would issue (dry-run over every ended batch) the LMS issues identically; `/verify/<number>` byte-identical for all 312; a new cohort's first certificate minted by the LMS alone |
 | **R4** | **Cutover and delete** | Registration's live modules deleted (courses' Zoom/schedule, live-sessions, attendance, tutors, assignments, feedback, certificates, access-grants, the portal's live panels, the four crons); the student portal's Live Courses and Certificates hand off to Learn; `zoom_registrants`, `attendance`, `live_sessions` … dropped after 30 days read-only | The TypeScript is gone (Doc 21 §3 step 5); one cohort starts and finishes with no Registration-side live code in the path |
 
+**R0 released 2026-09-20** — Railway service `knowsia-lms` (`6bce36ab`, `https://knowsia-lms-production.up.railway.app`),
+`m2_alembic_version = 014_admin_actions` read back; knowsia-api `164bae5e` without `app/lms`; both frontends and
+this app pointed at it; the exit criteria in §4 met (the LMS's logs show the proxy's, the catalogue page's and
+`/verify`'s reads landing on it; 1,320 + 174 tests; nothing student-visible changed). The migration-runner race
+named in the plan fired once, from the monolith's side (`a70e6690`), and step 5 closed it. KnowsiaApp
+PLAN.md §3.25 is the build record.
+
 R0 is a refactor and is what "deploy separately like M4" means; it can ship this week. R1 is the
 product. R2 and R3 are the two things with people's names on them (tutors, certificates) and
 each has a replay test rather than a judgement. R4 is deletion, which is the point.

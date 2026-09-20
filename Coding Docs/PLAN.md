@@ -1062,6 +1062,16 @@ each. This app's price and commission accrual stay authoritative until Phases 5 
       `scripts/sync-commissions-to-core.mjs` (run after the partners sync; `--dry-run` first). Contract test pins
       the money doors. Coding Docs/25 §2, 05 §30. **The Core plan (Doc 22 §7) is complete.**
 
+## Knowsia LMS — one service for live classes and self-paced learning (from 2026-09-20; Coding Docs/26)
+
+- [x] **R0, the lift** (released 2026-09-20): the LMS is its own service (`knowsia-lms`); this app's two
+      `/service/lms/*` calls (`grantLmsAccessSystem`, `getStudentLmsCoursesSystem`) go to `KNOWSIA_LMS_API_URL`
+      (set on Vercel; trimmed), the same service key; the contract test reads those doors from
+      `Coding Docs/contracts/lms-api.v1.json`. Nothing else here changed.
+- [ ] **R1, the classroom** — this app mirrors batches into LMS cohorts and grants seats through the LMS's doors
+      on the paid transition, beside its own Zoom registration (dual-run). Coding Docs/26 §3–4
+- [ ] **R2 Teach · R3 one registry · R4 delete** — Coding Docs/26 §4
+
 ---
 ## Risk watch (carried from `/docs/01_PRD.md` risk register)
 
