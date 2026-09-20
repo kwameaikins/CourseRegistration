@@ -25,7 +25,8 @@ export function isKnowsiaAppLmsConfigured(): boolean {
 // service key is the one both services share. The auth calls below stay on
 // knowsia-api — they are Core's, not the LMS's.
 function lmsBase(): string {
-  return (process.env.KNOWSIA_LMS_API_URL || process.env.KNOWSIA_APP_API_URL!).replace(/\/+$/, '');
+  // trim(): a stray CR from a piped `vercel env add` 500'd every proxied call once (2026-08-23).
+  return (process.env.KNOWSIA_LMS_API_URL || process.env.KNOWSIA_APP_API_URL!).trim().replace(/\/+$/, '');
 }
 
 export type LmsGrantOutcome =
