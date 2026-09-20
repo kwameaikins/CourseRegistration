@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import * as partnersService from '@/modules/partners/service';
 import { REFERRAL_CODE_COOKIE, REFERRAL_COOKIE_MAX_AGE_SECONDS } from '@/modules/partners/types';
+import { forwardReferralClickToCore } from '@/lib/knowsia-core/affiliates';
 
 // Tracked referral link (Knowsia Growth Partner Programme, 2026-08-02):
 // logs the click, sets a 30-day attribution cookie, and forwards to the
@@ -24,6 +25,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ code
   } catch (err) {
     console.error('[partner link click]', err);
   }
+  // Knowsia Core (Phase 4 R4): the click on Core's record as well — one
+  // partner, one count across both products. Best effort, never awaited past
+  // the redirect.
+  void forwardReferralClickToCore(code.toUpperCase(), '/register', request.headers.get('referer')).catch(() => undefined);
 
   const incomingUrl = new URL(request.url);
   const batchId = incomingUrl.searchParams.get('batchId');

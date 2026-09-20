@@ -109,7 +109,7 @@ describe('KnowsiaApp service-door contract (what modules/knowsia-app/service.ts 
     }
   });
 
-  it('Core Leads & CRM (Doc 23 §5): POST …/leads, GET …/leads/by-email, POST …/leads/converted', () => {
+  it('Core Leads & CRM (Doc 23 §5): POST …/leads, GET …/leads/by-email (…/leads/converted retired in Phase 4 R4)', () => {
     const fields = requestFields('/api/v1/service/leads', 'post');
     for (const f of ['product', 'full_name', 'email', 'phone', 'source', 'interest', 'message', 'attribution', 'external_ref', 'acknowledge']) {
       expect(fields, `lead field ${f}`).toContain(f);
@@ -119,10 +119,28 @@ describe('KnowsiaApp service-door contract (what modules/knowsia-app/service.ts 
       expect(lead, `lead response field ${f}`).toContain(f);
     }
     expect(contract.paths['/api/v1/service/leads/by-email']?.get, 'GET by-email is missing').toBeDefined();
-    const conv = requestFields('/api/v1/service/leads/converted', 'post');
-    for (const f of ['product', 'email', 'kind', 'amount', 'currency', 'source_ref']) {
-      expect(conv, `converted field ${f}`).toContain(f);
+    expect(contract.paths['/api/v1/service/leads/converted'], 'the converted door was retired; conversion is by payment event').toBeUndefined();
+  });
+
+  it('Core Affiliates (Doc 22 Phase 4 R4): PUT …/affiliates/partners, POST …/partners/{ref}/status, PUT …/codes, POST …/clicks, POST …/attributions', () => {
+    const partner = requestFields('/api/v1/service/affiliates/partners', 'put');
+    for (const f of ['product', 'external_ref', 'display_name', 'category', 'email', 'phone', 'status', 'status_reason', 'notes']) {
+      expect(partner, `partner field ${f}`).toContain(f);
     }
+    expect(contract.paths['/api/v1/service/affiliates/partners/{external_ref}/status']?.post, 'partner status is missing').toBeDefined();
+    const code = requestFields('/api/v1/service/affiliates/codes', 'put');
+    for (const f of ['product', 'partner_external_ref', 'code', 'coupon_external_ref', 'product_scope', 'is_active', 'expires_at', 'max_uses', 'external_ref']) {
+      expect(code, `code field ${f}`).toContain(f);
+    }
+    const click = requestFields('/api/v1/service/affiliates/clicks', 'post');
+    for (const f of ['product', 'code', 'landing', 'referrer']) {
+      expect(click, `click field ${f}`).toContain(f);
+    }
+    const attribution = requestFields('/api/v1/service/affiliates/attributions', 'post');
+    for (const f of ['product', 'code', 'subject_type', 'subject_id', 'subject_email', 'subject_phone', 'method', 'existing_lead', 'self_referral', 'external_ref', 'attributed_at']) {
+      expect(attribution, `attribution field ${f}`).toContain(f);
+    }
+    expect(contract.paths['/api/v1/service/affiliates/attributions/by-subject']?.get, 'GET by-subject is missing').toBeDefined();
   });
 
   it('Core Catalogue & pricing (Doc 22 Phase 4): PUT …/catalogue/skus, PUT …/coupons, POST …/coupons/redemptions, POST …/quote', () => {

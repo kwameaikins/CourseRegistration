@@ -349,65 +349,6 @@
         "title": "ImportSectionResponse",
         "type": "object"
       },
-      "LeadConverted": {
-        "properties": {
-          "amount": {
-            "default": 0,
-            "minimum": 0.0,
-            "title": "Amount",
-            "type": "number"
-          },
-          "currency": {
-            "default": "GHS",
-            "maxLength": 3,
-            "minLength": 3,
-            "title": "Currency",
-            "type": "string"
-          },
-          "email": {
-            "maxLength": 200,
-            "minLength": 5,
-            "title": "Email",
-            "type": "string"
-          },
-          "kind": {
-            "default": "cohort_seat",
-            "pattern": "^(cohort_seat|subscription|corporate|tuition|other)$",
-            "title": "Kind",
-            "type": "string"
-          },
-          "product": {
-            "default": "registration",
-            "pattern": "^(registration|study|corporate)$",
-            "title": "Product",
-            "type": "string"
-          },
-          "source_ref": {
-            "maxLength": 64,
-            "minLength": 1,
-            "title": "Source Ref",
-            "type": "string"
-          },
-          "title": {
-            "anyOf": [
-              {
-                "maxLength": 255,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Title"
-          }
-        },
-        "required": [
-          "email",
-          "source_ref"
-        ],
-        "title": "LeadConverted",
-        "type": "object"
-      },
       "LeadRecord": {
         "properties": {
           "created": {
@@ -1287,6 +1228,115 @@
         "title": "SendMessageRequest",
         "type": "object"
       },
+      "ServiceAttribution": {
+        "properties": {
+          "attributed_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attributed At"
+          },
+          "code": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "existing_lead": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Existing Lead"
+          },
+          "external_ref": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Ref"
+          },
+          "method": {
+            "default": "code",
+            "pattern": "^(code|link|qr|manual)$",
+            "title": "Method",
+            "type": "string"
+          },
+          "product": {
+            "default": "registration",
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          },
+          "self_referral": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Self Referral"
+          },
+          "subject_email": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Email"
+          },
+          "subject_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Subject Id",
+            "type": "string"
+          },
+          "subject_phone": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Phone"
+          },
+          "subject_type": {
+            "default": "participant",
+            "pattern": "^(user|participant|lead)$",
+            "title": "Subject Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "subject_id"
+        ],
+        "title": "ServiceAttribution",
+        "type": "object"
+      },
       "ServiceCoupon": {
         "properties": {
           "applies_to": {
@@ -1839,6 +1889,138 @@
         "title": "ServiceOrganisation",
         "type": "object"
       },
+      "ServicePartner": {
+        "properties": {
+          "category": {
+            "default": "ambassador",
+            "pattern": "^(ambassador|tutor|institutional|strategic)$",
+            "title": "Category",
+            "type": "string"
+          },
+          "display_name": {
+            "maxLength": 255,
+            "minLength": 2,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "external_ref": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "External Ref",
+            "type": "string"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "organisation_external_ref": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organisation External Ref"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "maxLength": 30,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "product": {
+            "default": "registration",
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          },
+          "status": {
+            "default": "pending",
+            "pattern": "^(pending|active|suspended|rejected)$",
+            "title": "Status",
+            "type": "string"
+          },
+          "status_reason": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Reason"
+          }
+        },
+        "required": [
+          "external_ref",
+          "display_name"
+        ],
+        "title": "ServicePartner",
+        "type": "object"
+      },
+      "ServicePartnerStatus": {
+        "properties": {
+          "product": {
+            "default": "registration",
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "status": {
+            "pattern": "^(pending|active|suspended|rejected)$",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "ServicePartnerStatus",
+        "type": "object"
+      },
       "ServiceQuote": {
         "properties": {
           "coupon_code": {
@@ -1997,6 +2179,145 @@
           "discount_minor"
         ],
         "title": "ServiceRedemption",
+        "type": "object"
+      },
+      "ServiceReferralClick": {
+        "properties": {
+          "code": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "landing": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Landing"
+          },
+          "product": {
+            "default": "registration",
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          },
+          "referrer": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referrer"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "ServiceReferralClick",
+        "type": "object"
+      },
+      "ServiceReferralCode": {
+        "properties": {
+          "code": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "coupon_external_ref": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coupon External Ref"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "external_ref": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Ref"
+          },
+          "is_active": {
+            "default": true,
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "max_uses": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Uses"
+          },
+          "partner_external_ref": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Partner External Ref",
+            "type": "string"
+          },
+          "product": {
+            "default": "registration",
+            "pattern": "^(registration|study|corporate)$",
+            "title": "Product",
+            "type": "string"
+          },
+          "product_scope": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product Scope"
+          }
+        },
+        "required": [
+          "partner_external_ref",
+          "code"
+        ],
+        "title": "ServiceReferralCode",
         "type": "object"
       },
       "ServiceSku": {
@@ -2418,6 +2739,295 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/service/affiliates/attributions": {
+      "post": {
+        "description": "Idempotent on (product, subject): a second call answers the row that\nstands with `created: false`. `attributed: false` when the code cannot be\nhonoured here \u2014 the Registration app keeps its own row regardless.",
+        "operationId": "service_attribution_api_v1_service_affiliates_attributions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceAttribution"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Attribution Api V1 Service Affiliates Attributions Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Attribution",
+        "tags": [
+          "service-affiliates"
+        ]
+      }
+    },
+    "/api/v1/service/affiliates/attributions/by-subject": {
+      "get": {
+        "operationId": "service_attribution_by_subject_api_v1_service_affiliates_attributions_by_subject_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "product",
+            "required": true,
+            "schema": {
+              "title": "Product",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "subject_type",
+            "required": true,
+            "schema": {
+              "title": "Subject Type",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "subject_id",
+            "required": true,
+            "schema": {
+              "title": "Subject Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Attribution By Subject Api V1 Service Affiliates Attributions By Subject Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Attribution By Subject",
+        "tags": [
+          "service-affiliates"
+        ]
+      }
+    },
+    "/api/v1/service/affiliates/clicks": {
+      "post": {
+        "operationId": "service_click_api_v1_service_affiliates_clicks_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceReferralClick"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Click Api V1 Service Affiliates Clicks Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Click",
+        "tags": [
+          "service-affiliates"
+        ]
+      }
+    },
+    "/api/v1/service/affiliates/codes": {
+      "put": {
+        "operationId": "service_upsert_code_api_v1_service_affiliates_codes_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceReferralCode"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Upsert Code Api V1 Service Affiliates Codes Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Upsert Code",
+        "tags": [
+          "service-affiliates"
+        ]
+      }
+    },
+    "/api/v1/service/affiliates/partners": {
+      "put": {
+        "operationId": "service_upsert_partner_api_v1_service_affiliates_partners_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServicePartner"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Upsert Partner Api V1 Service Affiliates Partners Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Upsert Partner",
+        "tags": [
+          "service-affiliates"
+        ]
+      }
+    },
+    "/api/v1/service/affiliates/partners/{external_ref}/status": {
+      "post": {
+        "operationId": "service_partner_status_api_v1_service_affiliates_partners__external_ref__status_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "external_ref",
+            "required": true,
+            "schema": {
+              "title": "External Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServicePartnerStatus"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Partner Status Api V1 Service Affiliates Partners  External Ref  Status Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Partner Status",
+        "tags": [
+          "service-affiliates"
+        ]
+      }
+    },
     "/api/v1/service/auth/admins": {
       "post": {
         "operationId": "bootstrap_admin_api_v1_service_auth_admins_post",
@@ -3067,49 +3677,6 @@
           }
         },
         "summary": "Service Lead By Email",
-        "tags": [
-          "service-leads"
-        ]
-      }
-    },
-    "/api/v1/service/leads/converted": {
-      "post": {
-        "operationId": "service_lead_converted_api_v1_service_leads_converted_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/LeadConverted"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Service Lead Converted Api V1 Service Leads Converted Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Service Lead Converted",
         "tags": [
           "service-leads"
         ]

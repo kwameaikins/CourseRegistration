@@ -129,13 +129,9 @@ export async function runPaidTransitionSideEffects(
   } catch (err) {
     console.error('[payment_confirmation question bank grant]', err);
   }
-  // Knowsia Core Leads & CRM (Doc 23 §5): a paid seat converts the person's
-  // lead over there. Paid path only, for the same reason as the grant above.
-  try {
-    await knowsiaAppService.reportPaidSeatToCoreSystem(registrationId, amountPaid);
-  } catch (err) {
-    console.error('[payment_confirmation core lead conversion]', err);
-  }
+  // The person's lead over on Core converts by EVENT now: the payment raised
+  // below (Phase 4 R3) is what Core's CRM and affiliate consumers match — the
+  // `…/leads/converted` door was retired in Phase 4 R4.
   await runSettledEnrollmentSideEffects(registrationId);
 }
 

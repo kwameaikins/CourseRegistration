@@ -10,7 +10,6 @@
 // simply does not exist yet, and every call is a cheap no-op. That keeps the
 // deploy order forgiving — this code can ship before KnowsiaApp is live.
 import { AppError, captureToSentry } from '@/lib/errors';
-import { reportConversionToCore } from '@/lib/knowsia-core/leads';
 import { isCoreEventsConfigured, raisePaymentSettledToCore } from '@/lib/knowsia-core/events';
 import { batchSkuCode } from '@/lib/knowsia-core/catalogue';
 import * as knowsiaAppRepository from '@/modules/knowsia-app/repository';
@@ -153,23 +152,6 @@ export async function raisePaymentSettledToCoreSystem(registrationId: string): P
     source: context.latestEvent.source,
   });
   return Boolean(out?.accepted);
-}
-
-export async function reportPaidSeatToCoreSystem(
-  registrationId: string,
-  amountPaid?: number,
-): Promise<boolean> {
-  if (!isKnowsiaAppLmsConfigured()) return false;
-  const context = await knowsiaAppRepository.selectLmsGrantContextSystem(registrationId);
-  if (!context || context.participantDeleted) return false;
-  return reportConversionToCore({
-    email: context.participantEmail,
-    kind: 'cohort_seat',
-    amount: amountPaid ?? 0,
-    currency: 'GHS',
-    sourceRef: registrationId,
-    title: `${context.participantFullName} — ${context.courseCode}`,
-  });
 }
 
 export async function grantQuestionBankAccessSystem(

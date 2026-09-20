@@ -2,8 +2,10 @@
 //
 // One lead per person across both products: every enquiry this app takes is
 // forwarded to Core (which keeps the record, the timeline, the pipeline and
-// today's work), and every paid transition tells Core the person became a
-// customer so the lead converts and the opportunity is won. This app keeps
+// today's work). The lead CONVERTS by event: the settled payment this app
+// raises on Core's ledger (lib/knowsia-core/events.ts, Phase 4 R3) is what
+// Core's CRM consumer matches to the lead — the old `…/leads/converted` door
+// was retired in Phase 4 R4. This app keeps
 // its own `leads` row for its own screens; `external_ref` on Core's side is
 // that row's id. Best effort in both directions — Core being down must never
 // cost an enquiry or a payment.
@@ -75,38 +77,5 @@ export async function forwardEnquiryToCore(input: {
   } catch (err) {
     captureToSentry(err, { job: 'core-leads:enquiry' });
     return null;
-  }
-}
-
-export async function reportConversionToCore(input: {
-  email: string;
-  kind?: 'cohort_seat' | 'subscription' | 'corporate' | 'tuition' | 'other';
-  amount?: number;
-  currency?: string;
-  sourceRef: string;
-  title?: string | null;
-}): Promise<boolean> {
-  if (!isCoreLeadsConfigured()) return false;
-  try {
-    const response = await fetch(`${base()}/api/v1/service/leads/converted`, {
-      method: 'POST',
-      headers: headers(),
-      body: JSON.stringify({
-        product: 'registration',
-        email: input.email,
-        kind: input.kind ?? 'cohort_seat',
-        amount: input.amount ?? 0,
-        currency: input.currency ?? 'GHS',
-        source_ref: input.sourceRef,
-        title: input.title ?? null,
-      }),
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!response.ok) throw new Error(`core leads converted answered ${response.status}`);
-    const data = (await response.json()) as { converted: boolean };
-    return data.converted;
-  } catch (err) {
-    captureToSentry(err, { job: 'core-leads:converted' });
-    return false;
   }
 }

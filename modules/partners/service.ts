@@ -10,6 +10,7 @@ import * as usersService from '@/modules/users/service';
 // modules/registrations).
 import * as coursesService from '@/modules/courses/service';
 import { upsertCodeDiscountToCore } from '@/lib/knowsia-core/catalogue';
+import { forwardAttributionToCore, forwardPartnerStatusToCore, forwardPartnerToCore, forwardReferralCodeToCore } from '@/lib/knowsia-core/affiliates';
 import type {
   Code,
   CodePreview,
@@ -192,9 +193,17 @@ async function computeCommissionAmount(
 
 // --- Public application (doc SS5) ---
 
+// Knowsia Core (Phase 4 R4): a partner is ONE record across both products.
+// Every create and status change here is mirrored, best effort — Core down
+// never costs an application or a code.
+function mirrorPartner(partner: Partner): Partner {
+  void forwardPartnerToCore(partner).catch((err) => console.error('[core partner]', err));
+  return partner;
+}
+
 export async function submitPartnerApplication(input: PartnerApplicationInput): Promise<Partner> {
   const row = await partnersRepository.insertPartnerApplicationSystem(input);
-  return toPartner(row);
+  return mirrorPartner(toPartner(row));
 }
 
 // --- Staff management ---
@@ -214,7 +223,7 @@ export async function createPartner(input: CreatePartnerInput): Promise<Partner>
     throw new AppError('VALIDATION_ERROR', 'A Tutor Partner must be linked to a tutor.', 400);
   }
   const row = await partnersRepository.insertPartner(input, staffUser.id);
-  return toPartner(row);
+  return mirrorPartner(toPartner(row));
 }
 
 export async function updatePartner(id: string, input: UpdatePartnerInput): Promise<Partner> {
@@ -228,18 +237,20 @@ export async function updatePartner(id: string, input: UpdatePartnerInput): Prom
   if (input.payoutMethod !== undefined) changes.payout_method = input.payoutMethod;
   if (input.payoutDetails !== undefined) changes.payout_details = input.payoutDetails;
   const row = await partnersRepository.updatePartnerFields(id, changes);
-  return toPartner(row);
+  return mirrorPartner(toPartner(row));
 }
 
 export async function suspendPartner(id: string): Promise<Partner> {
   await usersService.requireRole([...STAFF_MANAGE_ROLES]);
   const row = await partnersRepository.updatePartnerFields(id, { status: 'suspended' });
+  void forwardPartnerStatusToCore(id, 'suspended', 'suspended in the course registration app').catch((err) => console.error('[core partner status]', err));
   return toPartner(row);
 }
 
 export async function reactivatePartner(id: string): Promise<Partner> {
   await usersService.requireRole([...STAFF_MANAGE_ROLES]);
   const row = await partnersRepository.updatePartnerFields(id, { status: 'active' });
+  void forwardPartnerStatusToCore(id, 'active').catch((err) => console.error('[core partner status]', err));
   return toPartner(row);
 }
 
@@ -261,7 +272,7 @@ export async function approvePartnerApplication(id: string): Promise<Partner> {
       await partnersRepository.insertPartnerAuthIfMissing(row.id, hashPin(initialPin));
     }
   }
-  return toPartner(row);
+  return mirrorPartner(toPartner(row));
 }
 
 export async function rejectPartnerApplication(id: string): Promise<Partner> {
@@ -272,7 +283,7 @@ export async function rejectPartnerApplication(id: string): Promise<Partner> {
     throw new AppError('CONFLICT', 'This application has already been reviewed.', 409);
   }
   const row = await partnersRepository.rejectPartner(id, staffUser.id);
-  return toPartner(row);
+  return mirrorPartner(toPartner(row));
 }
 
 // --- Codes ---
@@ -282,14 +293,15 @@ export async function createCode(input: CreateCodeInput): Promise<Code> {
   try {
     const row = await partnersRepository.insertCode(input, staffUser.id);
     const created = toCode(row);
-    // Knowsia Core (Phase 4): a code that carries a discount is a Core coupon
-    // (attribution itself is Release 4's). Best effort.
-    if (created.discountType && created.discountValue) {
-      void (async () => {
+    // Knowsia Core (Phase 4 R4): the code is the partner's over there too. After
+    // the coupon below, so a discounting code can name it; best effort.
+    void (async () => {
+      if (created.discountType && created.discountValue) {
         const course = created.appliesToCourseId ? await coursesService.getCourseByIdSystem(created.appliesToCourseId) : null;
         await upsertCodeDiscountToCore(created, course?.courseCode ?? null);
-      })().catch((err) => console.error('[core code discount]', err));
-    }
+      }
+      await forwardReferralCodeToCore(created);
+    })().catch((err) => console.error('[core referral code]', err));
     return created;
   } catch (err) {
     if (isUniqueViolation(err)) {
@@ -385,7 +397,7 @@ export async function redeemCodeSystem(input: {
     }
   }
 
-  await partnersRepository.insertCodeRedemptionSystem({
+  const redemption = await partnersRepository.insertCodeRedemptionSystem({
     code_id: code.id,
     registration_id: input.registrationId,
     participant_id: input.participantId,
@@ -395,6 +407,20 @@ export async function redeemCodeSystem(input: {
     self_referral_at_redemption: selfReferral,
   });
   await partnersRepository.incrementCodeUsesSystem(code.id, code.uses_count + 1);
+  // Knowsia Core (Phase 4 R4): the same attribution, with the same flags, on
+  // Core's record — one per participant over there; the payment event
+  // (Release 3) converts it. Best effort; this app's row is already written.
+  void forwardAttributionToCore({
+    redemptionId: redemption.id,
+    code: code.code,
+    participantId: input.participantId,
+    participantEmail: input.participantEmail,
+    participantPhone: input.participantPhone,
+    method: input.attributionMethod,
+    existingLead: input.existingLeadAtRedemption,
+    selfReferral,
+    attributedAt: redemption.created_at,
+  }).catch((err) => console.error('[core attribution]', err));
 }
 
 export async function recordLinkClickSystem(codeStr: string): Promise<void> {
@@ -715,6 +741,7 @@ export async function ensurePartnerForTutorSystem(
   const existing = await partnersRepository.selectPartnerByTutorIdSystem(tutorId);
   if (existing) return toPartner(existing);
   const row = await partnersRepository.insertTutorPartnerSystem({ tutorId, fullName, phone, email });
+  mirrorPartner(toPartner(row));
   await generateUniqueCodeForPartnerSystem(row.id, fullName);
   return toPartner(row);
 }
@@ -757,6 +784,7 @@ export async function ensurePartnerForParticipantSystem(
     phone,
     email,
   });
+  mirrorPartner(toPartner(row));
   await generateUniqueCodeForPartnerSystem(row.id, fullName);
   return toPartner(row);
 }
@@ -779,7 +807,8 @@ async function generateUniqueCodeForPartnerSystem(partnerId: string, fullName: s
   for (let attempt = 0; attempt < 8; attempt++) {
     const suffix = Math.floor(100 + Math.random() * 900);
     try {
-      await partnersRepository.insertCodeSystem({ code: `${base}${suffix}`, partner_id: partnerId });
+      const row = await partnersRepository.insertCodeSystem({ code: `${base}${suffix}`, partner_id: partnerId });
+      void forwardReferralCodeToCore(toCode(row)).catch((err) => console.error('[core referral code]', err));
       return;
     } catch (err) {
       if (!isUniqueViolation(err)) throw err;
