@@ -19,6 +19,15 @@ export function isKnowsiaAppLmsConfigured(): boolean {
   return Boolean(process.env.KNOWSIA_APP_API_URL && process.env.KNOWSIA_APP_SERVICE_KEY);
 }
 
+// Knowsia LMS (Coding Docs/26, R0 — 2026-09-20): the LMS is its own service.
+// The two /service/lms/* calls go to KNOWSIA_LMS_API_URL when it is set and
+// to knowsia-api (which served them in-process until then) otherwise; the
+// service key is the one both services share. The auth calls below stay on
+// knowsia-api — they are Core's, not the LMS's.
+function lmsBase(): string {
+  return (process.env.KNOWSIA_LMS_API_URL || process.env.KNOWSIA_APP_API_URL!).replace(/\/+$/, '');
+}
+
 export type LmsGrantOutcome =
   | 'granted'
   | 'skipped_not_configured'
@@ -37,7 +46,7 @@ export async function grantLmsAccessSystem(
   const context = await knowsiaAppRepository.selectLmsGrantContextSystem(registrationId);
   if (!context || context.participantDeleted) return 'skipped_gated';
 
-  const base = process.env.KNOWSIA_APP_API_URL!.replace(/\/+$/, '');
+  const base = lmsBase();
   let response: Response;
   try {
     response = await fetch(`${base}/api/v1/service/lms/enrolments`, {
@@ -255,7 +264,7 @@ export async function getStudentLmsCoursesSystem(
 ): Promise<StudentLmsCourse[] | null> {
   if (!isKnowsiaAppLmsConfigured()) return null;
 
-  const base = process.env.KNOWSIA_APP_API_URL!.replace(/\/+$/, '');
+  const base = lmsBase();
   try {
     const response = await fetch(
       `${base}/api/v1/service/lms/participants/${encodeURIComponent(participantId)}/enrolments`,

@@ -48,6 +48,102 @@
         "title": "AdminBootstrapResponse",
         "type": "object"
       },
+      "Body_service_store_file_multipart_api_v1_service_files_upload_post": {
+        "properties": {
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "dedupe": {
+            "default": true,
+            "title": "Dedupe",
+            "type": "boolean"
+          },
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "type": "string"
+          },
+          "owner_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Id"
+          },
+          "owner_type": {
+            "default": "system",
+            "title": "Owner Type",
+            "type": "string"
+          },
+          "product": {
+            "title": "Product",
+            "type": "string"
+          },
+          "purpose": {
+            "title": "Purpose",
+            "type": "string"
+          },
+          "retention_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retention Days"
+          },
+          "visibility": {
+            "default": "public",
+            "title": "Visibility",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file",
+          "product",
+          "purpose"
+        ],
+        "title": "Body_service_store_file_multipart_api_v1_service_files_upload_post",
+        "type": "object"
+      },
+      "CheckLessonIn": {
+        "properties": {
+          "institute": {
+            "default": "",
+            "maxLength": 20,
+            "title": "Institute",
+            "type": "string"
+          },
+          "markdown": {
+            "title": "Markdown",
+            "type": "string"
+          },
+          "source_text": {
+            "default": "",
+            "title": "Source Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "markdown"
+        ],
+        "title": "CheckLessonIn",
+        "type": "object"
+      },
       "ExplanationPatch": {
         "properties": {
           "explanation": {
@@ -72,6 +168,26 @@
         "title": "ExplanationPatch",
         "type": "object"
       },
+      "FailedEventIn": {
+        "properties": {
+          "envelope": {
+            "additionalProperties": true,
+            "title": "Envelope",
+            "type": "object"
+          },
+          "error": {
+            "maxLength": 2000,
+            "title": "Error",
+            "type": "string"
+          }
+        },
+        "required": [
+          "envelope",
+          "error"
+        ],
+        "title": "FailedEventIn",
+        "type": "object"
+      },
       "FileLink": {
         "properties": {
           "expires_in_seconds": {
@@ -93,6 +209,61 @@
           "expires_in_seconds"
         ],
         "title": "FileLink",
+        "type": "object"
+      },
+      "GenerateLessonIn": {
+        "properties": {
+          "institute": {
+            "maxLength": 20,
+            "title": "Institute",
+            "type": "string"
+          },
+          "paper": {
+            "maxLength": 120,
+            "title": "Paper",
+            "type": "string"
+          },
+          "regenerate": {
+            "default": false,
+            "title": "Regenerate",
+            "type": "boolean"
+          },
+          "topic_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Id"
+          },
+          "topic_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Name"
+          },
+          "variant": {
+            "default": "exam",
+            "pattern": "^(plain|exam)$",
+            "title": "Variant",
+            "type": "string"
+          }
+        },
+        "required": [
+          "institute",
+          "paper"
+        ],
+        "title": "GenerateLessonIn",
         "type": "object"
       },
       "GrantEnrolmentRequest": {
@@ -647,6 +818,144 @@
         "title": "MessageRecord",
         "type": "object"
       },
+      "ModelCallIn": {
+        "properties": {
+          "batch": {
+            "default": false,
+            "title": "Batch",
+            "type": "boolean"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "maxLength": 10,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effort"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "module": {
+            "maxLength": 20,
+            "title": "Module",
+            "type": "string"
+          },
+          "ok": {
+            "default": true,
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "output_chars": {
+            "minimum": 0.0,
+            "title": "Output Chars",
+            "type": "integer"
+          },
+          "prompt_chars": {
+            "minimum": 0.0,
+            "title": "Prompt Chars",
+            "type": "integer"
+          },
+          "purpose": {
+            "maxLength": 40,
+            "title": "Purpose",
+            "type": "string"
+          },
+          "ref_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref Id"
+          },
+          "ref_type": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref Type"
+          },
+          "usage": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usage"
+          }
+        },
+        "required": [
+          "module",
+          "purpose",
+          "prompt_chars",
+          "output_chars"
+        ],
+        "title": "ModelCallIn",
+        "type": "object"
+      },
+      "OrgEnrolmentIn": {
+        "properties": {
+          "expires_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id"
+        ],
+        "title": "OrgEnrolmentIn",
+        "type": "object"
+      },
       "ParticipantEnrolmentSummary": {
         "properties": {
           "completed_at": {
@@ -1051,6 +1360,93 @@
         "title": "QuestionCreatePayload",
         "type": "object"
       },
+      "QuestionIdsIn": {
+        "properties": {
+          "published_only": {
+            "default": true,
+            "title": "Published Only",
+            "type": "boolean"
+          },
+          "question_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Question Ids",
+            "type": "array"
+          }
+        },
+        "title": "QuestionIdsIn",
+        "type": "object"
+      },
+      "RegistrationUserRequest": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "participant_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participant Id"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          }
+        },
+        "required": [
+          "email",
+          "name"
+        ],
+        "title": "RegistrationUserRequest",
+        "type": "object"
+      },
+      "RegistrationUserResponse": {
+        "properties": {
+          "created": {
+            "title": "Created",
+            "type": "boolean"
+          },
+          "linked": {
+            "title": "Linked",
+            "type": "boolean"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "created",
+          "linked"
+        ],
+        "title": "RegistrationUserResponse",
+        "type": "object"
+      },
       "SendMessageRequest": {
         "properties": {
           "attachments": {
@@ -1101,6 +1497,30 @@
               }
             ],
             "title": "Correlation Id"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
           },
           "from_address": {
             "anyOf": [
@@ -1226,6 +1646,51 @@
           "idempotency_key"
         ],
         "title": "SendMessageRequest",
+        "type": "object"
+      },
+      "ServiceAttemptIn": {
+        "properties": {
+          "answer_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer Text"
+          },
+          "question_id": {
+            "title": "Question Id",
+            "type": "string"
+          },
+          "selected_option": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Option"
+          },
+          "student_id": {
+            "title": "Student Id",
+            "type": "string"
+          },
+          "time_taken_seconds": {
+            "default": 0,
+            "title": "Time Taken Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "student_id",
+          "question_id"
+        ],
+        "title": "ServiceAttemptIn",
         "type": "object"
       },
       "ServiceAttribution": {
@@ -3010,6 +3475,11 @@
             ],
             "title": "Created By"
           },
+          "dedupe": {
+            "default": true,
+            "title": "Dedupe",
+            "type": "boolean"
+          },
           "filename": {
             "maxLength": 255,
             "minLength": 1,
@@ -3256,6 +3726,43 @@
         "title": "TopicScoreResponse",
         "type": "object"
       },
+      "UserDisplay": {
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email"
+        ],
+        "title": "UserDisplay",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -3304,6 +3811,291 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/service/admin/approved-topics": {
+      "get": {
+        "operationId": "service_approved_topics_api_v1_service_admin_approved_topics_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "professional_body",
+            "required": true,
+            "schema": {
+              "title": "Professional Body",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "subject",
+            "required": true,
+            "schema": {
+              "title": "Subject",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Level"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Approved Topics Api V1 Service Admin Approved Topics Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Approved Topics",
+        "tags": [
+          "service-admin"
+        ]
+      }
+    },
+    "/api/v1/service/admin/failed-events": {
+      "post": {
+        "operationId": "service_failed_event_api_v1_service_admin_failed_events_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FailedEventIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Service Failed Event Api V1 Service Admin Failed Events Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Failed Event",
+        "tags": [
+          "service-admin"
+        ]
+      }
+    },
+    "/api/v1/service/admin/model-calls": {
+      "post": {
+        "operationId": "service_model_call_api_v1_service_admin_model_calls_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelCallIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "title": "Response Service Model Call Api V1 Service Admin Model Calls Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Model Call",
+        "tags": [
+          "service-admin"
+        ]
+      }
+    },
+    "/api/v1/service/admin/paper-documents": {
+      "get": {
+        "description": "The stored source documents of a paper, newest first \u2014 each carries its\nfull markdown, so a call is hundreds of kilobytes: the caller sets a long\ntimeout.",
+        "operationId": "service_paper_documents_api_v1_service_admin_paper_documents_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "paper",
+            "required": true,
+            "schema": {
+              "title": "Paper",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 6,
+              "maximum": 25,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Paper Documents Api V1 Service Admin Paper Documents Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Paper Documents",
+        "tags": [
+          "service-admin"
+        ]
+      }
+    },
+    "/api/v1/service/admin/syllabus-outcomes": {
+      "get": {
+        "operationId": "service_syllabus_outcomes_api_v1_service_admin_syllabus_outcomes_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "professional_body",
+            "required": true,
+            "schema": {
+              "title": "Professional Body",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "subject",
+            "required": true,
+            "schema": {
+              "title": "Subject",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Level"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Syllabus Outcomes Api V1 Service Admin Syllabus Outcomes Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Syllabus Outcomes",
+        "tags": [
+          "service-admin"
+        ]
+      }
+    },
     "/api/v1/service/affiliates/attributions": {
       "post": {
         "description": "Idempotent on (product, subject): a second call answers the row that\nstands with `created: false`. `attributed: false` when the code cannot be\nhonoured here \u2014 the Registration app keeps its own row regardless.",
@@ -4012,6 +4804,208 @@
         ]
       }
     },
+    "/api/v1/service/analytics/check-lesson": {
+      "post": {
+        "operationId": "service_check_lesson_api_v1_service_analytics_check_lesson_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckLessonIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Check Lesson Api V1 Service Analytics Check Lesson Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Check Lesson",
+        "tags": [
+          "service-analytics"
+        ]
+      }
+    },
+    "/api/v1/service/analytics/topic-lessons": {
+      "get": {
+        "operationId": "service_topic_lessons_api_v1_service_analytics_topic_lessons_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "institute",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Institute"
+            }
+          },
+          {
+            "in": "query",
+            "name": "paper",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Paper"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status_",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status "
+            }
+          },
+          {
+            "in": "query",
+            "name": "variant",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Variant"
+            }
+          },
+          {
+            "in": "query",
+            "name": "stale",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Stale"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Topic Lessons Api V1 Service Analytics Topic Lessons Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Topic Lessons",
+        "tags": [
+          "service-analytics"
+        ]
+      }
+    },
+    "/api/v1/service/analytics/topic-lessons/generate": {
+      "post": {
+        "description": "One topic lesson, synchronously \u2014 a model call, tens of seconds; the\ncaller sets its timeout accordingly. 422 for an unknown topic, 503 when no\nmodel answers.",
+        "operationId": "service_generate_lesson_api_v1_service_analytics_topic_lessons_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateLessonIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Generate Lesson Api V1 Service Analytics Topic Lessons Generate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Generate Lesson",
+        "tags": [
+          "service-analytics"
+        ]
+      }
+    },
     "/api/v1/service/auth/admins": {
       "post": {
         "operationId": "bootstrap_admin_api_v1_service_auth_admins_post",
@@ -4132,6 +5126,134 @@
           }
         },
         "summary": "Revoke Question Bank Access",
+        "tags": [
+          "service-auth"
+        ]
+      }
+    },
+    "/api/v1/service/auth/users/by-participant/{participant_id}": {
+      "get": {
+        "description": "The Study account a Registration participant is linked to. 404 when none \u2014\nthe LMS answers that participant's enrolments as empty, never guesses.",
+        "operationId": "service_user_by_participant_api_v1_service_auth_users_by_participant__participant_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "participant_id",
+            "required": true,
+            "schema": {
+              "title": "Participant Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDisplay"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service User By Participant",
+        "tags": [
+          "service-auth"
+        ]
+      }
+    },
+    "/api/v1/service/auth/users/registration": {
+      "post": {
+        "description": "Find-or-create the Study account for a person arriving from the\nRegistration app (the LMS enrolment grant): participant link first, then\nemail; a new account gets a random password and no trial (the same rule\nthe question-bank grant applies). Commits \u2014 the LMS's own row is written\nafter, and both sides are idempotent.",
+        "operationId": "service_registration_user_api_v1_service_auth_users_registration_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistrationUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationUserResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Registration User",
+        "tags": [
+          "service-auth"
+        ]
+      }
+    },
+    "/api/v1/service/auth/users/{user_id}/display": {
+      "get": {
+        "description": "Name and email for rendering (a certificate, a Q&A author). 404 when unknown.",
+        "operationId": "service_user_display_api_v1_service_auth_users__user_id__display_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDisplay"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service User Display",
         "tags": [
           "service-auth"
         ]
@@ -4444,6 +5566,48 @@
         ]
       }
     },
+    "/api/v1/service/files/upload": {
+      "post": {
+        "description": "The same door as multipart \u2014 for the LMS service's lesson materials and\ncovers (up to 25 MB), which base64 JSON would inflate by a third and time\nout on. Same gate, same record, same audit row.",
+        "operationId": "service_store_file_multipart_api_v1_service_files_upload_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_service_store_file_multipart_api_v1_service_files_upload_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoredFile"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Store File Multipart",
+        "tags": [
+          "service-files"
+        ]
+      }
+    },
     "/api/v1/service/files/{file_id}": {
       "delete": {
         "operationId": "service_delete_file_api_v1_service_files__file_id__delete",
@@ -4666,6 +5830,116 @@
         ]
       }
     },
+    "/api/v1/service/lms/courses": {
+      "get": {
+        "operationId": "service_list_courses_api_v1_service_lms_courses_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service List Courses Api V1 Service Lms Courses Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service List Courses",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/courses/{course_id}/enrolments": {
+      "post": {
+        "description": "An organisation's member into a course (Core Organisations) \u2014 idempotent;\nanswers the enrolment's status, `course_not_found` for an unknown course.",
+        "operationId": "service_enrol_user_api_v1_service_lms_courses__course_id__enrolments_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "course_id",
+            "required": true,
+            "schema": {
+              "title": "Course Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrgEnrolmentIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Enrol User Api V1 Service Lms Courses  Course Id  Enrolments Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Enrol User",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
     "/api/v1/service/lms/enrolments": {
       "post": {
         "operationId": "grant_enrolment_api_v1_service_lms_enrolments_post",
@@ -4702,6 +5976,51 @@
           }
         },
         "summary": "Grant Enrolment",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/kpis": {
+      "get": {
+        "operationId": "service_course_kpis_api_v1_service_lms_kpis_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "title": "Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Course Kpis Api V1 Service Lms Kpis Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Course Kpis",
         "tags": [
           "service-lms"
         ]
@@ -4749,6 +6068,51 @@
         ]
       }
     },
+    "/api/v1/service/lms/qna/unanswered": {
+      "get": {
+        "operationId": "service_unanswered_qna_api_v1_service_lms_qna_unanswered_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Unanswered Qna Api V1 Service Lms Qna Unanswered Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Unanswered Qna",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
     "/api/v1/service/lms/sections/import": {
       "post": {
         "operationId": "import_section_api_v1_service_lms_sections_import_post",
@@ -4785,6 +6149,209 @@
           }
         },
         "summary": "Import Section",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/students/{user_id}/cpd-hours": {
+      "get": {
+        "operationId": "service_cpd_hours_api_v1_service_lms_students__user_id__cpd_hours_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Year"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Cpd Hours Api V1 Service Lms Students  User Id  Cpd Hours Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Cpd Hours",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/students/{user_id}/export": {
+      "get": {
+        "operationId": "service_learning_export_api_v1_service_lms_students__user_id__export_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Learning Export Api V1 Service Lms Students  User Id  Export Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Learning Export",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/students/{user_id}/resume-candidates": {
+      "get": {
+        "operationId": "service_resume_candidates_api_v1_service_lms_students__user_id__resume_candidates_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 3,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Resume Candidates Api V1 Service Lms Students  User Id  Resume Candidates Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Resume Candidates",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/students/{user_id}/scrub-certificates": {
+      "post": {
+        "description": "M2's half of an erasure \u2014 commits here, since the caller's transaction\nis in another service. Idempotent: a second call scrubs nothing new.",
+        "operationId": "service_scrub_certificates_api_v1_service_lms_students__user_id__scrub_certificates_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Scrub Certificates Api V1 Service Lms Students  User Id  Scrub Certificates Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Scrub Certificates",
         "tags": [
           "service-lms"
         ]
@@ -5310,6 +6877,275 @@
         "summary": "Service Refund",
         "tags": [
           "service-payments"
+        ]
+      }
+    },
+    "/api/v1/service/question-bank/attempts": {
+      "post": {
+        "description": "A quiz answer from the LMS is an ordinary attempt \u2014 scoring, topic score,\nSM-2, streak \u2014 through the same path the question page uses.",
+        "operationId": "service_submit_attempt_api_v1_service_question_bank_attempts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceAttemptIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Submit Attempt Api V1 Service Question Bank Attempts Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Submit Attempt",
+        "tags": [
+          "service"
+        ]
+      }
+    },
+    "/api/v1/service/question-bank/by-ids": {
+      "post": {
+        "operationId": "service_questions_by_ids_api_v1_service_question_bank_by_ids_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionIdsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Questions By Ids Api V1 Service Question Bank By Ids Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Questions By Ids",
+        "tags": [
+          "service"
+        ]
+      }
+    },
+    "/api/v1/service/question-bank/topic": {
+      "get": {
+        "operationId": "service_topic_bank_api_v1_service_question_bank_topic_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "institute",
+            "required": true,
+            "schema": {
+              "title": "Institute",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "paper",
+            "required": true,
+            "schema": {
+              "title": "Paper",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "topic",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Topic"
+            }
+          },
+          {
+            "in": "query",
+            "name": "topic_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Topic Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "question_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Question Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "exclude_student_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Exclude Student Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Topic Bank Api V1 Service Question Bank Topic Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Topic Bank",
+        "tags": [
+          "service"
+        ]
+      }
+    },
+    "/api/v1/service/question-bank/topic-counts": {
+      "get": {
+        "operationId": "service_topic_counts_api_v1_service_question_bank_topic_counts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "institute",
+            "required": true,
+            "schema": {
+              "title": "Institute",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "paper",
+            "required": true,
+            "schema": {
+              "title": "Paper",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Topic Counts Api V1 Service Question Bank Topic Counts Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Topic Counts",
+        "tags": [
+          "service"
         ]
       }
     },
