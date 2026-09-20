@@ -1054,8 +1054,13 @@ each. This app's price and commission accrual stay authoritative until Phases 5 
       the access code in inline v2 — behind `CORE_CHECKOUT=1`, the old flow otherwise; the webhook route is
       untouched (Core forwards a Registration charge here with the same body and signature). Contract test
       pins the three doors. Coding Docs/25 §1, 05 §29
-- [ ] **Affiliates, the money half** — commissions derived from the ledger in Core; this app's accrual and
-      qualification deleted, its dashboards and staff screens reading Core; history carried over. Coding Docs/25 §2
+- [x] **Affiliates, the money half** (released 2026-09-20 — Railway `054dbbb8`): commissions derived from the
+      ledger in Core; this app's `accrueCommissionOnPaymentSystem` and `runCommissionQualificationDispatch`
+      DELETED (and the cron line); `lib/knowsia-core/commissions.ts` reads the ledger for the partner, tutor and
+      student portals and the staff console, marks payable / records a hand payout / redeems course credit
+      through Core's doors; its own rows answer only when Core is not configured. History carried by
+      `scripts/sync-commissions-to-core.mjs` (run after the partners sync; `--dry-run` first). Contract test pins
+      the money doors. Coding Docs/25 §2, 05 §30. **The Core plan (Doc 22 §7) is complete.**
 
 ---
 ## Risk watch (carried from `/docs/01_PRD.md` risk register)

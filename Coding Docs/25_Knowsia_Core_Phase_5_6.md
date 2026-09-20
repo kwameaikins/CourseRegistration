@@ -214,6 +214,17 @@ partner, a referred payment of GHS 1,200, 12 % → GHS 144.00 pending → approv
 earned and closing read 144.00; a GHS 300 refund reverses 36.00 through the same ledger; the tiers
 step at 10 and 30.
 
+**Released 2026-09-20** — Railway `054dbbb8`; `core_alembic_version = 013_core_commissions`; contract §30;
+KnowsiaApp PLAN.md §3.24. Built as specified, with three additions found in the port: the staff console's
+doors (`GET …/affiliates/commissions`, `POST …/commissions/payable`, `POST …/partners/{ref}/payouts`) so this
+app's `/partners` Commissions & Payouts view reads and acts on Core's rows; the history doors
+(`POST …/commissions/import`, `POST …/payouts/import`, idempotent on this app's row ids — the live row
+outranks history); and `ensure_default_rules`, so a database built without the migration's seed earns by
+the programme's rules and never silently by none. **Phase 6 closes the Core plan (Doc 22 §7 rows 1–6).**
+Open for the founder: run `scripts/sync-partners-to-core.mjs` then `scripts/sync-commissions-to-core.mjs
+--dry-run` / live; switch auto-approve on after a month of reading the queue; `PAYSTACK_TRANSFERS_ENABLED`
+when transfers are approved.
+
 ## 3. What is deliberately NOT here
 
 Flutterwave (Phase 4 of the product plan, Nigeria); Paystack subscriptions for this app (a cohort is

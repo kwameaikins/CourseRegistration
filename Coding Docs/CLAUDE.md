@@ -547,6 +547,14 @@ Built & deployed (all committed, tests/tsc/lint/build green throughout):
     analytics suite (duplicate-account detection, refund-rate dashboards).
     Migration `202608020044_partners_and_codes.sql` applied to production
     2026-08-02.
+    **Since Knowsia Core Phase 6 (2026-09-20) the commission half of this
+    paragraph is history**: `accrueCommissionOnPaymentSystem` and the cron's
+    qualification are deleted, Core derives the commission from the payment
+    this app raises on its ledger, and every dashboard and staff action reads
+    or writes Core through `lib/knowsia-core/commissions.ts` (Coding Docs/25
+    §2, 05 §30). `partner_commissions` / `partner_payouts` are history rows,
+    carried across once by `scripts/sync-commissions-to-core.mjs`; a new
+    caller that writes one is a regression.
 
   Existing-tutor/student self-serve referrals + commission-as-course-credit
     redemption (2026-08-02, same-day follow-up) — closed three gaps founder-

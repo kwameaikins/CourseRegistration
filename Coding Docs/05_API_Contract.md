@@ -775,3 +775,20 @@ amount_minor?, reason, at_provider }` → the payment; 404 when the reference is
 calls the first when `CORE_CHECKOUT=1` and `components/PaystackCheckout.tsx` resumes the access code. The webhook comes to Core's
 `POST /api/v1/core/webhooks/paystack` and is forwarded to this app's `POST /api/webhooks/paystack` with the same body and signature —
 nothing here changes. Asserted by `tests/unit/knowsia-core-contract.test.ts`; Coding Docs/25 §1.
+
+## 30. Knowsia Core Affiliates, the money half — this side (2026-09-20)
+
+Outbound only (`lib/knowsia-core/commissions.ts`, `X-Service-Key`). This app computes no commission: Core derives one from the payment this
+app raises on its ledger (§27's events door), in the delivery that converts the attribution. Reads: `GET {KNOWSIA_APP_API_URL}/api/v1/service/
+affiliates/partners/{partners.id}/ledger?product=registration` → `{ totals_minor by status, payable_balance_minor, payable_ids, min_payout_minor,
+can_pay_out, commissions[], payouts[], statements[] }` (404 when Core never saw the partner — the portals show an empty ledger); `GET …/affiliates/
+commissions?product=registration&status=&partner_external_ref=` → `{ items[] }` each with `partner_external_ref` and `attribution_external_ref`
+(= `code_redemptions.id`, how the staff console finds the registration for context). Writes: `POST …/affiliates/commissions/payable`
+`{ product, commission_ids, actor_ref (staff user id) }` → `{ items[] }`, 409 for a row not approved; `POST …/affiliates/partners/{id}/payouts`
+`{ product, commission_ids?, method: 'manual', reference, actor_ref }` → 201 the payout (paid at once; 409 for a row not payable or another
+partner's, 422 under the GHS 100 minimum); `POST …/affiliates/partners/{id}/redeem` `{ product, commission_ids, reference (the registration
+id) }` → `{ total_minor, payout_id, commission_ids }` — course-credit redemption; `PUT …/affiliates/partners/{id}/payout-details` `{ product,
+method: mobile_money | bank, bank_code, account_number, account_name }` (the account goes to Paystack; only the last four digits stay).
+History, once: `POST …/affiliates/commissions/import` and `POST …/affiliates/payouts/import`, keyed by this app's `partner_commissions.id` /
+`partner_payouts.id` (`scripts/sync-commissions-to-core.mjs`; 404 until the partners sync has run; a row Core already accrued live is kept).
+Asserted by `tests/unit/knowsia-core-contract.test.ts`; Coding Docs/25 §2.
