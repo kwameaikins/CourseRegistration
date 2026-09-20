@@ -762,3 +762,16 @@ subject_id, subject_email, subject_phone, method (code | link), existing_lead, s
 attributed_at }` → 201 `{ attributed, created, id, status, flags }` — idempotent on (product, participant); `attributed: false` when
 Core cannot honour the code. `GET …/affiliates/attributions/by-subject?product=&subject_type=&subject_id=` reads one back. The
 partners service, `/r/[code]` and `redeemCodeSystem` call them. Asserted by `tests/unit/knowsia-core-contract.test.ts`; Coding Docs/24 §4.
+
+## 29. Knowsia Core Payments — this side (2026-09-20)
+
+Outbound only (`lib/knowsia-core/payments.ts`, `X-Service-Key`). `POST {KNOWSIA_APP_API_URL}/api/v1/service/payments/checkout`
+`{ product: 'registration', payer_email, payer_ref (participant id), sku_code ('cohort.<course>.<cohort>'), qty: 1, coupon_code?,
+external_ref (registration id), amount_minor (the BALANCE, this app's own fact — null to charge the quote), callback_url?, metadata:
+{ registration_id } (the webhook's match key here), channels: ['card', 'mobile_money'] }` → 201 `{ id, reference, authorization_url,
+access_code, amount_minor, currency, sku_code, quote, status }`; 404 for an unknown SKU with no amount, 422 for nothing to price.
+`GET …/payments/by-reference?reference=` → `{ payment | null, checkout | null }`. `POST …/payments/refunds` `{ product, reference,
+amount_minor?, reason, at_provider }` → the payment; 404 when the reference is another product's. `POST /api/checkout` (this app)
+calls the first when `CORE_CHECKOUT=1` and `components/PaystackCheckout.tsx` resumes the access code. The webhook comes to Core's
+`POST /api/v1/core/webhooks/paystack` and is forwarded to this app's `POST /api/webhooks/paystack` with the same body and signature —
+nothing here changes. Asserted by `tests/unit/knowsia-core-contract.test.ts`; Coding Docs/25 §1.

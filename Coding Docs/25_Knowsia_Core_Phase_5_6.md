@@ -151,6 +151,10 @@ written by the door.
 handlers alive for 30 days; `m1_payments` reconciled to Paystack's export to the pesewa
 (`reconcile_paystack.py`, and a test that reconciles Study's ledger with `core_payments`).
 
+**Released 2026-09-20** — Railway `3858bdff`; `core_alembic_version = 012_core_payments`; contract §29. Open for the
+founder: the Paystack dashboard's webhook URL → Core's; `CORE_CHECKOUT=1` on Vercel when ready;
+`PAYSTACK_TRANSFERS_ENABLED` on Railway when transfers are approved.
+
 ## 2. Release 6 — Affiliates, the money half (platform 013 `013_core_commissions`)
 
 **Tables** (`models/commissions.py`): `core_commission_rules` (category, kind percent | flat,

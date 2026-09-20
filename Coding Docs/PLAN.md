@@ -1047,6 +1047,16 @@ each. This app's price and commission accrual stay authoritative until Phases 5 
       accrual untouched until Phase 6. Contract test pins the five doors. Coding Docs/24 §4, 05 §28.
       **Phase 4 complete.**
 
+## Knowsia Core Phases 5 and 6 — this side (from 2026-09-20; Coding Docs/25)
+
+- [x] **Payments** (released 2026-09-20 — Railway `3858bdff`): `POST /api/checkout` mints a Core checkout for
+      the registration's balance (server-side, never the browser's amount) and `PaystackCheckout` resumes
+      the access code in inline v2 — behind `CORE_CHECKOUT=1`, the old flow otherwise; the webhook route is
+      untouched (Core forwards a Registration charge here with the same body and signature). Contract test
+      pins the three doors. Coding Docs/25 §1, 05 §29
+- [ ] **Affiliates, the money half** — commissions derived from the ledger in Core; this app's accrual and
+      qualification deleted, its dashboards and staff screens reading Core; history carried over. Coding Docs/25 §2
+
 ---
 ## Risk watch (carried from `/docs/01_PRD.md` risk register)
 
