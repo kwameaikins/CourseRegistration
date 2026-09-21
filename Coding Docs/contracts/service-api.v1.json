@@ -691,6 +691,58 @@
         "title": "ModelCallIn",
         "type": "object"
       },
+      "NarrationClipsIn": {
+        "properties": {
+          "ref_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref Id"
+          },
+          "ref_type": {
+            "default": "lesson",
+            "maxLength": 32,
+            "title": "Ref Type",
+            "type": "string"
+          },
+          "texts": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 40,
+            "title": "Texts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "texts"
+        ],
+        "title": "NarrationClipsIn",
+        "type": "object"
+      },
+      "NarrationTextsIn": {
+        "properties": {
+          "texts": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 40,
+            "title": "Texts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "texts"
+        ],
+        "title": "NarrationTextsIn",
+        "type": "object"
+      },
       "PublishPatch": {
         "properties": {
           "published_by": {
@@ -4551,6 +4603,135 @@
           }
         },
         "summary": "Service Check Lesson",
+        "tags": [
+          "service-analytics"
+        ]
+      }
+    },
+    "/api/v1/service/analytics/narration/clips": {
+      "post": {
+        "description": "Synthesise what is missing. A clip id per text, null where the voice\nrefused; `voice.available` false means nothing was attempted.",
+        "operationId": "service_narration_clips_api_v1_service_analytics_narration_clips_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NarrationClipsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Narration Clips Api V1 Service Analytics Narration Clips Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Narration Clips",
+        "tags": [
+          "service-analytics"
+        ]
+      }
+    },
+    "/api/v1/service/analytics/narration/lookup": {
+      "post": {
+        "description": "`{\"voice\": {...}, \"keys\": [hash|null per text], \"clips\": {hash: {id, bytes}}}` \u2014 no synthesis.",
+        "operationId": "service_narration_lookup_api_v1_service_analytics_narration_lookup_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NarrationTextsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Narration Lookup Api V1 Service Analytics Narration Lookup Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Narration Lookup",
+        "tags": [
+          "service-analytics"
+        ]
+      }
+    },
+    "/api/v1/service/analytics/narration/{clip_id}": {
+      "get": {
+        "description": "The bytes, for a renderer that assembles a lesson video from the same\nclips the player uses. Students read clips through /api/v1/tutor/narration.",
+        "operationId": "service_narration_clip_api_v1_service_analytics_narration__clip_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "clip_id",
+            "required": true,
+            "schema": {
+              "title": "Clip Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Narration Clip",
         "tags": [
           "service-analytics"
         ]

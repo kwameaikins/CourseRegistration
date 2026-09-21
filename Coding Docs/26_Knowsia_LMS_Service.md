@@ -252,6 +252,14 @@ classroom's assignments), this app `ae1fcdf` (the tutor portal's pages redirect 
 verbatim; eligibility a word. The four tutors on file are Core identities (3 new, 1 joined). Exit test pending a real
 tutor's class day — KnowsiaApp PLAN.md §3.27.
 
+**Phase G released 2026-09-21** — the lesson as a workspace, in the LMS (not a numbered R: it is the self-paced side
+of the same service): knowsia-api `536f5cd1` (M6's voice over the seam — `/api/v1/service/analytics/narration/*`),
+`knowsia-lms` `86ec7947` (migration 018; `GET /api/v1/lessons/{id}/workspace` and the segment / closing / narration
+writes; the renderer's service doors under `/api/v1/service/lms/lessons/{id}/*`, pinned in `lms-api.v1.json` — a copy
+in this repo's `Coding Docs/contracts/`), the study frontend (Read · Listen · Watch, the try-it pause, the closing
+question, offline through a service worker under `/learn/`). Nothing in this app changes: the lesson is the study
+app's, the certificate registry and the cohort mirror are untouched. KnowsiaApp PLAN.md §3.28, CLAUDE.md "Phase G".
+
 R0 is a refactor and is what "deploy separately like M4" means; it can ship this week. R1 is the
 product. R2 and R3 are the two things with people's names on them (tutors, certificates) and
 each has a replay test rather than a judgement. R4 is deletion, which is the point.

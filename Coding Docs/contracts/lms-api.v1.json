@@ -637,6 +637,52 @@
         "title": "ParticipantStudySummary",
         "type": "object"
       },
+      "RenderedVideoAttach": {
+        "properties": {
+          "bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bytes"
+          },
+          "seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seconds"
+          },
+          "segments_hash": {
+            "title": "Segments Hash",
+            "type": "string"
+          },
+          "vtt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vtt"
+          }
+        },
+        "required": [
+          "segments_hash"
+        ],
+        "title": "RenderedVideoAttach",
+        "type": "object"
+      },
       "SeatGrant": {
         "properties": {
           "access_until": {
@@ -1231,6 +1277,203 @@
           }
         },
         "summary": "Service Course Kpis",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/lessons/{lesson_id}/narrate": {
+      "post": {
+        "description": "Warm every clip of the lesson NOW, synchronously — the renderer waits;\na student never calls this.",
+        "operationId": "service_lesson_narrate_api_v1_service_lms_lessons__lesson_id__narrate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lesson_id",
+            "required": true,
+            "schema": {
+              "title": "Lesson Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Lesson Narrate Api V1 Service Lms Lessons  Lesson Id  Narrate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Lesson Narrate",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/lessons/{lesson_id}/rendered-video": {
+      "post": {
+        "operationId": "service_rendered_video_upload_api_v1_service_lms_lessons__lesson_id__rendered_video_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lesson_id",
+            "required": true,
+            "schema": {
+              "title": "Lesson Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Rendered Video Upload Api V1 Service Lms Lessons  Lesson Id  Rendered Video Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Rendered Video Upload",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/lessons/{lesson_id}/rendered-video/{video_guid}/attach": {
+      "post": {
+        "operationId": "service_rendered_video_attach_api_v1_service_lms_lessons__lesson_id__rendered_video__video_guid__attach_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lesson_id",
+            "required": true,
+            "schema": {
+              "title": "Lesson Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "video_guid",
+            "required": true,
+            "schema": {
+              "title": "Video Guid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenderedVideoAttach"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Rendered Video Attach Api V1 Service Lms Lessons  Lesson Id  Rendered Video  Video Guid  Attach Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Rendered Video Attach",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/lessons/{lesson_id}/workspace": {
+      "get": {
+        "description": "The lesson cut for a renderer: segments, beats with their slide and\nthe id of the clip that already exists (None where the voice has not\nbeen warmed — call `narrate` first, then read again).",
+        "operationId": "service_lesson_workspace_api_v1_service_lms_lessons__lesson_id__workspace_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lesson_id",
+            "required": true,
+            "schema": {
+              "title": "Lesson Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Lesson Workspace Api V1 Service Lms Lessons  Lesson Id  Workspace Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Lesson Workspace",
         "tags": [
           "service-lms"
         ]
