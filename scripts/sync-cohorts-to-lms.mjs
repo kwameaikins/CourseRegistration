@@ -6,7 +6,10 @@
 // registration whose batch has ended more than 90 days ago is skipped, its
 // seat would already have expired. Loads .env.local itself and prints
 // counts only, never a key.
-//   node scripts/sync-cohorts-to-lms.mjs [--dry-run] [--batch <id>] [--since YYYY-MM-DD]
+//   node scripts/sync-cohorts-to-lms.mjs [--dry-run] [--batch <id>] [--since YYYY-MM-DD] [--no-tutors]
+// --no-tutors (R2): mirror the tutor's NAME only. Naming a tutor by email makes
+// their Teach account and sends the invite at once; the founder introduces
+// that email themself first (2026-09-21).
 import { readFileSync } from 'node:fs';
 import { createClient } from '@supabase/supabase-js';
 
@@ -21,6 +24,7 @@ for (const file of ['.env.local', '.env']) {
 const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');
 const onlyBatch = args.includes('--batch') ? args[args.indexOf('--batch') + 1] : null;
+const noTutors = args.includes('--no-tutors');
 const since = args.includes('--since') ? args[args.indexOf('--since') + 1] : new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10);
 const base = (process.env.KNOWSIA_LMS_API_URL || process.env.KNOWSIA_APP_API_URL || '').trim().replace(/\/+$/, '');
 const key = process.env.KNOWSIA_APP_SERVICE_KEY;
@@ -48,7 +52,7 @@ for (const b of batches) {
   const mirror = await lms('PUT', '/api/v1/service/lms/cohorts', {
     external_ref: b.id, course_code: course.course_code, course_title: course.course_name, title: `${course.course_name} — ${b.cohort_label}`,
     start_date: b.start_date, end_date: b.end_date, start_time: b.start_time, end_time: b.end_time, meeting_days: b.meeting_days, timezone: 'Africa/Accra',
-    tutor_name: tutors.get(b.facilitator_tutor_id)?.full_name || b.facilitator_name || null, tutor_email: tutors.get(b.facilitator_tutor_id)?.email ?? null, tutor_phone: tutors.get(b.facilitator_tutor_id)?.phone ?? null, max_seats: b.capacity ?? undefined, is_free: b.is_free, is_unlisted: b.is_unlisted, is_active: b.is_active,
+    tutor_name: tutors.get(b.facilitator_tutor_id)?.full_name || b.facilitator_name || null, tutor_email: noTutors ? null : (tutors.get(b.facilitator_tutor_id)?.email ?? null), tutor_phone: noTutors ? null : (tutors.get(b.facilitator_tutor_id)?.phone ?? null), max_seats: b.capacity ?? undefined, is_free: b.is_free, is_unlisted: b.is_unlisted, is_active: b.is_active,
     reminders_enabled: b.class_reminder_enabled, zoom_meeting_id: b.zoom_meeting_id, zoom_join_url: b.zoom_link, zoom_access_revoked_at: b.zoom_access_revoked_at,
     whatsapp_group_url: b.whatsapp_group_link, resources_url: b.resources_link,
   });
@@ -75,4 +79,4 @@ for (const b of batches) {
     if ((await seat.json()).created) counts.seats_created += 1;
   }
 }
-console.log(dryRun ? '[dry run]' : '', JSON.stringify(counts));
+console.log(dryRun ? '[dry run]' : '', noTutors ? '[no tutors]' : '', JSON.stringify(counts));
