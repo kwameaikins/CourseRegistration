@@ -1,6 +1,249 @@
 {
   "components": {
     "schemas": {
+      "AccessGrantIn": {
+        "properties": {
+          "expires_on": {
+            "format": "date",
+            "title": "Expires On",
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 1000,
+            "minLength": 3,
+            "title": "Note",
+            "type": "string"
+          },
+          "reason": {
+            "pattern": "^(part_payment|credit|goodwill|transfer|other)$",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "note",
+          "expires_on"
+        ],
+        "title": "AccessGrantIn",
+        "type": "object"
+      },
+      "CohortMirror": {
+        "properties": {
+          "course_code": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Course Code",
+            "type": "string"
+          },
+          "course_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Course Title"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "end_time": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Time"
+          },
+          "external_ref": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "External Ref",
+            "type": "string"
+          },
+          "is_active": {
+            "default": true,
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "is_free": {
+            "default": false,
+            "title": "Is Free",
+            "type": "boolean"
+          },
+          "is_unlisted": {
+            "default": false,
+            "title": "Is Unlisted",
+            "type": "boolean"
+          },
+          "max_seats": {
+            "anyOf": [
+              {
+                "maximum": 1000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Seats"
+          },
+          "meeting_days": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Days"
+          },
+          "reminders_enabled": {
+            "default": true,
+            "title": "Reminders Enabled",
+            "type": "boolean"
+          },
+          "resources_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resources Url"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "start_time": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Time"
+          },
+          "timezone": {
+            "default": "Africa/Accra",
+            "title": "Timezone",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "tutor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tutor Name"
+          },
+          "whatsapp_group_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Whatsapp Group Url"
+          },
+          "zoom_access_revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zoom Access Revoked At"
+          },
+          "zoom_join_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zoom Join Url"
+          },
+          "zoom_meeting_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zoom Meeting Id"
+          }
+        },
+        "required": [
+          "external_ref",
+          "course_code",
+          "title"
+        ],
+        "title": "CohortMirror",
+        "type": "object"
+      },
       "GrantEnrolmentRequest": {
         "properties": {
           "access_days": {
@@ -371,6 +614,98 @@
         "title": "ParticipantStudySummary",
         "type": "object"
       },
+      "SeatGrant": {
+        "properties": {
+          "access_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Until"
+          },
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          },
+          "external_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Ref"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "participant_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Participant Id"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "seat_source": {
+            "default": "paid",
+            "pattern": "^(paid|free|grant|corporate|manual)$",
+            "title": "Seat Source",
+            "type": "string"
+          },
+          "zoom_join_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zoom Join Url"
+          },
+          "zoom_registrant_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Zoom Registrant Id"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "SeatGrant",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -414,6 +749,274 @@
     }
   },
   "paths": {
+    "/api/v1/service/lms/cohorts": {
+      "put": {
+        "operationId": "service_upsert_cohort_api_v1_service_lms_cohorts_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CohortMirror"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Upsert Cohort Api V1 Service Lms Cohorts Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Upsert Cohort",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/cohorts/by-ref/{external_ref}": {
+      "get": {
+        "operationId": "service_cohort_by_ref_api_v1_service_lms_cohorts_by_ref__external_ref__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "external_ref",
+            "required": true,
+            "schema": {
+              "title": "External Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Cohort By Ref Api V1 Service Lms Cohorts By Ref  External Ref  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Cohort By Ref",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/cohorts/{external_ref}/members": {
+      "post": {
+        "operationId": "service_grant_seat_api_v1_service_lms_cohorts__external_ref__members_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "external_ref",
+            "required": true,
+            "schema": {
+              "title": "External Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SeatGrant"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Grant Seat Api V1 Service Lms Cohorts  External Ref  Members Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Grant Seat",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/cohorts/{external_ref}/members/{registration_ref}": {
+      "delete": {
+        "operationId": "service_withdraw_seat_api_v1_service_lms_cohorts__external_ref__members__registration_ref__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "external_ref",
+            "required": true,
+            "schema": {
+              "title": "External Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "registration_ref",
+            "required": true,
+            "schema": {
+              "title": "Registration Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reason",
+            "required": false,
+            "schema": {
+              "default": "withdrawn by the Registration app",
+              "title": "Reason",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Withdraw Seat Api V1 Service Lms Cohorts  External Ref  Members  Registration Ref  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Withdraw Seat",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/cohorts/{external_ref}/members/{registration_ref}/access": {
+      "post": {
+        "description": "A stated period of access for an unpaid seat (a part payment over\nthere); append-only here, a longer grant is a new row.",
+        "operationId": "service_grant_access_api_v1_service_lms_cohorts__external_ref__members__registration_ref__access_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "external_ref",
+            "required": true,
+            "schema": {
+              "title": "External Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "registration_ref",
+            "required": true,
+            "schema": {
+              "title": "Registration Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessGrantIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Grant Access Api V1 Service Lms Cohorts  External Ref  Members  Registration Ref  Access Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Grant Access",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
     "/api/v1/service/lms/courses": {
       "get": {
         "operationId": "service_list_courses_api_v1_service_lms_courses_get",
@@ -844,6 +1447,7 @@
     },
     "/api/v1/service/lms/students/{user_id}/resume-candidates": {
       "get": {
+        "description": "The companion's two LMS inputs in one read: unfinished courses, and\n(R1) the classes this seat may join inside the next day.",
         "operationId": "service_resume_candidates_api_v1_service_lms_students__user_id__resume_candidates_get",
         "parameters": [
           {

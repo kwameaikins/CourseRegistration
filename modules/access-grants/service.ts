@@ -17,6 +17,7 @@ import * as usersService from '@/modules/users/service';
 // directly keeps this module out of that import cycle entirely.
 import { sendEmailOnce } from '@/modules/communications/email-engine';
 import * as attendanceService from '@/modules/attendance/service';
+import * as knowsiaAppService from '@/modules/knowsia-app/service';
 import * as attendanceRepository from '@/modules/attendance/repository';
 import { insertStaffActionAuditLog } from '@/modules/agent-tools/repository';
 import {
@@ -212,6 +213,12 @@ async function insertGrantAndOpenAccess(params: {
   }
 
   await runGrantedAccessSideEffects(params.registrationId, params.expiresOn);
+  // Knowsia LMS (Coding Docs/26 R1): the same grant on the classroom's seat — append-only there. Best effort.
+  try {
+    await knowsiaAppService.grantAccessOnLmsSystem(params.registrationId, { reason: params.reason, note: params.note, expiresOn: params.expiresOn });
+  } catch (err) {
+    console.error('[lms access grant]', err);
+  }
   return row;
 }
 

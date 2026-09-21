@@ -82,6 +82,20 @@ describe('KnowsiaApp service-door contract (what modules/knowsia-app/service.ts 
     expect(reply).toContain('enrolments');
   });
 
+  it('the classroom (Doc 26 R1): the batch mirror, the seat, the withdrawal, the access grant', () => {
+    const mirror = requestFields('/api/v1/service/lms/cohorts', 'put');
+    for (const f of ['external_ref', 'course_code', 'course_title', 'title', 'start_date', 'end_date', 'start_time', 'end_time', 'meeting_days', 'timezone', 'tutor_name', 'max_seats', 'is_free', 'is_unlisted', 'is_active', 'reminders_enabled', 'zoom_meeting_id', 'zoom_join_url', 'zoom_access_revoked_at', 'whatsapp_group_url', 'resources_url']) {
+      expect(mirror, `mirror field ${f}`).toContain(f);
+    }
+    const seat = requestFields('/api/v1/service/lms/cohorts/{external_ref}/members', 'post');
+    for (const f of ['email', 'name', 'phone', 'participant_id', 'external_ref', 'seat_source', 'zoom_registrant_id', 'zoom_join_url']) {
+      expect(seat, `seat field ${f}`).toContain(f);
+    }
+    expect(lmsContract.paths['/api/v1/service/lms/cohorts/{external_ref}/members/{registration_ref}']?.delete, 'DELETE seat is missing').toBeDefined();
+    const grant = requestFields('/api/v1/service/lms/cohorts/{external_ref}/members/{registration_ref}/access', 'post');
+    for (const f of ['reason', 'note', 'expires_on']) expect(grant, `grant field ${f}`).toContain(f);
+  });
+
   it('the dual-read shadow check (Doc 22 Phase 2): POST …/identity/check', () => {
     const fields = requestFields('/api/v1/service/identity/check', 'post');
     for (const f of ['path', 'product', 'external_id', 'email', 'app_verdict']) {

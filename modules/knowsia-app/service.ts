@@ -12,6 +12,8 @@
 import { AppError, captureToSentry } from '@/lib/errors';
 import { isCoreEventsConfigured, raisePaymentSettledToCore } from '@/lib/knowsia-core/events';
 import { batchSkuCode } from '@/lib/knowsia-core/catalogue';
+import { grantAccessOnLms, grantSeatOnLms, mirrorBatchToLms, withdrawSeatOnLms } from '@/lib/knowsia-lms/cohorts';
+import * as coursesRepository from '@/modules/courses/repository';
 import * as knowsiaAppRepository from '@/modules/knowsia-app/repository';
 import * as usersService from '@/modules/users/service';
 
@@ -94,6 +96,79 @@ export async function grantLmsAccessSystem(
     return 'failed';
   }
   return 'granted';
+}
+
+// --- The classroom on the LMS (Coding Docs/26 R1, 2026-09-21) ----------------
+//
+// Until R4 this app owns the batch and sells the seat; the LMS is the
+// classroom. Each of these mirrors one fact across, best effort and
+// idempotent over there: a batch saved → a cohort; a seat confirmed → a
+// member (with the personal Zoom link this app minted, during the dual run);
+// a lapse or transfer → a withdrawal; an access grant → an access grant.
+// Nothing here throws into its caller — the write has already committed.
+
+export async function mirrorBatchToLmsSystem(batchId: string): Promise<void> {
+  const row = await coursesRepository.selectBatchByIdSystem(batchId);
+  if (!row) return;
+  const course = await coursesRepository.selectCourseByIdSystem(row.course_id);
+  if (!course) return;
+  await mirrorBatchToLms({
+    batchId: row.id,
+    courseCode: course.course_code,
+    courseName: course.course_name,
+    cohortLabel: row.cohort_label,
+    startDate: row.start_date,
+    endDate: row.end_date,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    meetingDays: row.meeting_days,
+    facilitatorName: row.facilitator_name,
+    capacity: row.capacity,
+    isFree: row.is_free,
+    isUnlisted: row.is_unlisted,
+    isActive: row.is_active,
+    classReminderEnabled: row.class_reminder_enabled,
+    zoomMeetingId: row.zoom_meeting_id,
+    zoomLink: row.zoom_link,
+    whatsappGroupLink: row.whatsapp_group_link,
+    resourcesLink: row.resources_link,
+    zoomAccessRevokedAt: row.zoom_access_revoked_at,
+  });
+}
+
+export async function grantSeatOnLmsSystem(registrationId: string, seatSource?: 'paid' | 'free' | 'grant' | 'corporate'): Promise<'granted' | 'skipped' | 'failed'> {
+  const context = await knowsiaAppRepository.selectSeatContextSystem(registrationId);
+  if (!context || context.participantDeleted) return 'skipped';
+  const seat = {
+    batchId: context.batchId,
+    registrationId,
+    participantId: context.participantId,
+    email: context.participantEmail,
+    name: context.participantFullName,
+    phone: context.participantPhone,
+    seatSource: seatSource ?? (context.batchIsFree ? ('free' as const) : ('paid' as const)),
+    zoomRegistrantId: context.zoomRegistrantId,
+    zoomJoinUrl: context.zoomJoinUrl,
+  };
+  let out = await grantSeatOnLms(seat);
+  if (out === null) {
+    // 404: the LMS has not seen this batch yet — mirror it, then seat them.
+    await mirrorBatchToLmsSystem(context.batchId);
+    out = await grantSeatOnLms(seat);
+  }
+  return out ? 'granted' : 'failed';
+}
+
+export async function withdrawSeatOnLmsSystem(registrationId: string, batchId: string, reason: string): Promise<void> {
+  await withdrawSeatOnLms(batchId, registrationId, reason);
+}
+
+export async function grantAccessOnLmsSystem(registrationId: string, input: { reason: 'part_payment' | 'credit' | 'goodwill' | 'transfer' | 'other'; note: string; expiresOn: string }): Promise<void> {
+  const context = await knowsiaAppRepository.selectSeatContextSystem(registrationId);
+  if (!context || context.participantDeleted) return;
+  // The seat first (a grant is a clock on a seat), then the grant.
+  await grantSeatOnLmsSystem(registrationId, 'grant');
+  await grantAccessOnLms(context.batchId, registrationId, input);
 }
 
 // --- Seam III, question-bank half (Coding Docs/19 §4 III) -------------------

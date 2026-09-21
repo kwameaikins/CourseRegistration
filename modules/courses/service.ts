@@ -9,6 +9,7 @@ import { seedDefaultTemplatesForCourse } from '@/modules/communications/default-
 // (founder decision, 2026-07-24), the other being registrations'
 // deleteRegistration.
 import * as waitlistService from '@/modules/waitlist/service';
+import * as knowsiaAppService from '@/modules/knowsia-app/service';
 // Permitted cross-module call (2026-08-08) — live-sessions owns the rule for
 // what sessions a schedule implies; courses owns the schedule itself and
 // only asks for them to be generated.
@@ -276,6 +277,8 @@ export async function createBatch(input: BatchInput): Promise<Batch> {
   // early-bird price a rule. Best effort; this app's fee stays authoritative.
   const created = toBatch(row);
   if (course) void upsertBatchSkuToCore(created, { courseCode: course.course_code, courseName: course.course_name });
+  // Knowsia LMS (Coding Docs/26 R1): the batch is a cohort over there. Best effort.
+  void knowsiaAppService.mirrorBatchToLmsSystem(created.id).catch((err) => console.error('[lms mirror batch]', err));
   return created;
 }
 
@@ -337,6 +340,7 @@ export async function updateBatch(batchId: string, changes: BatchUpdate): Promis
     const course = await coursesRepository.selectCourseByIdSystem(batch.courseId);
     if (course) await upsertBatchSkuToCore(batch, { courseCode: course.course_code, courseName: course.course_name });
   })().catch((err) => console.error('[core batch sku]', err));
+  void knowsiaAppService.mirrorBatchToLmsSystem(batch.id).catch((err) => console.error('[lms mirror batch]', err));
 
   // Flipping an existing Batch to free needs the same free_welcome backfill
   // as createBatch — see the comment there.

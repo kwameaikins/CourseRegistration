@@ -186,6 +186,14 @@ async function runSettledEnrollmentSideEffects(registrationId: string): Promise<
   } catch (err) {
     console.error('[payment_confirmation zoom registration]', err);
   }
+  // Knowsia LMS (Coding Docs/26 R1): the seat in the classroom over there,
+  // carrying the personal link minted just above (dual run). AFTER Zoom, so
+  // the link travels with the seat; idempotent there on registrations.id.
+  try {
+    await knowsiaAppService.grantSeatOnLmsSystem(registrationId);
+  } catch (err) {
+    console.error('[lms seat]', err);
+  }
   // Sales pipeline: a Paid registration wins its opportunity (Revenue OS
   // Phase 1 roadmap). Same non-blocking posture as the side effects above.
   try {

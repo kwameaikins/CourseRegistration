@@ -53,6 +53,7 @@ import type { PortalStatementData } from '@/modules/portal/types';
 // to re-register a Paid participant against the destination Batch's Zoom
 // meeting (system review, 2026-07-24).
 import * as attendanceService from '@/modules/attendance/service';
+import * as knowsiaAppService from '@/modules/knowsia-app/service';
 // Timeline entry for a write-off, same best-effort posture as access-grants —
 // the authoritative record is the lapsed_* columns on the registration itself.
 import { insertStaffActionAuditLog } from '@/modules/agent-tools/repository';
@@ -1466,6 +1467,12 @@ export async function lapseRegistration(registrationId: string, reason: string):
 
   await notifyWaitlistOfFreedSeat(existing);
   await enrollLapsedInWinbackSystem(registrationId);
+  // Knowsia LMS (Coding Docs/26 R1): a written-off registration loses its seat there too. Best effort.
+  try {
+    await knowsiaAppService.withdrawSeatOnLmsSystem(registrationId, existing.registration.batch_id, `Written off: ${reason}`.slice(0, 300));
+  } catch (err) {
+    console.error('[lms withdraw seat]', err);
+  }
 
   // Best-effort, exactly as in access-grants: the audit-log insert runs on the
   // session client and only admin holds the INSERT policy, so a finance
@@ -1769,6 +1776,15 @@ export async function transferRegistration(
     } catch (err) {
       console.error('[batch transfer zoom re-registration]', err);
     }
+  }
+  // Knowsia LMS (Coding Docs/26 R1): the seat moves classroom too — withdrawn
+  // from the old cohort, taken in the new one (a Paid seat only; an unpaid
+  // registration never held one). Best effort, after this app's own writes.
+  try {
+    await knowsiaAppService.withdrawSeatOnLmsSystem(registrationId, data.registration.batch_id, `Transferred to ${destinationBatch.cohortLabel}`);
+    if (data.payment?.payment_status === 'Paid') await knowsiaAppService.grantSeatOnLmsSystem(registrationId);
+  } catch (err) {
+    console.error('[lms transfer seat]', err);
   }
 
   // One-off staff-triggered notice — same inline-HTML posture as

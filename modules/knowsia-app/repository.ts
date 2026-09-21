@@ -52,6 +52,52 @@ export async function selectPaymentSettledContextSystem(registrationId: string):
   };
 }
 
+// What the LMS classroom's seat needs (Coding Docs/26 R1): the person, the
+// batch it is on, and the personal Zoom link this app minted (dual run).
+export async function selectSeatContextSystem(registrationId: string): Promise<{
+  batchId: string;
+  batchIsFree: boolean;
+  participantId: string;
+  participantEmail: string;
+  participantFullName: string;
+  participantPhone: string | null;
+  participantDeleted: boolean;
+  zoomRegistrantId: string | null;
+  zoomJoinUrl: string | null;
+} | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data: registration, error } = await supabase
+    .from('registrations')
+    .select('participant_id, batch_id')
+    .eq('id', registrationId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!registration) return null;
+
+  const [{ data: participant }, { data: batch }, { data: registrant }] = await Promise.all([
+    supabase
+      .from('participants')
+      .select('id, email, full_name, phone, deleted_at')
+      .eq('id', registration.participant_id)
+      .maybeSingle(),
+    supabase.from('batches').select('id, is_free').eq('id', registration.batch_id).maybeSingle(),
+    supabase.from('zoom_registrants').select('zoom_registrant_id, join_url').eq('registration_id', registrationId).maybeSingle(),
+  ]);
+  if (!participant || !batch) return null;
+
+  return {
+    batchId: batch.id,
+    batchIsFree: batch.is_free,
+    participantId: participant.id,
+    participantEmail: participant.email,
+    participantFullName: participant.full_name,
+    participantPhone: participant.phone ?? null,
+    participantDeleted: participant.deleted_at !== null,
+    zoomRegistrantId: registrant?.zoom_registrant_id ?? null,
+    zoomJoinUrl: registrant?.join_url ?? null,
+  };
+}
+
 export async function selectLmsGrantContextSystem(registrationId: string): Promise<{
   participantId: string;
   participantEmail: string;
