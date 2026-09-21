@@ -1068,8 +1068,14 @@ each. This app's price and commission accrual stay authoritative until Phases 5 
       `/service/lms/*` calls (`grantLmsAccessSystem`, `getStudentLmsCoursesSystem`) go to `KNOWSIA_LMS_API_URL`
       (set on Vercel; trimmed), the same service key; the contract test reads those doors from
       `Coding Docs/contracts/lms-api.v1.json`. Nothing else here changed.
-- [ ] **R1, the classroom** — this app mirrors batches into LMS cohorts and grants seats through the LMS's doors
-      on the paid transition, beside its own Zoom registration (dual-run). Coding Docs/26 §3–4
+- [x] **R1, the classroom** (released 2026-09-21; `a9546cb`): `lib/knowsia-lms/cohorts.ts` mirrors a batch on
+      createBatch / updateBatch (`PUT /service/lms/cohorts`, by `batches.id`), seats the person on the paid
+      transition and the free confirmation AFTER `ensureZoomRegistration` (the personal link travels with the seat;
+      idempotent over there on `registrations.id`; a 404 by ref mirrors the batch first), withdraws on transfer and
+      write-off, mirrors every access grant. Best effort, Sentry, never thrown; nothing of this app's own live code
+      changed — the dual run (`LMS_DUAL_RUN=true` over there: the LMS sends no reminder and registers nobody).
+      `scripts/sync-cohorts-to-lms.mjs [--dry-run]` backfills. KnowsiaApp PLAN.md §3.26 lists the founder's Zoom
+      switches and the one-cohort watch before R2.
 - [ ] **R2 Teach · R3 one registry · R4 delete** — Coding Docs/26 §4
 
 ---

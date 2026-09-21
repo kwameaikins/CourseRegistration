@@ -237,6 +237,14 @@ this app pointed at it; the exit criteria in §4 met (the LMS's logs show the pr
 named in the plan fired once, from the monolith's side (`a70e6690`), and step 5 closed it. KnowsiaApp
 PLAN.md §3.25 is the build record.
 
+**R1 released 2026-09-21** — the classroom: `knowsia-lms` `de9dd807` (migration 015, `m2_alembic_version = 015_classroom`),
+knowsia-api `0e64b113` (the companion's `class` candidate), both frontends, this app `a9546cb` (the batch and seat mirrors,
+hooked into createBatch / updateBatch, the paid transition, the free confirmation, transfer, write-off and every
+access grant; `scripts/sync-cohorts-to-lms.mjs`). `LMS_DUAL_RUN=true` on the LMS: it records reminders it would
+have sent and registers nobody with Zoom. **Zoom is off in the LMS until the five `ZOOM_*` variables are set on
+the `knowsia-lms` service and the Event Subscription points at `/api/v1/lms/webhooks/zoom`** — the founder's
+switches, listed in KnowsiaApp PLAN.md §3.26 with the one-cohort watch that is R1's exit criterion.
+
 R0 is a refactor and is what "deploy separately like M4" means; it can ship this week. R1 is the
 product. R2 and R3 are the two things with people's names on them (tutors, certificates) and
 each has a replay test rather than a judgement. R4 is deletion, which is the point.
