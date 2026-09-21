@@ -26,11 +26,27 @@ export interface ExportedStaff {
   coreIdentityId: string | null;
 }
 
+export interface ExportedTutor {
+  id: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  coreIdentityId: string | null;
+}
+
 export async function selectPeopleForIdentityExportSystem(): Promise<{
   participants: ExportedParticipant[];
   staff: ExportedStaff[];
+  tutors: ExportedTutor[];
 }> {
   const supabase = createSupabaseServiceRoleClient();
+  // Tutors (Coding Docs/26 R2): people too — the same person teaches from
+  // the study app now, and the identity is what joins the two records.
+  const { data: tutors, error: tError } = await supabase
+    .from('tutors')
+    .select('id, full_name, email, phone, core_identity_id')
+    .order('created_at', { ascending: true });
+  if (tError) throw tError;
   const [{ data: participants, error: pError }, { data: staff, error: sError }] = await Promise.all([
     supabase
       .from('participants')
@@ -62,6 +78,13 @@ export async function selectPeopleForIdentityExportSystem(): Promise<{
       isActive: row.is_active,
       coreIdentityId: row.core_identity_id,
     })),
+    tutors: (tutors ?? []).map((row) => ({
+      id: row.id,
+      fullName: row.full_name,
+      email: row.email,
+      phone: row.phone,
+      coreIdentityId: row.core_identity_id,
+    })),
   };
 }
 
@@ -76,11 +99,12 @@ const LINK_BATCH = 40;
 export async function updateCoreIdentityLinksSystem(
   participants: Array<{ id: string; coreIdentityId: string }>,
   staff: Array<{ id: string; coreIdentityId: string }>,
-): Promise<{ participants: number; staff: number; skipped: number }> {
+  tutors: Array<{ id: string; coreIdentityId: string }> = [],
+): Promise<{ participants: number; staff: number; tutors: number; skipped: number }> {
   const supabase = createSupabaseServiceRoleClient();
 
   async function linkAll(
-    table: 'participants' | 'staff_users',
+    table: 'participants' | 'staff_users' | 'tutors',
     links: Array<{ id: string; coreIdentityId: string }>,
   ): Promise<{ linked: number; skipped: number }> {
     let linked = 0;
@@ -88,8 +112,9 @@ export async function updateCoreIdentityLinksSystem(
     for (let i = 0; i < links.length; i += LINK_BATCH) {
       const results = await Promise.all(
         links.slice(i, i + LINK_BATCH).map(async (link) => {
+          // The three tables share the column; the client's union type does not, so one is named for the type alone.
           const { data, error } = await supabase
-            .from(table)
+            .from(table as 'participants')
             .update({ core_identity_id: link.coreIdentityId })
             .eq('id', link.id)
             .or(`core_identity_id.is.null,core_identity_id.eq.${link.coreIdentityId}`)
@@ -108,5 +133,6 @@ export async function updateCoreIdentityLinksSystem(
 
   const p = await linkAll('participants', participants);
   const s = await linkAll('staff_users', staff);
-  return { participants: p.linked, staff: s.linked, skipped: p.skipped + s.skipped };
+  const t = await linkAll('tutors', tutors);
+  return { participants: p.linked, staff: s.linked, tutors: t.linked, skipped: p.skipped + s.skipped + t.skipped };
 }

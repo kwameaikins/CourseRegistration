@@ -96,6 +96,15 @@ describe('KnowsiaApp service-door contract (what modules/knowsia-app/service.ts 
     for (const f of ['reason', 'note', 'expires_on']) expect(grant, `grant field ${f}`).toContain(f);
   });
 
+  it("the tutor's account (Doc 26 R2): the mirror names the tutor and knowsia-api makes the account", () => {
+    const mirror = requestFields('/api/v1/service/lms/cohorts', 'put');
+    for (const f of ['tutor_email', 'tutor_phone']) expect(mirror, `mirror field ${f}`).toContain(f);
+    const tutor = requestFields('/api/v1/service/auth/users/tutor', 'post');
+    for (const f of ['email', 'name', 'phone']) expect(tutor, `tutor field ${f}`).toContain(f);
+    const reply = responseFields('/api/v1/service/auth/users/tutor', 'post', '201');
+    for (const f of ['user_id', 'created', 'promoted', 'invited', 'role']) expect(reply).toContain(f);
+  });
+
   it('the dual-read shadow check (Doc 22 Phase 2): POST …/identity/check', () => {
     const fields = requestFields('/api/v1/service/identity/check', 'post');
     for (const f of ['path', 'product', 'external_id', 'email', 'app_verdict']) {

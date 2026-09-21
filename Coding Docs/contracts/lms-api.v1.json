@@ -179,6 +179,18 @@
             "title": "Title",
             "type": "string"
           },
+          "tutor_email": {
+            "anyOf": [
+              {
+                "format": "email",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tutor Email"
+          },
           "tutor_name": {
             "anyOf": [
               {
@@ -189,6 +201,17 @@
               }
             ],
             "title": "Tutor Name"
+          },
+          "tutor_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tutor Phone"
           },
           "whatsapp_group_url": {
             "anyOf": [

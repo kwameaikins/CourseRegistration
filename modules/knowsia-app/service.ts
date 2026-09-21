@@ -14,6 +14,7 @@ import { isCoreEventsConfigured, raisePaymentSettledToCore } from '@/lib/knowsia
 import { batchSkuCode } from '@/lib/knowsia-core/catalogue';
 import { grantAccessOnLms, grantSeatOnLms, mirrorBatchToLms, withdrawSeatOnLms } from '@/lib/knowsia-lms/cohorts';
 import * as coursesRepository from '@/modules/courses/repository';
+import * as tutorsRepository from '@/modules/tutors/repository';
 import * as knowsiaAppRepository from '@/modules/knowsia-app/repository';
 import * as usersService from '@/modules/users/service';
 
@@ -112,6 +113,8 @@ export async function mirrorBatchToLmsSystem(batchId: string): Promise<void> {
   if (!row) return;
   const course = await coursesRepository.selectCourseByIdSystem(row.course_id);
   if (!course) return;
+  // The batch's tutor (R2): their email is what the LMS makes the Teach account from.
+  const tutor = row.facilitator_tutor_id ? await tutorsRepository.selectTutorByIdSystem(row.facilitator_tutor_id) : null;
   await mirrorBatchToLms({
     batchId: row.id,
     courseCode: course.course_code,
@@ -122,7 +125,9 @@ export async function mirrorBatchToLmsSystem(batchId: string): Promise<void> {
     startTime: row.start_time,
     endTime: row.end_time,
     meetingDays: row.meeting_days,
-    facilitatorName: row.facilitator_name,
+    facilitatorName: tutor?.full_name || row.facilitator_name,
+    tutorEmail: tutor?.email ?? null,
+    tutorPhone: tutor?.phone ?? null,
     capacity: row.capacity,
     isFree: row.is_free,
     isUnlisted: row.is_unlisted,

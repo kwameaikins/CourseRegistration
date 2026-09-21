@@ -3966,6 +3966,7 @@ export type Database = {
       }
       tutors: {
         Row: {
+          core_identity_id: string | null
           created_at: string
           email: string
           full_name: string
@@ -3974,6 +3975,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          core_identity_id?: string | null
           created_at?: string
           email: string
           full_name: string

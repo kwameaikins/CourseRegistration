@@ -56,6 +56,9 @@ export interface BatchMirrorInput {
   endTime: string | null;
   meetingDays: number[] | null;
   facilitatorName: string;
+  // The tutor's own record (Coding Docs/26 R2): the LMS makes their Teach account from the email.
+  tutorEmail?: string | null;
+  tutorPhone?: string | null;
   capacity: number | null;
   isFree: boolean;
   isUnlisted: boolean;
@@ -85,6 +88,8 @@ export async function mirrorBatchToLms(b: BatchMirrorInput): Promise<{ cohort_id
       meeting_days: b.meetingDays,
       timezone: 'Africa/Accra',
       tutor_name: b.facilitatorName || null,
+      tutor_email: b.tutorEmail ?? null,
+      tutor_phone: b.tutorPhone ?? null,
       max_seats: b.capacity ?? undefined,
       is_free: b.isFree,
       is_unlisted: b.isUnlisted,

@@ -3369,6 +3369,72 @@
         "title": "TopicScoreResponse",
         "type": "object"
       },
+      "TutorUserRequest": {
+        "properties": {
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          }
+        },
+        "required": [
+          "email",
+          "name"
+        ],
+        "title": "TutorUserRequest",
+        "type": "object"
+      },
+      "TutorUserResponse": {
+        "properties": {
+          "created": {
+            "title": "Created",
+            "type": "boolean"
+          },
+          "invited": {
+            "title": "Invited",
+            "type": "boolean"
+          },
+          "promoted": {
+            "title": "Promoted",
+            "type": "boolean"
+          },
+          "role": {
+            "title": "Role",
+            "type": "string"
+          },
+          "user_id": {
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "created",
+          "promoted",
+          "invited",
+          "role"
+        ],
+        "title": "TutorUserResponse",
+        "type": "object"
+      },
       "UserDisplay": {
         "properties": {
           "email": {
@@ -4854,6 +4920,48 @@
           }
         },
         "summary": "Service Registration User",
+        "tags": [
+          "service-auth"
+        ]
+      }
+    },
+    "/api/v1/service/auth/users/tutor": {
+      "post": {
+        "description": "The account a tutor teaches from (Doc 26 R2): the LMS asks for it when\na cohort names its tutor. Found by email or created with role `tutor`\n(a student is promoted, an admin left alone); a NEW account is invited\n\u2014 \"choose your password or PIN\" \u2014 through Communications. Idempotent:\nthe second call finds the account and invites nobody. Commits.",
+        "operationId": "service_tutor_user_api_v1_service_auth_users_tutor_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TutorUserRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TutorUserResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Tutor User",
         "tags": [
           "service-auth"
         ]

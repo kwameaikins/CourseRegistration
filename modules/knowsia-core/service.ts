@@ -15,6 +15,7 @@ import * as repository from '@/modules/knowsia-core/repository';
 export const identityLinkSchema = z.object({
   participants: z.array(z.object({ id: z.string().uuid(), coreIdentityId: z.string().uuid() })).default([]),
   staff: z.array(z.object({ id: z.string().uuid(), coreIdentityId: z.string().uuid() })).default([]),
+  tutors: z.array(z.object({ id: z.string().uuid(), coreIdentityId: z.string().uuid() })).default([]),
 });
 export type IdentityLinkInput = z.infer<typeof identityLinkSchema>;
 
@@ -23,7 +24,7 @@ export async function exportPeopleForIdentityLink() {
 }
 
 export async function applyIdentityLinks(input: IdentityLinkInput) {
-  return repository.updateCoreIdentityLinksSystem(input.participants, input.staff);
+  return repository.updateCoreIdentityLinksSystem(input.participants, input.staff, input.tutors);
 }
 
 // ── The dual-read, from this side ────────────────────────────────────────────

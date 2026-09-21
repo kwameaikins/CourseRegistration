@@ -38,6 +38,7 @@ let batchQuery = db.from('batches').select('*').gte('end_date', since).order('st
 if (onlyBatch) batchQuery = db.from('batches').select('*').eq('id', onlyBatch);
 const batches = must(await batchQuery);
 const courses = new Map(must(await db.from('courses').select('id, course_code, course_name')).map((c) => [c.id, c]));
+const tutors = new Map(must(await db.from('tutors').select('id, full_name, email, phone')).map((t) => [t.id, t]));
 const counts = { batches: 0, cohorts_created: 0, cohorts_updated: 0, seats: 0, seats_created: 0, skipped: 0, failed: 0 };
 
 for (const b of batches) {
@@ -47,7 +48,7 @@ for (const b of batches) {
   const mirror = await lms('PUT', '/api/v1/service/lms/cohorts', {
     external_ref: b.id, course_code: course.course_code, course_title: course.course_name, title: `${course.course_name} — ${b.cohort_label}`,
     start_date: b.start_date, end_date: b.end_date, start_time: b.start_time, end_time: b.end_time, meeting_days: b.meeting_days, timezone: 'Africa/Accra',
-    tutor_name: b.facilitator_name || null, max_seats: b.capacity ?? undefined, is_free: b.is_free, is_unlisted: b.is_unlisted, is_active: b.is_active,
+    tutor_name: tutors.get(b.facilitator_tutor_id)?.full_name || b.facilitator_name || null, tutor_email: tutors.get(b.facilitator_tutor_id)?.email ?? null, tutor_phone: tutors.get(b.facilitator_tutor_id)?.phone ?? null, max_seats: b.capacity ?? undefined, is_free: b.is_free, is_unlisted: b.is_unlisted, is_active: b.is_active,
     reminders_enabled: b.class_reminder_enabled, zoom_meeting_id: b.zoom_meeting_id, zoom_join_url: b.zoom_link, zoom_access_revoked_at: b.zoom_access_revoked_at,
     whatsapp_group_url: b.whatsapp_group_link, resources_url: b.resources_link,
   });
