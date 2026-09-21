@@ -1076,7 +1076,12 @@ each. This app's price and commission accrual stay authoritative until Phases 5 
       changed — the dual run (`LMS_DUAL_RUN=true` over there: the LMS sends no reminder and registers nobody).
       `scripts/sync-cohorts-to-lms.mjs [--dry-run]` backfills. KnowsiaApp PLAN.md §3.26 lists the founder's Zoom
       switches and the one-cohort watch before R2.
-- [ ] **R2 Teach · R3 one registry · R4 delete** — Coding Docs/26 §4
+- [x] **R2, Teach** (released 2026-09-21; `ae1fcdf`): the tutor PIN portal's pages redirect to `/learn/login?teach=1`
+      (decision 2 — tutors sign in to the study app with the tutor role; every Teach feature lives there; the
+      `/api/tutor-portal/*` routes wait for R4); `tutors.core_identity_id` (migration 202609210073, applied) and the
+      identity export/link carry tutors; the batch mirror and `sync-cohorts-to-lms.mjs` send the tutor's email and phone
+      so the LMS makes the Teach account. KnowsiaApp PLAN.md §3.27.
+- [ ] **R3 one registry · R4 delete** — Coding Docs/26 §4
 
 ---
 ## Risk watch (carried from `/docs/01_PRD.md` risk register)

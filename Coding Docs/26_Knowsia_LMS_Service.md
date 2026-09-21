@@ -245,6 +245,13 @@ have sent and registers nobody with Zoom. **Zoom is off in the LMS until the fiv
 the `knowsia-lms` service and the Event Subscription points at `/api/v1/lms/webhooks/zoom`** — the founder's
 switches, listed in KnowsiaApp PLAN.md §3.26 with the one-cohort watch that is R1's exit criterion.
 
+**R2 released 2026-09-21** — Teach: knowsia-api `4a8631b5` (the tutor's account door, tutors in the identity plan),
+`knowsia-lms` `adbd1b8d` (migration 016, `/api/v1/teach`), both frontends (a tutor's rail, `/teach`, `/teach/[id]`, the
+classroom's assignments), this app `ae1fcdf` (the tutor portal's pages redirect to `/learn/login?teach=1`;
+`tutors.core_identity_id`, migration 202609210073 applied; the mirror carries the tutor). BR-33 and BR-34 carried over
+verbatim; eligibility a word. The four tutors on file are Core identities (3 new, 1 joined). Exit test pending a real
+tutor's class day — KnowsiaApp PLAN.md §3.27.
+
 R0 is a refactor and is what "deploy separately like M4" means; it can ship this week. R1 is the
 product. R2 and R3 are the two things with people's names on them (tutors, certificates) and
 each has a replay test rather than a judgement. R4 is deletion, which is the point.
