@@ -1,13 +1,13 @@
 [
   {
     "source": "/10-study-habits-of-high-scoring-ca-students",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/10-study-habits-of-high-scoring-ca-students",
+    "rule": "post-imported"
   },
   {
     "source": "/3-ways-to-earn-on-knowsia-teach-contribute-refer",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/3-ways-to-earn-on-knowsia-teach-contribute-refer",
+    "rule": "post-imported"
   },
   {
     "source": "/account-access",
@@ -31,8 +31,8 @@
   },
   {
     "source": "/affiliate-marketing-for-students-earn-while-you-study",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/affiliate-marketing-for-students-earn-while-you-study",
+    "rule": "post-imported"
   },
   {
     "source": "/affiliate-registration",
@@ -46,58 +46,58 @@
   },
   {
     "source": "/ai-driven-business-model-inc-blog",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/ai-driven-business-model-inc-blog",
+    "rule": "post-imported"
   },
   {
     "source": "/balancing-affiliate-marketing-with-studies",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/balancing-affiliate-marketing-with-studies",
+    "rule": "post-imported"
   },
   {
     "source": "/balancing-study-with-work-and-life",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/balancing-study-with-work-and-life",
+    "rule": "post-imported"
   },
   {
     "source": "/balancing-work-and-study-a-guide-for-busy-professionals",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/balancing-work-and-study-a-guide-for-busy-professionals",
+    "rule": "post-imported"
   },
   {
     "source": "/become-a-tutor",
-    "destination": "/tutor-portal",
-    "rule": "page-mapped"
+    "destination": "https://app.knowsia.com/login?teach=1",
+    "rule": "page-study"
   },
   {
     "source": "/become-a-tutor-on-knowsia-step-by-step-guide",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/become-a-tutor-on-knowsia-step-by-step-guide",
+    "rule": "post-imported"
   },
   {
     "source": "/become-a-tutor/academic-tutor-application-form",
-    "destination": "/tutor-portal",
-    "rule": "page-mapped"
+    "destination": "https://app.knowsia.com/login?teach=1",
+    "rule": "page-study"
   },
   {
     "source": "/become-a-tutor/professional-tutor-application-form",
-    "destination": "/tutor-portal",
-    "rule": "page-mapped"
+    "destination": "https://app.knowsia.com/login?teach=1",
+    "rule": "page-study"
   },
   {
     "source": "/become-a-tutor/student-tutor-application-form",
-    "destination": "/tutor-portal",
-    "rule": "page-mapped"
+    "destination": "https://app.knowsia.com/login?teach=1",
+    "rule": "page-study"
   },
   {
     "source": "/become-chartered-accountant-ghana",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/become-chartered-accountant-ghana",
+    "rule": "post-imported"
   },
   {
     "source": "/before-you-take-the-icag-online-exam-check-this-or-risk-failing",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/before-you-take-the-icag-online-exam-check-this-or-risk-failing",
+    "rule": "post-imported"
   },
   {
     "source": "/blog",
@@ -106,13 +106,13 @@
   },
   {
     "source": "/building-effective-study-groups-for-cpa-success",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/building-effective-study-groups-for-cpa-success",
+    "rule": "post-imported"
   },
   {
     "source": "/career-opportunities-after-becoming-a-chartered-accountant",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/career-opportunities-after-becoming-a-chartered-accountant",
+    "rule": "post-imported"
   },
   {
     "source": "/cart2",
@@ -161,18 +161,18 @@
   },
   {
     "source": "/common-accounting-errors-startups-must-avoid",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/common-accounting-errors-startups-must-avoid",
+    "rule": "post-imported"
   },
   {
     "source": "/common-pitfalls-to-avoid-in-your-study-plan",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/common-pitfalls-to-avoid-in-your-study-plan",
+    "rule": "post-imported"
   },
   {
     "source": "/common-problems-faced-by-students-preparing-for-professional-exams",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/common-problems-faced-by-students-preparing-for-professional-exams",
+    "rule": "post-imported"
   },
   {
     "source": "/community",
@@ -361,23 +361,23 @@
   },
   {
     "source": "/customer-relationship-management-in-banking",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/customer-relationship-management-in-banking",
+    "rule": "post-imported"
   },
   {
     "source": "/data-analytics-for-competitive-market-analysis",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/data-analytics-for-competitive-market-analysis",
+    "rule": "post-imported"
   },
   {
     "source": "/developing-resilience-for-long-term-success",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/developing-resilience-for-long-term-success",
+    "rule": "post-imported"
   },
   {
     "source": "/digital-transformation-in-banking",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/digital-transformation-in-banking",
+    "rule": "post-imported"
   },
   {
     "source": "/discounts",
@@ -386,13 +386,13 @@
   },
   {
     "source": "/employment-tax-in-ghana-a-comprehensive-guide",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/employment-tax-in-ghana-a-comprehensive-guide",
+    "rule": "post-imported"
   },
   {
     "source": "/entry-requirements-for-the-icag-professional-qualification",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/entry-requirements-for-the-icag-professional-qualification",
+    "rule": "post-imported"
   },
   {
     "source": "/esg-sustainability-reporting-training",
@@ -401,13 +401,13 @@
   },
   {
     "source": "/essential-skills-for-accountants-in-the-digital-age",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/essential-skills-for-accountants-in-the-digital-age",
+    "rule": "post-imported"
   },
   {
     "source": "/ethics-and-professionalism-in-chartered-accountancy",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/ethics-and-professionalism-in-chartered-accountancy",
+    "rule": "post-imported"
   },
   {
     "source": "/excel-templates",
@@ -416,13 +416,13 @@
   },
   {
     "source": "/financial-literacy-and-customer-service",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/financial-literacy-and-customer-service",
+    "rule": "post-imported"
   },
   {
     "source": "/financial-management-strategy",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/financial-management-strategy",
+    "rule": "post-imported"
   },
   {
     "source": "/free-icag-tuition",
@@ -431,8 +431,8 @@
   },
   {
     "source": "/free-tools-every-ca-student-should-be-using",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/free-tools-every-ca-student-should-be-using",
+    "rule": "post-imported"
   },
   {
     "source": "/future-ready-skills",
@@ -446,13 +446,13 @@
   },
   {
     "source": "/goal-setting-for-confidence-in-accounting-studies-icag",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/goal-setting-for-confidence-in-accounting-studies-icag",
+    "rule": "post-imported"
   },
   {
     "source": "/guide-payroll-preparation",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/guide-payroll-preparation",
+    "rule": "post-imported"
   },
   {
     "source": "/home",
@@ -461,78 +461,78 @@
   },
   {
     "source": "/how-combining-business-and-tech-sparks-innovation",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/how-combining-business-and-tech-sparks-innovation",
+    "rule": "post-imported"
   },
   {
     "source": "/how-ethics-and-professional-scepticism-are-integrated-in-icag-syllabus",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/how-ethics-and-professional-scepticism-are-integrated-in-icag-syllabus",
+    "rule": "post-imported"
   },
   {
     "source": "/how-knowsia-helps-with-goal-setting",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/how-knowsia-helps-with-goal-setting",
+    "rule": "post-imported"
   },
   {
     "source": "/how-knowsias-question-bank-helps-you-study-smarter",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/how-knowsias-question-bank-helps-you-study-smarter",
+    "rule": "post-imported"
   },
   {
     "source": "/how-to-build-a-strong-professional-network-from-scratch",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/how-to-build-a-strong-professional-network-from-scratch",
+    "rule": "post-imported"
   },
   {
     "source": "/how-to-manage-time-in-exams",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/how-to-manage-time-in-exams",
+    "rule": "post-imported"
   },
   {
     "source": "/how-to-pass-building-a-killer-study-plan",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/how-to-pass-building-a-killer-study-plan",
+    "rule": "post-imported"
   },
   {
     "source": "/how-to-pass-icag-exams-proven-strategies-that-work",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/how-to-pass-icag-exams-proven-strategies-that-work",
+    "rule": "post-imported"
   },
   {
     "source": "/how-to-promote-your-knowsia-courses-as-a-tutor",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/how-to-promote-your-knowsia-courses-as-a-tutor",
+    "rule": "post-imported"
   },
   {
     "source": "/how-to-stay-motivated-during-ca-exam-prep",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/how-to-stay-motivated-during-ca-exam-prep",
+    "rule": "post-imported"
   },
   {
     "source": "/how-to-tackle-challenging-icag-subjects",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/how-to-tackle-challenging-icag-subjects",
+    "rule": "post-imported"
   },
   {
     "source": "/how-to-tame-the-syllabus-monster-smart-ways-to-break-down-your-study-plan",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/how-to-tame-the-syllabus-monster-smart-ways-to-break-down-your-study-plan",
+    "rule": "post-imported"
   },
   {
     "source": "/how-to-turn-your-notes-into-a-paid-course",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/how-to-turn-your-notes-into-a-paid-course",
+    "rule": "post-imported"
   },
   {
     "source": "/icag-assessments-format-pass-marks-and-progression-rules",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/icag-assessments-format-pass-marks-and-progression-rules",
+    "rule": "post-imported"
   },
   {
     "source": "/icag-exemptions-guide",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/icag-exemptions-guide",
+    "rule": "post-imported"
   },
   {
     "source": "/icag-live-tuition",
@@ -541,13 +541,13 @@
   },
   {
     "source": "/instructor-dashboard",
-    "destination": "/tutor-portal",
-    "rule": "page-mapped"
+    "destination": "https://app.knowsia.com/login?teach=1",
+    "rule": "page-study"
   },
   {
     "source": "/introduction-to-icag-qualification-levels-knowledge-application-and-professional",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/introduction-to-icag-qualification-levels-knowledge-application-and-professional",
+    "rule": "post-imported"
   },
   {
     "source": "/join",
@@ -561,8 +561,8 @@
   },
   {
     "source": "/key-benefits-of-the-new-icag-qualification-structure",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/key-benefits-of-the-new-icag-qualification-structure",
+    "rule": "post-imported"
   },
   {
     "source": "/knowsia-ai",
@@ -2496,18 +2496,18 @@
   },
   {
     "source": "/long-term-success-as-a-tutor-on-knowsia",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/long-term-success-as-a-tutor-on-knowsia",
+    "rule": "post-imported"
   },
   {
     "source": "/managing-stress-and-well-being",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/managing-stress-and-well-being",
+    "rule": "post-imported"
   },
   {
     "source": "/mastering-productivity-for-work-and-study",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/mastering-productivity-for-work-and-study",
+    "rule": "post-imported"
   },
   {
     "source": "/my-account-2",
@@ -2516,28 +2516,28 @@
   },
   {
     "source": "/navigating-the-educational-pathway-to-becoming-a-certified-public-accountant-cpa-key-requirements-and-strategic-choices",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/navigating-the-educational-pathway-to-becoming-a-certified-public-accountant-cpa-key-requirements-and-strategic-choices",
+    "rule": "post-imported"
   },
   {
     "source": "/overcoming-challenges-in-competitive-analytics",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/overcoming-challenges-in-competitive-analytics",
+    "rule": "post-imported"
   },
   {
     "source": "/overcoming-common-exam-mistakes",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/overcoming-common-exam-mistakes",
+    "rule": "post-imported"
   },
   {
     "source": "/overcoming-procrastination",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/overcoming-procrastination",
+    "rule": "post-imported"
   },
   {
     "source": "/overview-of-icag-professional-qualification-syllabus-2024-2029",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/overview-of-icag-professional-qualification-syllabus-2024-2029",
+    "rule": "post-imported"
   },
   {
     "source": "/payment-options",
@@ -2546,18 +2546,18 @@
   },
   {
     "source": "/practical-auditing-skills-for-ca-students",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/practical-auditing-skills-for-ca-students",
+    "rule": "post-imported"
   },
   {
     "source": "/practical-skills-for-accountants",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/practical-skills-for-accountants",
+    "rule": "post-imported"
   },
   {
     "source": "/prioritizing-tasks-for-icag-success",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/prioritizing-tasks-for-icag-success",
+    "rule": "post-imported"
   },
   {
     "source": "/product-category/:slug",
@@ -2741,13 +2741,13 @@
   },
   {
     "source": "/professional-development-for-cas",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/professional-development-for-cas",
+    "rule": "post-imported"
   },
   {
     "source": "/purpose-and-rationale-of-the-icag-syllabus-update",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/purpose-and-rationale-of-the-icag-syllabus-update",
+    "rule": "post-imported"
   },
   {
     "source": "/qb",
@@ -3311,8 +3311,8 @@
   },
   {
     "source": "/role-of-technology-in-icag-syllabus-and-exams",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/role-of-technology-in-icag-syllabus-and-exams",
+    "rule": "post-imported"
   },
   {
     "source": "/shop",
@@ -3321,8 +3321,8 @@
   },
   {
     "source": "/sneaky-tips-to-access-free-academic-workshop",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/sneaky-tips-to-access-free-academic-workshop",
+    "rule": "post-imported"
   },
   {
     "source": "/sq",
@@ -3331,18 +3331,18 @@
   },
   {
     "source": "/staying-focused-during-study-sessions",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/staying-focused-during-study-sessions",
+    "rule": "post-imported"
   },
   {
     "source": "/strategies-to-succeed-in-affiliate-marketing-for-students",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/strategies-to-succeed-in-affiliate-marketing-for-students",
+    "rule": "post-imported"
   },
   {
     "source": "/stress-management-and-mental-health-for-ca-students",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/stress-management-and-mental-health-for-ca-students",
+    "rule": "post-imported"
   },
   {
     "source": "/student-dashboard",
@@ -3351,18 +3351,18 @@
   },
   {
     "source": "/study-habits-matter-for-ca-success",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/study-habits-matter-for-ca-success",
+    "rule": "post-imported"
   },
   {
     "source": "/success-story-how-one-student-passed-all-icag-levels-knowsia-as-her-guide",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/success-story-how-one-student-passed-all-icag-levels-knowsia-as-her-guide",
+    "rule": "post-imported"
   },
   {
     "source": "/sustainability-integration-in-icag-accounting-qualification",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/sustainability-integration-in-icag-accounting-qualification",
+    "rule": "post-imported"
   },
   {
     "source": "/terms-and-conditions",
@@ -3376,53 +3376,53 @@
   },
   {
     "source": "/the-biggest-accounting-challenges-and-solutions",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/the-biggest-accounting-challenges-and-solutions",
+    "rule": "post-imported"
   },
   {
     "source": "/the-future-of-technology-to-boost-motivation",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/the-future-of-technology-to-boost-motivation",
+    "rule": "post-imported"
   },
   {
     "source": "/the-importance-of-continuous-development-in-accounting",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/the-importance-of-continuous-development-in-accounting",
+    "rule": "post-imported"
   },
   {
     "source": "/the-role-of-chartered-accountants-in-achieving-net-zero-goals",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/the-role-of-chartered-accountants-in-achieving-net-zero-goals",
+    "rule": "post-imported"
   },
   {
     "source": "/the-science-behind-question-banks-why-they-work-for-exam-success",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/the-science-behind-question-banks-why-they-work-for-exam-success",
+    "rule": "post-imported"
   },
   {
     "source": "/the-student-tutor-model-teaching-what-youre-learning",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/the-student-tutor-model-teaching-what-youre-learning",
+    "rule": "post-imported"
   },
   {
     "source": "/time-management-and-goal-setting-for-icag-students",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/time-management-and-goal-setting-for-icag-students",
+    "rule": "post-imported"
   },
   {
     "source": "/tools-and-resources-to-boost-productivity",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/tools-and-resources-to-boost-productivity",
+    "rule": "post-imported"
   },
   {
     "source": "/top-10-mistakes-ca-students-make-and-how-to-avoid-them",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/top-10-mistakes-ca-students-make-and-how-to-avoid-them",
+    "rule": "post-imported"
   },
   {
     "source": "/top-cpd-courses-every-accountant-should-take",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/top-cpd-courses-every-accountant-should-take",
+    "rule": "post-imported"
   },
   {
     "source": "/topic/accessibility",
@@ -3901,8 +3901,8 @@
   },
   {
     "source": "/using-technology-to-boost-motivation",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/using-technology-to-boost-motivation",
+    "rule": "post-imported"
   },
   {
     "source": "/webinars-and-cpds",
@@ -3911,38 +3911,38 @@
   },
   {
     "source": "/why-a-strong-professional-network-matters",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/why-a-strong-professional-network-matters",
+    "rule": "post-imported"
   },
   {
     "source": "/why-analytics-competitive-stratagies-matter",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/why-analytics-competitive-stratagies-matter",
+    "rule": "post-imported"
   },
   {
     "source": "/why-choose-knowsia-to-create-sell-your-course",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/why-choose-knowsia-to-create-sell-your-course",
+    "rule": "post-imported"
   },
   {
     "source": "/why-cpd-courses-matter-for-accountants",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/why-cpd-courses-matter-for-accountants",
+    "rule": "post-imported"
   },
   {
     "source": "/why-knowsia-stands-out",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/why-knowsia-stands-out",
+    "rule": "post-imported"
   },
   {
     "source": "/why-tracking-study-progress-matters",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/why-tracking-study-progress-matters",
+    "rule": "post-imported"
   },
   {
     "source": "/why-we-built-knowsia-africas-learning-teaching-earning-platform",
-    "destination": "/news",
-    "rule": "post-not-yet-imported"
+    "destination": "/news/article/why-we-built-knowsia-africas-learning-teaching-earning-platform",
+    "rule": "post-imported"
   },
   {
     "source": "/zoom-meetings/:slug",

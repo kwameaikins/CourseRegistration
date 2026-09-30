@@ -1,11 +1,14 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 import { MarketingFooter } from '@/components/marketing/MarketingFooter';
 import { MarketingNav } from '@/components/marketing/MarketingNav';
 import { MARKETING_STYLES, MarketingIcons } from '@/components/marketing/marketing-design-system';
 import * as newsInsightsService from '@/modules/news-insights/service';
-import type { ArticleSections } from '@/modules/news-insights/types';
+import { BLOG_CONTENT_TYPE, type ArticleSections } from '@/modules/news-insights/types';
 import { AppError } from '@/lib/errors';
 
 export const dynamic = 'force-dynamic';
@@ -47,7 +50,39 @@ const PAGE_CSS = `
 .mk .art-sources a { font-size: 14px; color: var(--ink-muted); word-break: break-all; }
 .mk .art-sources a:hover { color: var(--accent); }
 .mk .tag-correction { background: var(--warning-bg); color: var(--warning); }
+.mk .art-cover { margin-top: 28px; width: 100%; height: auto; border-radius: 12px; }
+.mk .art-post { margin-top: 32px; font-size: 16.5px; line-height: 1.72; }
+.mk .art-post > * + * { margin-top: 14px; }
+.mk .art-post h2 { font-family: var(--font-display); font-size: 1.3rem; letter-spacing: -0.01em; margin-top: 34px; }
+.mk .art-post h3 { font-size: 1.08rem; font-weight: 600; margin-top: 26px; }
+.mk .art-post ul, .mk .art-post ol { padding-left: 1.3em; }
+.mk .art-post li + li { margin-top: 6px; }
+.mk .art-post img { max-width: 100%; height: auto; border-radius: 10px; }
+.mk .art-post a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.mk .art-post blockquote { border-left: 3px solid var(--line); padding-left: 14px; color: var(--ink-muted); }
+.mk .art-post .tbl { overflow-x: auto; }
+.mk .art-post table { border-collapse: collapse; font-size: 14.5px; }
+.mk .art-post th, .mk .art-post td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
 `;
+
+// A blog post keeps the title and description it had on knowsia.com, so the
+// search result that brought a reader there says the same thing here.
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  try {
+    const article = await newsInsightsService.getPublishedArticleBySlug(slug);
+    const title = article.seoTitle || article.headline;
+    const description = article.seoDescription || article.summary;
+    return {
+      title,
+      description,
+      alternates: { canonical: `/news/article/${article.slug}` },
+      openGraph: { title, description, images: article.imageUrl ? [article.imageUrl] : undefined, type: 'article' },
+    };
+  } catch {
+    return {};
+  }
+}
 
 export default async function NewsArticlePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -65,6 +100,7 @@ export default async function NewsArticlePage({ params }: { params: Promise<{ sl
     month: 'long',
     year: 'numeric',
   });
+  const isBlog = article.contentType === BLOG_CONTENT_TYPE;
   const corrected = article.lastCorrectedAt
     ? new Date(article.lastCorrectedAt).toLocaleDateString('en-GB', {
         day: 'numeric',
@@ -116,7 +152,29 @@ export default async function NewsArticlePage({ params }: { params: Promise<{ sl
 
       <main id="story" className="band">
         <div className="wrap prose">
-          <p className="art-summary">{article.summary}</p>
+          {isBlog ? null : <p className="art-summary">{article.summary}</p>}
+
+          {isBlog && article.imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- a CDN image of unknown size
+            <img className="art-cover" src={article.imageUrl} alt="" />
+          ) : null}
+
+          {isBlog && article.sections.body ? (
+            <div className="art-post">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  table: ({ children }) => (
+                    <div className="tbl">
+                      <table>{children}</table>
+                    </div>
+                  ),
+                }}
+              >
+                {article.sections.body}
+              </ReactMarkdown>
+            </div>
+          ) : null}
 
           <div className="art-body" style={{ marginTop: 40 }}>
             {SECTION_TITLES.map(({ key, label }) =>

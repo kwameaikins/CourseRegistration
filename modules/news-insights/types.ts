@@ -207,7 +207,15 @@ export interface ArticleSections {
   keyDetails: string;
   whatShouldYouDo: string;
   knowsiaAnalysis: string;
+  /** A blog post's own text, as Markdown — set only on `content_type = 'Blog'`
+   *  (the knowsia.com WordPress blog, imported 2026-09-29, each post at its
+   *  original slug so the old URL forwards to it). The six sections above are
+   *  the news pipeline's shape and are empty on a blog post. */
+  body?: string;
 }
+
+/** A published article that is a blog post rather than a pipeline story. */
+export const BLOG_CONTENT_TYPE = 'Blog';
 
 export interface EditorialReview {
   id: string;

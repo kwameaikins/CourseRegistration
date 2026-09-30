@@ -144,6 +144,50 @@
         "title": "CheckLessonIn",
         "type": "object"
       },
+      "CorrectLessonIn": {
+        "properties": {
+          "admin_email": {
+            "maxLength": 255,
+            "title": "Admin Email",
+            "type": "string"
+          },
+          "apply": {
+            "default": false,
+            "title": "Apply",
+            "type": "boolean"
+          },
+          "find": {
+            "maxLength": 4000,
+            "minLength": 12,
+            "title": "Find",
+            "type": "string"
+          },
+          "institute": {
+            "maxLength": 20,
+            "title": "Institute",
+            "type": "string"
+          },
+          "paper": {
+            "maxLength": 120,
+            "title": "Paper",
+            "type": "string"
+          },
+          "replace": {
+            "maxLength": 8000,
+            "title": "Replace",
+            "type": "string"
+          }
+        },
+        "required": [
+          "institute",
+          "paper",
+          "find",
+          "replace",
+          "admin_email"
+        ],
+        "title": "CorrectLessonIn",
+        "type": "object"
+      },
       "ExplanationPatch": {
         "properties": {
           "explanation": {
@@ -361,6 +405,85 @@
           "external_ref"
         ],
         "title": "LeadRecord",
+        "type": "object"
+      },
+      "LessonCheckIn": {
+        "properties": {
+          "institute": {
+            "maxLength": 20,
+            "title": "Institute",
+            "type": "string"
+          },
+          "lesson_id": {
+            "maxLength": 64,
+            "title": "Lesson Id",
+            "type": "string"
+          },
+          "paper": {
+            "maxLength": 120,
+            "title": "Paper",
+            "type": "string"
+          },
+          "passed": {
+            "title": "Passed",
+            "type": "boolean"
+          },
+          "score": {
+            "minimum": 0.0,
+            "title": "Score",
+            "type": "integer"
+          },
+          "segments_hash": {
+            "maxLength": 64,
+            "title": "Segments Hash",
+            "type": "string"
+          },
+          "student_id": {
+            "maxLength": 64,
+            "title": "Student Id",
+            "type": "string"
+          },
+          "topic_id": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Id"
+          },
+          "topic_name": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Name"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "student_id",
+          "institute",
+          "paper",
+          "lesson_id",
+          "segments_hash",
+          "score",
+          "total",
+          "passed"
+        ],
+        "title": "LessonCheckIn",
         "type": "object"
       },
       "LoginCheckRequest": {
@@ -1140,6 +1263,47 @@
           "linked"
         ],
         "title": "RegistrationUserResponse",
+        "type": "object"
+      },
+      "RetrieveIn": {
+        "properties": {
+          "document_types": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Document Types",
+            "type": "array"
+          },
+          "institute": {
+            "maxLength": 20,
+            "title": "Institute",
+            "type": "string"
+          },
+          "k": {
+            "default": 6,
+            "maximum": 12.0,
+            "minimum": 1.0,
+            "title": "K",
+            "type": "integer"
+          },
+          "paper": {
+            "maxLength": 120,
+            "title": "Paper",
+            "type": "string"
+          },
+          "query": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "institute",
+          "paper",
+          "query"
+        ],
+        "title": "RetrieveIn",
         "type": "object"
       },
       "SendMessageRequest": {
@@ -3151,6 +3315,152 @@
         "title": "ServiceSku",
         "type": "object"
       },
+      "StageGeneratedIn": {
+        "properties": {
+          "admin_id": {
+            "maxLength": 64,
+            "title": "Admin Id",
+            "type": "string"
+          },
+          "audit_model": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Model"
+          },
+          "course_id": {
+            "maxLength": 64,
+            "title": "Course Id",
+            "type": "string"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence"
+          },
+          "explanation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Explanation"
+          },
+          "institute": {
+            "maxLength": 20,
+            "title": "Institute",
+            "type": "string"
+          },
+          "item_id": {
+            "maxLength": 64,
+            "title": "Item Id",
+            "type": "string"
+          },
+          "key": {
+            "pattern": "^[A-Da-d]$",
+            "title": "Key",
+            "type": "string"
+          },
+          "lesson_id": {
+            "maxLength": 64,
+            "title": "Lesson Id",
+            "type": "string"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level"
+          },
+          "options": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Options",
+            "type": "object"
+          },
+          "paper": {
+            "maxLength": 120,
+            "title": "Paper",
+            "type": "string"
+          },
+          "stem": {
+            "minLength": 1,
+            "title": "Stem",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "topic": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic"
+          },
+          "writer_model": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Writer Model"
+          }
+        },
+        "required": [
+          "course_id",
+          "lesson_id",
+          "item_id",
+          "institute",
+          "paper",
+          "stem",
+          "options",
+          "key",
+          "admin_id"
+        ],
+        "title": "StageGeneratedIn",
+        "type": "object"
+      },
       "StoreFileRequest": {
         "properties": {
           "content_base64": {
@@ -3562,6 +3872,19 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "WarmLessonIn": {
+        "properties": {
+          "first": {
+            "default": 0,
+            "maximum": 400.0,
+            "minimum": 0.0,
+            "title": "First",
+            "type": "integer"
+          }
+        },
+        "title": "WarmLessonIn",
         "type": "object"
       }
     }
@@ -4608,6 +4931,104 @@
         ]
       }
     },
+    "/api/v1/service/analytics/forecast": {
+      "get": {
+        "description": "How the paper has been examined, per topic. Arithmetic, no model call.",
+        "operationId": "service_forecast_api_v1_service_analytics_forecast_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "institute",
+            "required": true,
+            "schema": {
+              "title": "Institute",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "paper",
+            "required": true,
+            "schema": {
+              "title": "Paper",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Forecast Api V1 Service Analytics Forecast Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Forecast",
+        "tags": [
+          "service-analytics"
+        ]
+      }
+    },
+    "/api/v1/service/analytics/lesson-checks": {
+      "post": {
+        "description": "A course lesson's quiz was sat. Records the same 'passed check' the\ntutor's own check produces \u2014 a standing signal, never an attempt.",
+        "operationId": "service_lesson_check_api_v1_service_analytics_lesson_checks_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LessonCheckIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Lesson Check Api V1 Service Analytics Lesson Checks Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Lesson Check",
+        "tags": [
+          "service-analytics"
+        ]
+      }
+    },
     "/api/v1/service/analytics/narration/clips": {
       "post": {
         "description": "Synthesise what is missing. A clip id per text, null where the voice\nrefused; `voice.available` false means nothing was attempted.",
@@ -4732,6 +5153,51 @@
           }
         },
         "summary": "Service Narration Clip",
+        "tags": [
+          "service-analytics"
+        ]
+      }
+    },
+    "/api/v1/service/analytics/questions/{question_id}/calc-scenes": {
+      "post": {
+        "description": "The lesson video's motion graphics for a worked example (2026-09-24):\n`{status: ready|no_lines|none|unavailable, question: {...}, intro:\n{narration, clip_id}, lines: [{label, working, value, unit, value_text,\nnarration, clip_id}]}`. Prepares what is missing (the lines, read once\nunder the evidence rule; the clips, once per sentence) \u2014 the renderer's\nwarm, never a browser read. 404 for a question that is not published.",
+        "operationId": "service_calc_scenes_api_v1_service_analytics_questions__question_id__calc_scenes_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "question_id",
+            "required": true,
+            "schema": {
+              "title": "Question Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Calc Scenes Api V1 Service Analytics Questions  Question Id  Calc Scenes Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Calc Scenes",
         "tags": [
           "service-analytics"
         ]
@@ -4891,6 +5357,155 @@
           }
         },
         "summary": "Service Generate Lesson",
+        "tags": [
+          "service-analytics"
+        ]
+      }
+    },
+    "/api/v1/service/analytics/tutor-lessons/correct": {
+      "post": {
+        "description": "A reviewer's correction to one tutor lesson's text, recorded under the\nnamed admin (2026-09-26). The words must be in exactly one lesson, once;\n`apply=false` shows the change and writes nothing.",
+        "operationId": "service_correct_tutor_lesson_api_v1_service_analytics_tutor_lessons_correct_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorrectLessonIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Correct Tutor Lesson Api V1 Service Analytics Tutor Lessons Correct Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Correct Tutor Lesson",
+        "tags": [
+          "service-analytics"
+        ]
+      }
+    },
+    "/api/v1/service/analytics/tutor-lessons/{lesson_id}/beats": {
+      "get": {
+        "operationId": "service_lesson_beats_api_v1_service_analytics_tutor_lessons__lesson_id__beats_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lesson_id",
+            "required": true,
+            "schema": {
+              "title": "Lesson Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Lesson Beats Api V1 Service Analytics Tutor Lessons  Lesson Id  Beats Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Lesson Beats",
+        "tags": [
+          "service-analytics"
+        ]
+      }
+    },
+    "/api/v1/service/analytics/tutor-lessons/{lesson_id}/narrate": {
+      "post": {
+        "operationId": "service_warm_lesson_api_v1_service_analytics_tutor_lessons__lesson_id__narrate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lesson_id",
+            "required": true,
+            "schema": {
+              "title": "Lesson Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/WarmLessonIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Warm Lesson Api V1 Service Analytics Tutor Lessons  Lesson Id  Narrate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Warm Lesson",
         "tags": [
           "service-analytics"
         ]
@@ -5669,6 +6284,106 @@
         ]
       }
     },
+    "/api/v1/service/knowledge/chapters": {
+      "get": {
+        "description": "The textbook's chapters for a paper, in book order, each with the\napproved topics whose names overlap its title. Writes nothing.",
+        "operationId": "service_chapters_api_v1_service_knowledge_chapters_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "institute",
+            "required": true,
+            "schema": {
+              "maxLength": 20,
+              "title": "Institute",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "paper",
+            "required": true,
+            "schema": {
+              "maxLength": 120,
+              "title": "Paper",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Chapters Api V1 Service Knowledge Chapters Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Chapters",
+        "tags": [
+          "service-knowledge"
+        ]
+      }
+    },
+    "/api/v1/service/knowledge/retrieve": {
+      "post": {
+        "description": "Passages from the knowledge base for a query \u2014 M4's retrieve, relayed.\n503 `knowledge_base_unavailable` when M4 cannot be asked, which the caller\nreads as 'no book', never as a reason to guess.",
+        "operationId": "service_retrieve_api_v1_service_knowledge_retrieve_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetrieveIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Retrieve Api V1 Service Knowledge Retrieve Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Retrieve",
+        "tags": [
+          "service-knowledge"
+        ]
+      }
+    },
     "/api/v1/service/leads": {
       "post": {
         "operationId": "service_record_enquiry_api_v1_service_leads_post",
@@ -6367,6 +7082,50 @@
           }
         },
         "summary": "Service Questions By Ids",
+        "tags": [
+          "service"
+        ]
+      }
+    },
+    "/api/v1/service/question-bank/stage": {
+      "post": {
+        "description": "A lesson-quiz item promoted into the import queue (2026-09-23). It enters\nas a `pending_review` study row and meets the reviewer and a person like\nany other; a stem already staged is answered `duplicate: true`.",
+        "operationId": "service_stage_generated_api_v1_service_question_bank_stage_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StageGeneratedIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Stage Generated Api V1 Service Question Bank Stage Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Stage Generated",
         "tags": [
           "service"
         ]

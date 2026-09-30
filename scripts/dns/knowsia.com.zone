@@ -63,14 +63,14 @@ mail                1  IN  TXT    "v=spf1 a mx ip4:64.20.36.232 ~all"
 _dmarc              1  IN  TXT    "v=DMARC1; p=none;"
 _dmarc.mail         1  IN  TXT    "v=DMARC1; p=none;"
 
-; DKIM — see "A REAL DUPLICATE" above. Two keys, one selector, unresolved.
-; Recorded verbatim so the choice is auditable once DKIM Manager says which is live.
+; DKIM — SETTLED 2026-09-29: CyberPanel → Email → DKIM Manager → knowsia.com
+; shows the key the mail server signs with, and it is the AzEQt… key below.
+; The second record (…AQEApop6aiS…) is stale and must not be carried to
+; Cloudflare; Cloudflare had held ONLY that stale one, which would have
+; failed every DKIM check on info@ mail after the nameserver switch.
 default._domainkey  1  IN  TXT    ( "v=DKIM1; h=sha256; k=rsa; "
                                     "p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzEQt082ZeZXtY8co3YELm9Proc62Xt4xJiDr7AokrVGjgJin/utOp7kU9xKTd4Soc1YJwp4TQYSkfnMs0cfZrQH4giwECAqMdLAQtxM+qfYm0j68fuEAc8jThGU22jtemHK6c1WGrz2oJAvqWDhJB2UI7pqJdfX9yLCPCUqts0FhO4QakzGy204zan1fZZp7iSNm6TM3KqS8GP"
                                     "gu+8nNrktOP1XRGy62ExZgrCXOWIRLX822U7QXW9kWHSP8U/TFUVYENCp/i61BVUynAY9E7NNDWLHzjWjup/vI+65EynGHFWxDCStU8oBdIGplUyFOkivQkBmwFha9sfmp4UajEQIDAQAB" )
-default._domainkey  1  IN  TXT    ( "v=DKIM1; h=sha256; k=rsa; "
-                                    "p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApop6aiSox8ITkXTiJ3V+f7lEyyA4HzbdOxQTc4jm6MwPvHwYEUgRW5zFfTfLRJQ9E5edNCM60uQtowtvPB4snoTI76r3JAxlZvhKAEoUNy4MChdvXznTtVhwOxUDvj+DvZc/pFR5rlaDntfdAehzttmpFceB+Jz8T9EgamtfKD5rZtd9eomtPRKZ8RuQiI+u34y63UQNPkq1s+"
-                                    "0uLWLS5qmtUOZGOMWEV0Zk+pSkmOB86/7MUWZUHZsTJuqlVxmU2MJryImQJ3mmeRgqk0f0VxB6lEw5Uj+yl2iglDGLLwZajoxbvkzgCoaImnnztFTYCHgxuWysHlFbdJcOZ2mwQQIDAQAB" )
 
 ; DELETED 2026-09-12: _domainkey  TXT  "t=y; o=~;"
 ; t=y is DKIM TEST MODE — it tells receivers this domain is only testing DKIM
@@ -99,8 +99,9 @@ reg                 1  IN  CNAME  da623ee62209f472.vercel-dns-017.com.
 quiz                1  IN  CNAME  knowsia-quiz-app.web.app.
 quiz                1  IN  TXT    "hosting-site=knowsia-quiz-app"
 _acme-challenge.quiz 1 IN  TXT    "NY3wQmMdbp3YUTNWZKhQh7fdeqzYHPSX-tdABbaZ160"
-; Phase 1 adds:
-; app               1  IN  CNAME  cname.vercel-dns.com.
+; Phase 1, live 2026-09-28 (added in the host panel first; must be added in
+; Cloudflare BEFORE the nameserver switch or app.knowsia.com goes dark).
+app                 1  IN  CNAME  eb4a411ea3a85c85.vercel-dns-017.com.
 ; Phase 3 adds (VPS kept reachable for 60–90 days, noindex):
 ; legacy            1  IN  A      64.20.36.232
 

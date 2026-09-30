@@ -650,6 +650,28 @@
             ],
             "title": "Bytes"
           },
+          "plan_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Plan Key"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
           "seconds": {
             "anyOf": [
               {
@@ -1196,6 +1218,51 @@
         ]
       }
     },
+    "/api/v1/service/lms/courses/{course_id}/lessons": {
+      "get": {
+        "description": "A course's lessons in teaching order, for a renderer preparing a whole\ncourse (`render.mjs --prepare-course`, 2026-09-24). Ids and standing only;\neach lesson's content is read through its own workspace door.",
+        "operationId": "service_course_lessons_api_v1_service_lms_courses__course_id__lessons_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "course_id",
+            "required": true,
+            "schema": {
+              "title": "Course Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Course Lessons Api V1 Service Lms Courses  Course Id  Lessons Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Course Lessons",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
     "/api/v1/service/lms/enrolments": {
       "post": {
         "operationId": "grant_enrolment_api_v1_service_lms_enrolments_post",
@@ -1327,6 +1394,70 @@
         ]
       }
     },
+    "/api/v1/service/lms/lessons/{lesson_id}/refresh-from-tutor": {
+      "post": {
+        "description": "Recompose ONE course lesson from its (corrected) tutor lesson, as the\nadmin's course refresh does, without touching the course's other lessons\n(2026-09-26). `admin_id` is the person the refresh is recorded under.",
+        "operationId": "service_refresh_lesson_api_v1_service_lms_lessons__lesson_id__refresh_from_tutor_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lesson_id",
+            "required": true,
+            "schema": {
+              "title": "Lesson Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "admin_id",
+            "required": true,
+            "schema": {
+              "title": "Admin Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "keep_live",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Keep Live",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Refresh Lesson Api V1 Service Lms Lessons  Lesson Id  Refresh From Tutor Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Refresh Lesson",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
     "/api/v1/service/lms/lessons/{lesson_id}/rendered-video": {
       "post": {
         "operationId": "service_rendered_video_upload_api_v1_service_lms_lessons__lesson_id__rendered_video_post",
@@ -1429,6 +1560,171 @@
           }
         },
         "summary": "Service Rendered Video Attach",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/lessons/{lesson_id}/visuals": {
+      "post": {
+        "description": "The lesson's concept animations for its current text (2026-09-25):\nplanned once from the fixed menu of families, reviewed by another vendor,\nchecked deterministically (visual_planner). The renderer's warm step: it\nmay make model calls, and a student never calls it. `reuse=false` plans\nagain.",
+        "operationId": "service_lesson_visuals_api_v1_service_lms_lessons__lesson_id__visuals_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lesson_id",
+            "required": true,
+            "schema": {
+              "title": "Lesson Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reuse",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Reuse",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Lesson Visuals Api V1 Service Lms Lessons  Lesson Id  Visuals Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Lesson Visuals",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/lessons/{lesson_id}/voiceover": {
+      "patch": {
+        "description": "A reviewer's corrections to a lesson's stored voiceover before it is\nrendered (2026-09-26). Each line passes the writer's own deterministic\nchecks; one failure refuses the whole set (422) and nothing is saved. The\nvoice is warmed for the corrected lines.",
+        "operationId": "service_correct_voiceover_api_v1_service_lms_lessons__lesson_id__voiceover_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lesson_id",
+            "required": true,
+            "schema": {
+              "title": "Lesson Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Edits",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Correct Voiceover Api V1 Service Lms Lessons  Lesson Id  Voiceover Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Correct Voiceover",
+        "tags": [
+          "service-lms"
+        ]
+      },
+      "post": {
+        "description": "The lesson's voiceover for its current text (2026-09-25): the concept\nplanner first, then the writer, another vendor's review and the\ndeterministic checks (voiceover.py), then the voice warmed for every new\nsentence. The renderer's warm step; a student never calls it.",
+        "operationId": "service_lesson_voiceover_api_v1_service_lms_lessons__lesson_id__voiceover_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lesson_id",
+            "required": true,
+            "schema": {
+              "title": "Lesson Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reuse",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Reuse",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Lesson Voiceover Api V1 Service Lms Lessons  Lesson Id  Voiceover Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Lesson Voiceover",
         "tags": [
           "service-lms"
         ]

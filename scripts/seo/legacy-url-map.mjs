@@ -88,11 +88,6 @@ const PAGE_MAP = {
   '/affiliate-registration': '/partners/apply',
   '/affiliate-account': '/partner-portal',
   '/affiliate-reset-password': '/partner-portal/change-pin',
-  '/become-a-tutor': '/tutor-portal',
-  '/become-a-tutor/professional-tutor-application-form': '/tutor-portal',
-  '/become-a-tutor/academic-tutor-application-form': '/tutor-portal',
-  '/become-a-tutor/student-tutor-application-form': '/tutor-portal',
-  '/instructor-dashboard': '/tutor-portal',
   '/shop': '/programmes',
   '/cart2': '/programmes',
   '/checkout2': '/programmes',
@@ -124,6 +119,14 @@ const PAGE_TO_STUDY = {
   '/account-access': '/login',
   '/activate': '/login',
   '/join': '/register',
+  // Tutors sign in to the study app since R2 (2026-09-21); straight there in
+  // one hop rather than via /tutor-portal → /learn/login → app (3 hops, found
+  // by the cutover check on 2026-09-30).
+  '/become-a-tutor': '/login?teach=1',
+  '/become-a-tutor/professional-tutor-application-form': '/login?teach=1',
+  '/become-a-tutor/academic-tutor-application-form': '/login?teach=1',
+  '/become-a-tutor/student-tutor-application-form': '/login?teach=1',
+  '/instructor-dashboard': '/login?teach=1',
 };
 
 const PAGE_FALLBACK = '/';

@@ -39,7 +39,7 @@ describe('buildHostRedirects', () => {
       'reg\\.knowsia\\.com',
     ]);
     for (const rule of rules) {
-      expect(rule).toMatchObject({ source: '/:path*', destination: 'https://knowsia.com/:path*', permanent: true });
+      expect(rule).toMatchObject({ source: '/:path((?!api/).*)', destination: 'https://knowsia.com/:path', permanent: true });
     }
     expect(rules.some((r) => r.destination.includes('reg.knowsia.com/'))).toBe(false);
   });

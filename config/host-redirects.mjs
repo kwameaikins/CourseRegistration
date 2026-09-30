@@ -57,10 +57,16 @@ export function buildHostRedirects({ canonicalHost, extraLegacyHosts = [] }) {
     .map(sanitizeHost)
     .filter((host, index, all) => host && host !== canonicalHost && all.indexOf(host) === index);
 
+  // /api/* is NEVER moved (2026-09-30, found before the cutover): Paystack's
+  // webhook, Resend's, the integration doors knowsia-api calls (certificate
+  // registry, identity, catalogue) and every other machine caller POSTs to
+  // reg.knowsia.com/api/…, and a machine does not reliably follow a 308 — an
+  // HTTP client's default is not to. The same exclusion middleware.ts already
+  // makes for trailing slashes. People's pages move; machines' doors stay put.
   return legacyHosts.map((host) => ({
-    source: '/:path*',
+    source: '/:path((?!api/).*)',
     has: [{ type: 'host', value: escapeForHasValue(host) }],
-    destination: `https://${canonicalHost}/:path*`,
+    destination: `https://${canonicalHost}/:path`,
     permanent: true,
   }));
 }
