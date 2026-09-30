@@ -816,6 +816,21 @@
       },
       "NarrationClipsIn": {
         "properties": {
+          "character": {
+            "anyOf": [
+              {
+                "enum": [
+                  "female",
+                  "male"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Character"
+          },
           "ref_id": {
             "anyOf": [
               {
