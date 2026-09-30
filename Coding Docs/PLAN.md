@@ -428,6 +428,25 @@ the system has been taking real payments for weeks), so these are unblocked when
     `middleware.ts` (`skipTrailingSlashRedirect: true`), so the legacy map can match `/x/` in one
     hop later. Same observable behaviour (`/programmes/` → 308 `/programmes`), but middleware now
     runs on every page path instead of only staff paths; API routes and assets excluded.
+  - **2026-09-30: THE CUTOVER IS DONE — knowsia.com is this app.** The WordPress VPS
+    (64.20.36.232) stopped answering on every port the day after DNS moved to Cloudflare
+    (nameservers `ernest` / `zainab.ns.cloudflare.com` since 2026-09-29; the zone diffed record by
+    record first, DKIM settled from CyberPanel's DKIM Manager). In order: email to Cloudflare
+    Email Routing (`info@` + catch-all → info.knowsia@gmail.com; old MX removed; one SPF line
+    `v=spf1 include:_spf.mx.cloudflare.net ip4:64.20.36.232 ~all`, the ip4 to go with the server);
+    apex A → Vercel (216.150.1.1, 216.150.16.1), `www` CNAME → this project; Vercel env
+    `CANONICAL_HOST=knowsia.com`, `NEXT_PUBLIC_APP_URL=https://knowsia.com` (with
+    `KNOWSIA_APP_PUBLIC_URL`/`KNOWSIA_APP_URL=https://app.knowsia.com` from 2026-09-28).
+    **`/api/*` is never host-redirected** (`config/host-redirects.mjs`, `/:path((?!api/).*)`) —
+    Paystack's and Resend's webhooks and knowsia-api's integration calls POST to
+    `reg.knowsia.com/api/…` and a machine does not follow a 308; found before the flip.
+    The blog is imported (103 posts, `content_type='Blog'`, original slugs, body as Markdown,
+    images on the Knowsia CDN — `scripts/news/import-wordpress-posts.mjs`) and the map is built
+    with `--blog-imported`. `npm run seo:check -- --host https://knowsia.com`: **787 of 787 in one
+    hop**. Still with the founder: Supabase Auth redirect URL `https://knowsia.com/auth/callback`;
+    Search Console sitemap; retiring the server (other sites on it: nbcinstitute, noohrabusiness).
+    Not recoverable: the 3,333 LearnDash quiz questions (their table is empty in the database
+    export). Doc 20 §13 is the record.
 - [ ] III — Paid cohort grants question-bank access: hangs off the existing
       `runPaidTransitionSideEffects` (already the single place every paid-transition consequence is
       wired), fire-and-forget and idempotent. First integration with real product value

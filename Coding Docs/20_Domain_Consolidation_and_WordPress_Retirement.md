@@ -402,3 +402,43 @@ missing `RESEND_API_KEY` on Railway — no DNS work needed.
 - **CyberPanel by hostname.** `noohrabusiness.com` resolves to `127.0.0.1`, so
   `https://noohrabusiness.com:8090` reaches the operator's own laptop. Use
   `https://64.20.36.232:8090` and accept the self-signed certificate.
+
+---
+
+## 13. The cutover (2026-09-30)
+
+Done a day after the nameservers moved, because the WordPress server stopped
+answering on every port and knowsia.com pointed at it. Order, and why:
+
+1. **Email off the server first.** The MX pointed at `knowsia.com` itself, so
+   moving the website would have moved the mail to Vercel, which receives none.
+   Cloudflare Email Routing now forwards `info@` and a catch-all to
+   `info.knowsia@gmail.com`; replies go out through Resend. The founder chose
+   not to keep the old mailbox contents.
+2. **DNS** (Cloudflare): apex A → 216.150.1.1 and 216.150.16.1; `www` CNAME →
+   this project's Vercel target. While `CANONICAL_HOST` was still unset, the
+   old emergency rule already sent knowsia.com to reg.knowsia.com, so visitors
+   left the dead server at once.
+3. **Canonical host**: `CANONICAL_HOST=knowsia.com`,
+   `NEXT_PUBLIC_APP_URL=https://knowsia.com`, deployed.
+4. **`/api/*` is excluded from the host redirect.** Not in the plan above and
+   the one thing that would have broken silently: the Paystack and Resend
+   webhooks and every integration door KnowsiaApp calls live under
+   `reg.knowsia.com/api/…`, and machines do not follow a 308.
+
+Verified live: 787 of 787 legacy URLs land on a 200 in one hop (the five tutor
+pages had taken three through `/tutor-portal` and now go straight to
+`app.knowsia.com/login?teach=1`); `reg.knowsia.com/verify/KNS-…` forwards and
+resolves; `reg.knowsia.com/api/webhooks/paystack` answers without a redirect.
+
+What was carried and what was not: the 103 blog posts (own pages, original
+slugs), 596 of their images (17 were already 404s on WordPress), the 63
+WooCommerce question-bank subscribers (moved to Knowsia Study and emailed), the
+1,105 study questions (through the KnowsiaApp import pipeline), and all 6,031
+media files (downloaded before the server went). Not recoverable: the 3,333
+LearnDash quiz questions — their table is empty in the database export.
+
+Left with the founder: the Supabase Auth redirect URL for knowsia.com; Search
+Console; the server's other sites before it is cancelled; then removing the
+server's leftovers from DNS (`mail`, `ftp`, the ip4 in SPF).
+
