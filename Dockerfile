@@ -55,4 +55,11 @@ COPY --from=build --chown=nextjs:nextjs /app/.next/static ./.next/static
 COPY --from=build --chown=nextjs:nextjs /app/public ./public
 USER nextjs
 EXPOSE 3000
-CMD ["node", "server.js"]
+# --max-http-header-size: the staff pages filter Supabase with `.in(ids)` lists
+# of hundreds of UUIDs, PostgREST echoes that 16 KB URL back in a response
+# header, and Node's fetch refuses response headers over 16 KiB
+# (UND_ERR_HEADERS_OVERFLOW — /dashboard 500'd on the first day on Railway;
+# Vercel's runtime had tolerated it). On Node 22 the built-in fetch takes its
+# limit from this flag: undici reads http.maxHeaderSize (nodejs/undici#2234,
+# docs/api/Client.md "Default: the value of Node.js' --max-http-header-size").
+CMD ["node", "--max-http-header-size=65536", "server.js"]
