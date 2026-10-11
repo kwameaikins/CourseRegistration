@@ -188,11 +188,29 @@ async function insertWithNumberRetry(
   );
 }
 
-async function sendCertificateEmail(row: CertificateRow): Promise<boolean> {
+async function sendCertificateEmail(
+  row: CertificateRow,
+  // `once`: send only if this registration has never been sent its certificate
+  // (the email_log slot). The automatic paths pass it; a staff resend does not,
+  // because a person asking for it again is the one case a repeat is right.
+  options: { once?: boolean } = {},
+): Promise<boolean> {
   if (!row.recipient_email) return false;
-  await sendTransactionalEmail({
-    to: row.recipient_email,
-    subject: `Your Knowsia certificate — ${row.course_title}`,
+  if (options.once && row.registration_id) {
+    const slot = await certificatesRepository.reserveCertificateEmailSlot(row.registration_id);
+    if (slot === 'duplicate') return false;
+  }
+  let providerMessageId: string | null = null;
+  try {
+    const sent = await sendTransactionalEmail({
+      to: row.recipient_email,
+      // Core's own dedup: one key per certificate for the automatic send, a
+      // fresh one for a staff resend (Core would otherwise answer the resend
+      // with the first record and send nothing).
+      idempotencyKey: options.once ? `certificate:${row.id}` : `certificate:${row.id}:resend:${Date.now()}`,
+      category: 'transactional',
+      templateKey: 'certificate_issued',
+      subject: `Your Knowsia certificate — ${row.course_title}`,
     html: `
 <div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#1a1a2e;max-width:600px;margin:0 auto;">
 <p style="margin-bottom:24px;"><img src="${APP_URL()}/knowsia-logo.png" alt="Knowsia" width="140" style="display:block;" /></p>
@@ -204,7 +222,21 @@ Anyone can confirm its authenticity at:<br/><a href="${verifyUrlFor(row.certific
 <p>Add it to your LinkedIn profile under Licenses &amp; Certifications — use the certificate number and the verification link above.</p>
 <p>Warm regards,<br/><strong>The Knowsia Team</strong></p>
 </div>`,
-  });
+    });
+    providerMessageId = sent?.providerMessageId ?? null;
+  } catch (err) {
+    if (options.once && row.registration_id) {
+      await certificatesRepository
+        .settleCertificateEmailSlot(row.registration_id, { success: false, error_message: String(err).slice(0, 500) })
+        .catch(() => undefined);
+    }
+    throw err;
+  }
+  if (options.once && row.registration_id) {
+    await certificatesRepository
+      .settleCertificateEmailSlot(row.registration_id, { success: true, provider_message_id: providerMessageId })
+      .catch((err) => console.error('[certificate email log]', err));
+  }
   return true;
 }
 
@@ -273,7 +305,7 @@ export async function issueCertificateIfEligible(
   }
 
   try {
-    await sendCertificateEmail(row);
+    await sendCertificateEmail(row, { once: true });
   } catch (err) {
     console.error('[certificate auto-issue email]', err);
   }
@@ -287,11 +319,14 @@ export async function issueCertificateIfEligible(
 // same tick and the same target date as the feedback request, so the two agree
 // about when a course is over.
 //
-// DELIBERATELY DOES NOT EMAIL. That is the whole distinction from
-// issueCertificateIfEligible: completing the course makes the certificate
-// available to download in the student portal, whereas submitting feedback
-// sends it to the person directly. Issuing here and emailing as well would
-// make the feedback route meaningless and mail everyone twice.
+// EMAILS THE PERSON (founder, 2026-10-11). Until then this path issued the
+// certificate into the portal silently and only the feedback route emailed it,
+// so a student who never filled in the feedback form was never told their
+// certificate existed — one wrote in after three courses, with "my Knowsia
+// account is empty" and one certificate sent by hand on WhatsApp. The two
+// routes no longer differ in delivery; what keeps anyone from being mailed
+// twice is the email_log slot (`certificate_issued`, one per registration),
+// which both routes reserve before sending — see sendCertificateEmail.
 //
 // Idempotent by construction: `alreadyIssued` skips anyone who has one, and
 // certificates.registration_id is unique, so a second run — or a race with the
@@ -307,6 +342,7 @@ export interface CompletionIssuanceSummary {
   dryRun: boolean;
   batchesEvaluated: number;
   issued: number;
+  emailed: number;
   skipped: number;
   errors: string[];
 }
@@ -314,15 +350,20 @@ export interface CompletionIssuanceSummary {
 // Shared by the daily run and the backfill so the two can never disagree about
 // who qualifies. `dryRun` reports exactly what a real run would write without
 // writing any of it — the same posture as the attendance and Zoom backfills.
+// `email` is the daily run's; the backfill keeps it off (a retroactive mass
+// send to everyone who ever finished a course is a decision, not a side
+// effect of a backfill). An email failure is an error on the summary, never a
+// lost certificate: the row is already written.
 async function issueForCompletedBatches(
   batchIds: string[],
-  options: { dryRun: boolean; date: string },
+  options: { dryRun: boolean; date: string; email: boolean },
 ): Promise<CompletionIssuanceSummary> {
   const summary: CompletionIssuanceSummary = {
     date: options.date,
     dryRun: options.dryRun,
     batchesEvaluated: 0,
     issued: 0,
+    emailed: 0,
     skipped: 0,
     errors: [],
   };
@@ -347,7 +388,7 @@ async function issueForCompletedBatches(
           continue;
         }
         try {
-          await insertWithNumberRetry(
+          const row = await insertWithNumberRetry(
             {
               registration_id: candidate.registrationId,
               recipient_name: candidate.participantName,
@@ -363,6 +404,13 @@ async function issueForCompletedBatches(
             context.courseCode,
           );
           summary.issued += 1;
+          if (options.email) {
+            try {
+              if (await sendCertificateEmail(row, { once: true })) summary.emailed += 1;
+            } catch (err) {
+              summary.errors.push(`${candidate.registrationId}: email failed — ${String(err)}`);
+            }
+          }
         } catch (err) {
           if (err instanceof AppError && err.code === 'DUPLICATE_CERTIFICATE') {
             summary.skipped += 1;
@@ -386,7 +434,7 @@ export async function runCompletedBatchCertificateIssuance(
   yesterday.setUTCDate(yesterday.getUTCDate() - 1);
   const targetEndDate = yesterday.toISOString().slice(0, 10);
   const batchIds = await certificatesRepository.selectBatchIdsEndedOn(targetEndDate);
-  return issueForCompletedBatches(batchIds, { dryRun: false, date: targetEndDate });
+  return issueForCompletedBatches(batchIds, { dryRun: false, date: targetEndDate, email: true });
 }
 
 // Backfill for courses that finished BEFORE completion issuance existed
@@ -406,10 +454,10 @@ export async function runCompletedBatchCertificateIssuance(
 // backlog in one pass and burns that many certificate serial numbers, which is
 // not something to discover afterwards.
 //
-// Sends NO email, matching the daily completion run: the certificate becomes
-// available to download in the portal, and emailing is what submitting
-// feedback earns. That also avoids a retroactive mass send to everyone who
-// ever completed a course.
+// Sends NO email. The daily run emails since 2026-10-11; the backfill still
+// does not, because it sweeps the whole history and a retroactive mass send to
+// everyone who ever completed a course is a decision to make on purpose, with
+// the list in front of you (`/api/certificates/resend` per row does that).
 export async function runCertificateBackfill(input: {
   dryRun?: boolean;
   batchId?: string;
@@ -425,6 +473,7 @@ export async function runCertificateBackfill(input: {
     // Opt IN to writing. An omitted flag must never mean "write".
     dryRun: input.dryRun !== false,
     date: today,
+    email: false,
   });
 }
 

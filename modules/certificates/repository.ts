@@ -343,3 +343,38 @@ export async function selectBatchIssueContext(batchId: string): Promise<{
     }),
   };
 }
+
+// The one-send guard for the certificate email (2026-10-11). email_log's
+// unique (registration_id, email_type) is the same BR-07 reservation the
+// lifecycle engine uses: reserve BEFORE sending, and a second path that
+// reaches the same registration (feedback after the completion run, a
+// re-run of the run) finds the slot taken and sends nothing. Lives here
+// rather than in communications/repository because that engine is template
+// driven and this email is not; registrations/repository reads email_log the
+// same way.
+export async function reserveCertificateEmailSlot(
+  registrationId: string,
+): Promise<'reserved' | 'duplicate'> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase.from('email_log').insert({
+    registration_id: registrationId,
+    email_type: 'certificate_issued',
+    success: false,
+    sent_at: new Date().toISOString(),
+  });
+  if (error?.code === '23505') return 'duplicate';
+  if (error) throw error;
+  return 'reserved';
+}
+
+export async function settleCertificateEmailSlot(
+  registrationId: string,
+  changes: { success: boolean; error_message?: string | null; provider_message_id?: string | null },
+): Promise<void> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { error } = await supabase
+    .from('email_log')
+    .update(changes)
+    .match({ registration_id: registrationId, email_type: 'certificate_issued' });
+  if (error) throw error;
+}

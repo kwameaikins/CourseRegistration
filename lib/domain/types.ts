@@ -133,4 +133,10 @@ export type EmailType =
   // payment-reminder toggle. See modules/access-grants.
   | 'access_granted'
   | 'access_expiring'
-  | 'access_expired';
+  | 'access_expired'
+  // Certificate issued (2026-10-11): one row per registration whatever path
+  // issued it (the daily completion run, the feedback auto-issue, a staff
+  // batch issue), so a person is told exactly once. email_log has no CHECK on
+  // email_type (only email_templates does), so no migration. It has no
+  // template row and never goes through sendEmailOnce.
+  | 'certificate_issued';

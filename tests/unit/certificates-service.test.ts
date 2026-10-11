@@ -13,6 +13,8 @@ const repositoryMock = {
   selectBatchIdForRegistration: vi.fn(),
   selectBatchIdsEndedOn: vi.fn(),
   selectBatchIdsEndedOnOrBefore: vi.fn(),
+  reserveCertificateEmailSlot: vi.fn(),
+  settleCertificateEmailSlot: vi.fn(),
 };
 const sendTransactionalEmailMock = vi.fn();
 // The staff-facing certificate actions gate on requireRole; mocking the users
@@ -88,7 +90,9 @@ beforeEach(() => {
       ...row,
     },
   }));
-  sendTransactionalEmailMock.mockResolvedValue(undefined);
+  sendTransactionalEmailMock.mockResolvedValue({ providerMessageId: 'msg-1' });
+  repositoryMock.reserveCertificateEmailSlot.mockResolvedValue('reserved');
+  repositoryMock.settleCertificateEmailSlot.mockResolvedValue(undefined);
 });
 
 describe('issued for Knowsia Study (one registry, 2026-09-17)', () => {
@@ -671,10 +675,10 @@ describe('authorization — the staff-facing certificate actions', () => {
   });
 });
 
-// BR-46 delivery: completing the course makes the certificate available to
-// DOWNLOAD; submitting feedback is what sends it by EMAIL. The two routes must
-// stay distinct, or everyone gets mailed twice and the feedback route stops
-// meaning anything.
+// BR-46 delivery, revised 2026-10-11: completing the course issues the
+// certificate AND emails it. The email_log slot (certificate_issued, one per
+// registration) is what stops the feedback route mailing the same person
+// again — not a difference between the routes.
 describe('runCompletedBatchCertificateIssuance', () => {
   beforeEach(() => {
     repositoryMock.selectBatchIdsEndedOn.mockResolvedValue(['batch-1']);
@@ -689,15 +693,52 @@ describe('runCompletedBatchCertificateIssuance', () => {
     });
   });
 
-  it('issues to eligible participants WITHOUT emailing them', async () => {
+  it('issues to eligible participants AND emails them, once, logged', async () => {
     const summary = await runCompletedBatchCertificateIssuance(new Date('2026-08-18T07:00:00Z'));
 
     expect(summary.issued).toBe(1);
+    expect(summary.emailed).toBe(1);
     expect(repositoryMock.insertCertificate).toHaveBeenCalledWith(
       expect.objectContaining({ registration_id: 'reg-1', issued_by: null }),
     );
-    // The whole point of this path.
+    // The slot is reserved BEFORE the send and settled with the provider id after.
+    expect(repositoryMock.reserveCertificateEmailSlot).toHaveBeenCalledWith('reg-1');
+    expect(sendTransactionalEmailMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'ama@example.com',
+        idempotencyKey: 'certificate:cert-1',
+        subject: expect.stringContaining('ESG and Sustainability Reporting'),
+      }),
+    );
+    expect(repositoryMock.settleCertificateEmailSlot).toHaveBeenCalledWith('reg-1', {
+      success: true,
+      provider_message_id: 'msg-1',
+    });
+  });
+
+  it('does not email a registration whose certificate email was already sent', async () => {
+    repositoryMock.reserveCertificateEmailSlot.mockResolvedValue('duplicate');
+
+    const summary = await runCompletedBatchCertificateIssuance(new Date('2026-08-18T07:00:00Z'));
+
+    expect(summary.issued).toBe(1);
+    expect(summary.emailed).toBe(0);
     expect(sendTransactionalEmailMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps the certificate and reports the failure when the email cannot be sent', async () => {
+    sendTransactionalEmailMock.mockRejectedValueOnce(new Error('resend down'));
+
+    const summary = await runCompletedBatchCertificateIssuance(new Date('2026-08-18T07:00:00Z'));
+
+    expect(summary.issued).toBe(1);
+    expect(summary.emailed).toBe(0);
+    expect(summary.errors).toHaveLength(1);
+    expect(summary.errors[0]).toContain('email failed');
+    expect(repositoryMock.settleCertificateEmailSlot).toHaveBeenCalledWith(
+      'reg-1',
+      expect.objectContaining({ success: false }),
+    );
   });
 
   it('targets batches that ended YESTERDAY, matching the feedback dispatch', async () => {
@@ -783,9 +824,11 @@ describe('runCertificateBackfill', () => {
 
     expect(summary.dryRun).toBe(false);
     expect(summary.issued).toBe(1);
+    expect(summary.emailed).toBe(0);
     expect(repositoryMock.insertCertificate).toHaveBeenCalledTimes(1);
     // Backfilling must not retroactively mail everyone who ever finished a
-    // course — the portal download is the delivery here.
+    // course — that is a decision made with the list in front of you, and
+    // the daily run (which does email since 2026-10-11) never sweeps history.
     expect(sendTransactionalEmailMock).not.toHaveBeenCalled();
   });
 
