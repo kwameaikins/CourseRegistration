@@ -22,6 +22,19 @@ Authority lives in the domain name, not in WordPress. As long as `knowsia.com` k
 |---|---|---|
 | `knowsia.com` | A `64.20.36.232` (the VPS) | WordPress. Was down 2026-09-03; back up 2026-09-04. |
 | `www.knowsia.com` | CNAME → `knowsia.com` | |
+> **2026-10-11 — hosting moved from Vercel to Railway.** Vercel paused the team's deployments
+> (`402 DEPLOYMENT_DISABLED`) and every host below went dark. Both apps now run on Railway
+> (project `knowsia-api`): this app is the service `registration` (`Dockerfile`, standalone Next;
+> release = `railway up --detach --service registration` from the repo root) serving
+> `knowsia.com` and `reg.knowsia.com`; `www.knowsia.com` is the service `www-redirect` (301 to
+> the apex, path kept) because the plan allows two custom domains per service; the two
+> `vercel.json` crons are the services `cron-reminders` (07:00 UTC) and `cron-attendance`
+> (21:00 UTC), each curling `/api/cron/*` with `CRON_SECRET`. DNS is unchanged in shape —
+> Cloudflare, DNS-only — but each host is a CNAME to Railway's `*.up.railway.app` target plus a
+> TXT `_railway-verify.<label>` ownership record. Every "Vercel" below is history from the
+> September cutover; the host map and redirect rules still hold. Full account: the study repo's
+> PLAN.md §3.61.
+
 | `reg.knowsia.com` | CNAME → Vercel (`course-registration`) | Live registration app. |
 | `app.knowsia.com` | no record | Free to use. |
 | `knowsia-study.vercel.app` | Vercel (`knowsia-study`) | KnowsiaApp frontend, served under `/learn`. |

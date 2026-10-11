@@ -8,6 +8,12 @@ actionable version of that document, meant to be edited as work happens, not jus
 
 ---
 
+
+> **Hosting (2026-10-11):** this app is deployed on **Railway** (service `registration`), not
+> Vercel — see Doc 20's note at the top and the study repo's PLAN.md §3.61. Release:
+> `railway up --detach --service registration` from the repo root; crons are Railway cron
+> services; `www.knowsia.com` is the `www-redirect` service.
+
 ## Phase 1 - Task 1 — Foundation
 
 *Riskiest assumption tested: does the schema + RLS + auth foundation actually work as designed?*
