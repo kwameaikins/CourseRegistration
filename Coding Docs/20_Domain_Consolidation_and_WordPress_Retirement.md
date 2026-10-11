@@ -31,7 +31,10 @@ Authority lives in the domain name, not in WordPress. As long as `knowsia.com` k
 > `vercel.json` crons are the services `cron-reminders` (07:00 UTC) and `cron-attendance`
 > (21:00 UTC), each curling `/api/cron/*` with `CRON_SECRET`. DNS is unchanged in shape —
 > Cloudflare, DNS-only — but each host is a CNAME to Railway's `*.up.railway.app` target plus a
-> TXT `_railway-verify.<label>` ownership record. Every "Vercel" below is history from the
+> TXT `_railway-verify.<label>` ownership record. The start command passes
+> `--max-http-header-size=65536`: the staff pages' `.in(ids)` Supabase queries come back with
+> a 16 KB echoed URL in a response header and Node 22's fetch refused it (`/dashboard` 500'd
+> on the first day; Vercel's runtime had tolerated it). Every "Vercel" below is history from the
 > September cutover; the host map and redirect rules still hold. Full account: the study repo's
 > PLAN.md §3.61.
 
