@@ -9,6 +9,11 @@ actionable version of that document, meant to be edited as work happens, not jus
 ---
 
 
+> **Certificates email on completion (2026-10-11):** the daily completion run now emails the
+> certificate it issues (BR-46 revised in Doc 4); `email_log` type `certificate_issued` is the
+> one-send guard shared with the feedback route; the backfill stays silent. Prompted by a
+> student with three unannounced certificates.
+>
 > **Hosting (2026-10-11):** this app is deployed on **Railway** (service `registration`), not
 > Vercel — see Doc 20's note at the top and the study repo's PLAN.md §3.61. Release:
 > `railway up --detach --service registration` from the repo root; crons are Railway cron

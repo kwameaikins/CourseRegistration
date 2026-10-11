@@ -854,11 +854,22 @@ reversing that decision explicitly.
 
 **Already-issued and soft-deleted Participants are excluded** regardless of Batch type.
 
-**Delivery — two routes, deliberately distinct.**
+**Delivery — every automatic route emails, and the email_log slot is what keeps it to once
+(revised 2026-10-11).** Until then the completion run issued the certificate into the portal
+silently and only the feedback route emailed it. A student who took three courses and never
+filled in the feedback form was therefore never told; he wrote in after weeks of "check your
+Knowsia account", with one certificate sent by hand on WhatsApp and a CV waiting. Founder:
+email on issue. The one-send guard is `email_log (registration_id, 'certificate_issued')`,
+reserved BEFORE the send by `sendCertificateEmail(row, { once: true })` — the BR-07
+reservation the lifecycle engine uses — so the feedback route reaching a registration the
+completion run already mailed finds the slot taken and sends nothing. Core's idempotency key
+is `certificate:<id>` for the automatic send and a fresh key for a staff resend, which is the
+one case a repeat is right. An email failure is an error on the run's summary and never a
+lost certificate: the row is already written, and the slot records the failure.
 
 | Trigger | What happens | Where it lives |
 | --- | --- | --- |
-| The Batch ends | Certificate is **issued, not emailed** — it is waiting in the student portal to download | `runCompletedBatchCertificateIssuance`, daily 07:00 cron |
+| The Batch ends | Certificate is issued **and emailed** (once) | `runCompletedBatchCertificateIssuance`, daily 07:00 cron |
 | Participant submits feedback | Certificate is issued **and emailed** to them directly | `issueCertificateIfEligible`, called from `modules/feedback/service.ts` |
 | Admin selects on the batch screen | Issued and emailed | `issueForBatch` |
 
@@ -869,13 +880,17 @@ path, inserts nothing and is skipped rather than failing. One participant's fail
 the batch and one batch's never stops the tick; both are collected into `errors` and returned, so
 the run cannot report success while writing nothing.
 
-Emailing on completion as well as on feedback would mail everyone twice and make the feedback
-route meaningless — that separation is the point, not an oversight.
+The feedback route still issues-and-emails for a course that has not ended yet (feedback can
+arrive before the batch's end date); for one that has, it finds the certificate already issued
+and the email slot already taken, and does nothing — the slot, not the route, is what makes
+"once" true.
 
 **Backfill.** Completion issuance looks at a single day, so every cohort that finished before it
 existed (2026-08-18) has no certificates and its students see a placeholder with no download
-button. `POST /api/certificates/backfill` closes that, sharing the same eligibility rule and the
-same no-email behaviour:
+button. `POST /api/certificates/backfill` closes that, sharing the same eligibility rule — and it
+still sends NO email: it sweeps the whole history, and a retroactive mass send to everyone who
+ever finished a course is a decision to take with the list in front of you (`/api/certificates/
+resend` per row), not a side effect of a backfill:
 
 - **Admin-triggered, not `CRON_SECRET`-gated** — unlike the attendance and Zoom backfills beside
   it. Those predate the discovery that `CRON_SECRET` cannot be recovered (Document 7 §13.3);
