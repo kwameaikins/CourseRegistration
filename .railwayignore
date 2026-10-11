@@ -1,0 +1,23 @@
+# What `railway up` uploads from this folder. Mirrors .dockerignore.
+# Patterns are gitignore-style, so every folder is ROOTED with a leading
+# slash: a bare "supabase" also matched lib/supabase/ and the first Railway
+# build failed with "Can't resolve '@/lib/supabase/server'" (2026-10-11).
+/node_modules
+/.next
+/.git
+/.vercel
+/.claude
+.env
+.env.*
+/scripts
+/tests
+/supabase
+/wordpress
+/logs
+/Coding Docs
+/KNOWSIA ASSETS
+/coverage
+/playwright-report
+/test-results
+*.log
+*.tsbuildinfo

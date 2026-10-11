@@ -1,0 +1,27 @@
+# Build context for the Railway image. node_modules and .next are rebuilt
+# inside the image; scripts/ (≈ 230 MB of SEO inventory and tutorial renders),
+# the docs, tests and the WordPress bundle are not part of the served app.
+node_modules
+.next
+.git
+.vercel
+.claude
+.env
+.env.*
+!.env.local.example
+scripts
+tests
+supabase
+wordpress
+logs
+Coding Docs
+KNOWSIA ASSETS
+coverage
+playwright-report
+test-results
+*.log
+*.tsbuildinfo
+Dockerfile
+.dockerignore
+.railwayignore
+railway.json

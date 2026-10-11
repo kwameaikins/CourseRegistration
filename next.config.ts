@@ -64,6 +64,11 @@ function loadLegacyRedirects(): { source: string; destination: string }[] {
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Railway (2026-10-11): Vercel paused the deployment (402 DEPLOYMENT_DISABLED)
+  // and the Dockerfile builds a standalone server instead. Gated on a variable
+  // the Dockerfile sets, because `next start` refuses a standalone build and
+  // the tutorial recorder still uses it.
+  ...(process.env.NEXT_OUTPUT_STANDALONE === '1' ? { output: 'standalone' as const } : {}),
   // Every WordPress URL ends in a slash, and Next's built-in trailing-slash
   // redirect ran BEFORE the custom map, so each legacy URL cost two hops
   // (/x/ → /x → destination; measured 2026-09-04). With it off, the map
