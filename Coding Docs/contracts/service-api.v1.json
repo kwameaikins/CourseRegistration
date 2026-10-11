@@ -831,6 +831,18 @@
             ],
             "title": "Character"
           },
+          "direction": {
+            "anyOf": [
+              {
+                "maxLength": 400,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direction"
+          },
           "ref_id": {
             "anyOf": [
               {
@@ -856,6 +868,21 @@
             "maxItems": 40,
             "title": "Texts",
             "type": "array"
+          },
+          "voice_provider": {
+            "anyOf": [
+              {
+                "enum": [
+                  "openai",
+                  "elevenlabs"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice Provider"
           }
         },
         "required": [
