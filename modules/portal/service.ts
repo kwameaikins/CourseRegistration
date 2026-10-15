@@ -349,12 +349,26 @@ export function hasCourseEnded(endDate: string | null | undefined, now = new Dat
 
 export async function getPortalDashboard(sessionId: string | undefined): Promise<PortalDashboard> {
   const { participantId } = await requirePortalSession(sessionId);
+  return getPortalDashboardForParticipant(participantId);
+}
+
+// The same dashboard for a participant named by the caller, not a session —
+// for KnowsiaApp's one-portal merge (Phase 2, 2026-10-15), reached only
+// through /api/integration/participants/[id]/dashboard behind the shared
+// service key. `includeSelfPaced: false` skips the study-world half: the
+// caller IS the study world and already has it.
+export async function getPortalDashboardForParticipant(
+  participantId: string,
+  { includeSelfPaced = true }: { includeSelfPaced?: boolean } = {},
+): Promise<PortalDashboard> {
   const [data, auth, selfPacedCourses] = await Promise.all([
     portalRepository.selectPortalDashboardData(participantId),
     portalRepository.selectParticipantAuth(participantId),
     // The study-world half of the merged dashboard — fail-soft to null so
     // the live half never breaks over the other system (4s internal cap).
-    knowsiaAppService.getStudentLmsCoursesSystem(participantId).catch(() => null),
+    includeSelfPaced
+      ? knowsiaAppService.getStudentLmsCoursesSystem(participantId).catch(() => null)
+      : Promise.resolve(null),
   ]);
   if (!data.participant) {
     throw new AppError('NOT_FOUND', 'Participant not found.', 404);
@@ -725,6 +739,16 @@ export async function getReceiptData(
   registrationId: string,
 ): Promise<PortalReceiptData> {
   const { participantId } = await requirePortalSession(sessionId);
+  return getReceiptDataForParticipant(participantId, registrationId);
+}
+
+// For KnowsiaApp's one-portal merge (2026-10-15): the same receipt for a
+// participant named by the service-key caller. buildReceiptData throws 404
+// for a registration that is not this participant's.
+export async function getReceiptDataForParticipant(
+  participantId: string,
+  registrationId: string,
+): Promise<PortalReceiptData> {
   const data = await portalRepository.selectPortalDashboardData(participantId);
   return buildReceiptData(data, registrationId);
 }
@@ -868,6 +892,14 @@ export async function getSessionMaterials(
   registrationId: string,
 ): Promise<SessionMaterial[]> {
   const { participantId } = await requirePortalSession(sessionId);
+  return getSessionMaterialsForParticipant(participantId, registrationId);
+}
+
+// For KnowsiaApp's one-portal merge (2026-10-15) — the same ownership check.
+export async function getSessionMaterialsForParticipant(
+  participantId: string,
+  registrationId: string,
+): Promise<SessionMaterial[]> {
   const data = await portalRepository.selectPortalDashboardData(participantId);
   const match = data.registrations.find((row) => row.registration.id === registrationId);
   if (!match || !match.batch) {
@@ -886,6 +918,16 @@ export async function getMaterialDownloadUrl(
   materialId: string,
 ): Promise<string> {
   const { participantId } = await requirePortalSession(sessionId);
+  return getMaterialDownloadUrlForParticipant(participantId, registrationId, materialId);
+}
+
+// For KnowsiaApp's one-portal merge (2026-10-15) — the same ownership check,
+// authorized before anything is signed.
+export async function getMaterialDownloadUrlForParticipant(
+  participantId: string,
+  registrationId: string,
+  materialId: string,
+): Promise<string> {
   const data = await portalRepository.selectPortalDashboardData(participantId);
   const match = data.registrations.find((row) => row.registration.id === registrationId);
   if (!match || !match.batch) {
