@@ -782,6 +782,19 @@ Same path as `/api/checkout` (`balanceCheckout()`), with the participant checked
 → 404; nothing owed → 409 `CONFLICT`; CORE_CHECKOUT off or Core away → 503 `UNAVAILABLE`; `callbackUrl` not https on knowsia.com
 → 400 `VALIDATION_ERROR`; no key → 401. Asserted by `tests/unit/integration-participant-checkout.test.ts`.
 
+**The rest of paying, from KnowsiaApp (Phase 3b, 2026-10-15).** Same key; each is the portal's own function through a participant
+twin with the same ownership / written-off / throttle checks; a registration not the participant's → 404.
+- The checkout above also takes `part: 'balance' | 'installment'`; `installment` charges the first instalment not yet covered (less
+  what is allocated to it, never more than the balance; the balance when there is no plan). The webhook adds whatever is paid and
+  `reconcileInstallments` re-allocates.
+- `POST /api/integration/participants/{id}/coupon/{registrationId}` `{ code }` → `{ discountApplied, couponCode }`; a code that does
+  not apply → 400 with the student-facing message; too many tried → 429 (the portal's per-participant throttle).
+- `POST …/installment-plan/{registrationId}` → `{ created: true }`; 400 with the reason when a plan is not available.
+- `GET …/payment-submissions/{registrationId}` → `{ submissions }`; `POST` (multipart: `method` MTN MoMo | Bank Transfer, `amount`,
+  `paymentDate`, `transactionReference?`, `participantNotes?`, `slip?` JPEG/PNG/PDF ≤ 5 MB) → the submission, into finance's
+  review queue; 409 while one is still under review.
+Asserted by `tests/unit/integration-participant-payments.test.ts`.
+
 ## 30. Knowsia Core Affiliates, the money half — this side (2026-09-20)
 
 Outbound only (`lib/knowsia-core/commissions.ts`, `X-Service-Key`). This app computes no commission: Core derives one from the payment this

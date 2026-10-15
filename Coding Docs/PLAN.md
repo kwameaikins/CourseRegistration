@@ -14,6 +14,11 @@ actionable version of that document, meant to be edited as work happens, not jus
 > the portal's Pay path (`lib/knowsia-core/balance-checkout.ts`); the webhook still lands here
 > through Core. The portal's own Pay keeps working. Doc 19 Seam V has the detail.
 >
+> **One portal, Phase 3b (2026-10-15):** discount codes, the 50/50 payment plan, "pay the next
+> instalment" and MoMo / bank proofs from app.knowsia.com — participant twins of the portal's
+> own functions behind `/api/integration/participants/[id]/{coupon,installment-plan,payment-submissions}/[rid]`
+> (commit `71bc200`). Proofs land in the same finance review queue as the portal's.
+>
 > **Certificates email on completion (2026-10-11):** the daily completion run now emails the
 > certificate it issues (BR-46 revised in Doc 4); `email_log` type `certificate_issued` is the
 > one-send guard shared with the feedback route; the backfill stays silent. Prompted by a

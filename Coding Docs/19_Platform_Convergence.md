@@ -269,6 +269,15 @@ is 503; `callbackUrl` must be https on knowsia.com (KnowsiaApp sends
 figures were compared for 20 linked students: 27 of 27 registrations identical, GH₵4,914.00 owed
 on both sides.
 
+**Phase 3b (2026-10-15) — the rest of paying.** Three more write doors, each the portal's own
+function through a participant twin (`applyCouponForParticipant`,
+`setUpInstallmentPlanForParticipant`, `submitPaymentProofForParticipant` /
+`listPaymentSubmissionsForParticipant`; the session versions now delegate to them):
+`…/coupon/{registrationId}`, `…/installment-plan/{registrationId}`,
+`…/payment-submissions/{registrationId}` (GET list, POST multipart with an optional slip). The
+checkout door takes `part: 'installment'` for the next instalment of a plan. Money rules stay
+here: KnowsiaApp names nothing but the participant, the registration and the student's own entries.
+
 ---
 
 ## 5. What "Integrated" Means Here
