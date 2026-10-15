@@ -242,6 +242,21 @@ Knowsia Study writes its own. `GET /api/integration/certificates/{number}/pdf` (
 the same pdf-lib PDF a cohort participant downloads, for the study platform to proxy to its own
 signed-in student. `reg.knowsia.com/verify/<number>` verifies both kinds unchanged.
 
+**Seam V — the live half of the student portal, read by the one portal (founder decision
+2026-10-15).** app.knowsia.com becomes the single student portal (merge plan: Phase 2 shows,
+Phase 3 takes payment, Phase 5 retires `/portal`). Until each module moves, THIS app stays the
+system of record for registrations, money and live-class certificates; KnowsiaApp reads them for
+its signed-in student through four doors, all Bearer `KNOWSIA_APP_SERVICE_KEY`
+(`lib/integration/service-key.ts`), all keyed by the participant KnowsiaApp has linked to that
+account (Seam I) — never by anything the browser sends:
+`GET /api/integration/participants/{id}/dashboard` (the portal dashboard's live half,
+`includeSelfPaced: false`, plus the next class), `…/receipts/{registrationId}` and `…/statement`
+(the same PDFs), `…/materials/{registrationId}[?materialId=]` (the list, or one signed link).
+They call participant-scoped twins of the session functions (`getPortalDashboardForParticipant`,
+`getReceiptDataForParticipant`, `getSessionMaterialsForParticipant`,
+`getMaterialDownloadUrlForParticipant`) with the same ownership checks; the `/api/portal/*` routes
+are unchanged. Read-only: nothing on this side changes because the study platform looked.
+
 ---
 
 ## 5. What "Integrated" Means Here
