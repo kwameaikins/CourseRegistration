@@ -267,6 +267,19 @@
         "title": "CohortMirror",
         "type": "object"
       },
+      "CoursePriceIn": {
+        "properties": {
+          "price": {
+            "title": "Price",
+            "type": "string"
+          }
+        },
+        "required": [
+          "price"
+        ],
+        "title": "CoursePriceIn",
+        "type": "object"
+      },
       "GrantEnrolmentRequest": {
         "properties": {
           "access_days": {
@@ -1258,6 +1271,122 @@
           }
         },
         "summary": "Service Course Lessons",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/courses/{course_id}/price": {
+      "post": {
+        "description": "The list price, kept in step with Core's catalogue (2026-10-14): the\ncatalogue's SKU is what a checkout charges; this is what the LMS shows\nwhen the catalogue cannot be read. Called by `scripts/course_promotion.py`.",
+        "operationId": "service_set_course_price_api_v1_service_lms_courses__course_id__price_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "course_id",
+            "required": true,
+            "schema": {
+              "title": "Course Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoursePriceIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Set Course Price Api V1 Service Lms Courses  Course Id  Price Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Set Course Price",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/courses/{course_id}/purchase": {
+      "get": {
+        "description": "What knowsia-api's course checkout needs before it charges: the\npublished course, its list price, and whether this student already has\naccess (2026-10-14). 404 for an unknown or unpublished course.",
+        "operationId": "service_course_purchase_api_v1_service_lms_courses__course_id__purchase_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "course_id",
+            "required": true,
+            "schema": {
+              "title": "Course Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "user_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Course Purchase Api V1 Service Lms Courses  Course Id  Purchase Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Course Purchase",
         "tags": [
           "service-lms"
         ]
