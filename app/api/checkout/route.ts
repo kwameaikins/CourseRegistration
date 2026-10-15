@@ -1,10 +1,7 @@
 import { z } from 'zod';
 
 import { errorResponse, handleRouteError, successResponse } from '@/lib/errors';
-import { batchSkuCode } from '@/lib/knowsia-core/catalogue';
-import { createCheckoutOnCore, isCoreCheckoutOn } from '@/lib/knowsia-core/payments';
-import * as knowsiaAppRepository from '@/modules/knowsia-app/repository';
-import * as paymentsRepository from '@/modules/payments/repository';
+import { balanceCheckout } from '@/lib/knowsia-core/balance-checkout';
 
 // POST /api/checkout — a Paystack access code minted by Knowsia Core for this
 // registration's BALANCE (Doc 25 §1, decision 3). The amount is read from
@@ -20,32 +17,17 @@ export async function POST(request: Request) {
     if (!parsed.success) {
       return errorResponse({ code: 'VALIDATION_ERROR', message: 'registrationId is required.' }, 400);
     }
-    if (!isCoreCheckoutOn()) {
-      return successResponse({ enabled: false });
-    }
-    const { registrationId } = parsed.data;
-    const [payment, context] = await Promise.all([
-      paymentsRepository.selectPaymentByRegistrationIdSystem(registrationId),
-      knowsiaAppRepository.selectPaymentSettledContextSystem(registrationId),
-    ]);
-    if (!payment || !context || context.participantDeleted) {
+    const result = await balanceCheckout(parsed.data.registrationId);
+    if (result.outcome === 'not_found') {
       return errorResponse({ code: 'NOT_FOUND', message: 'No payment record for this registration.' }, 404);
     }
-    const balanceMinor = Math.round(Number(payment.balance) * 100);
-    if (balanceMinor <= 0) {
+    if (result.outcome === 'nothing_owed') {
       return errorResponse({ code: 'CONFLICT', message: 'Nothing is owed on this registration.' }, 409);
     }
-    const checkout = await createCheckoutOnCore({
-      registrationId,
-      participantId: context.participantId,
-      participantEmail: context.participantEmail,
-      skuCode: batchSkuCode(context.courseCode, context.cohortLabel),
-      balanceMinor,
-      isBalance: Number(payment.amount_paid) > 0 || Math.round(Number(payment.course_fee) * 100) !== balanceMinor,
-    });
-    if (!checkout) {
+    if (result.outcome === 'disabled') {
       return successResponse({ enabled: false });
     }
+    const { checkout } = result;
     return successResponse({ enabled: true, accessCode: checkout.access_code, reference: checkout.reference, amountMinor: checkout.amount_minor });
   } catch (err) {
     return handleRouteError(err);
