@@ -776,6 +776,12 @@ calls the first when `CORE_CHECKOUT=1` and `components/PaystackCheckout.tsx` res
 `POST /api/v1/core/webhooks/paystack` and is forwarded to this app's `POST /api/webhooks/paystack` with the same body and signature —
 nothing here changes. Asserted by `tests/unit/knowsia-core-contract.test.ts`; Coding Docs/25 §1.
 
+**KnowsiaApp's Pay (one-portal Phase 3a, 2026-10-15).** `POST /api/integration/participants/{id}/checkout/{registrationId}`
+(Bearer `KNOWSIA_APP_SERVICE_KEY`) `{ callbackUrl? }` → 200 `{ data: { authorizationUrl, reference, amountMinor, currency } }`.
+Same path as `/api/checkout` (`balanceCheckout()`), with the participant checked: another participant's registration or a bad id
+→ 404; nothing owed → 409 `CONFLICT`; CORE_CHECKOUT off or Core away → 503 `UNAVAILABLE`; `callbackUrl` not https on knowsia.com
+→ 400 `VALIDATION_ERROR`; no key → 401. Asserted by `tests/unit/integration-participant-checkout.test.ts`.
+
 ## 30. Knowsia Core Affiliates, the money half — this side (2026-09-20)
 
 Outbound only (`lib/knowsia-core/commissions.ts`, `X-Service-Key`). This app computes no commission: Core derives one from the payment this

@@ -257,6 +257,18 @@ They call participant-scoped twins of the session functions (`getPortalDashboard
 `getMaterialDownloadUrlForParticipant`) with the same ownership checks; the `/api/portal/*` routes
 are unchanged. Read-only: nothing on this side changes because the study platform looked.
 
+**Phase 3a (2026-10-15) — one write door, for paying.** `POST
+/api/integration/participants/{id}/checkout/{registrationId}` `{callbackUrl}` →
+`{authorizationUrl, reference, amountMinor, currency}`. It is the portal's own Pay path
+(`lib/knowsia-core/balance-checkout.ts`, shared with `/api/checkout`): the amount is THIS app's
+payment row, Core mints the Paystack checkout, and Paystack's webhook comes to Core and is
+forwarded to `/api/webhooks/paystack` here, so an app payment is applied exactly as a portal one.
+A registration of another participant is 404; nothing owed is 409; CORE_CHECKOUT off or Core away
+is 503; `callbackUrl` must be https on knowsia.com (KnowsiaApp sends
+`https://app.knowsia.com/live/{registrationId}?paid=1`). Before switching it on, app and portal
+figures were compared for 20 linked students: 27 of 27 registrations identical, GH₵4,914.00 owed
+on both sides.
+
 ---
 
 ## 5. What "Integrated" Means Here
