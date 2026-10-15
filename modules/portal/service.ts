@@ -581,6 +581,17 @@ export async function setUpInstallmentPlan(
   input: PortalSetUpInstallmentPlanInput,
 ): Promise<void> {
   const { participantId } = await requirePortalSession(sessionId);
+  return setUpInstallmentPlanForParticipant(participantId, input);
+}
+
+// The session functions below each have a participant twin for KnowsiaApp's
+// one-portal merge (Phase 3b, 2026-10-15): the participant is named by the
+// service-key caller (its own linked account), and the twin runs the SAME
+// ownership check against that participant's own dashboard data.
+export async function setUpInstallmentPlanForParticipant(
+  participantId: string,
+  input: PortalSetUpInstallmentPlanInput,
+): Promise<void> {
   const data = await portalRepository.selectPortalDashboardData(participantId);
   const match = data.registrations.find((row) => row.registration.id === input.registrationId);
   if (!match || !match.batch || !match.payment) {
@@ -604,6 +615,14 @@ export async function submitPaymentProof(
   slip?: { buffer: Buffer; contentType: string; extension: string },
 ): Promise<PaymentSubmission> {
   const { participantId } = await requirePortalSession(sessionId);
+  return submitPaymentProofForParticipant(participantId, input, slip);
+}
+
+export async function submitPaymentProofForParticipant(
+  participantId: string,
+  input: PaymentSubmissionInput,
+  slip?: { buffer: Buffer; contentType: string; extension: string },
+): Promise<PaymentSubmission> {
   const data = await portalRepository.selectPortalDashboardData(participantId);
   const match = data.registrations.find((row) => row.registration.id === input.registrationId);
   if (!match) {
@@ -619,6 +638,13 @@ export async function listMyPaymentSubmissions(
   registrationId: string,
 ): Promise<PaymentSubmission[]> {
   const { participantId } = await requirePortalSession(sessionId);
+  return listPaymentSubmissionsForParticipant(participantId, registrationId);
+}
+
+export async function listPaymentSubmissionsForParticipant(
+  participantId: string,
+  registrationId: string,
+): Promise<PaymentSubmission[]> {
   const data = await portalRepository.selectPortalDashboardData(participantId);
   const match = data.registrations.find((row) => row.registration.id === registrationId);
   if (!match) {
@@ -684,7 +710,10 @@ export async function applyCouponForSession(
   input: ApplyCouponInput,
 ) {
   const { participantId } = await requirePortalSession(sessionId);
+  return applyCouponForParticipant(participantId, input);
+}
 
+export async function applyCouponForParticipant(participantId: string, input: ApplyCouponInput) {
   const data = await portalRepository.selectPortalDashboardData(participantId);
   const owned = data.registrations.find((row) => row.registration.id === input.registrationId);
   if (!owned) {

@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // The amount is this app's payment row, never the caller's; a registration of
 // someone else is a 404; the return address is knowsia.com only.
 
-const payments = { selectPaymentByRegistrationIdSystem: vi.fn() };
+const payments = { selectPaymentByRegistrationIdSystem: vi.fn(), selectInstallmentsForRegistration: vi.fn(async () => []) };
 const context = { selectPaymentSettledContextSystem: vi.fn() };
 const core = { isCoreCheckoutOn: vi.fn(() => true), createCheckoutOnCore: vi.fn() };
 vi.mock('@/modules/payments/repository', () => payments);
@@ -76,6 +76,19 @@ describe('the Pay door', () => {
       expect((await call(PID, { callbackUrl })).status).toBe(400);
     }
     expect(core.createCheckoutOnCore).not.toHaveBeenCalled();
+  });
+
+  it('on a payment plan, part=installment charges just the next instalment still owed', async () => {
+    payments.selectPaymentByRegistrationIdSystem.mockResolvedValue({ balance: '400.00', amount_paid: '160', course_fee: '560.00' });
+    payments.selectInstallmentsForRegistration.mockResolvedValue([
+      { amount_due: 280, amount_paid: 160 }, { amount_due: 280, amount_paid: 0 },
+    ] as never);
+    expect((await call(PID, { callbackUrl: CALLBACK, part: 'installment' })).status).toBe(200);
+    expect(core.createCheckoutOnCore).toHaveBeenLastCalledWith(expect.objectContaining({ balanceMinor: 12000, isBalance: true }));
+    // Without a plan, "installment" is simply the balance.
+    payments.selectInstallmentsForRegistration.mockResolvedValue([]);
+    await call(PID, { part: 'installment' });
+    expect(core.createCheckoutOnCore).toHaveBeenLastCalledWith(expect.objectContaining({ balanceMinor: 40000 }));
   });
 
   it('Core off or away is said as 503, not a broken checkout', async () => {

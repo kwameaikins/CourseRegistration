@@ -11,7 +11,8 @@ import { allowedCallback, balanceCheckout } from '@/lib/knowsia-core/balance-che
 // webhook comes to Core and is forwarded to /api/webhooks/paystack here, so the
 // payment is applied exactly as a portal payment is. The student is sent back
 // to `callbackUrl`, which must be on knowsia.com — never an open redirect.
-const body = z.object({ callbackUrl: z.string().url().max(500).nullish() });
+// `part: 'installment'` (Phase 3b): just the next instalment of a payment plan.
+const body = z.object({ callbackUrl: z.string().url().max(500).nullish(), part: z.enum(['balance', 'installment']).optional() });
 
 export async function POST(
   request: Request,
@@ -28,7 +29,7 @@ export async function POST(
     if (!parsed.success || !allowedCallback(parsed.data.callbackUrl)) {
       return errorResponse({ code: 'VALIDATION_ERROR', message: 'callbackUrl must be a knowsia.com address.' }, 400);
     }
-    const result = await balanceCheckout(registrationId, { participantId: id, callbackUrl: parsed.data.callbackUrl ?? null });
+    const result = await balanceCheckout(registrationId, { participantId: id, callbackUrl: parsed.data.callbackUrl ?? null, part: parsed.data.part });
     if (result.outcome === 'not_found') return errorResponse({ code: 'NOT_FOUND', message: 'Not found.' }, 404);
     if (result.outcome === 'nothing_owed') return errorResponse({ code: 'CONFLICT', message: 'Nothing is owed on this registration.' }, 409);
     if (result.outcome === 'disabled') return errorResponse({ code: 'UNAVAILABLE', message: 'Online payment is not available right now.' }, 503);
