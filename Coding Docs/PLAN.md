@@ -26,6 +26,12 @@ actionable version of that document, meant to be edited as work happens, not jus
 > `payment_proof_reminder:<date>`, silent when none). Optional `PAYMENT_PROOF_ALERT_EMAIL`
 > overrides the recipient. Commit `9b21a4d`; tests `tests/unit/payment-proof-alerts.test.ts`.
 >
+> **Payment-proof controls (2026-10-16, BR-47, commit `e9fb1f4`, migration `202610160074`
+> applied to production):** after the founder's test re-sent a Paystack MoMo SMS as a MoMo proof
+> and it was approved: transaction ID required and claimable once ever; same slip refused;
+> Paystack-duplicate proofs flagged (email + queue); approval needs "found on our own statement",
+> a flagged one a written reason. Tests `payment-proof-controls.test.ts` + `payments-service.test.ts`.
+>
 > **Money cross-check (2026-10-16):** read-only `GET /api/integration/payments/paystack-events`
 > (commit `be2fc94`) for KnowsiaApp's Monday report, which compares Core's ledger with the
 > payments applied here, both ways.

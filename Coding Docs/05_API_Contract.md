@@ -800,6 +800,13 @@ datetimes; window positive and ≤ 35 days, else 400) → `{ events: [{ referenc
 Paystack payment this app applied (`payment_events`, `source = 'paystack'`), at most 5,000. No names, emails or phones. Knowsia Core
 compares it with `core_payments` both ways every Monday. Asserted by `tests/unit/integration-paystack-events.test.ts`.
 
+**Payment-proof controls (BR-47, 2026-10-16).** Every proof submission (portal `POST /api/portal/payment-submissions`, the
+participant door above) now answers 400 `VALIDATION_ERROR` without a transaction ID (≥ 4 letters/digits) and 409 `CONFLICT` when
+the ID was already claimed by any proof or recorded payment, or the same slip file was sent before. `POST
+/api/payment-submissions/{id}/review` takes `statementConfirmed: boolean`: approving without it is 400, and a flagged proof
+(staff list item `flags: string[]`, in words) is 400 unless `reviewNote` explains it (≥ 10 characters). The staff list also
+carries `statementConfirmed`.
+
 ## 30. Knowsia Core Affiliates, the money half — this side (2026-09-20)
 
 Outbound only (`lib/knowsia-core/commissions.ts`, `X-Service-Key`). This app computes no commission: Core derives one from the payment this

@@ -902,3 +902,25 @@ resend` per row), not a side effect of a backfill:
   issues the entire historical backlog in one pass and consumes that many certificate serials.
 - **Sends no email**, so it cannot become a retroactive mass send to everyone who has ever
   completed a course.
+
+### BR-47 — A payment proof is a claim; money is approved only against our own statement (2026-10-16)
+
+A MoMo / bank-transfer proof (portal or app.knowsia.com) is a participant's claim, never money.
+Found by the founder's deliberate test: a Paystack MoMo payment's own SMS, re-sent as a "MoMo
+transfer" proof, was approved and the balance counted GH₵ 2 twice. Paystack does not pass the
+telco's own reference to us, so no single check catches that; together
+(`modules/payments/proof-controls.ts`):
+
+1. **A transaction ID is required and can be claimed once, ever.** Normalised (upper case,
+   letters and digits only), refused when any pending or approved proof — any participant — or any
+   recorded payment already carries it. The unique index `payment_submissions_reference_once_idx`
+   decides a race. A rejected proof frees its reference. Checked before any slip is stored.
+2. **The same slip file twice is refused** (`slip_sha256`). A re-scan defeats it; it is the cheap
+   catch, not the real one.
+3. **A proof that may repeat a Paystack payment is flagged**, not refused (it can be a genuine
+   second payment): same amount on the same registration within 3 calendar days. The alert email
+   leads with the warning and the review queue shows "Possible duplicate".
+4. **Every approval requires "I found this payment on our own MoMo or bank statement"**
+   (`statement_confirmed`), and a flagged one also a written reason (≥ 10 characters). This is the
+   decisive control: a Paystack MoMo charge lands in Paystack, never in Knowsia's own wallet, and a
+   forged screenshot cannot appear on our statement.

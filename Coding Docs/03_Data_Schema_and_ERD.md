@@ -713,3 +713,18 @@ discipline as `lapsed_at`/`lapsed_by` in 202608090059), and the partial unique i
 query anything. Neither system reads the other's database — the link is established over HTTP, and
 each side stores its own copy. That is Rule 2 in KnowsiaApp and the module boundary rule here, and
 it does not stop applying at a process boundary.
+
+## 17. Payment-Proof Controls (2026-10-16)
+
+Migration `202610160074_payment_proof_controls.sql` (BR-47). `payment_submissions` gains:
+
+| Column | Type | Notes |
+|---|---|---|
+| `reference_normalized` | text NULL | the typed reference, upper case, alphanumerics only; backfilled |
+| `slip_sha256` | text NULL | SHA-256 of the uploaded slip's bytes |
+| `flags` | jsonb, default `[]` | what was noticed at submission: `[{kind: 'paystack_match', reference, amount, at}]` |
+| `statement_confirmed` | boolean, default false | the reviewer confirmed the money is on our own statement; required to approve |
+
+Indexes: `payment_submissions_reference_once_idx` — **unique** on `reference_normalized` where
+`status in ('pending','approved')` (one transaction claimed once; rejected frees it);
+`payment_submissions_slip_sha256_idx` on `slip_sha256`.
