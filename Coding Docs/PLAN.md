@@ -26,6 +26,10 @@ actionable version of that document, meant to be edited as work happens, not jus
 > `payment_proof_reminder:<date>`, silent when none). Optional `PAYMENT_PROOF_ALERT_EMAIL`
 > overrides the recipient. Commit `9b21a4d`; tests `tests/unit/payment-proof-alerts.test.ts`.
 >
+> **Money cross-check (2026-10-16):** read-only `GET /api/integration/payments/paystack-events`
+> (commit `be2fc94`) for KnowsiaApp's Monday report, which compares Core's ledger with the
+> payments applied here, both ways.
+>
 > **Certificates email on completion (2026-10-11):** the daily completion run now emails the
 > certificate it issues (BR-46 revised in Doc 4); `email_log` type `certificate_issued` is the
 > one-send guard shared with the feedback route; the backfill stays silent. Prompted by a

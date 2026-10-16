@@ -278,6 +278,11 @@ function through a participant twin (`applyCouponForParticipant`,
 checkout door takes `part: 'installment'` for the next instalment of a plan. Money rules stay
 here: KnowsiaApp names nothing but the participant, the registration and the student's own entries.
 
+**Money cross-check (2026-10-16).** `GET /api/integration/payments/paystack-events` lets Core compare,
+every Monday, the Paystack payments it settled for this app with the ones this app applied to
+balances (missing either side, amount or registration differing, forwards still failing). Core
+reports to info@knowsia.com; nothing is corrected automatically.
+
 ---
 
 ## 5. What "Integrated" Means Here

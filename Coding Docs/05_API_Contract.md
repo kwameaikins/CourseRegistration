@@ -795,6 +795,11 @@ twin with the same ownership / written-off / throttle checks; a registration not
   review queue; 409 while one is still under review.
 Asserted by `tests/unit/integration-participant-payments.test.ts`.
 
+**The weekly money cross-check (2026-10-16).** `GET /api/integration/payments/paystack-events?since=&until=` (service key; ISO
+datetimes; window positive and ≤ 35 days, else 400) → `{ events: [{ reference, registrationId, amountMinor, recordedAt }] }` — every
+Paystack payment this app applied (`payment_events`, `source = 'paystack'`), at most 5,000. No names, emails or phones. Knowsia Core
+compares it with `core_payments` both ways every Monday. Asserted by `tests/unit/integration-paystack-events.test.ts`.
+
 ## 30. Knowsia Core Affiliates, the money half — this side (2026-09-20)
 
 Outbound only (`lib/knowsia-core/commissions.ts`, `X-Service-Key`). This app computes no commission: Core derives one from the payment this
