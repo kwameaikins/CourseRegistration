@@ -19,6 +19,13 @@ actionable version of that document, meant to be edited as work happens, not jus
 > own functions behind `/api/integration/participants/[id]/{coupon,installment-plan,payment-submissions}/[rid]`
 > (commit `71bc200`). Proofs land in the same finance review queue as the portal's.
 >
+> **Payment-proof alerts (2026-10-16, founder decision):** every MoMo / bank proof — portal or
+> app — emails info@knowsia.com once (`modules/payments/proof-alerts.ts`, key
+> `payment_proof_alert:<id>`) with a link to `/payments?view=submissions`, which now opens the
+> review queue; the 07:00 reminders cron lists any still pending after 24h (key
+> `payment_proof_reminder:<date>`, silent when none). Optional `PAYMENT_PROOF_ALERT_EMAIL`
+> overrides the recipient. Commit `9b21a4d`; tests `tests/unit/payment-proof-alerts.test.ts`.
+>
 > **Certificates email on completion (2026-10-11):** the daily completion run now emails the
 > certificate it issues (BR-46 revised in Doc 4); `email_log` type `certificate_issued` is the
 > one-send guard shared with the feedback route; the backfill stays silent. Prompted by a
