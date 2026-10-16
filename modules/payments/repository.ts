@@ -18,6 +18,25 @@ export async function insertPaymentEvent(event: PaymentEventInsert): Promise<voi
   if (error) throw error;
 }
 
+// The weekly money cross-check (KnowsiaApp, 2026-10-16): every Paystack
+// payment this app applied in a window, for Core to compare with its ledger.
+export async function selectPaystackPaymentEventsSystem(
+  sinceIso: string,
+  untilIso: string,
+): Promise<Array<{ registration_id: string; amount: number; transaction_id: string | null; recorded_at: string }>> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('payment_events')
+    .select('registration_id, amount, transaction_id, recorded_at')
+    .eq('source', 'paystack')
+    .gte('recorded_at', sinceIso)
+    .lt('recorded_at', untilIso)
+    .order('recorded_at', { ascending: true })
+    .limit(5000);
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function selectPaymentByRegistrationId(
   registrationId: string,
 ): Promise<PaymentRow | null> {
