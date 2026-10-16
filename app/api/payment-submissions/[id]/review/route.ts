@@ -22,7 +22,7 @@ export async function POST(
       );
     }
 
-    const { decision, overrideAmountPaid, overrideTransactionId, overridePaymentDate, reviewNote } =
+    const { decision, overrideAmountPaid, overrideTransactionId, overridePaymentDate, reviewNote, statementConfirmed } =
       parsed.data;
     await paymentsService.reviewPaymentSubmission(
       id,
@@ -33,6 +33,7 @@ export async function POST(
         paymentDate: overridePaymentDate,
       },
       reviewNote,
+      statementConfirmed ?? false,
     );
 
     return successResponse({ reviewed: true });

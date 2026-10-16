@@ -1425,7 +1425,7 @@ export default function PortalDashboardPage() {
                                 />
                               </div>
                               <div className="field">
-                                <label htmlFor={`proofRef-${reg.registrationId}`}>Transaction reference</label>
+                                <label htmlFor={`proofRef-${reg.registrationId}`}>Transaction ID (required — from your MoMo message or bank slip)</label>
                                 <input
                                   id={`proofRef-${reg.registrationId}`}
                                   type="text"

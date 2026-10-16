@@ -2,7 +2,7 @@
 // paystack-webhook-handler.ts (Document 11, Section 3).
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { createSupabaseServiceRoleClient } from '@/lib/supabase/service-role';
-import type { Database } from '@/lib/supabase/database.types';
+import type { Database, Json } from '@/lib/supabase/database.types';
 
 type PaymentRow = Database['public']['Tables']['payments']['Row'];
 type PaymentSubmissionRow = Database['public']['Tables']['payment_submissions']['Row'];
@@ -349,13 +349,74 @@ export async function selectPendingPaymentSubmissionForRegistration(
   return data;
 }
 
+// --- Payment-proof controls (2026-10-16) — lookups across EVERY participant,
+// so they are service-role: the submitting student must not be able to see
+// anyone else's rows, only learn "this reference is already used". ---
+
+/** A pending or approved proof already claims this (normalised) reference. */
+export async function selectProofReferenceInUseSystem(normalized: string): Promise<boolean> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('payment_submissions')
+    .select('id')
+    .eq('reference_normalized', normalized)
+    .in('status', ['pending', 'approved'])
+    .limit(1);
+  if (error) throw error;
+  return (data ?? []).length > 0;
+}
+
+/** A recorded payment (any source, any registration) already carries this reference. */
+export async function selectPaymentReferenceInUseSystem(candidates: string[]): Promise<boolean> {
+  if (candidates.length === 0) return false;
+  const supabase = createSupabaseServiceRoleClient();
+  const [events, payments] = await Promise.all([
+    supabase.from('payment_events').select('id').in('transaction_id', candidates).limit(1),
+    supabase.from('payments').select('id').in('transaction_id', candidates).limit(1),
+  ]);
+  if (events.error) throw events.error;
+  if (payments.error) throw payments.error;
+  return (events.data ?? []).length > 0 || (payments.data ?? []).length > 0;
+}
+
+/** The same slip file was already sent on a proof that was not rejected. */
+export async function selectSlipInUseSystem(sha256: string): Promise<boolean> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('payment_submissions')
+    .select('id')
+    .eq('slip_sha256', sha256)
+    .in('status', ['pending', 'approved'])
+    .limit(1);
+  if (error) throw error;
+  return (data ?? []).length > 0;
+}
+
+/** This registration's Paystack payments (for the duplicate-of-Paystack flag and the review screen). */
+export async function selectPaystackEventsForRegistrationSystem(
+  registrationId: string,
+): Promise<Array<{ amount: number; transaction_id: string | null; recorded_at: string }>> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('payment_events')
+    .select('amount, transaction_id, recorded_at')
+    .eq('registration_id', registrationId)
+    .eq('source', 'paystack')
+    .order('recorded_at', { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function insertPaymentSubmissionSystem(row: {
   registration_id: string;
   method: string;
   amount: number;
   transaction_reference: string | null;
+  reference_normalized: string | null;
   payment_date: string;
   slip_file_path: string | null;
+  slip_sha256: string | null;
+  flags: Json;
   participant_notes: string | null;
 }): Promise<PaymentSubmissionRow> {
   const supabase = createSupabaseServiceRoleClient();
@@ -414,6 +475,7 @@ export async function updatePaymentSubmission(
     reviewed_by: string;
     reviewed_at: string;
     review_note: string | null;
+    statement_confirmed?: boolean;
   },
 ): Promise<void> {
   const supabase = await createSupabaseServerClient();

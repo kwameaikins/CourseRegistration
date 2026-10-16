@@ -3026,45 +3026,57 @@ export type Database = {
         Row: {
           amount: number
           created_at: string
+          flags: Json
           id: string
           method: string
           participant_notes: string | null
           payment_date: string
+          reference_normalized: string | null
           registration_id: string
           review_note: string | null
           reviewed_at: string | null
           reviewed_by: string | null
           slip_file_path: string | null
+          slip_sha256: string | null
+          statement_confirmed: boolean
           status: string
           transaction_reference: string | null
         }
         Insert: {
           amount: number
           created_at?: string
+          flags?: Json
           id?: string
           method: string
           participant_notes?: string | null
           payment_date: string
+          reference_normalized?: string | null
           registration_id: string
           review_note?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           slip_file_path?: string | null
+          slip_sha256?: string | null
+          statement_confirmed?: boolean
           status?: string
           transaction_reference?: string | null
         }
         Update: {
           amount?: number
           created_at?: string
+          flags?: Json
           id?: string
           method?: string
           participant_notes?: string | null
           payment_date?: string
+          reference_normalized?: string | null
           registration_id?: string
           review_note?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           slip_file_path?: string | null
+          slip_sha256?: string | null
+          statement_confirmed?: boolean
           status?: string
           transaction_reference?: string | null
         }

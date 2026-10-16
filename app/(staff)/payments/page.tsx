@@ -105,6 +105,8 @@ interface SubmissionRow {
   participantName: string;
   courseName: string;
   cohortLabel: string;
+  flags: string[];
+  statementConfirmed: boolean;
 }
 
 export default function PaymentTrackingPage() {
@@ -157,6 +159,9 @@ export default function PaymentTrackingPage() {
     paymentDate: '',
   });
   const [reviewNote, setReviewNote] = useState('');
+  // Payment-proof controls (2026-10-16): approval needs the money seen on our
+  // own statement; a flagged proof also needs the reason in the note.
+  const [statementConfirmed, setStatementConfirmed] = useState(false);
   const [reviewSaving, setReviewSaving] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
 
@@ -217,6 +222,7 @@ export default function PaymentTrackingPage() {
       paymentDate: row.paymentDate,
     });
     setReviewNote('');
+    setStatementConfirmed(false);
     setReviewError(null);
   }
 
@@ -242,6 +248,7 @@ export default function PaymentTrackingPage() {
           overrideTransactionId: reviewOverrides.transactionId.trim() || undefined,
           overridePaymentDate: reviewOverrides.paymentDate || undefined,
           reviewNote: reviewNote.trim() || undefined,
+          statementConfirmed: decision === 'approved' ? statementConfirmed : undefined,
         }),
       });
       setReviewTarget(null);
@@ -573,6 +580,9 @@ export default function PaymentTrackingPage() {
                 <TableRow key={row.id}>
                   <TableCell>
                     <p className="font-medium">{row.participantName}</p>
+                    {row.flags.length > 0 && (
+                      <Badge variant="destructive" className="mt-1">Possible duplicate</Badge>
+                    )}
                   </TableCell>
                   <TableCell>
                     <p>{row.courseName}</p>
@@ -1059,6 +1069,18 @@ export default function PaymentTrackingPage() {
           </DialogHeader>
           {reviewTarget && (
             <div className="space-y-3">
+              {reviewTarget.flags.length > 0 && (
+                <div role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                  <p className="font-semibold">Possible duplicate — check carefully</p>
+                  {reviewTarget.flags.map((f) => (
+                    <p key={f}>{f}</p>
+                  ))}
+                  <p className="mt-1">
+                    A Paystack MoMo payment goes to Paystack, not into our MoMo wallet. Approve only if this money is on
+                    our own statement as a separate payment, and write what you found in the note.
+                  </p>
+                </div>
+              )}
               {reviewTarget.participantNotes && (
                 <p className="rounded-md bg-muted/30 p-3 text-sm">
                   Participant note: {reviewTarget.participantNotes}
@@ -1103,13 +1125,29 @@ export default function PaymentTrackingPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="reviewNote">Review note (optional — shown to the participant if rejected)</Label>
+                <Label htmlFor="reviewNote">
+                  {reviewTarget.flags.length > 0
+                    ? 'Review note (required to approve — what you found on the statement; shown to the participant if rejected)'
+                    : 'Review note (optional — shown to the participant if rejected)'}
+                </Label>
                 <Input
                   id="reviewNote"
                   value={reviewNote}
                   onChange={(event) => setReviewNote(event.target.value)}
                 />
               </div>
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={statementConfirmed}
+                  onChange={(event) => setStatementConfirmed(event.target.checked)}
+                />
+                <span>
+                  I found this payment on <strong>our own</strong> MoMo or bank statement — the amount, date and
+                  transaction ID match. (Required to approve. A screenshot alone is not proof.)
+                </span>
+              </label>
               {reviewError && (
                 <p role="alert" className="text-sm text-destructive">
                   {reviewError}
@@ -1130,7 +1168,13 @@ export default function PaymentTrackingPage() {
             </Button>
             <Button
               onClick={() => submitReview('approved')}
-              disabled={reviewSaving || !reviewOverrides.amountPaid || !reviewOverrides.paymentDate}
+              disabled={
+                reviewSaving ||
+                !reviewOverrides.amountPaid ||
+                !reviewOverrides.paymentDate ||
+                !statementConfirmed ||
+                ((reviewTarget?.flags.length ?? 0) > 0 && reviewNote.trim().length < 10)
+              }
             >
               {reviewSaving ? 'Saving…' : 'Approve'}
             </Button>

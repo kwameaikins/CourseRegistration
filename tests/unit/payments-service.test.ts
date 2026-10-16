@@ -13,6 +13,10 @@ const paymentsRepositoryMock = {
   selectDueSecondInstallments: vi.fn(),
   selectPendingPaymentSubmissionForRegistration: vi.fn(),
   insertPaymentSubmissionSystem: vi.fn(),
+  selectProofReferenceInUseSystem: vi.fn(),
+  selectPaymentReferenceInUseSystem: vi.fn(),
+  selectSlipInUseSystem: vi.fn(),
+  selectPaystackEventsForRegistrationSystem: vi.fn(),
   selectPaymentSubmissionsForRegistrationSystem: vi.fn(),
   selectPaymentSubmissions: vi.fn(),
   selectPaymentSubmissionById: vi.fn(),
@@ -745,6 +749,89 @@ describe('Payment submissions (founder-requested 2026-08-01)', () => {
     };
   }
 
+  beforeEach(() => {
+    paymentsRepositoryMock.selectProofReferenceInUseSystem.mockResolvedValue(false);
+    paymentsRepositoryMock.selectPaymentReferenceInUseSystem.mockResolvedValue(false);
+    paymentsRepositoryMock.selectSlipInUseSystem.mockResolvedValue(false);
+    paymentsRepositoryMock.selectPaystackEventsForRegistrationSystem.mockResolvedValue([]);
+  });
+
+  describe('payment-proof controls (2026-10-16)', () => {
+    const proof = { registrationId: 'reg-1', method: 'MTN MoMo' as const, amount: 2, transactionReference: '91641510783', paymentDate: '2026-10-16' };
+
+    beforeEach(() => {
+      paymentsRepositoryMock.selectPendingPaymentSubmissionForRegistration.mockResolvedValue(null);
+      paymentsRepositoryMock.insertPaymentSubmissionSystem.mockResolvedValue(submissionRow());
+    });
+
+    it('a reference is required', async () => {
+      await expect(submitPaymentProofSystem({ ...proof, transactionReference: undefined })).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+      await expect(submitPaymentProofSystem({ ...proof, transactionReference: ' - ' })).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+      expect(paymentsRepositoryMock.insertPaymentSubmissionSystem).not.toHaveBeenCalled();
+    });
+
+    it('a reference already claimed by any proof or recorded payment is refused, before any file is stored', async () => {
+      paymentsRepositoryMock.selectProofReferenceInUseSystem.mockResolvedValueOnce(true);
+      r2ClientMock.isR2Configured.mockReturnValue(true);
+      await expect(
+        submitPaymentProofSystem(proof, { buffer: Buffer.from('slip'), contentType: 'image/png', extension: 'png' }),
+      ).rejects.toMatchObject({ code: 'CONFLICT' });
+      expect(r2ClientMock.uploadObject).not.toHaveBeenCalled();
+      paymentsRepositoryMock.selectPaymentReferenceInUseSystem.mockResolvedValueOnce(true);
+      await expect(submitPaymentProofSystem({ ...proof, transactionReference: 'mp 9164-1510783' })).rejects.toMatchObject({ code: 'CONFLICT' });
+      expect(paymentsRepositoryMock.selectPaymentReferenceInUseSystem).toHaveBeenLastCalledWith(['mp 9164-1510783', 'MP91641510783']);
+      expect(paymentsRepositoryMock.insertPaymentSubmissionSystem).not.toHaveBeenCalled();
+    });
+
+    it('the same slip file twice is refused', async () => {
+      paymentsRepositoryMock.selectSlipInUseSystem.mockResolvedValueOnce(true);
+      await expect(
+        submitPaymentProofSystem(proof, { buffer: Buffer.from('slip'), contentType: 'image/png', extension: 'png' }),
+      ).rejects.toMatchObject({ code: 'CONFLICT' });
+    });
+
+    it("the founder's test: a proof repeating a Paystack payment is stored FLAGGED, with its fingerprint and normalised reference", async () => {
+      paymentsRepositoryMock.selectPaystackEventsForRegistrationSystem.mockResolvedValue([
+        { amount: 2, transaction_id: 'REG-da8a0f48f17f4d0b', recorded_at: '2026-10-16T06:08:00Z' },
+        { amount: 2, transaction_id: 'REG-old', recorded_at: '2026-09-01T06:08:00Z' },
+      ]);
+      r2ClientMock.isR2Configured.mockReturnValue(true);
+      r2ClientMock.uploadObject.mockResolvedValue(undefined);
+      await submitPaymentProofSystem(proof, { buffer: Buffer.from('slip'), contentType: 'image/png', extension: 'png' });
+      expect(paymentsRepositoryMock.insertPaymentSubmissionSystem).toHaveBeenCalledWith(expect.objectContaining({
+        reference_normalized: '91641510783',
+        slip_sha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+        flags: [{ kind: 'paystack_match', reference: 'REG-da8a0f48f17f4d0b', amount: 2, at: '2026-10-16T06:08:00Z' }],
+      }));
+    });
+
+    it('two proofs racing with one reference: the database index decides', async () => {
+      paymentsRepositoryMock.insertPaymentSubmissionSystem.mockRejectedValueOnce({ code: '23505' });
+      await expect(submitPaymentProofSystem(proof)).rejects.toMatchObject({ code: 'CONFLICT' });
+    });
+
+    it('approving needs the statement confirmed; a flagged proof also needs a written reason', async () => {
+      paymentsRepositoryMock.selectPaymentByRegistrationId.mockResolvedValue(existingPayment({ amount_paid: 2, course_fee: 4 }));
+      paymentsRepositoryMock.selectPaymentSubmissionById.mockResolvedValue(submissionRow());
+      await expect(reviewPaymentSubmission('sub-1', 'approved')).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+      paymentsRepositoryMock.selectPaymentSubmissionById.mockResolvedValue(
+        submissionRow({ flags: [{ kind: 'paystack_match', reference: 'REG-x', amount: 2, at: '2026-10-16T06:08:00Z' }] }),
+      );
+      await expect(reviewPaymentSubmission('sub-1', 'approved', undefined, 'ok', true)).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+      expect(paymentsRepositoryMock.updatePaymentByRegistrationId).not.toHaveBeenCalled();
+      await reviewPaymentSubmission('sub-1', 'approved', undefined, 'Separate MoMo 9164 on our statement 16 Oct', true);
+      expect(paymentsRepositoryMock.updatePaymentSubmission).toHaveBeenCalledWith('sub-1', expect.objectContaining({ status: 'approved', statement_confirmed: true }));
+    });
+
+    it('rejecting needs neither', async () => {
+      paymentsRepositoryMock.selectPaymentSubmissionById.mockResolvedValue(
+        submissionRow({ flags: [{ kind: 'paystack_match', reference: 'REG-x', amount: 2, at: '2026-10-16T06:08:00Z' }] }),
+      );
+      await reviewPaymentSubmission('sub-1', 'rejected');
+      expect(paymentsRepositoryMock.updatePaymentSubmission).toHaveBeenCalledWith('sub-1', expect.objectContaining({ status: 'rejected', statement_confirmed: false }));
+    });
+  });
+
   describe('submitPaymentProofSystem', () => {
     it('rejects a new submission while one is already pending', async () => {
       paymentsRepositoryMock.selectPendingPaymentSubmissionForRegistration.mockResolvedValue(
@@ -756,7 +843,7 @@ describe('Payment submissions (founder-requested 2026-08-01)', () => {
           registrationId: 'reg-1',
           method: 'MTN MoMo',
           amount: 500,
-          transactionReference: 'ref',
+          transactionReference: 'MP123456',
           paymentDate: '2026-08-01',
         }),
       ).rejects.toMatchObject({ code: 'CONFLICT' });
@@ -771,7 +858,7 @@ describe('Payment submissions (founder-requested 2026-08-01)', () => {
         registrationId: 'reg-1',
         method: 'MTN MoMo',
         amount: 500,
-        transactionReference: 'ref',
+        transactionReference: 'MP123456',
         paymentDate: '2026-08-01',
       });
 
@@ -792,7 +879,7 @@ describe('Payment submissions (founder-requested 2026-08-01)', () => {
           registrationId: 'reg-1',
           method: 'MTN MoMo',
           amount: 500,
-          transactionReference: 'ref',
+          transactionReference: 'MP123456',
           paymentDate: '2026-08-01',
         },
         { buffer: Buffer.from('fake'), contentType: 'image/png', extension: 'png' },
@@ -816,7 +903,7 @@ describe('Payment submissions (founder-requested 2026-08-01)', () => {
             registrationId: 'reg-1',
             method: 'MTN MoMo',
             amount: 500,
-            transactionReference: 'ref',
+            transactionReference: 'MP123456',
             paymentDate: '2026-08-01',
           },
           { buffer: Buffer.from('fake'), contentType: 'image/png', extension: 'png' },
@@ -852,7 +939,7 @@ describe('Payment submissions (founder-requested 2026-08-01)', () => {
         existingPayment({ amount_paid: 300, course_fee: 1200 }),
       );
 
-      await reviewPaymentSubmission('sub-1', 'approved');
+      await reviewPaymentSubmission('sub-1', 'approved', undefined, undefined, true);
 
       expect(paymentsRepositoryMock.updatePaymentByRegistrationId).toHaveBeenCalledWith(
         'reg-1',
@@ -871,7 +958,7 @@ describe('Payment submissions (founder-requested 2026-08-01)', () => {
       await reviewPaymentSubmission('sub-1', 'approved', {
         amountPaid: 450,
         transactionId: 'CORRECTED-REF',
-      });
+      }, undefined, true);
 
       expect(paymentsRepositoryMock.updatePaymentByRegistrationId).toHaveBeenCalledWith(
         'reg-1',
@@ -885,7 +972,7 @@ describe('Payment submissions (founder-requested 2026-08-01)', () => {
         existingPayment({ amount_paid: 0 }),
       );
 
-      await reviewPaymentSubmission('sub-1', 'approved', undefined, 'Matches bank statement');
+      await reviewPaymentSubmission('sub-1', 'approved', undefined, 'Matches bank statement', true);
 
       expect(paymentsRepositoryMock.updatePaymentSubmission).toHaveBeenCalledWith(
         'sub-1',

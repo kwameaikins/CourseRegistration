@@ -14,6 +14,7 @@ import { captureToSentry } from '@/lib/errors';
 import { ORGANISATION_EMAIL } from '@/lib/organisation';
 import { sendTransactionalEmail } from '@/lib/resend/client';
 
+import { flagWords, type ProofFlag } from './proof-controls';
 import * as paymentsRepository from './repository';
 import type { PaymentSubmission } from './types';
 
@@ -42,8 +43,12 @@ export function queueUrl(): string {
 type Context = { participantName: string; courseName: string; cohortLabel: string };
 
 /** The alert for one new proof. Pure, so it can be tested as written. */
-export function proofAlertEmail(s: PaymentSubmission, ctx: Context | undefined): { subject: string; html: string } {
+export function proofAlertEmail(s: PaymentSubmission, ctx: Context | undefined, flags: ProofFlag[] = []): { subject: string; html: string } {
   const who = ctx?.participantName || 'A student';
+  const warning = flags.length
+    ? `<p style="background:#fdecea;border:1px solid #e0a39b;padding:10px;color:#8a1f11"><strong>Check carefully:</strong> ${flagWords(flags).map(esc).join(' ')} ` +
+      'A Paystack MoMo payment goes to Paystack, not into our MoMo wallet — approve only if this money is on our own statement as a separate payment.</p>'
+    : '';
   const course = [ctx?.courseName, ctx?.cohortLabel].filter(Boolean).join(' · ');
   const rows: Array<[string, string]> = [
     ['Student', who],
@@ -56,9 +61,9 @@ export function proofAlertEmail(s: PaymentSubmission, ctx: Context | undefined):
   ];
   if (s.participantNotes) rows.push(['Note from the student', s.participantNotes]);
   return {
-    subject: `Payment to confirm: ${who} · ${ghs(s.amount)} by ${s.method}`,
-    html: `
-<p>A student has told us they paid by ${esc(s.method === 'Bank Transfer' ? 'bank transfer' : 'Mobile Money')}. Please check it against the statement and approve or reject it — their access waits on it.</p>
+    subject: `${flags.length ? '⚠ Possible duplicate — ' : ''}Payment to confirm: ${who} · ${ghs(s.amount)} by ${s.method}`,
+    html: `${warning}
+<p>A student has told us they paid by ${esc(s.method === 'Bank Transfer' ? 'bank transfer' : 'Mobile Money')}. Please find it on our MoMo / bank statement, then approve or reject it — their access waits on it.</p>
 <table cellpadding="6" style="border-collapse:collapse">
 ${rows.map(([k, v]) => `<tr><td style="color:#555">${esc(k)}</td><td><strong>${esc(v)}</strong></td></tr>`).join('\n')}
 </table>
@@ -68,10 +73,10 @@ ${rows.map(([k, v]) => `<tr><td style="color:#555">${esc(k)}</td><td><strong>${e
 }
 
 /** Email the team about one new proof. Never throws. */
-export async function alertFinanceOfPaymentProof(s: PaymentSubmission): Promise<void> {
+export async function alertFinanceOfPaymentProof(s: PaymentSubmission, flags: ProofFlag[] = []): Promise<void> {
   try {
     const ctx = (await paymentsRepository.selectPaymentSubmissionContextSystem([s.registrationId])).get(s.registrationId);
-    const { subject, html } = proofAlertEmail(s, ctx);
+    const { subject, html } = proofAlertEmail(s, ctx, flags);
     await sendTransactionalEmail({
       to: proofAlertRecipient(),
       subject,

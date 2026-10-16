@@ -26,6 +26,7 @@ import * as couponsService from '@/modules/coupons/service';
 // — access-grants never imports payments.
 import * as accessGrantsService from '@/modules/access-grants/service';
 import * as proofAlerts from '@/modules/payments/proof-alerts';
+import * as proofControls from '@/modules/payments/proof-controls';
 import type {
   Installment,
   Payment,
@@ -35,9 +36,14 @@ import type {
   PaymentSubmissionView,
   PaymentUpdate,
 } from '@/modules/payments/types';
-import type { Database } from '@/lib/supabase/database.types';
+import type { Database, Json } from '@/lib/supabase/database.types';
+import { createHash } from 'node:crypto';
 
 const TWO_INSTALLMENT_DUE_LEAD_DAYS = 7;
+
+function isUniqueViolation(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && 'code' in err && (err as { code: unknown }).code === '23505';
+}
 
 const round2 = (value: number): number => Math.round(value * 100) / 100;
 
@@ -843,6 +849,31 @@ export async function submitPaymentProofSystem(
     throw new AppError('CONFLICT', 'Your last submission is still under review.', 409);
   }
 
+  // Payment-proof controls (2026-10-16, modules/payments/proof-controls.ts).
+  // Checked BEFORE the slip is stored, so a refused proof leaves no file.
+  const referenceNormalized = proofControls.normalizeReference(input.transactionReference);
+  if (referenceNormalized.length < proofControls.MIN_REFERENCE_LENGTH) {
+    throw new AppError('VALIDATION_ERROR', 'Enter the transaction ID from your MoMo message or bank slip.', 400);
+  }
+  const usedReference =
+    (await paymentsRepository.selectProofReferenceInUseSystem(referenceNormalized)) ||
+    (await paymentsRepository.selectPaymentReferenceInUseSystem(proofControls.referenceCandidates(input.transactionReference)));
+  if (usedReference) {
+    throw new AppError(
+      'CONFLICT',
+      'This transaction ID has already been used for a payment. Check the ID in your MoMo message or bank slip, or contact us if you think this is wrong.',
+      409,
+    );
+  }
+  const slipSha256 = slip ? createHash('sha256').update(slip.buffer).digest('hex') : null;
+  if (slipSha256 && (await paymentsRepository.selectSlipInUseSystem(slipSha256))) {
+    throw new AppError('CONFLICT', 'This slip has already been sent for a payment. Attach the slip for this payment.', 409);
+  }
+  const flags = proofControls.paystackMatchFlags(
+    { amount: input.amount, paymentDate: input.paymentDate },
+    await paymentsRepository.selectPaystackEventsForRegistrationSystem(input.registrationId),
+  );
+
   let slipFilePath: string | null = null;
   if (slip) {
     // Since 2026-09-19 a slip is a Knowsia Core FILE (Doc 23 §1): one record,
@@ -885,18 +916,30 @@ export async function submitPaymentProofSystem(
     }
   }
 
-  const row = await paymentsRepository.insertPaymentSubmissionSystem({
-    registration_id: input.registrationId,
-    method: input.method,
-    amount: input.amount,
-    transaction_reference: input.transactionReference ?? null,
-    payment_date: input.paymentDate,
-    slip_file_path: slipFilePath,
-    participant_notes: input.participantNotes ?? null,
-  });
+  let row;
+  try {
+    row = await paymentsRepository.insertPaymentSubmissionSystem({
+      registration_id: input.registrationId,
+      method: input.method,
+      amount: input.amount,
+      transaction_reference: input.transactionReference ?? null,
+      reference_normalized: referenceNormalized,
+      payment_date: input.paymentDate,
+      slip_file_path: slipFilePath,
+      slip_sha256: slipSha256,
+      flags: flags as unknown as Json,
+      participant_notes: input.participantNotes ?? null,
+    });
+  } catch (err) {
+    // Two proofs with one reference racing past the check: the unique index decides.
+    if (isUniqueViolation(err)) {
+      throw new AppError('CONFLICT', 'This transaction ID has already been used for a payment.', 409);
+    }
+    throw err;
+  }
   const submission = toPaymentSubmission(row);
   // The team hears at once (2026-10-16) — never fails the submission itself.
-  await proofAlerts.alertFinanceOfPaymentProof(submission);
+  await proofAlerts.alertFinanceOfPaymentProof(submission, flags);
   return submission;
 }
 
@@ -924,9 +967,14 @@ export async function listPaymentSubmissions(filters?: {
       participantName: info?.participantName ?? '',
       courseName: info?.courseName ?? '',
       cohortLabel: info?.cohortLabel ?? '',
+      // Staff only — never on the student's own list (2026-10-16).
+      flags: proofControls.flagWords(proofControls.asFlags(row.flags)),
+      statementConfirmed: row.statement_confirmed,
     };
   });
 }
+
+export const MIN_FLAGGED_APPROVAL_REASON = 10;
 
 export async function getPaymentSubmissionSlipUrl(submissionId: string): Promise<string> {
   await usersService.requireRole(['finance', 'admin']);
@@ -945,6 +993,7 @@ export async function reviewPaymentSubmission(
   decision: 'approved' | 'rejected',
   overrides?: { amountPaid?: number; transactionId?: string; paymentDate?: string },
   reviewNote?: string,
+  statementConfirmed = false,
 ): Promise<void> {
   const staffUser = await usersService.requireRole(['finance', 'admin']);
   const submission = await paymentsRepository.selectPaymentSubmissionById(submissionId);
@@ -956,6 +1005,19 @@ export async function reviewPaymentSubmission(
   }
 
   if (decision === 'approved') {
+    // Payment-proof controls (2026-10-16): the money must be seen where it
+    // lands — Knowsia's own MoMo / bank statement — and a proof that may
+    // repeat a Paystack payment needs the reviewer's reason in writing.
+    if (!statementConfirmed) {
+      throw new AppError('VALIDATION_ERROR', 'Confirm you have found this payment on our MoMo or bank statement before approving.', 400);
+    }
+    if (proofControls.asFlags(submission.flags).length > 0 && (reviewNote ?? '').trim().length < MIN_FLAGGED_APPROVAL_REASON) {
+      throw new AppError(
+        'VALIDATION_ERROR',
+        'This proof may repeat a Paystack payment. Write why you are approving it (for example, the separate MoMo transaction you found on the statement).',
+        400,
+      );
+    }
     // applyPaymentUpdate SETS amount_paid (it doesn't add) — the value
     // passed must be the registration's new TOTAL, not just this
     // submission's claimed amount, or an existing partial payment would be
@@ -987,5 +1049,6 @@ export async function reviewPaymentSubmission(
     reviewed_by: staffUser.id,
     reviewed_at: new Date().toISOString(),
     review_note: reviewNote ?? null,
+    statement_confirmed: decision === 'approved' ? statementConfirmed : false,
   });
 }

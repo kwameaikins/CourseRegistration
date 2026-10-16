@@ -119,6 +119,8 @@ export const paymentSubmissionReviewSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
   reviewNote: z.string().trim().max(1000).optional(),
+  // "I found this on our MoMo / bank statement" — required to approve (2026-10-16).
+  statementConfirmed: z.boolean().optional(),
 });
 export type PaymentSubmissionReviewInput = z.infer<typeof paymentSubmissionReviewSchema>;
 
@@ -142,4 +144,7 @@ export interface PaymentSubmissionView extends PaymentSubmission {
   participantName: string;
   courseName: string;
   cohortLabel: string;
+  /** What the system noticed at submission, in words (e.g. a possible Paystack duplicate). */
+  flags: string[];
+  statementConfirmed: boolean;
 }
