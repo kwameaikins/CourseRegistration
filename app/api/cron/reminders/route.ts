@@ -8,6 +8,7 @@ import * as registrationsService from '@/modules/registrations/service';
 import * as certificatesService from '@/modules/certificates/service';
 import * as sequencesService from '@/modules/sequences/service';
 import * as agentsService from '@/modules/agents/service';
+import * as proofAlerts from '@/modules/payments/proof-alerts';
 
 // GET /api/cron/reminders — F1.07 (E03–E06), triggered daily at 07:00 UTC by
 // Vercel Cron (BR-17). Also dispatches post-course feedback requests for
@@ -75,6 +76,9 @@ export async function GET(request: Request) {
     // summary, never as a failed cron. Bundled here for the same Vercel
     // Hobby two-cron-job cap reason as everything above.
     const agents = await agentsService.runAgentDispatch();
+    // MoMo / bank proofs still unreviewed after 24h (2026-10-16): one list to
+    // info@knowsia.com, once a day. Never throws; sends nothing when none wait.
+    const paymentProofs = await proofAlerts.runPendingProofReminder();
     return successResponse({
       ...summary,
       installments,
@@ -88,6 +92,7 @@ export async function GET(request: Request) {
       certificateIssuance,
       sequences,
       agents,
+      paymentProofs,
     });
   } catch (err) {
     // A failed cron run affects many participants at once — must be visible

@@ -408,8 +408,35 @@ export async function updatePaymentSubmission(
 export async function selectPaymentSubmissionContext(
   registrationIds: string[],
 ): Promise<Map<string, { participantName: string; courseName: string; cohortLabel: string }>> {
+  return selectPaymentSubmissionContextWith(await createSupabaseServerClient(), registrationIds);
+}
+
+// The same context with no staff session: the finance alert sent when a
+// participant submits, and the daily reminder (2026-10-16).
+export async function selectPaymentSubmissionContextSystem(
+  registrationIds: string[],
+): Promise<Map<string, { participantName: string; courseName: string; cohortLabel: string }>> {
+  return selectPaymentSubmissionContextWith(createSupabaseServiceRoleClient(), registrationIds);
+}
+
+/** Pending submissions sent before `beforeIso`, oldest first (daily reminder). */
+export async function selectPendingPaymentSubmissionsBeforeSystem(beforeIso: string): Promise<PaymentSubmissionRow[]> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('payment_submissions')
+    .select('*')
+    .eq('status', 'pending')
+    .lt('created_at', beforeIso)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+async function selectPaymentSubmissionContextWith(
+  supabase: ReturnType<typeof createSupabaseServiceRoleClient> | Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  registrationIds: string[],
+): Promise<Map<string, { participantName: string; courseName: string; cohortLabel: string }>> {
   if (registrationIds.length === 0) return new Map();
-  const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase
     .from('registrations')
     .select('id, participants(full_name), batches(cohort_label, courses(course_name))')

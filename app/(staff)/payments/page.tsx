@@ -203,6 +203,12 @@ export default function PaymentTrackingPage() {
     if (view === 'submissions') void reloadSubmissions();
   }, [view, reloadSubmissions]);
 
+  // The finance alert email links to /payments?view=submissions (2026-10-16),
+  // so the review queue opens without a second click.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('view') === 'submissions') setView('submissions');
+  }, []);
+
   function openReview(row: SubmissionRow) {
     setReviewTarget(row);
     setReviewOverrides({

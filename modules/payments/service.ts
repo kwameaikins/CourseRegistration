@@ -25,6 +25,7 @@ import * as couponsService from '@/modules/coupons/service';
 // only reports that a payment landed. The dependency is deliberately one-way
 // — access-grants never imports payments.
 import * as accessGrantsService from '@/modules/access-grants/service';
+import * as proofAlerts from '@/modules/payments/proof-alerts';
 import type {
   Installment,
   Payment,
@@ -893,7 +894,10 @@ export async function submitPaymentProofSystem(
     slip_file_path: slipFilePath,
     participant_notes: input.participantNotes ?? null,
   });
-  return toPaymentSubmission(row);
+  const submission = toPaymentSubmission(row);
+  // The team hears at once (2026-10-16) — never fails the submission itself.
+  await proofAlerts.alertFinanceOfPaymentProof(submission);
+  return submission;
 }
 
 // Portal's own submission history for one registration — called only by
