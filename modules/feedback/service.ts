@@ -362,6 +362,7 @@ export async function exportFeedbackForLms() {
     relevanceRating: row.relevance_rating,
     confidenceRating: row.confidence_rating,
     materialsClarity: row.materials_clarity,
+    npsScore: row.nps_score,
     mostValuableText: row.most_valuable_text,
     improvementText: row.improvement_text,
     recommendation: row.recommendation,
