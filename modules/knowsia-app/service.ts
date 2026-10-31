@@ -138,6 +138,11 @@ export async function mirrorBatchToLmsSystem(batchId: string): Promise<void> {
     whatsappGroupLink: row.whatsapp_group_link,
     resourcesLink: row.resources_link,
     zoomAccessRevokedAt: row.zoom_access_revoked_at,
+    // The same course values selectBatchIssueContext reads for a certificate.
+    certificateCourseTitle: course.course_name,
+    certificateHours: course.certificate_hours,
+    certificateDescription: course.certificate_description,
+    certificateCpdCredit: course.cpd_credit,
   });
 }
 

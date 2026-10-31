@@ -30,6 +30,54 @@
       },
       "CohortMirror": {
         "properties": {
+          "certificate_course_title": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Certificate Course Title"
+          },
+          "certificate_cpd_credit": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Certificate Cpd Credit"
+          },
+          "certificate_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Certificate Description"
+          },
+          "certificate_hours": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 10000.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Certificate Hours"
+          },
           "course_code": {
             "maxLength": 40,
             "minLength": 1,
@@ -294,6 +342,103 @@
           "registrationRefs"
         ],
         "title": "EraseRequest",
+        "type": "object"
+      },
+      "FeedbackIn": {
+        "properties": {
+          "confidenceRating": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Confidencerating",
+            "type": "integer"
+          },
+          "facilitatorRating": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Facilitatorrating",
+            "type": "integer"
+          },
+          "improvementText": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Improvementtext",
+            "type": "string"
+          },
+          "materialsClarity": {
+            "enum": [
+              "Yes",
+              "Partly",
+              "No"
+            ],
+            "title": "Materialsclarity",
+            "type": "string"
+          },
+          "mostValuableText": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Mostvaluabletext",
+            "type": "string"
+          },
+          "npsScore": {
+            "anyOf": [
+              {
+                "maximum": 10.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Npsscore"
+          },
+          "otherCourseSuggestion": {
+            "default": "",
+            "maxLength": 300,
+            "title": "Othercoursesuggestion",
+            "type": "string"
+          },
+          "overallRating": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Overallrating",
+            "type": "integer"
+          },
+          "recommendation": {
+            "enum": [
+              "Yes",
+              "Maybe",
+              "No"
+            ],
+            "title": "Recommendation",
+            "type": "string"
+          },
+          "relevanceRating": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Relevancerating",
+            "type": "integer"
+          },
+          "testimonialChoice": {
+            "default": "No",
+            "enum": [
+              "Named",
+              "Anonymous",
+              "No"
+            ],
+            "title": "Testimonialchoice",
+            "type": "string"
+          }
+        },
+        "required": [
+          "overallRating",
+          "relevanceRating",
+          "facilitatorRating",
+          "confidenceRating",
+          "materialsClarity",
+          "recommendation"
+        ],
+        "title": "FeedbackIn",
         "type": "object"
       },
       "GrantEnrolmentRequest": {
@@ -1550,6 +1695,50 @@
         ]
       }
     },
+    "/api/v1/service/lms/cohorts/{external_ref}/feedback/summary": {
+      "get": {
+        "operationId": "service_feedback_summary_api_v1_service_lms_cohorts__external_ref__feedback_summary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "external_ref",
+            "required": true,
+            "schema": {
+              "title": "External Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Feedback Summary Api V1 Service Lms Cohorts  External Ref  Feedback Summary Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Feedback Summary",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
     "/api/v1/service/lms/cohorts/{external_ref}/members": {
       "post": {
         "operationId": "service_grant_seat_api_v1_service_lms_cohorts__external_ref__members_post",
@@ -2038,6 +2227,102 @@
           }
         },
         "summary": "Grant Enrolment",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/feedback/{registration_ref}": {
+      "get": {
+        "operationId": "service_feedback_context_api_v1_service_lms_feedback__registration_ref__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "registration_ref",
+            "required": true,
+            "schema": {
+              "title": "Registration Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Feedback Context Api V1 Service Lms Feedback  Registration Ref  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Feedback Context",
+        "tags": [
+          "service-lms"
+        ]
+      },
+      "post": {
+        "operationId": "service_submit_feedback_api_v1_service_lms_feedback__registration_ref__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "registration_ref",
+            "required": true,
+            "schema": {
+              "title": "Registration Ref",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Submit Feedback Api V1 Service Lms Feedback  Registration Ref  Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Submit Feedback",
         "tags": [
           "service-lms"
         ]
@@ -2906,6 +3191,70 @@
           }
         },
         "summary": "Service Scrub Certificates",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/testimonials": {
+      "get": {
+        "operationId": "service_testimonials_api_v1_service_lms_testimonials_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "courseCode",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Coursecode"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 6,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Service Testimonials Api V1 Service Lms Testimonials Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Testimonials",
         "tags": [
           "service-lms"
         ]

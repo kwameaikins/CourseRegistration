@@ -69,6 +69,13 @@ export interface BatchMirrorInput {
   whatsappGroupLink: string | null;
   resourcesLink: string | null;
   zoomAccessRevokedAt?: string | null;
+  // What the course prints on a certificate (the values selectBatchIssueContext
+  // reads), so an LMS-issued certificate matches ours. Undefined = not sent,
+  // and the LMS keeps what it holds.
+  certificateCourseTitle?: string;
+  certificateHours?: number;
+  certificateDescription?: string;
+  certificateCpdCredit?: string;
 }
 
 /** A batch → the LMS cohort. Idempotent on batches.id. */
@@ -100,6 +107,10 @@ export async function mirrorBatchToLms(b: BatchMirrorInput): Promise<{ cohort_id
       zoom_access_revoked_at: b.zoomAccessRevokedAt ?? null,
       whatsapp_group_url: b.whatsappGroupLink,
       resources_url: b.resourcesLink,
+      certificate_course_title: b.certificateCourseTitle,
+      certificate_hours: b.certificateHours,
+      certificate_description: b.certificateDescription,
+      certificate_cpd_credit: b.certificateCpdCredit,
     }),
   });
 }

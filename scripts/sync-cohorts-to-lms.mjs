@@ -41,7 +41,7 @@ const must = ({ data, error }) => { if (error) throw error; return data; };
 let batchQuery = db.from('batches').select('*').gte('end_date', since).order('start_date');
 if (onlyBatch) batchQuery = db.from('batches').select('*').eq('id', onlyBatch);
 const batches = must(await batchQuery);
-const courses = new Map(must(await db.from('courses').select('id, course_code, course_name')).map((c) => [c.id, c]));
+const courses = new Map(must(await db.from('courses').select('id, course_code, course_name, certificate_hours, certificate_description, cpd_credit')).map((c) => [c.id, c]));
 const tutors = new Map(must(await db.from('tutors').select('id, full_name, email, phone')).map((t) => [t.id, t]));
 const counts = { batches: 0, cohorts_created: 0, cohorts_updated: 0, seats: 0, seats_created: 0, skipped: 0, failed: 0 };
 
@@ -55,6 +55,8 @@ for (const b of batches) {
     tutor_name: tutors.get(b.facilitator_tutor_id)?.full_name || b.facilitator_name || null, tutor_email: noTutors ? null : (tutors.get(b.facilitator_tutor_id)?.email ?? null), tutor_phone: noTutors ? null : (tutors.get(b.facilitator_tutor_id)?.phone ?? null), max_seats: b.capacity ?? undefined, is_free: b.is_free, is_unlisted: b.is_unlisted, is_active: b.is_active,
     reminders_enabled: b.class_reminder_enabled, zoom_meeting_id: b.zoom_meeting_id, zoom_join_url: b.zoom_link, zoom_access_revoked_at: b.zoom_access_revoked_at,
     whatsapp_group_url: b.whatsapp_group_link, resources_url: b.resources_link,
+    certificate_course_title: course.course_name, certificate_hours: course.certificate_hours,
+    certificate_description: course.certificate_description, certificate_cpd_credit: course.cpd_credit,
   });
   if (!mirror.ok) { counts.failed += 1; console.error(`batch ${b.id}: ${mirror.status}`); continue; }
   const m = await mirror.json();
