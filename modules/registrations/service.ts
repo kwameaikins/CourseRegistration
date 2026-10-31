@@ -1685,6 +1685,13 @@ export async function deleteRegistration(
   // the waitlist auto-promotion (founder decision, 2026-07-24).
   const existing = await registrationsRepository.selectRegistration360(registrationId);
 
+  // R3 task 8b: with the LMS as the registry, erase its certificate copy BEFORE
+  // the RPC — the RPC cannot be retried (a second call raises "not found"), the
+  // erase is idempotent. An LMS failure throws and nothing is deleted locally.
+  if (lmsCertificates.certificateIssuer() === 'lms') {
+    await lmsCertificates.eraseOnLms([registrationId]);
+  }
+
   await registrationsRepository.callDeleteRegistrationImmediately(
     registrationId,
     staffUser.id,
@@ -1715,6 +1722,13 @@ export async function deleteParticipantImmediately(
   reason: string | null,
 ): Promise<void> {
   const staffUser = await usersService.requireRole(['admin']);
+  // R3 task 8b: erase on the LMS first (see deleteRegistration); skipped when
+  // the participant has no registrations.
+  if (lmsCertificates.certificateIssuer() === 'lms') {
+    const registrationIds =
+      await registrationsRepository.selectRegistrationIdsForParticipant(participantId);
+    if (registrationIds.length > 0) await lmsCertificates.eraseOnLms(registrationIds);
+  }
   await registrationsRepository.callDeleteParticipantImmediately(
     participantId,
     staffUser.id,

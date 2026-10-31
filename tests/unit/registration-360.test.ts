@@ -4,6 +4,8 @@ const repositoryMock = {
   selectRegistration360: vi.fn(),
   callSoftDeleteParticipant: vi.fn(),
   selectRegistrationIdsForParticipant: vi.fn(),
+  callDeleteRegistrationImmediately: vi.fn(),
+  callDeleteParticipantImmediately: vi.fn(),
 };
 const usersServiceMock = {
   requireRole: vi.fn(),
@@ -14,7 +16,7 @@ vi.mock('@/modules/users/service', () => usersServiceMock);
 vi.mock('@/modules/courses/service', () => ({}));
 vi.mock('@/modules/communications/service', () => ({}));
 
-const { getRegistration360, softDeleteParticipant } = await import('@/modules/registrations/service');
+const { getRegistration360, softDeleteParticipant, deleteRegistration, deleteParticipantImmediately } = await import('@/modules/registrations/service');
 
 function fullFixture() {
   return {
@@ -265,5 +267,62 @@ describe('CERTIFICATE_ISSUER=lms', () => {
     repositoryMock.callSoftDeleteParticipant.mockResolvedValue(undefined);
     await softDeleteParticipant('part-1');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  describe('immediate hard deletes erase on the LMS first', () => {
+    beforeEach(() => {
+      usersServiceMock.requireRole.mockResolvedValue({ id: 'staff-1', role: 'admin' });
+      repositoryMock.selectRegistration360.mockResolvedValue(null);
+      repositoryMock.callDeleteRegistrationImmediately.mockReset().mockResolvedValue(undefined);
+      repositoryMock.callDeleteParticipantImmediately.mockReset().mockResolvedValue(undefined);
+    });
+
+    it('deleteRegistration erases on the LMS before the RPC', async () => {
+      fetchMock.mockResolvedValue(ok({ erased: 1 }));
+      await deleteRegistration('reg-1', 'test');
+      const [url, init] = fetchMock.mock.calls[0];
+      expect(String(url)).toBe('https://lms.test/api/v1/service/lms/certificates/erase');
+      expect(JSON.parse(init.body)).toEqual({ registrationRefs: ['reg-1'] });
+      expect(fetchMock.mock.invocationCallOrder[0]).toBeLessThan(
+        repositoryMock.callDeleteRegistrationImmediately.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('deleteRegistration: an LMS failure throws and the RPC never runs', async () => {
+      fetchMock.mockResolvedValue(new Response('{}', { status: 503 }));
+      await expect(deleteRegistration('reg-1', null)).rejects.toMatchObject({ code: 'LMS_UNAVAILABLE' });
+      expect(repositoryMock.callDeleteRegistrationImmediately).not.toHaveBeenCalled();
+    });
+
+    it('deleteParticipantImmediately erases the participant registrations first', async () => {
+      repositoryMock.selectRegistrationIdsForParticipant.mockResolvedValue(['reg-1', 'reg-2']);
+      fetchMock.mockResolvedValue(ok({ erased: 2 }));
+      await deleteParticipantImmediately('part-1', 'test');
+      expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ registrationRefs: ['reg-1', 'reg-2'] });
+      expect(fetchMock.mock.invocationCallOrder[0]).toBeLessThan(
+        repositoryMock.callDeleteParticipantImmediately.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('deleteParticipantImmediately: an LMS failure throws and the RPC never runs', async () => {
+      repositoryMock.selectRegistrationIdsForParticipant.mockResolvedValue(['reg-1']);
+      fetchMock.mockResolvedValue(new Response('{}', { status: 503 }));
+      await expect(deleteParticipantImmediately('part-1', null)).rejects.toMatchObject({ code: 'LMS_UNAVAILABLE' });
+      expect(repositoryMock.callDeleteParticipantImmediately).not.toHaveBeenCalled();
+    });
+
+    it('a participant with no registrations makes no LMS call', async () => {
+      repositoryMock.selectRegistrationIdsForParticipant.mockResolvedValue([]);
+      await deleteParticipantImmediately('part-1', null);
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(repositoryMock.callDeleteParticipantImmediately).toHaveBeenCalled();
+    });
+
+    it('local mode makes no fetch for either delete', async () => {
+      delete process.env.CERTIFICATE_ISSUER;
+      await deleteRegistration('reg-1', null);
+      await deleteParticipantImmediately('part-1', null);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
   });
 });
