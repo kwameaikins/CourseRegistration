@@ -15,6 +15,7 @@ const repositoryMock = {
   selectBatchIdsEndedOnOrBefore: vi.fn(),
   reserveCertificateEmailSlot: vi.fn(),
   settleCertificateEmailSlot: vi.fn(),
+  isCertificateEmailSettled: vi.fn(),
 };
 const sendTransactionalEmailMock = vi.fn();
 // The staff-facing certificate actions gate on requireRole; mocking the users
@@ -126,12 +127,12 @@ describe('issued for Knowsia Study (one registry, 2026-09-17)', () => {
     expect(result.certificateNumber).toBe('KNS-CA01-2026-0021');
     expect(result.existing).toBe(false);
     expect(result.verifyUrl).toContain('/verify/KNS-CA01-2026-0021');
-    // No staff role is consulted and no email is sent â€” the study platform writes its own.
+    // No staff role is consulted and no email is sent — the study platform writes its own.
     expect(usersServiceMock.requireRole).not.toHaveBeenCalled();
     expect(sendTransactionalEmailMock).not.toHaveBeenCalled();
   });
 
-  it('is idempotent by externalRef â€” a retry returns the row it already created', async () => {
+  it('is idempotent by externalRef — a retry returns the row it already created', async () => {
     repositoryMock.selectCertificateByExternalRef.mockResolvedValue({
       id: 'cert-9', certificate_number: 'KNS-CA01-2026-0021', issued_date: '2026-09-17', revoked: false,
     });
@@ -171,7 +172,7 @@ describe('certificate numbering', () => {
     expect(buildCertificateNumber('ai01', 2026, 36)).toBe('KNS-AI01-2026-0036');
   });
 
-  it('continues the serial across prefixes â€” after legacy KNW-â€¦-0065 comes KNS-â€¦-0066', async () => {
+  it('continues the serial across prefixes — after legacy KNW-…-0065 comes KNS-…-0066', async () => {
     repositoryMock.selectMaxSerialForCourseYear.mockResolvedValue(65);
     await issueManual(
       {
@@ -260,7 +261,7 @@ describe('batch issuance', () => {
     expect(eligibility).toEqual({
       'reg-1': true,
       'reg-2': false,
-      // Paid but no feedback â€” eligible now, where it was not before.
+      // Paid but no feedback — eligible now, where it was not before.
       'reg-3': true,
       'reg-4': false,
     });
@@ -270,7 +271,7 @@ describe('batch issuance', () => {
   // Free events: a zero-fee registration settles to 'Paid' the instant it is
   // created, so `paid` is true for everyone who merely filled in the form.
   // Participation has to be proved some other way, and since 2026-08-18 either
-  // signal suffices â€” they turned up, or they told us what they thought.
+  // signal suffices — they turned up, or they told us what they thought.
   it('accepts attendance OR feedback on a free batch, and neither is not enough', async () => {
     repositoryMock.selectBatchIssueContext.mockResolvedValue({
       courseCode: 'ESG1',
@@ -279,9 +280,9 @@ describe('batch issuance', () => {
       candidates: [
         // Attended and gave feedback.
         candidate(),
-        // Never attended, but gave feedback â€” qualifies on the feedback arm.
+        // Never attended, but gave feedback — qualifies on the feedback arm.
         candidate({ registrationId: 'reg-2', attendedSessions: 0 }),
-        // Attended, no feedback â€” qualifies on the attendance arm.
+        // Attended, no feedback — qualifies on the attendance arm.
         candidate({ registrationId: 'reg-3', feedbackSubmitted: false }),
         // Signed up and did nothing else. Still must NOT qualify, which is the
         // whole reason payment cannot be the gate on a free batch.
@@ -306,7 +307,7 @@ describe('batch issuance', () => {
   });
 
   // A paying participant may watch the recordings rather than attend live, so
-  // attendance is not required on its own â€” but SOME participation is.
+  // attendance is not required on its own — but SOME participation is.
   it('accepts a paid participant who never attended but gave feedback', async () => {
     repositoryMock.selectBatchIssueContext.mockResolvedValue({
       courseCode: 'ESG1',
@@ -333,7 +334,7 @@ describe('batch issuance', () => {
     expect(context!.candidates[0].eligible).toBe(false);
   });
 
-  // The assignment arm, on both batch types. Submission alone qualifies â€” no
+  // The assignment arm, on both batch types. Submission alone qualifies — no
   // grade is consulted, so a certificate never waits on tutor marking.
   it('accepts an assignment submission as the only participation signal', async () => {
     assignmentsServiceMock.getRegistrationIdsWithSubmissionsForBatchSystem.mockResolvedValue(
@@ -448,7 +449,7 @@ describe('resendCertificateEmail', () => {
   });
 });
 
-describe('issueCertificateIfEligible â€” feedback auto-issue (2026-07-27)', () => {
+describe('issueCertificateIfEligible — feedback auto-issue (2026-07-27)', () => {
   function batchIssueContext(overrides: Record<string, unknown> = {}) {
     return {
       courseCode: 'ESG1',
@@ -467,7 +468,7 @@ describe('issueCertificateIfEligible â€” feedback auto-issue (2026-07-27)',
     repositoryMock.selectBatchIssueContext.mockResolvedValue(batchIssueContext());
   });
 
-  // CHANGED 2026-08-18. This used to assert the opposite â€” no auto-issue on a
+  // CHANGED 2026-08-18. This used to assert the opposite — no auto-issue on a
   // free batch until attendance was recorded. Under "attended OR gave
   // feedback" that guard is gone by design: this path only ever runs because
   // feedback was just submitted, so the feedback arm is satisfied by
@@ -501,7 +502,7 @@ describe('issueCertificateIfEligible â€” feedback auto-issue (2026-07-27)',
   });
 
   // Paid batch: payment is the whole rule, so a paid registration with no
-  // feedback is eligible. It simply has no automatic trigger to deliver it â€”
+  // feedback is eligible. It simply has no automatic trigger to deliver it —
   // the admin batch-issue screen is the route for those.
   it('issues on a paid batch even when feedback was never submitted', async () => {
     repositoryMock.selectBatchIssueContext.mockResolvedValue(
@@ -605,7 +606,7 @@ describe('verification and download', () => {
   });
 });
 
-describe('authorization â€” the staff-facing certificate actions', () => {
+describe('authorization — the staff-facing certificate actions', () => {
   // These run on the service-role client, which bypasses RLS, so the
   // requireRole call in the service is the only thing standing between a
   // non-admin caller and the data.
@@ -678,7 +679,7 @@ describe('authorization â€” the staff-facing certificate actions', () => {
 // BR-46 delivery, revised 2026-10-11: completing the course issues the
 // certificate AND emails it. The email_log slot (certificate_issued, one per
 // registration) is what stops the feedback route mailing the same person
-// again â€” not a difference between the routes.
+// again — not a difference between the routes.
 describe('runCompletedBatchCertificateIssuance', () => {
   beforeEach(() => {
     repositoryMock.selectBatchIdsEndedOn.mockResolvedValue(['batch-1']);
@@ -756,7 +757,7 @@ describe('runCompletedBatchCertificateIssuance', () => {
       batchIsFree: false,
       candidates: [
         candidate({ registrationId: 'reg-2', alreadyIssued: true }),
-        // Paid but zero participation â€” the case BR-46 refuses.
+        // Paid but zero participation — the case BR-46 refuses.
         candidate({ registrationId: 'reg-3', attendedSessions: 0, feedbackSubmitted: false }),
         candidate({ registrationId: 'reg-4', participantDeleted: true }),
       ],
@@ -770,7 +771,7 @@ describe('runCompletedBatchCertificateIssuance', () => {
   });
 
   // A cron that reports success while writing nothing is the single most
-  // repeated failure in this codebase â€” one bad row must be reported, not
+  // repeated failure in this codebase — one bad row must be reported, not
   // swallowed, and must not stop the rest.
   it('collects a per-participant failure and still issues the others', async () => {
     repositoryMock.selectBatchIssueContext.mockResolvedValue({
@@ -827,7 +828,7 @@ describe('runCertificateBackfill', () => {
     expect(summary.emailed).toBe(0);
     expect(repositoryMock.insertCertificate).toHaveBeenCalledTimes(1);
     // Backfilling must not retroactively mail everyone who ever finished a
-    // course â€” that is a decision made with the list in front of you, and
+    // course — that is a decision made with the list in front of you, and
     // the daily run (which does email since 2026-10-11) never sweeps history.
     expect(sendTransactionalEmailMock).not.toHaveBeenCalled();
   });
@@ -958,5 +959,73 @@ describe('CERTIFICATE_ISSUER=lms (R3)', () => {
     expect(JSON.parse(fetchMock.mock.calls[0][1].body).source).toBe('self_paced');
     expect(r.certificateNumber).toBe('KNS-CA01-2026-0002');
     expect(repositoryMock.selectCertificateByExternalRef).not.toHaveBeenCalled();
+  });
+
+  const heldItem = {
+    id: 'lms-1', certificateNumber: 'KNS-CA01-2026-0001', recipientName: 'Ama Owusu', courseTitle: 'Sage',
+    hours: 6, cpdCredit: '6', issuedDate: '2026-10-31', revoked: false, revokedReason: null,
+    registrationId: 'reg-1', recipientEmail: 'ama@example.com', createdAt: '2026-10-31T00:00:00Z',
+  };
+
+  it('existing:true on auto-issue still emails once through the slot', async () => {
+    fetchMock.mockImplementation(async (url: string) =>
+      String(url).includes('registrationRefs')
+        ? jsonRes(200, { items: [] })
+        : jsonRes(200, { id: 'lms-1', certificateNumber: 'KNS-CA01-2026-0001', issuedDate: '2026-10-31', verifyUrl: 'v', existing: true }),
+    );
+    const view = await issueCertificateIfEligible('reg-1');
+    expect(view?.certificateNumber).toBe('KNS-CA01-2026-0001');
+    expect(repositoryMock.reserveCertificateEmailSlot).toHaveBeenCalledWith('reg-1');
+    expect(sendTransactionalEmailMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('staff paths still treat an existing certificate as a duplicate', async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes(200, { id: 'lms-1', certificateNumber: 'KNS-AI01-2026-0001', issuedDate: '2026-10-31', verifyUrl: 'v', existing: true }));
+    await expect(
+      issueManual(
+        { recipientName: 'Ama', courseCode: 'AI01', courseTitle: 'AI', description: '', hours: 1, cpdCredit: 'TBD', issuedDate: '2026-10-31', sendEmail: false },
+        'staff-1',
+      ),
+    ).rejects.toMatchObject({ code: 'DUPLICATE_CERTIFICATE' });
+  });
+
+  it('a rerun after a lost issue response emails the held certificate once when the slot is unsettled', async () => {
+    repositoryMock.selectBatchIdsEndedOn.mockResolvedValue(['batch-1']);
+    fetchMock.mockResolvedValue(jsonRes(200, { items: [heldItem] }));
+    repositoryMock.reserveCertificateEmailSlot.mockResolvedValue('duplicate');
+    repositoryMock.isCertificateEmailSettled.mockResolvedValue(false);
+    const summary = await runCompletedBatchCertificateIssuance(new Date('2026-10-31T07:00:00Z'));
+    expect(summary.emailed).toBe(1);
+    expect(summary.issued).toBe(0);
+    expect(sendTransactionalEmailMock).toHaveBeenCalledTimes(1);
+    expect(sendTransactionalEmailMock.mock.calls[0][0].html).toContain('KNS-CA01-2026-0001');
+    expect(repositoryMock.settleCertificateEmailSlot).toHaveBeenCalledWith('reg-1', expect.objectContaining({ success: true }));
+  });
+
+  it('a held certificate whose slot is settled as sent is not emailed again', async () => {
+    repositoryMock.selectBatchIdsEndedOn.mockResolvedValue(['batch-1']);
+    fetchMock.mockResolvedValue(jsonRes(200, { items: [heldItem] }));
+    repositoryMock.reserveCertificateEmailSlot.mockResolvedValue('duplicate');
+    repositoryMock.isCertificateEmailSettled.mockResolvedValue(true);
+    const summary = await runCompletedBatchCertificateIssuance(new Date('2026-10-31T07:00:00Z'));
+    expect(summary.emailed).toBe(0);
+    expect(sendTransactionalEmailMock).not.toHaveBeenCalled();
+  });
+
+  it('401 and 422 from the LMS never escape auto-issue; the completion run still records them', async () => {
+    for (const status of [401, 422]) {
+      fetchMock.mockReset();
+      fetchMock.mockImplementation(async (url: string) =>
+        String(url).includes('registrationRefs') ? jsonRes(200, { items: [] }) : jsonRes(status, { detail: 'x' }),
+      );
+      expect(await issueCertificateIfEligible('reg-1')).toBeNull();
+    }
+    repositoryMock.selectBatchIdsEndedOn.mockResolvedValue(['batch-1']);
+    const summary = await runCompletedBatchCertificateIssuance(new Date('2026-10-31T07:00:00Z'));
+    expect(summary.errors).toHaveLength(1);
+    // the list call itself refused (401): auto-issue still returns null
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue(jsonRes(401, {}));
+    expect(await issueCertificateIfEligible('reg-1')).toBeNull();
   });
 });

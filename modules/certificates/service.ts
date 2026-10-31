@@ -29,6 +29,8 @@ import {
 import type { Database } from '@/lib/supabase/database.types';
 
 type CertificateRow = Database['public']['Tables']['certificates']['Row'];
+// `existing`: the LMS answered with a certificate it had already minted (a retry after a lost response).
+type IssuedRow = CertificateRow & { existing?: boolean };
 
 const APP_URL = () => process.env.NEXT_PUBLIC_APP_URL ?? 'https://reg.knowsia.com';
 
@@ -110,14 +112,14 @@ async function loadIssueContext(batchId: string) {
   // R3: with the LMS as the registry, "already issued" is the LMS's say — one
   // list call for the whole batch, never one per candidate.
   const issuedOnLms = lmsIsRegistry()
-    ? new Set(
+    ? new Map(
         (
           await lmsCertificates.listByRegistrationsOnLms(
             context.candidates.map((candidate) => candidate.registrationId),
           )
         )
-          .map((cert) => cert.registrationId)
-          .filter((id): id is string => !!id),
+          .filter((cert) => !!cert.registrationId)
+          .map((cert) => [cert.registrationId as string, cert] as const),
       )
     : null;
   return {
@@ -125,6 +127,7 @@ async function loadIssueContext(batchId: string) {
     candidates: context.candidates.map((candidate) => ({
       ...candidate,
       alreadyIssued: issuedOnLms ? issuedOnLms.has(candidate.registrationId) : candidate.alreadyIssued,
+      lmsCertificate: issuedOnLms?.get(candidate.registrationId) ?? null,
       assignmentSubmitted: submitted.has(candidate.registrationId),
     })),
   };
@@ -136,8 +139,10 @@ function lmsIsRegistry(): boolean {
   return lmsCertificates.certificateIssuer() === 'lms';
 }
 
-function isLmsUnavailable(err: unknown): boolean {
-  return err instanceof AppError && err.code === 'LMS_UNAVAILABLE';
+// Any failure that came from the registry (down, key refused, bad request): the
+// feedback path must never throw because of these.
+function isLmsFailure(err: unknown): boolean {
+  return err instanceof AppError && (err.code === 'LMS_UNAVAILABLE' || err.code === 'LMS_ERROR');
 }
 
 // The shape sendCertificateEmail and toView read, built from what was sent plus
@@ -163,6 +168,13 @@ function rowFromView(view: CertificateView, extra: Partial<CertificateRow> = {})
     source: 'cohort',
     ...extra,
   };
+}
+
+function requireNew(row: IssuedRow): CertificateRow {
+  if (row.existing) {
+    throw new AppError('DUPLICATE_CERTIFICATE', 'This registration already has a certificate.', 409);
+  }
+  return row;
 }
 
 export function verifyUrlFor(certificateNumber: string): string {
@@ -213,7 +225,7 @@ async function insertWithNumberRetry(
   row: Omit<Database['public']['Tables']['certificates']['Insert'], 'certificate_number'>,
   courseCode: string,
   customNumber?: string,
-): Promise<CertificateRow> {
+): Promise<IssuedRow> {
   if (lmsIsRegistry()) {
     const issuedDate = row.issued_date ?? new Date().toISOString().slice(0, 10);
     const result = await lmsCertificates.issueOnLms({
@@ -231,16 +243,11 @@ async function insertWithNumberRetry(
       issuedByRef: row.issued_by ?? null,
       customNumber,
     });
-    // The registry answered with a row that already existed (idempotent on the
-    // registration): the same outcome as the local unique constraint.
-    if (result.existing) {
-      throw new AppError(
-        'DUPLICATE_CERTIFICATE',
-        'This registration already has a certificate.',
-        409,
-      );
-    }
+    // existing: the registry already minted this one (a retry after a lost
+    // response). Returned, not thrown: the automatic paths still owe the email;
+    // the staff paths treat it as a duplicate (see requireNew).
     return {
+      existing: result.existing,
       id: result.id,
       certificate_number: result.certificateNumber,
       recipient_name: row.recipient_name,
@@ -294,7 +301,12 @@ async function sendCertificateEmail(
   if (!row.recipient_email) return false;
   if (options.once && row.registration_id) {
     const slot = await certificatesRepository.reserveCertificateEmailSlot(row.registration_id);
-    if (slot === 'duplicate') return false;
+    if (slot === 'duplicate') {
+      // LMS mode: a slot that was reserved but never settled as sent (a crash,
+      // a failed send) does not block the email that is still owed.
+      const owed = lmsIsRegistry() && !(await certificatesRepository.isCertificateEmailSettled(row.registration_id));
+      if (!owed) return false;
+    }
   }
   let providerMessageId: string | null = null;
   try {
@@ -378,7 +390,7 @@ export async function issueCertificateIfEligible(
   try {
     context = await loadIssueContext(batchId);
   } catch (err) {
-    if (isLmsUnavailable(err)) {
+    if (isLmsFailure(err)) {
       captureToSentry(err, { job: 'certificate auto-issue', ref: registrationId });
       return null;
     }
@@ -390,7 +402,7 @@ export async function issueCertificateIfEligible(
   if (!candidate || candidate.participantDeleted || candidate.alreadyIssued) return null;
   if (!isCertificateEligible(candidate, context.batchIsFree)) return null;
 
-  let row: CertificateRow;
+  let row: IssuedRow;
   try {
     row = await insertWithNumberRetry(
       {
@@ -414,7 +426,7 @@ export async function issueCertificateIfEligible(
     if (err instanceof AppError && err.code === 'DUPLICATE_CERTIFICATE') return null;
     // The caller (feedback submission) must never fail because the registry
     // is down: say so to Sentry and let the daily completion run pick it up.
-    if (isLmsUnavailable(err)) {
+    if (isLmsFailure(err)) {
       captureToSentry(err, { job: 'certificate auto-issue', ref: registrationId });
       return null;
     }
@@ -492,8 +504,23 @@ async function issueForCompletedBatches(
       if (!context) continue;
 
       for (const candidate of context.candidates) {
-        if (candidate.participantDeleted || candidate.alreadyIssued) {
+        if (candidate.participantDeleted) {
           summary.skipped += 1;
+          continue;
+        }
+        if (candidate.alreadyIssued) {
+          summary.skipped += 1;
+          // LMS mode: the registry holds it, but the email may still be owed (the
+          // response that would have told us was lost). The slot decides.
+          const held = candidate.lmsCertificate;
+          if (!options.dryRun && options.email && held && !held.revoked) {
+            try {
+              const view = { ...held, recipientEmail: held.recipientEmail || candidate.participantEmail || null };
+              if (await sendCertificateEmail(rowFromView(view), { once: true })) summary.emailed += 1;
+            } catch (err) {
+              summary.errors.push(`${candidate.registrationId}: email failed — ${String(err)}`);
+            }
+          }
           continue;
         }
         if (!isCertificateEligible(candidate, context.batchIsFree)) {
@@ -520,7 +547,8 @@ async function issueForCompletedBatches(
             },
             context.courseCode,
           );
-          summary.issued += 1;
+          if (row.existing) summary.skipped += 1;
+          else summary.issued += 1;
           if (options.email) {
             try {
               if (await sendCertificateEmail(row, { once: true })) summary.emailed += 1;
@@ -609,7 +637,7 @@ export async function issueManual(
   issuedByStaffId: string,
 ): Promise<CertificateView> {
   await usersService.requireRole([...CERTIFICATE_STAFF_ROLES]);
-  const row = await insertWithNumberRetry(
+  const issued = await insertWithNumberRetry(
     {
       recipient_name: input.recipientName,
       course_title: input.courseTitle,
@@ -623,6 +651,7 @@ export async function issueManual(
     input.courseCode,
     input.customNumber,
   );
+  const row = requireNew(issued);
   if (input.sendEmail && row.recipient_email) {
     try {
       await sendCertificateEmail(row);
@@ -825,7 +854,7 @@ export async function issueForBatch(
       continue;
     }
     try {
-      const row = await insertWithNumberRetry(
+      const row = requireNew(await insertWithNumberRetry(
         {
           registration_id: registrationId,
           recipient_name: candidate.participantName,
@@ -839,7 +868,7 @@ export async function issueForBatch(
           recipient_email: candidate.participantEmail || null,
         },
         context.courseCode,
-      );
+      ));
       result.issued += 1;
       if (input.sendEmail) {
         try {

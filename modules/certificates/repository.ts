@@ -367,6 +367,19 @@ export async function reserveCertificateEmailSlot(
   return 'reserved';
 }
 
+// True when the certificate email for this registration was sent (slot settled
+// as a success). A reserved-but-unsettled or failed slot is NOT settled.
+export async function isCertificateEmailSettled(registrationId: string): Promise<boolean> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('email_log')
+    .select('success')
+    .match({ registration_id: registrationId, email_type: 'certificate_issued' })
+    .maybeSingle();
+  if (error) throw error;
+  return data?.success === true;
+}
+
 export async function settleCertificateEmailSlot(
   registrationId: string,
   changes: { success: boolean; error_message?: string | null; provider_message_id?: string | null },

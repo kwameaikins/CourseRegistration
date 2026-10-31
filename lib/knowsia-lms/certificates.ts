@@ -46,7 +46,8 @@ async function request(path: string, init: RequestInit = {}): Promise<Raw> {
     console.error('[lms certificates]', err);
     throw unavailable();
   }
-  if (response.status >= 500) {
+  // 5xx is the registry down; 401/403 is a key it will not accept: unreachable to us either way.
+  if (response.status >= 500 || response.status === 401 || response.status === 403) {
     console.error('[lms certificates]', response.status);
     throw unavailable();
   }
