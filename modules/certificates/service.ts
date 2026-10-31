@@ -10,7 +10,8 @@
 // recordings rather than attend live. See isCertificateEligible.
 import { generateCertificatePdf } from '@/lib/certificates/pdf';
 import { sendTransactionalEmail } from '@/lib/resend/client';
-import { AppError } from '@/lib/errors';
+import { AppError, captureToSentry } from '@/lib/errors';
+import * as lmsCertificates from '@/lib/knowsia-lms/certificates';
 import * as assignmentsService from '@/modules/assignments/service';
 import * as certificatesRepository from '@/modules/certificates/repository';
 import * as usersService from '@/modules/users/service';
@@ -106,12 +107,61 @@ async function loadIssueContext(batchId: string) {
   if (!context) return null;
   const submitted =
     await assignmentsService.getRegistrationIdsWithSubmissionsForBatchSystem(batchId);
+  // R3: with the LMS as the registry, "already issued" is the LMS's say — one
+  // list call for the whole batch, never one per candidate.
+  const issuedOnLms = lmsIsRegistry()
+    ? new Set(
+        (
+          await lmsCertificates.listByRegistrationsOnLms(
+            context.candidates.map((candidate) => candidate.registrationId),
+          )
+        )
+          .map((cert) => cert.registrationId)
+          .filter((id): id is string => !!id),
+      )
+    : null;
   return {
     ...context,
     candidates: context.candidates.map((candidate) => ({
       ...candidate,
+      alreadyIssued: issuedOnLms ? issuedOnLms.has(candidate.registrationId) : candidate.alreadyIssued,
       assignmentSubmitted: submitted.has(candidate.registrationId),
     })),
+  };
+}
+
+// R3: CERTIFICATE_ISSUER=lms sends every certificate read and write to the LMS
+// registry; the default `local` is the original Supabase path, untouched.
+function lmsIsRegistry(): boolean {
+  return lmsCertificates.certificateIssuer() === 'lms';
+}
+
+function isLmsUnavailable(err: unknown): boolean {
+  return err instanceof AppError && err.code === 'LMS_UNAVAILABLE';
+}
+
+// The shape sendCertificateEmail and toView read, built from what was sent plus
+// what the LMS answered (or from the LMS's own view of a certificate).
+function rowFromView(view: CertificateView, extra: Partial<CertificateRow> = {}): CertificateRow {
+  return {
+    id: view.id,
+    certificate_number: view.certificateNumber,
+    recipient_name: view.recipientName,
+    course_title: view.courseTitle,
+    description: '',
+    hours: view.hours,
+    cpd_credit: view.cpdCredit,
+    issued_date: view.issuedDate,
+    revoked: view.revoked,
+    revoked_reason: view.revokedReason,
+    registration_id: view.registrationId,
+    recipient_email: view.recipientEmail,
+    created_at: view.createdAt,
+    facilitator_name: null,
+    issued_by: null,
+    external_ref: null,
+    source: 'cohort',
+    ...extra,
   };
 }
 
@@ -129,7 +179,7 @@ function toView(row: CertificateRow): CertificateView {
     certificateNumber: row.certificate_number,
     recipientName: row.recipient_name,
     courseTitle: row.course_title,
-    hours: row.hours,
+    hours: row.hours ?? 0,
     cpdCredit: row.cpd_credit,
     issuedDate: row.issued_date,
     revoked: row.revoked,
@@ -164,6 +214,52 @@ async function insertWithNumberRetry(
   courseCode: string,
   customNumber?: string,
 ): Promise<CertificateRow> {
+  if (lmsIsRegistry()) {
+    const issuedDate = row.issued_date ?? new Date().toISOString().slice(0, 10);
+    const result = await lmsCertificates.issueOnLms({
+      source: row.source === 'self_paced' ? 'self_paced' : 'cohort',
+      courseCode,
+      courseTitle: row.course_title,
+      recipientName: row.recipient_name,
+      recipientEmail: row.recipient_email ?? null,
+      description: row.description ?? '',
+      hours: row.hours ?? 0,
+      cpdCredit: row.cpd_credit ?? 'TBD',
+      facilitatorName: row.facilitator_name ?? null,
+      issuedDate,
+      registrationRef: row.registration_id ?? null,
+      issuedByRef: row.issued_by ?? null,
+      customNumber,
+    });
+    // The registry answered with a row that already existed (idempotent on the
+    // registration): the same outcome as the local unique constraint.
+    if (result.existing) {
+      throw new AppError(
+        'DUPLICATE_CERTIFICATE',
+        'This registration already has a certificate.',
+        409,
+      );
+    }
+    return {
+      id: result.id,
+      certificate_number: result.certificateNumber,
+      recipient_name: row.recipient_name,
+      course_title: row.course_title,
+      description: row.description ?? '',
+      hours: row.hours ?? 0,
+      cpd_credit: row.cpd_credit ?? 'TBD',
+      issued_date: result.issuedDate || issuedDate,
+      revoked: false,
+      revoked_reason: null,
+      registration_id: row.registration_id ?? null,
+      recipient_email: row.recipient_email ?? null,
+      created_at: new Date().toISOString(),
+      facilitator_name: row.facilitator_name ?? null,
+      issued_by: row.issued_by ?? null,
+      external_ref: row.external_ref ?? null,
+      source: row.source ?? 'cohort',
+    };
+  }
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const certificateNumber =
       customNumber ?? (await nextCertificateNumber(courseCode, row.issued_date ?? new Date().toISOString().slice(0, 10)));
@@ -246,7 +342,13 @@ Anyone can confirm its authenticity at:<br/><a href="${verifyUrlFor(row.certific
 // Zero risk to those existing paths (pure addition).
 export async function resendCertificateEmail(certificateId: string): Promise<boolean> {
   await usersService.requireRole([...CERTIFICATE_STAFF_ROLES]);
-  const row = await certificatesRepository.selectCertificateById(certificateId);
+  let row: CertificateRow | null;
+  if (lmsIsRegistry()) {
+    const view = await lmsCertificates.getOnLms(certificateId);
+    row = view ? rowFromView(view) : null;
+  } else {
+    row = await certificatesRepository.selectCertificateById(certificateId);
+  }
   if (!row) {
     throw new AppError('NOT_FOUND', 'Certificate not found.', 404);
   }
@@ -272,7 +374,16 @@ export async function issueCertificateIfEligible(
   const batchId = await certificatesRepository.selectBatchIdForRegistration(registrationId);
   if (!batchId) return null;
 
-  const context = await loadIssueContext(batchId);
+  let context: Awaited<ReturnType<typeof loadIssueContext>>;
+  try {
+    context = await loadIssueContext(batchId);
+  } catch (err) {
+    if (isLmsUnavailable(err)) {
+      captureToSentry(err, { job: 'certificate auto-issue', ref: registrationId });
+      return null;
+    }
+    throw err;
+  }
   if (!context) return null;
 
   const candidate = context.candidates.find((c) => c.registrationId === registrationId);
@@ -301,6 +412,12 @@ export async function issueCertificateIfEligible(
     // DUPLICATE_CERTIFICATE after insertWithNumberRetry's own retries —
     // treat it as "already issued", not a failure.
     if (err instanceof AppError && err.code === 'DUPLICATE_CERTIFICATE') return null;
+    // The caller (feedback submission) must never fail because the registry
+    // is down: say so to Sentry and let the daily completion run pick it up.
+    if (isLmsUnavailable(err)) {
+      captureToSentry(err, { job: 'certificate auto-issue', ref: registrationId });
+      return null;
+    }
     throw err;
   }
 
@@ -482,6 +599,7 @@ export async function listCertificates(
   range: { dateFrom?: string; dateTo?: string } = {},
 ): Promise<CertificateView[]> {
   await usersService.requireRole([...CERTIFICATE_STAFF_ROLES]);
+  if (lmsIsRegistry()) return lmsCertificates.listOnLms(limit, range);
   const rows = await certificatesRepository.selectCertificates(limit, range);
   return rows.map(toView);
 }
@@ -529,6 +647,33 @@ export async function issueManual(
 // links, and two emails for one certificate is how a student learns to ignore
 // both.
 export async function issueForKnowsiaApp(input: ExternalIssueInput): Promise<ExternalIssueResult> {
+  if (lmsIsRegistry()) {
+    // The door has no external-ref field and a self-paced certificate is the
+    // LMS's own to issue, so there is nothing to key idempotency on here:
+    // registrationRef stays null and the LMS's self-paced path owns retries.
+    const result = await lmsCertificates.issueOnLms({
+      source: 'self_paced',
+      courseCode: input.courseCode,
+      courseTitle: input.courseTitle,
+      recipientName: input.recipientName,
+      recipientEmail: input.recipientEmail ?? null,
+      description: input.description,
+      hours: input.hours,
+      cpdCredit: input.cpdCredit,
+      facilitatorName: input.facilitatorName ?? null,
+      issuedDate: input.issuedDate ?? new Date().toISOString().slice(0, 10),
+      registrationRef: null,
+      issuedByRef: null,
+    });
+    return {
+      id: result.id,
+      certificateNumber: result.certificateNumber,
+      issuedDate: result.issuedDate,
+      verifyUrl: result.verifyUrl || verifyUrlFor(result.certificateNumber),
+      downloadUrl: downloadUrlFor(result.id),
+      existing: result.existing,
+    };
+  }
   const existing = await certificatesRepository.selectCertificateByExternalRef(input.externalRef);
   if (existing) {
     return {
@@ -592,6 +737,11 @@ export async function issueForKnowsiaApp(input: ExternalIssueInput): Promise<Ext
 export async function getCertificatePdfByNumber(
   certificateNumber: string,
 ): Promise<{ fileName: string; bytes: Uint8Array }> {
+  if (lmsIsRegistry()) {
+    const pdf = await lmsCertificates.pdfByNumberOnLms(certificateNumber);
+    if (!pdf) throw new AppError('NOT_FOUND', 'Certificate not available.', 404);
+    return pdf;
+  }
   const row = await certificatesRepository.selectCertificateByNumber(certificateNumber);
   if (!row || row.revoked) {
     throw new AppError('NOT_FOUND', 'Certificate not available.', 404);
@@ -601,7 +751,7 @@ export async function getCertificatePdfByNumber(
     recipientName: row.recipient_name,
     courseTitle: row.course_title,
     description: row.description,
-    hours: row.hours,
+    hours: row.hours ?? 0,
     facilitatorName: row.facilitator_name,
     issuedDate: row.issued_date,
     verifyUrl: verifyUrlFor(row.certificate_number),
@@ -720,6 +870,10 @@ export async function renameExistingCertificates(
   registrationIds: string[],
   recipientName: string,
 ): Promise<void> {
+  if (lmsIsRegistry()) {
+    await lmsCertificates.renameOnLms(registrationIds, recipientName);
+    return;
+  }
   await certificatesRepository.updateRecipientNameForRegistrations(
     registrationIds,
     recipientName,
@@ -731,6 +885,12 @@ export async function revokeCertificate(
   reason: string,
 ): Promise<void> {
   await usersService.requireRole([...CERTIFICATE_STAFF_ROLES]);
+  if (lmsIsRegistry()) {
+    if (!(await lmsCertificates.revokeOnLms(certificateId, reason))) {
+      throw new AppError('NOT_FOUND', 'Certificate not found.', 404);
+    }
+    return;
+  }
   const row = await certificatesRepository.selectCertificateById(certificateId);
   if (!row) throw new AppError('NOT_FOUND', 'Certificate not found.', 404);
   await certificatesRepository.updateCertificate(certificateId, {
@@ -743,6 +903,7 @@ export async function revokeCertificate(
 export async function verifyCertificate(
   certificateNumber: string,
 ): Promise<VerificationResult> {
+  if (lmsIsRegistry()) return lmsCertificates.verifyOnLms(certificateNumber);
   const row = await certificatesRepository.selectCertificateByNumber(certificateNumber);
   if (!row) return { status: 'not_found' };
   if (row.revoked) {
@@ -761,6 +922,11 @@ export async function verifyCertificate(
 export async function getCertificatePdf(
   certificateId: string,
 ): Promise<{ fileName: string; bytes: Uint8Array }> {
+  if (lmsIsRegistry()) {
+    const pdf = await lmsCertificates.pdfOnLms(certificateId);
+    if (!pdf) throw new AppError('NOT_FOUND', 'Certificate not available.', 404);
+    return pdf;
+  }
   const row = await certificatesRepository.selectCertificateById(certificateId);
   if (!row || row.revoked) {
     throw new AppError('NOT_FOUND', 'Certificate not available.', 404);
@@ -770,7 +936,7 @@ export async function getCertificatePdf(
     recipientName: row.recipient_name,
     courseTitle: row.course_title,
     description: row.description,
-    hours: row.hours,
+    hours: row.hours ?? 0,
     facilitatorName: row.facilitator_name,
     issuedDate: row.issued_date,
     verifyUrl: verifyUrlFor(row.certificate_number),
@@ -788,7 +954,7 @@ export async function exportForLms() {
     recipientName: row.recipient_name,
     courseTitle: row.course_title,
     description: row.description,
-    hours: row.hours,
+    hours: row.hours ?? 0,
     cpdCredit: row.cpd_credit,
     issuedDate: row.issued_date,
     issuedBy: row.issued_by,
