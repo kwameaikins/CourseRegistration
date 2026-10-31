@@ -1139,6 +1139,13 @@ each. This app's price and commission accrual stay authoritative until Phases 5 
       identity export/link carry tutors; the batch mirror and `sync-cohorts-to-lms.mjs` send the tutor's email and phone
       so the LMS makes the Teach account. KnowsiaApp PLAN.md §3.27.
 - [ ] **R3 one registry · R4 delete** — Coding Docs/26 §4
+  - 2026-10-31, R3 built behind `CERTIFICATE_ISSUER` (default `local`); the final review's fixes are in
+    (`0ea9604`): in lms mode `issueForKnowsiaApp` answers 409 `REGISTRY_MOVED` (the LMS numbers its own
+    self-paced rows in place), the portal dashboard / DPA export / staff status and the admin registration
+    detail read certificates from the LMS, a DPA soft delete also calls the LMS `…/certificates/erase` door
+    and fails if it cannot, the daily completion run looks back 14 days, and the LMS list is asked 100 ids
+    at a time. Not yet flipped in production. Still local-only: the immediate hard delete of a registration
+    or participant removes Supabase certificates but not the LMS copy.
 
 ---
 ## Risk watch (carried from `/docs/01_PRD.md` risk register)
