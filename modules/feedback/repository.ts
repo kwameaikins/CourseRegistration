@@ -353,3 +353,23 @@ export async function selectPublishableTestimonialsSystem(maxCandidates: number)
 
   return testimonials;
 }
+
+// Every feedback row, oldest first, for the LMS import. Paged because the
+// service-role client caps a single read.
+export async function selectAllFeedback(): Promise<FeedbackTableRow[]> {
+  const supabase = createSupabaseServiceRoleClient();
+  const out: FeedbackTableRow[] = [];
+  const page = 500;
+  for (let from = 0; ; from += page) {
+    const { data, error } = await supabase
+      .from('feedback')
+      .select('*')
+      .order('submitted_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, from + page - 1);
+    if (error) throw error;
+    out.push(...(data ?? []));
+    if (!data || data.length < page) break;
+  }
+  return out;
+}

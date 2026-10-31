@@ -350,3 +350,23 @@ export async function getPublishableTestimonials(
     })
     .slice(0, limit);
 }
+
+// Every feedback row as camelCase, for the LMS import (feedback moves there).
+export async function exportFeedbackForLms() {
+  const rows = await feedbackRepository.selectAllFeedback();
+  return rows.map((row) => ({
+    id: row.id,
+    registrationId: row.registration_id,
+    overallRating: row.overall_rating,
+    facilitatorRating: row.facilitator_rating,
+    relevanceRating: row.relevance_rating,
+    confidenceRating: row.confidence_rating,
+    materialsClarity: row.materials_clarity,
+    mostValuableText: row.most_valuable_text,
+    improvementText: row.improvement_text,
+    recommendation: row.recommendation,
+    otherCourseSuggestion: row.other_course_suggestion,
+    testimonialChoice: row.testimonial_choice,
+    submittedAt: row.submitted_at,
+  }));
+}
