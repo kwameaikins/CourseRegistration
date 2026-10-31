@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { diffSnapshots, extractMain, hashMain, mapLimit } from '../../scripts/verify-snapshot-lib.mjs';
+import { badEntries, diffSnapshots, extractMain, hashMain, mapLimit } from '../../scripts/verify-snapshot-lib.mjs';
 
 const page = (main: string, chunk = 'a1') =>
   `<html><head><script src="/_next/static/chunks/${chunk}.js"></script></head><body><nav>x</nav>${main}<footer>y</footer></body></html>`;
@@ -28,6 +28,16 @@ describe('verify-snapshot', () => {
       'C: not in the saved snapshot',
     ]);
     expect(diffSnapshots({ A: 'x' }, {})).toEqual(['A: missing in the new snapshot']);
+  });
+
+  it('treats a missing main or an http error as a difference even when both sides match', () => {
+    expect(diffSnapshots({ A: null }, { A: null })).toHaveLength(1);
+    expect(diffSnapshots({ A: 'http-500' }, { A: 'http-500' })).toHaveLength(1);
+    expect(diffSnapshots({ A: 'x' }, { A: 'error-boom' })).toHaveLength(1);
+    expect(badEntries({ A: 'x', B: null, C: 'http-404', D: 'error-x' })).toEqual([
+      'B: no <main> element', 'C: http-404', 'D: error-x',
+    ]);
+    expect(badEntries({ A: 'x' })).toEqual([]);
   });
 
   it('never runs more than the limit at once and keeps order', async () => {

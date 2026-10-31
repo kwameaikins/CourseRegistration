@@ -13,11 +13,23 @@ export function hashMain(html) {
   return main === null ? null : createHash('sha256').update(main, 'utf8').digest('hex');
 }
 
-/** Differences between two {number: sha} maps, one line each. */
+/** A snapshot value that proves nothing: no <main>, an HTTP error, or a failed fetch. */
+export function isUnusable(value) {
+  return value === null || value === undefined || String(value).startsWith('http-') || String(value).startsWith('error-');
+}
+
+/** Numbers whose value is unusable, one line each. */
+export function badEntries(snapshot) {
+  return Object.keys(snapshot).sort().filter((n) => isUnusable(snapshot[n]))
+    .map((n) => `${n}: ${snapshot[n] === null ? 'no <main> element' : snapshot[n]}`);
+}
+
+/** Differences between two {number: sha} maps, one line each. An unusable value on either side is a difference. */
 export function diffSnapshots(before, after) {
   const lines = [];
   for (const number of Object.keys(before).sort()) {
     if (!(number in after)) lines.push(`${number}: missing in the new snapshot`);
+    else if (isUnusable(before[number]) || isUnusable(after[number])) lines.push(`${number}: no usable <main> (saved ${before[number]}, now ${after[number]})`);
     else if (before[number] !== after[number]) lines.push(`${number}: <main> differs`);
   }
   for (const number of Object.keys(after).sort()) {

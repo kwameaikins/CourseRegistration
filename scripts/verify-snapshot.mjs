@@ -7,7 +7,7 @@
 // <main> element only: Next.js chunk hashes change every deploy, so the whole document never
 // matches. Read-only; at most 5 pages in flight. Exit 1 on any difference.
 import { readFileSync, writeFileSync } from 'node:fs';
-import { diffSnapshots, hashMain, mapLimit } from './verify-snapshot-lib.mjs';
+import { badEntries, diffSnapshots, hashMain, mapLimit } from './verify-snapshot-lib.mjs';
 
 function arg(name) {
   const i = process.argv.indexOf(name);
@@ -36,15 +36,26 @@ async function numbers() {
 async function snapshot() {
   const list = await numbers();
   const shas = await mapLimit(list, 5, async (number) => {
-    const res = await fetch(`${base}/verify/${encodeURIComponent(number)}`);
-    const html = await res.text();
-    return res.ok ? hashMain(html) : `http-${res.status}`;
+    try {
+      const res = await fetch(`${base}/verify/${encodeURIComponent(number)}`);
+      const html = await res.text();
+      return res.ok ? hashMain(html) : `http-${res.status}`;
+    } catch (e) {
+      console.error(`fetch failed for ${number}: ${e instanceof Error ? e.message : e}`);
+      return `error-${e instanceof Error ? e.message : 'fetch'}`;
+    }
   });
   return Object.fromEntries(list.map((n, i) => [n, shas[i]]));
 }
 
 const current = await snapshot();
 if (out) {
+  const bad = badEntries(current);
+  if (bad.length) {
+    console.error(`Refusing to write ${out}: ${bad.length} pages have no usable <main>:`);
+    for (const l of bad) console.error('BAD', l);
+    process.exit(1);
+  }
   writeFileSync(out, JSON.stringify(current, null, 2));
   console.log(`${Object.keys(current).length} pages hashed -> ${out}`);
 }
