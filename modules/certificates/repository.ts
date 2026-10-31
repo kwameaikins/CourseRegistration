@@ -378,3 +378,23 @@ export async function settleCertificateEmailSlot(
     .match({ registration_id: registrationId, email_type: 'certificate_issued' });
   if (error) throw error;
 }
+
+// Every certificate, oldest first, for the LMS import (R3). Paged because the
+// service-role client caps a single read.
+export async function selectAllCertificates(): Promise<CertificateRow[]> {
+  const supabase = createSupabaseServiceRoleClient();
+  const out: CertificateRow[] = [];
+  const page = 500;
+  for (let from = 0; ; from += page) {
+    const { data, error } = await supabase
+      .from('certificates')
+      .select('*')
+      .order('created_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, from + page - 1);
+    if (error) throw error;
+    out.push(...(data ?? []));
+    if (!data || data.length < page) break;
+  }
+  return out;
+}

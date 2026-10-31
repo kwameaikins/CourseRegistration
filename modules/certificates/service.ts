@@ -777,3 +777,32 @@ export async function getCertificatePdf(
   });
   return { fileName: `${row.certificate_number}.pdf`, bytes };
 }
+
+// R3: the full registry as the LMS imports it (read-only, camelCase).
+export async function exportForLms() {
+  const rows = await certificatesRepository.selectAllCertificates();
+  return rows.map((row) => ({
+    id: row.id,
+    registrationId: row.registration_id,
+    certificateNumber: row.certificate_number,
+    recipientName: row.recipient_name,
+    courseTitle: row.course_title,
+    description: row.description,
+    hours: row.hours,
+    cpdCredit: row.cpd_credit,
+    issuedDate: row.issued_date,
+    issuedBy: row.issued_by,
+    recipientEmail: row.recipient_email,
+    revoked: row.revoked,
+    revokedReason: row.revoked_reason,
+    createdAt: row.created_at,
+    facilitatorName: row.facilitator_name,
+    externalRef: row.external_ref,
+    source: row.source,
+  }));
+}
+
+// R3: the number the next issue would take, a pure read (nothing is inserted).
+export async function peekNextNumber(courseCode: string, issuedDate: string): Promise<string> {
+  return nextCertificateNumber(courseCode, issuedDate);
+}

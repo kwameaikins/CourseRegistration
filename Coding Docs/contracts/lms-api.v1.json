@@ -650,6 +650,27 @@
         "title": "ParticipantStudySummary",
         "type": "object"
       },
+      "RenameRequest": {
+        "properties": {
+          "recipientName": {
+            "title": "Recipientname",
+            "type": "string"
+          },
+          "registrationRefs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Registrationrefs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "registrationRefs",
+          "recipientName"
+        ],
+        "title": "RenameRequest",
+        "type": "object"
+      },
       "RenderedVideoAttach": {
         "properties": {
           "bytes": {
@@ -849,10 +870,539 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "_RevokeBody": {
+        "properties": {
+          "reason": {
+            "default": "",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "title": "_RevokeBody",
+        "type": "object"
+      },
+      "app__lms__services__registry__IssueRequest": {
+        "properties": {
+          "courseCode": {
+            "title": "Coursecode",
+            "type": "string"
+          },
+          "courseTitle": {
+            "title": "Coursetitle",
+            "type": "string"
+          },
+          "cpdCredit": {
+            "default": "TBD",
+            "title": "Cpdcredit",
+            "type": "string"
+          },
+          "customNumber": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Customnumber"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "facilitatorName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Facilitatorname"
+          },
+          "hours": {
+            "default": 0.0,
+            "title": "Hours",
+            "type": "number"
+          },
+          "issuedByRef": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issuedbyref"
+          },
+          "issuedDate": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issueddate"
+          },
+          "recipientEmail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recipientemail"
+          },
+          "recipientName": {
+            "title": "Recipientname",
+            "type": "string"
+          },
+          "registrationRef": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registrationref"
+          },
+          "source": {
+            "default": "cohort",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "courseCode",
+          "courseTitle",
+          "recipientName"
+        ],
+        "title": "IssueRequest",
+        "type": "object"
       }
     }
   },
   "paths": {
+    "/api/v1/service/lms/certificates": {
+      "get": {
+        "operationId": "service_list_certificates_api_v1_service_lms_certificates_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Datefrom"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Dateto"
+            }
+          },
+          {
+            "in": "query",
+            "name": "registrationRefs",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Registrationrefs"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service List Certificates Api V1 Service Lms Certificates Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service List Certificates",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/certificates/by-number/{number}/pdf": {
+      "get": {
+        "operationId": "service_certificate_pdf_by_number_api_v1_service_lms_certificates_by_number__number__pdf_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "title": "Number",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Certificate Pdf By Number",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/certificates/issue": {
+      "post": {
+        "description": "R3: the Registration app asks the LMS to number a cohort certificate. Idempotent on\n`registration_ref`; 409 `registry_not_active` until the registry flag is `lms`.",
+        "operationId": "service_issue_certificate_api_v1_service_lms_certificates_issue_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/app__lms__services__registry__IssueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Issue Certificate Api V1 Service Lms Certificates Issue Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Issue Certificate",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/certificates/rename": {
+      "post": {
+        "operationId": "service_rename_certificates_api_v1_service_lms_certificates_rename_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Rename Certificates Api V1 Service Lms Certificates Rename Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Rename Certificates",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/certificates/verify/{number}": {
+      "get": {
+        "operationId": "service_verify_certificate_api_v1_service_lms_certificates_verify__number__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "title": "Number",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Verify Certificate Api V1 Service Lms Certificates Verify  Number  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Verify Certificate",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/certificates/{certificate_id}": {
+      "get": {
+        "operationId": "service_get_certificate_api_v1_service_lms_certificates__certificate_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "certificate_id",
+            "required": true,
+            "schema": {
+              "title": "Certificate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Get Certificate Api V1 Service Lms Certificates  Certificate Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Get Certificate",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/certificates/{certificate_id}/pdf": {
+      "get": {
+        "operationId": "service_certificate_pdf_api_v1_service_lms_certificates__certificate_id__pdf_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "certificate_id",
+            "required": true,
+            "schema": {
+              "title": "Certificate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Certificate Pdf",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/certificates/{certificate_id}/revoke": {
+      "post": {
+        "operationId": "service_revoke_certificate_api_v1_service_lms_certificates__certificate_id__revoke_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "certificate_id",
+            "required": true,
+            "schema": {
+              "title": "Certificate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/_RevokeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Revoke Certificate Api V1 Service Lms Certificates  Certificate Id  Revoke Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Revoke Certificate",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
     "/api/v1/service/lms/cohorts": {
       "put": {
         "operationId": "service_upsert_cohort_api_v1_service_lms_cohorts_put",
@@ -1694,6 +2244,61 @@
         ]
       }
     },
+    "/api/v1/service/lms/lessons/{lesson_id}/story": {
+      "post": {
+        "description": "The story THREAD a lesson is taught through, for its current text\n(2026-10-29): one fictional person and a line for two to four beats, written\nby one vendor, reviewed by another and checked deterministically\n(lesson_story). The narrator tells it inside the voiceover\n(`/voiceover?story=true`); this door is for reading or re-writing the\nthread alone. It may make model calls, and a student never calls it.\n`reuse=false` writes it again.",
+        "operationId": "service_lesson_story_api_v1_service_lms_lessons__lesson_id__story_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lesson_id",
+            "required": true,
+            "schema": {
+              "title": "Lesson Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reuse",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Reuse",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Lesson Story Api V1 Service Lms Lessons  Lesson Id  Story Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Lesson Story",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
     "/api/v1/service/lms/lessons/{lesson_id}/visuals": {
       "post": {
         "description": "The lesson's concept animations for its current text (2026-09-25):\nplanned once from the fixed menu of families, reviewed by another vendor,\nchecked deterministically (visual_planner). The renderer's warm step: it\nmay make model calls, and a student never calls it. `reuse=false` plans\nagain.",
@@ -1825,6 +2430,16 @@
             "schema": {
               "default": true,
               "title": "Reuse",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "story",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Story",
               "type": "boolean"
             }
           }
