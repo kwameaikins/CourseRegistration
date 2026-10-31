@@ -115,6 +115,22 @@ export async function selectBatchIdsEndedOn(dateIso: string): Promise<string[]> 
   return (data ?? []).map((row) => row.id);
 }
 
+// Batches that ended inside [fromIso, toIso], oldest first, active only like
+// selectBatchIdsEndedOn: the lms-mode daily run's look-back (R3), so an issue
+// the feedback path could not make while the LMS was down is retried.
+export async function selectBatchIdsEndedBetween(fromIso: string, toIso: string): Promise<string[]> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('batches')
+    .select('id')
+    .eq('is_active', true)
+    .gte('end_date', fromIso)
+    .lte('end_date', toIso)
+    .order('end_date', { ascending: true });
+  if (error) throw error;
+  return (data ?? []).map((row) => row.id);
+}
+
 // Every batch that has already finished, oldest first. Only the backfill uses
 // this: the daily run deliberately looks at a single day, so courses that
 // ended before completion issuance existed (2026-08-18) were never swept.

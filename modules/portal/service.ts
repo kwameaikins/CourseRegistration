@@ -4,6 +4,9 @@
 import { hashPin, lastFourDigits, verifyPin } from '@/lib/portal-auth/pin';
 import { AppError } from '@/lib/errors';
 import * as portalRepository from '@/modules/portal/repository';
+// R3 (2026-10-31): with CERTIFICATE_ISSUER=lms the certificates live in the
+// LMS registry; the lib owns that HTTP seam (no module boundary crossed).
+import * as lmsCertificates from '@/lib/knowsia-lms/certificates';
 // Permitted cross-module call (2026-08-23) — the merged dashboard shows the
 // participant's self-paced study summary; knowsia-app owns the HTTP seam.
 import * as knowsiaAppService from '@/modules/knowsia-app/service';
@@ -347,6 +350,33 @@ export function hasCourseEnded(endDate: string | null | undefined, now = new Dat
   return endDate < now.toISOString().slice(0, 10);
 }
 
+type PortalDashboardData = Awaited<ReturnType<typeof portalRepository.selectPortalDashboardData>>;
+
+// R3 final review F2: with the LMS as the registry, the Supabase `certificates`
+// rows the repository read are history (anything minted since the cutover is
+// only in the LMS). Replace them with the LMS's answer for these registrations,
+// in the shape the repository returns. Throws when the LMS cannot answer.
+async function withRegistryCertificates(data: PortalDashboardData): Promise<PortalDashboardData> {
+  if (lmsCertificates.certificateIssuer() !== 'lms' || data.registrations.length === 0) return data;
+  const held = await lmsCertificates.listByRegistrationsOnLms(
+    data.registrations.map((row) => row.registration.id),
+  );
+  return {
+    ...data,
+    registrations: data.registrations.map((row) => ({
+      ...row,
+      certificates: held
+        .filter((cert) => cert.registrationId === row.registration.id)
+        .map((cert) => ({
+          id: cert.id,
+          certificate_number: cert.certificateNumber,
+          issued_date: cert.issuedDate,
+          revoked: cert.revoked,
+        })),
+    })),
+  };
+}
+
 export async function getPortalDashboard(sessionId: string | undefined): Promise<PortalDashboard> {
   const { participantId } = await requirePortalSession(sessionId);
   return getPortalDashboardForParticipant(participantId);
@@ -361,7 +391,7 @@ export async function getPortalDashboardForParticipant(
   participantId: string,
   { includeSelfPaced = true }: { includeSelfPaced?: boolean } = {},
 ): Promise<PortalDashboard> {
-  const [data, auth, selfPacedCourses] = await Promise.all([
+  const [rawData, auth, selfPacedCourses] = await Promise.all([
     portalRepository.selectPortalDashboardData(participantId),
     portalRepository.selectParticipantAuth(participantId),
     // The study-world half of the merged dashboard — fail-soft to null so
@@ -370,6 +400,14 @@ export async function getPortalDashboardForParticipant(
       ? knowsiaAppService.getStudentLmsCoursesSystem(participantId).catch(() => null)
       : Promise.resolve(null),
   ]);
+  // The dashboard is the participant's whole portal: an LMS outage must not
+  // take it down, so here (only here) it falls back to the rows already read.
+  const data = rawData.participant
+    ? await withRegistryCertificates(rawData).catch((err) => {
+        console.error('[portal dashboard certificates]', err);
+        return rawData;
+      })
+    : rawData;
   if (!data.participant) {
     throw new AppError('NOT_FOUND', 'Participant not found.', 404);
   }
@@ -541,7 +579,8 @@ export async function exportParticipantSystem(participantId: string): Promise<{
     certificates: Array<{ certificateNumber: string; issuedDate: string; revoked: boolean }>;
   }>;
 } | null> {
-  const data = await portalRepository.selectPortalDashboardData(participantId);
+  // A subject-access export must be complete: an LMS failure fails it.
+  const data = await withRegistryCertificates(await portalRepository.selectPortalDashboardData(participantId));
   if (!data.participant) return null;
   return {
     participant: {
@@ -865,7 +904,7 @@ export async function getStudentStatusForStaff(identifier: string): Promise<Stud
   if (!participant || participant.deleted_at !== null) {
     throw new AppError('NOT_FOUND', 'No student found with that email or phone number.', 404);
   }
-  const data = await portalRepository.selectPortalDashboardData(participant.id);
+  const data = await withRegistryCertificates(await portalRepository.selectPortalDashboardData(participant.id));
   if (!data.participant) {
     throw new AppError('NOT_FOUND', 'No student found with that email or phone number.', 404);
   }

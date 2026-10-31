@@ -53,7 +53,14 @@ for (const t of [...repoint, ...drop]) {
 console.log('\nrows on the old participant:', JSON.stringify(counts));
 
 const regIds = (fromRegs ?? []).map((r) => r.id);
-const { data: certs } = regIds.length ? await db.from('certificates').select('id, recipient_email, registration_id').in('registration_id', regIds) : { data: [] };
+// R3: with CERTIFICATE_ISSUER=lms the certificates live in the LMS registry,
+// keyed by registration id (which this merge keeps), so they follow the move.
+// This script never touches them there; their recipient email is left as is.
+const lmsRegistry = (process.env.CERTIFICATE_ISSUER ?? '').trim().toLowerCase() === 'lms';
+if (lmsRegistry) {
+  console.log('CERTIFICATE_ISSUER=lms: certificates are held by the LMS registry; this script will NOT touch them (their recipient email stays as issued).');
+}
+const { data: certs } = !lmsRegistry && regIds.length ? await db.from('certificates').select('id, recipient_email, registration_id').in('registration_id', regIds) : { data: [] };
 const { data: nurture } = await db.from('nurture_enrollments').select('id, email').eq('email', from.email);
 console.log(`certificates on moving registrations: ${certs?.length ?? 0} (recipient_email -> ${into.email})`);
 console.log(`nurture enrolments under the old email: ${nurture?.length ?? 0} (email -> ${into.email})`);

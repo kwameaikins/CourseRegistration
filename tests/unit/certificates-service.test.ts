@@ -12,6 +12,7 @@ const repositoryMock = {
   selectBatchIssueContext: vi.fn(),
   selectBatchIdForRegistration: vi.fn(),
   selectBatchIdsEndedOn: vi.fn(),
+  selectBatchIdsEndedBetween: vi.fn(),
   selectBatchIdsEndedOnOrBefore: vi.fn(),
   reserveCertificateEmailSlot: vi.fn(),
   settleCertificateEmailSlot: vi.fn(),
@@ -75,6 +76,7 @@ beforeEach(() => {
     new Set<string>(),
   );
   repositoryMock.selectBatchIdsEndedOn.mockResolvedValue([]);
+  repositoryMock.selectBatchIdsEndedBetween.mockResolvedValue([]);
   repositoryMock.selectBatchIdsEndedOnOrBefore.mockResolvedValue([]);
   repositoryMock.selectMaxSerialForCourseYear.mockResolvedValue(35);
   repositoryMock.selectCourseSerialFloor.mockResolvedValue(0);
@@ -745,6 +747,8 @@ describe('runCompletedBatchCertificateIssuance', () => {
   it('targets batches that ended YESTERDAY, matching the feedback dispatch', async () => {
     await runCompletedBatchCertificateIssuance(new Date('2026-08-18T07:00:00Z'));
     expect(repositoryMock.selectBatchIdsEndedOn).toHaveBeenCalledWith('2026-08-17');
+    // Local mode is unchanged: yesterday only, never the 14-day look-back.
+    expect(repositoryMock.selectBatchIdsEndedBetween).not.toHaveBeenCalled();
   });
 
   it('skips the ineligible and the already-issued rather than failing', async () => {
@@ -921,7 +925,7 @@ describe('CERTIFICATE_ISSUER=lms (R3)', () => {
     expect(await issueCertificateIfEligible('reg-1')).toBeNull();
     expect(sendTransactionalEmailMock).not.toHaveBeenCalled();
 
-    repositoryMock.selectBatchIdsEndedOn.mockResolvedValue(['batch-1']);
+    repositoryMock.selectBatchIdsEndedBetween.mockResolvedValue(['batch-1']);
     const summary = await runCompletedBatchCertificateIssuance(new Date('2026-10-31T07:00:00Z'));
     expect(summary.issued).toBe(0);
     expect(summary.errors).toHaveLength(1);
@@ -950,15 +954,30 @@ describe('CERTIFICATE_ISSUER=lms (R3)', () => {
     expect(repositoryMock.selectCertificateById).not.toHaveBeenCalled();
   });
 
-  it('self-paced issue forwards with source self_paced', async () => {
-    fetchMock.mockResolvedValueOnce(jsonRes(201, { id: 'l1', certificateNumber: 'KNS-CA01-2026-0002', issuedDate: '2026-10-31', verifyUrl: 'v', existing: false }));
-    const r = await issueForKnowsiaApp({
-      externalRef: 'a5c9f1e2-0000-4000-8000-000000000001', courseCode: 'CA01', courseTitle: 'Sage',
-      recipientName: 'Ama', description: '', hours: 6, cpdCredit: '6',
-    });
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body).source).toBe('self_paced');
-    expect(r.certificateNumber).toBe('KNS-CA01-2026-0002');
+  it('a self-paced issue is refused: the LMS numbers its own (409 REGISTRY_MOVED, no fetch)', async () => {
+    await expect(
+      issueForKnowsiaApp({
+        externalRef: 'a5c9f1e2-0000-4000-8000-000000000001', courseCode: 'CA01', courseTitle: 'Sage',
+        recipientName: 'Ama', description: '', hours: 6, cpdCredit: '6',
+      }),
+    ).rejects.toMatchObject({ code: 'REGISTRY_MOVED', httpStatus: 409 });
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(repositoryMock.selectCertificateByExternalRef).not.toHaveBeenCalled();
+    expect(repositoryMock.insertCertificate).not.toHaveBeenCalled();
+  });
+
+  it('the daily run looks back 14 days, so a failed feedback-path issue is retried', async () => {
+    // A batch that ended 5 days ago with an eligible, unissued candidate.
+    repositoryMock.selectBatchIdsEndedBetween.mockResolvedValue(['batch-1']);
+    fetchMock.mockImplementation(async (url: string) =>
+      String(url).includes('registrationRefs')
+        ? jsonRes(200, { items: [] })
+        : jsonRes(201, { id: 'lms-1', certificateNumber: 'KNS-CA01-2026-0001', issuedDate: '2026-10-31', verifyUrl: 'v', existing: false }),
+    );
+    const summary = await runCompletedBatchCertificateIssuance(new Date('2026-10-31T07:00:00Z'));
+    expect(repositoryMock.selectBatchIdsEndedBetween).toHaveBeenCalledWith('2026-10-17', '2026-10-30');
+    expect(repositoryMock.selectBatchIdsEndedOn).not.toHaveBeenCalled();
+    expect(summary.issued).toBe(1);
   });
 
   const heldItem = {
@@ -990,7 +1009,7 @@ describe('CERTIFICATE_ISSUER=lms (R3)', () => {
   });
 
   it('a rerun after a lost issue response emails the held certificate once when the slot is unsettled', async () => {
-    repositoryMock.selectBatchIdsEndedOn.mockResolvedValue(['batch-1']);
+    repositoryMock.selectBatchIdsEndedBetween.mockResolvedValue(['batch-1']);
     fetchMock.mockResolvedValue(jsonRes(200, { items: [heldItem] }));
     repositoryMock.reserveCertificateEmailSlot.mockResolvedValue('duplicate');
     repositoryMock.isCertificateEmailSettled.mockResolvedValue(false);
@@ -1003,7 +1022,7 @@ describe('CERTIFICATE_ISSUER=lms (R3)', () => {
   });
 
   it('a held certificate whose slot is settled as sent is not emailed again', async () => {
-    repositoryMock.selectBatchIdsEndedOn.mockResolvedValue(['batch-1']);
+    repositoryMock.selectBatchIdsEndedBetween.mockResolvedValue(['batch-1']);
     fetchMock.mockResolvedValue(jsonRes(200, { items: [heldItem] }));
     repositoryMock.reserveCertificateEmailSlot.mockResolvedValue('duplicate');
     repositoryMock.isCertificateEmailSettled.mockResolvedValue(true);
@@ -1020,7 +1039,7 @@ describe('CERTIFICATE_ISSUER=lms (R3)', () => {
       );
       expect(await issueCertificateIfEligible('reg-1')).toBeNull();
     }
-    repositoryMock.selectBatchIdsEndedOn.mockResolvedValue(['batch-1']);
+    repositoryMock.selectBatchIdsEndedBetween.mockResolvedValue(['batch-1']);
     const summary = await runCompletedBatchCertificateIssuance(new Date('2026-10-31T07:00:00Z'));
     expect(summary.errors).toHaveLength(1);
     // the list call itself refused (401): auto-issue still returns null

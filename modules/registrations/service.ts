@@ -17,6 +17,9 @@ import {
   type RegistrationInvoicePdfData,
 } from '@/lib/registrations/invoice-pdf';
 import * as registrationsRepository from '@/modules/registrations/repository';
+// R3 (2026-10-31): with CERTIFICATE_ISSUER=lms the certificates live in the
+// LMS registry; the lib owns that HTTP seam (no module boundary crossed).
+import * as lmsCertificates from '@/lib/knowsia-lms/certificates';
 import * as coursesService from '@/modules/courses/service';
 import * as usersService from '@/modules/users/service';
 // The one permitted direct cross-module call: communications is the shared
@@ -1081,7 +1084,18 @@ export async function getRegistration360(registrationId: string): Promise<Regist
       : null,
   };
 
-  return shapeRegistration360ForRole(view, data, staffUser.role);
+  const shaped = shapeRegistration360ForRole(view, data, staffUser.role);
+  // R3 final review F2: the registry is the LMS's; read its certificates only
+  // for a role that sees them, so the LMS is never asked on another's behalf.
+  if (shaped.certificates !== undefined && lmsCertificates.certificateIssuer() === 'lms') {
+    shaped.certificates = (await lmsCertificates.listByRegistrationsOnLms([registrationId])).map((cert) => ({
+      id: cert.id,
+      certificateNumber: cert.certificateNumber,
+      issuedDate: cert.issuedDate,
+      revoked: cert.revoked,
+    }));
+  }
+  return shaped;
 }
 
 // Mirrors each joined table's own RLS scope (Document 3), made explicit here
@@ -1629,7 +1643,17 @@ export async function softDeleteParticipant(participantId: string): Promise<{
   softDeletedAt: string;
 }> {
   await usersService.requireRole(['admin']);
+  // R3 final review F3: with the LMS as the registry the certificates (which
+  // snapshot the name for /verify) live there too. Read the registrations
+  // first; after the Supabase scrub, erase them on the LMS, and let an LMS
+  // failure fail the erasure loudly — both halves are idempotent, so the admin
+  // simply retries.
+  const lms = lmsCertificates.certificateIssuer() === 'lms';
+  const registrationIds = lms
+    ? await registrationsRepository.selectRegistrationIdsForParticipant(participantId)
+    : [];
   await registrationsRepository.callSoftDeleteParticipant(participantId);
+  if (lms) await lmsCertificates.eraseOnLms(registrationIds);
   return { participantId, softDeletedAt: new Date().toISOString() };
 }
 

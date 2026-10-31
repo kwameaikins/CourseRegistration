@@ -791,6 +791,18 @@ export async function selectAutoLapseCandidatesSystem(endedOnOrBefore: string): 
   });
 }
 
+// Every registration of one participant (ids only) — the DPA erasure needs
+// them to reach the certificate registry when the LMS holds it (R3).
+export async function selectRegistrationIdsForParticipant(participantId: string): Promise<string[]> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('registrations')
+    .select('id')
+    .eq('participant_id', participantId);
+  if (error) throw error;
+  return (data ?? []).map((row) => row.id);
+}
+
 // DPA deletion functions (Document 3, Section 8) — SECURITY DEFINER functions
 // that verify the caller is an active Admin internally, called via the
 // session client so auth.uid() resolves to the calling staff member.

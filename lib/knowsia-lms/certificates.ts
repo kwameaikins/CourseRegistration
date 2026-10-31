@@ -153,12 +153,35 @@ export async function listOnLms(
   return (await json<{ items: CertificateView[] }>(raw)).items;
 }
 
-/** Certificates already issued for these registrations (one call per batch). */
+// A batch's or a participant's ids go in the query string; a cohort of
+// hundreds would make one URL too long for a proxy, so they go 100 at a time.
+const REFS_PER_REQUEST = 100;
+
+/** Certificates already issued for these registrations (one call per 100 ids, merged). */
 export async function listByRegistrationsOnLms(registrationIds: string[]): Promise<CertificateView[]> {
-  if (registrationIds.length === 0) return [];
-  const qs = new URLSearchParams({ registrationRefs: registrationIds.join(',') });
-  const raw = await request(`${PREFIX}?${qs}`);
-  return (await json<{ items: CertificateView[] }>(raw)).items;
+  const items: CertificateView[] = [];
+  for (let i = 0; i < registrationIds.length; i += REFS_PER_REQUEST) {
+    const chunk = registrationIds.slice(i, i + REFS_PER_REQUEST);
+    const qs = new URLSearchParams({ registrationRefs: chunk.join(',') });
+    const raw = await request(`${PREFIX}?${qs}`);
+    items.push(...(await json<{ items: CertificateView[] }>(raw)).items);
+  }
+  return items;
+}
+
+/**
+ * A DPA erasure's half on the registry: these registrations' certificates
+ * read "[DELETED]", lose the email and are revoked. Throws when the LMS
+ * cannot do it — an erasure that silently skipped the registry would leave
+ * the erased name on /verify. Returns how many were erased.
+ */
+export async function eraseOnLms(registrationIds: string[]): Promise<number> {
+  if (registrationIds.length === 0) return 0;
+  const raw = await request(`${PREFIX}/erase`, {
+    method: 'POST',
+    body: JSON.stringify({ registrationRefs: registrationIds }),
+  });
+  return (await json<{ erased: number }>(raw)).erased;
 }
 
 async function pdfFrom(raw: Raw): Promise<{ fileName: string; bytes: Uint8Array } | null> {

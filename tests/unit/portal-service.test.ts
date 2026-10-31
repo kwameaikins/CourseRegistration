@@ -73,6 +73,8 @@ const {
   requestPinReset,
   resetPin,
   submitPortalFeedback,
+  getPortalDashboardForParticipant,
+  exportParticipantSystem,
 } = await import('@/modules/portal/service');
 const { hashPin } = await import('@/lib/portal-auth/pin');
 
@@ -1192,5 +1194,65 @@ describe('resetPin', () => {
     await expect(resetPin({ token: 'good-token', newPin: '9999' })).rejects.toMatchObject({
       code: 'INVALID_TOKEN',
     });
+  });
+});
+
+// R3 final review F2: with the LMS as the registry, the portal's certificate
+// list, the DPA export and the staff status read the LMS, not Supabase.
+describe('CERTIFICATE_ISSUER=lms — certificates come from the LMS registry', () => {
+  const fetchMock = vi.fn();
+  const lmsItem = {
+    id: 'lms-cert-1', certificateNumber: 'KNS-CA01-2026-0021', recipientName: 'Ama Owusu',
+    courseTitle: 'Sage', hours: 6, cpdCredit: '6', issuedDate: '2026-10-31', revoked: false,
+    revokedReason: null, registrationId: 'reg-1', recipientEmail: 'ama@example.com', createdAt: '2026-10-31T00:00:00Z',
+  };
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+    process.env.KNOWSIA_LMS_API_URL = 'https://lms.test';
+    process.env.KNOWSIA_APP_SERVICE_KEY = 'k';
+    process.env.CERTIFICATE_ISSUER = 'lms';
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ items: [lmsItem] }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    repositoryMock.selectPortalDashboardData.mockResolvedValue({
+      participant: { full_name: 'Ama Owusu', email: 'ama@example.com', phone: '0245121941' },
+      registrations: [
+        receiptDashboardRow({
+          registration: { id: 'reg-1', batch_id: 'batch-1', registration_status: 'Confirmed', registered_at: '2026-07-01' },
+          payment: { payment_status: 'Paid', course_fee: '1200.00', amount_paid: '1200.00', balance: '0.00' },
+          // A stale Supabase row: the LMS answer replaces it.
+          certificates: [{ id: 'old', certificate_number: 'KNS-OLD', issued_date: '2026-01-01', revoked: false }],
+        }),
+      ],
+    });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.CERTIFICATE_ISSUER;
+  });
+
+  it('the dashboard lists the LMS certificates for the registrations', async () => {
+    const dashboard = await getPortalDashboardForParticipant('participant-1', { includeSelfPaced: false });
+    expect(dashboard.registrations[0].certificates).toEqual([
+      { id: 'lms-cert-1', certificateNumber: 'KNS-CA01-2026-0021', issuedDate: '2026-10-31', revoked: false },
+    ]);
+    expect(String(fetchMock.mock.calls[0][0])).toContain('registrationRefs=reg-1');
+  });
+
+  it('the DPA export carries the LMS certificates, and an LMS failure fails the export', async () => {
+    const exported = await exportParticipantSystem('participant-1');
+    expect(exported?.registrations[0].certificates).toEqual([
+      { certificateNumber: 'KNS-CA01-2026-0021', issuedDate: '2026-10-31', revoked: false },
+    ]);
+    fetchMock.mockResolvedValue(new Response('{}', { status: 503 }));
+    await expect(exportParticipantSystem('participant-1')).rejects.toMatchObject({ code: 'LMS_UNAVAILABLE' });
+  });
+
+  it('the staff status reads the LMS certificates', async () => {
+    const status = await getStudentStatusForStaff('ama@example.com');
+    expect(status.registrations[0].certificates).toEqual([
+      expect.objectContaining({ certificateNumber: 'KNS-CA01-2026-0021' }),
+    ]);
   });
 });

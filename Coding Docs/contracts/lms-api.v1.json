@@ -280,6 +280,22 @@
         "title": "CoursePriceIn",
         "type": "object"
       },
+      "EraseRequest": {
+        "properties": {
+          "registrationRefs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Registrationrefs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "registrationRefs"
+        ],
+        "title": "EraseRequest",
+        "type": "object"
+      },
       "GrantEnrolmentRequest": {
         "properties": {
           "access_days": {
@@ -1129,6 +1145,50 @@
           }
         },
         "summary": "Service Certificate Pdf By Number",
+        "tags": [
+          "service-lms"
+        ]
+      }
+    },
+    "/api/v1/service/lms/certificates/erase": {
+      "post": {
+        "description": "R3: a DPA erasure in the Registration app reaches the registry. These registrations'\ncertificates read \"[DELETED]\", lose the email and are revoked, as Supabase's\nfn_soft_delete_participant does to its own rows. Idempotent.",
+        "operationId": "service_erase_certificates_api_v1_service_lms_certificates_erase_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EraseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Service Erase Certificates Api V1 Service Lms Certificates Erase Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Service Erase Certificates",
         "tags": [
           "service-lms"
         ]

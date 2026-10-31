@@ -1,7 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const repositoryMock = {
   selectRegistration360: vi.fn(),
+  callSoftDeleteParticipant: vi.fn(),
+  selectRegistrationIdsForParticipant: vi.fn(),
 };
 const usersServiceMock = {
   requireRole: vi.fn(),
@@ -12,7 +14,7 @@ vi.mock('@/modules/users/service', () => usersServiceMock);
 vi.mock('@/modules/courses/service', () => ({}));
 vi.mock('@/modules/communications/service', () => ({}));
 
-const { getRegistration360 } = await import('@/modules/registrations/service');
+const { getRegistration360, softDeleteParticipant } = await import('@/modules/registrations/service');
 
 function fullFixture() {
   return {
@@ -195,5 +197,73 @@ describe('getRegistration360 — role shaping', () => {
 
     const view = await getRegistration360('reg-1');
     expect(view.participant?.deleted).toBe(true);
+  });
+});
+
+// R3 final review: with the LMS as the registry, the staff detail reads its
+// certificates (F2) and a DPA erasure reaches it (F3).
+describe('CERTIFICATE_ISSUER=lms', () => {
+  const fetchMock = vi.fn();
+  const ok = (body: unknown) =>
+    new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+    process.env.KNOWSIA_LMS_API_URL = 'https://lms.test';
+    process.env.KNOWSIA_APP_SERVICE_KEY = 'k';
+    process.env.CERTIFICATE_ISSUER = 'lms';
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.CERTIFICATE_ISSUER;
+  });
+
+  it('the admin detail lists the LMS certificates for the registration', async () => {
+    usersServiceMock.requireRole.mockResolvedValue({ id: 'staff-1', role: 'admin' });
+    repositoryMock.selectRegistration360.mockResolvedValue(fullFixture());
+    fetchMock.mockResolvedValue(ok({ items: [{
+      id: 'lms-1', certificateNumber: 'KNS-CA01-2026-0021', issuedDate: '2026-10-31', revoked: true, registrationId: 'reg-1',
+    }] }));
+    const view = await getRegistration360('reg-1');
+    expect(view.certificates).toEqual([
+      { id: 'lms-1', certificateNumber: 'KNS-CA01-2026-0021', issuedDate: '2026-10-31', revoked: true },
+    ]);
+    expect(String(fetchMock.mock.calls[0][0])).toContain('registrationRefs=reg-1');
+  });
+
+  it('finance never triggers the LMS read (it does not see certificates)', async () => {
+    usersServiceMock.requireRole.mockResolvedValue({ id: 'staff-2', role: 'finance' });
+    repositoryMock.selectRegistration360.mockResolvedValue(fullFixture());
+    const view = await getRegistration360('reg-1');
+    expect(view.certificates).toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('a DPA erasure also erases the certificates on the LMS', async () => {
+    usersServiceMock.requireRole.mockResolvedValue({ id: 'staff-1', role: 'admin' });
+    repositoryMock.selectRegistrationIdsForParticipant.mockResolvedValue(['reg-1', 'reg-2']);
+    repositoryMock.callSoftDeleteParticipant.mockResolvedValue(undefined);
+    fetchMock.mockResolvedValue(ok({ erased: 2 }));
+    await softDeleteParticipant('part-1');
+    expect(repositoryMock.callSoftDeleteParticipant).toHaveBeenCalledWith('part-1');
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toBe('https://lms.test/api/v1/service/lms/certificates/erase');
+    expect(JSON.parse(init.body)).toEqual({ registrationRefs: ['reg-1', 'reg-2'] });
+  });
+
+  it('an LMS failure fails the erasure loudly', async () => {
+    usersServiceMock.requireRole.mockResolvedValue({ id: 'staff-1', role: 'admin' });
+    repositoryMock.selectRegistrationIdsForParticipant.mockResolvedValue(['reg-1']);
+    repositoryMock.callSoftDeleteParticipant.mockResolvedValue(undefined);
+    fetchMock.mockResolvedValue(new Response('{}', { status: 503 }));
+    await expect(softDeleteParticipant('part-1')).rejects.toMatchObject({ code: 'LMS_UNAVAILABLE' });
+  });
+
+  it('local mode erases in Supabase only', async () => {
+    delete process.env.CERTIFICATE_ISSUER;
+    usersServiceMock.requireRole.mockResolvedValue({ id: 'staff-1', role: 'admin' });
+    repositoryMock.callSoftDeleteParticipant.mockResolvedValue(undefined);
+    await softDeleteParticipant('part-1');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

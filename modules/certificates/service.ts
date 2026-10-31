@@ -572,12 +572,27 @@ async function issueForCompletedBatches(
   return summary;
 }
 
+// With the LMS as the registry, the feedback path's issue can fail because the
+// LMS was down, and nothing else would retry it. So in lms mode the daily run
+// looks back this many days; `alreadyIssued` (the LMS's own list) keeps a
+// rerun from issuing twice, and the email slot from emailing twice.
+const LMS_LOOKBACK_DAYS = 14;
+
 export async function runCompletedBatchCertificateIssuance(
   now = new Date(),
 ): Promise<CompletionIssuanceSummary> {
   const yesterday = new Date(now);
   yesterday.setUTCDate(yesterday.getUTCDate() - 1);
   const targetEndDate = yesterday.toISOString().slice(0, 10);
+  if (lmsIsRegistry()) {
+    const from = new Date(now);
+    from.setUTCDate(from.getUTCDate() - LMS_LOOKBACK_DAYS);
+    const batchIds = await certificatesRepository.selectBatchIdsEndedBetween(
+      from.toISOString().slice(0, 10),
+      targetEndDate,
+    );
+    return issueForCompletedBatches(batchIds, { dryRun: false, date: targetEndDate, email: true });
+  }
   const batchIds = await certificatesRepository.selectBatchIdsEndedOn(targetEndDate);
   return issueForCompletedBatches(batchIds, { dryRun: false, date: targetEndDate, email: true });
 }
@@ -677,31 +692,10 @@ export async function issueManual(
 // both.
 export async function issueForKnowsiaApp(input: ExternalIssueInput): Promise<ExternalIssueResult> {
   if (lmsIsRegistry()) {
-    // The door has no external-ref field and a self-paced certificate is the
-    // LMS's own to issue, so there is nothing to key idempotency on here:
-    // registrationRef stays null and the LMS's self-paced path owns retries.
-    const result = await lmsCertificates.issueOnLms({
-      source: 'self_paced',
-      courseCode: input.courseCode,
-      courseTitle: input.courseTitle,
-      recipientName: input.recipientName,
-      recipientEmail: input.recipientEmail ?? null,
-      description: input.description,
-      hours: input.hours,
-      cpdCredit: input.cpdCredit,
-      facilitatorName: input.facilitatorName ?? null,
-      issuedDate: input.issuedDate ?? new Date().toISOString().slice(0, 10),
-      registrationRef: null,
-      issuedByRef: null,
-    });
-    return {
-      id: result.id,
-      certificateNumber: result.certificateNumber,
-      issuedDate: result.issuedDate,
-      verifyUrl: result.verifyUrl || verifyUrlFor(result.certificateNumber),
-      downloadUrl: downloadUrlFor(result.id),
-      existing: result.existing,
-    };
+    // R3: the LMS numbers its own self-paced certificates in place. Forwarding
+    // here would carry no ref, so the LMS would mint a SECOND row per call and
+    // the caller's waiting row would collide on the number — refuse instead.
+    throw new AppError('REGISTRY_MOVED', 'Certificates are numbered by the LMS now.', 409);
   }
   const existing = await certificatesRepository.selectCertificateByExternalRef(input.externalRef);
   if (existing) {
