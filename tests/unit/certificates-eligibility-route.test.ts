@@ -79,6 +79,35 @@ describe('eligibility route', () => {
     expect(data.candidates).toHaveLength(5);
   });
 
+  it('on a free batch an unpaid participant who took part is eligible, one who did nothing is not', async () => {
+    const base = await repositoryMock.selectBatchIssueContext();
+    repositoryMock.selectBatchIssueContext.mockResolvedValue({
+      ...base,
+      batchIsFree: true,
+      candidates: [
+        candidate({ registrationId: 'f1', paid: false, feedbackSubmitted: true }),
+        candidate({ registrationId: 'f2', paid: false }),
+      ],
+    });
+    const { data } = await (await call({ authorization: `Bearer ${KEY}` })).json();
+    expect(data.batchIsFree).toBe(true);
+    expect(data.eligibleRegistrationIds).toEqual(['f1']);
+  });
+
+  it('leaves a deleted participant out of the candidates and the eligible ids', async () => {
+    const base = await repositoryMock.selectBatchIssueContext();
+    repositoryMock.selectBatchIssueContext.mockResolvedValue({
+      ...base,
+      candidates: [
+        candidate({ registrationId: 'd1', attendedSessions: 3, participantDeleted: true }),
+        candidate({ registrationId: 'd2', attendedSessions: 3 }),
+      ],
+    });
+    const { data } = await (await call({ authorization: `Bearer ${KEY}` })).json();
+    expect(data.eligibleRegistrationIds).toEqual(['d2']);
+    expect(data.candidates.map((c: { registrationId: string }) => c.registrationId)).toEqual(['d2']);
+  });
+
   it('404s for an unknown batch', async () => {
     repositoryMock.selectBatchIssueContext.mockResolvedValue(null);
     expect((await call({ authorization: `Bearer ${KEY}` })).status).toBe(404);

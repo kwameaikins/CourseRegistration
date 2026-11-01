@@ -91,7 +91,7 @@ export interface BatchIssueCandidate {
   alreadyIssued: boolean;
   eligible: boolean;
   // The raw inputs behind the rule, for the LMS eligibility replay: sessions attended and the BR-46
-  // verdict with lreadyIssued left out (eligible above also requires not-yet-issued).
+  // verdict with alreadyIssued left out (eligible above also requires not-yet-issued).
   attendedSessions: number;
   ruleEligible: boolean;
 }
