@@ -45,7 +45,10 @@ async function request(path: string, init: RequestInit = {}): Promise<Response> 
 const NOT_VALID = () => new AppError('NOT_FOUND', 'This feedback link is not valid.', 404);
 
 async function body<T>(response: Response): Promise<T> {
-  if (response.status >= 400) throw new AppError('LMS_ERROR', `The LMS answered ${response.status}.`, 502);
+  if (response.status >= 500) throw new AppError('LMS_ERROR', 'The feedback service answered unexpectedly.', 502);
+  if (response.status >= 400) {
+    throw new AppError('LMS_ERROR', "We couldn't save your feedback. Check your answers and try again.", 400);
+  }
   return (await response.json()) as T;
 }
 

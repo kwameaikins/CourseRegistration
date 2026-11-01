@@ -169,6 +169,8 @@ export interface AttendeeFeedbackDispatchResult {
   emailsSent: number;
   skipped: number;
   errors: string[];
+  // 'lms' when CERTIFICATE_ELIGIBILITY=lms: the LMS sends the requests, this call did nothing.
+  delegated?: 'lms';
 }
 
 // Sends the post-course thank-you / feedback request to the people who
@@ -189,6 +191,10 @@ export async function runFeedbackRequestForAttendees(params: {
   dryRun?: boolean;
 }): Promise<AttendeeFeedbackDispatchResult> {
   const dryRun = params.dryRun ?? true;
+  // A second request from here would not share the LMS's dedup keys and mail people twice.
+  if (lmsFeedback.certificateEligibility() === 'lms') {
+    return { batchId: params.batchId, dryRun, attendedRegistrations: 0, emailsSent: 0, skipped: 0, errors: [], delegated: 'lms' };
+  }
   const registrationIds = await feedbackRepository.selectAttendedRegistrationIdsForBatch(
     params.batchId,
   );

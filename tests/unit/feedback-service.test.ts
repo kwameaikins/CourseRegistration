@@ -473,6 +473,43 @@ describe('CERTIFICATE_ELIGIBILITY=lms (feedback moved to the LMS)', () => {
     expect(repositoryMock.selectFeedbackForBatch).not.toHaveBeenCalled();
   });
 
+  it('the attendee send is delegated too: no read, no email, no fetch', async () => {
+    const result = await runFeedbackRequestForAttendees({ batchId: 'batch-1', dryRun: false });
+    expect(result).toMatchObject({ delegated: 'lms', emailsSent: 0, attendedRegistrations: 0, dryRun: false });
+    expect(repositoryMock.selectAttendedRegistrationIdsForBatch).not.toHaveBeenCalled();
+    expect(sendEmailOnceMock).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('a 5xx and a 401 are LMS_UNAVAILABLE 503', async () => {
+    fetchMock.mockResolvedValueOnce(jsonRes(500, {}));
+    await expect(submitFeedback('reg-1', input)).rejects.toMatchObject({ code: 'LMS_UNAVAILABLE', httpStatus: 503 });
+    fetchMock.mockResolvedValueOnce(jsonRes(401, {}));
+    await expect(getPublicFeedbackContext('reg-1')).rejects.toMatchObject({ code: 'LMS_UNAVAILABLE', httpStatus: 503 });
+  });
+
+  it('a 409 other than feedback_exists is FEEDBACK_NOT_OPEN', async () => {
+    fetchMock.mockResolvedValue(jsonRes(409, { detail: 'feedback_not_open' }));
+    await expect(submitFeedback('reg-1', input)).rejects.toMatchObject({ code: 'FEEDBACK_NOT_OPEN', httpStatus: 409 });
+  });
+
+  it('sends the service key', async () => {
+    fetchMock.mockResolvedValue(jsonRes(201, {}));
+    await submitFeedback('reg-1', input);
+    expect(fetchMock.mock.calls[0][1].headers['X-Service-Key']).toBe('k');
+  });
+
+  it('a summary 404 is the empty summary', async () => {
+    fetchMock.mockResolvedValue(jsonRes(404, {}));
+    expect(await getBatchFeedbackSummary('batch-9')).toMatchObject({ responses: 0, rows: [] });
+  });
+
+  it('another 4xx is a plain sentence, never a status word', async () => {
+    fetchMock.mockResolvedValue(jsonRes(422, {}));
+    const err = await submitFeedback('reg-1', input).catch((e) => e);
+    expect(err).toMatchObject({ code: 'LMS_ERROR', httpStatus: 400 });
+    expect(err.message).not.toMatch(/422/);
+  });
   it('local mode (the default) makes no fetch', async () => {
     delete process.env.CERTIFICATE_ELIGIBILITY;
     repositoryMock.selectBatchesEndedOn.mockResolvedValue([]);
