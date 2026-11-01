@@ -5,13 +5,10 @@
 // "Knowsia" wordmark; an issuing body needs its full name on anything a third
 // party might rely on. One constant so the four documents can never disagree.
 export const ORGANISATION_NAME = 'Knowsia Professional Institute';
-// Country, not city (founder correction, 2026-09-07). Knowsia is an online
-// institution and has no Accra office; "Accra, Ghana" was printed on every
-// certificate, invoice, receipt and statement, and asserted as a postal
-// locality in the homepage's schema.org markup. Ghana is true and keeps the
-// issuing body identifiable on documents a third party relies on. Anything
-// that needs a city needs a registered address first.
-export const ORGANISATION_LOCATION = 'Ghana';
+// City and country (founder, 2026-11-01: "Add the Accra, Ghana to the invoice but not GPS"). This reverses the
+// 2026-09-07 country-only correction on purpose. The GPS address is NOT printed on invoices, receipts or
+// statements; it is on the letterhead only.
+export const ORGANISATION_LOCATION = 'Accra, Ghana';
 export const ORGANISATION_LINE = `${ORGANISATION_NAME} · ${ORGANISATION_LOCATION}`;
 // The one public contact address (founder decision 2026-09-04): printed on
 // receipts and statements, shown in every portal's help footer, and used in
