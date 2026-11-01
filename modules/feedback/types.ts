@@ -68,6 +68,8 @@ export interface BatchFeedbackSummary {
 }
 
 export interface FeedbackDispatchSummary {
+  // 'lms' when CERTIFICATE_ELIGIBILITY=lms: the LMS sends the requests, this run did nothing.
+  delegated?: 'lms';
   date: string;
   batchesEvaluated: number;
   emailsSent: number;

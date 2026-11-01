@@ -12,6 +12,7 @@ import { generateCertificatePdf } from '@/lib/certificates/pdf';
 import { sendTransactionalEmail } from '@/lib/resend/client';
 import { AppError, captureToSentry } from '@/lib/errors';
 import * as lmsCertificates from '@/lib/knowsia-lms/certificates';
+import { certificateEligibility } from '@/lib/knowsia-lms/feedback';
 import * as assignmentsService from '@/modules/assignments/service';
 import * as certificatesRepository from '@/modules/certificates/repository';
 import * as usersService from '@/modules/users/service';
@@ -225,8 +226,9 @@ async function insertWithNumberRetry(
   row: Omit<Database['public']['Tables']['certificates']['Insert'], 'certificate_number'>,
   courseCode: string,
   customNumber?: string,
+  forceLms = false,
 ): Promise<IssuedRow> {
-  if (lmsIsRegistry()) {
+  if (forceLms || lmsIsRegistry()) {
     const issuedDate = row.issued_date ?? new Date().toISOString().slice(0, 10);
     const result = await lmsCertificates.issueOnLms({
       source: row.source === 'self_paced' ? 'self_paced' : 'cohort',
@@ -383,6 +385,8 @@ export async function resendCertificateEmail(certificateId: string): Promise<boo
 export async function issueCertificateIfEligible(
   registrationId: string,
 ): Promise<CertificateView | null> {
+  // The LMS issues when feedback arrives there (lms 029); nothing to decide here.
+  if (certificateEligibility() === 'lms') return null;
   const batchId = await certificatesRepository.selectBatchIdForRegistration(registrationId);
   if (!batchId) return null;
 
@@ -467,6 +471,8 @@ export async function issueCertificateIfEligible(
 // caller, because a cron that returns a silent 200 while writing nothing is
 // the single most repeated failure in this codebase.
 export interface CompletionIssuanceSummary {
+  // 'lms' when CERTIFICATE_ELIGIBILITY=lms: the LMS decides and issues, this run did nothing.
+  delegated?: 'lms';
   date: string;
   dryRun: boolean;
   batchesEvaluated: number;
@@ -483,6 +489,10 @@ export interface CompletionIssuanceSummary {
 // send to everyone who ever finished a course is a decision, not a side
 // effect of a backfill). An email failure is an error on the summary, never a
 // lost certificate: the row is already written.
+function delegatedSummary(date: string): CompletionIssuanceSummary {
+  return { delegated: 'lms', date, dryRun: false, batchesEvaluated: 0, issued: 0, emailed: 0, skipped: 0, errors: [] };
+}
+
 async function issueForCompletedBatches(
   batchIds: string[],
   options: { dryRun: boolean; date: string; email: boolean },
@@ -584,6 +594,7 @@ export async function runCompletedBatchCertificateIssuance(
   const yesterday = new Date(now);
   yesterday.setUTCDate(yesterday.getUTCDate() - 1);
   const targetEndDate = yesterday.toISOString().slice(0, 10);
+  if (certificateEligibility() === 'lms') return delegatedSummary(targetEndDate);
   if (lmsIsRegistry()) {
     const from = new Date(now);
     from.setUTCDate(from.getUTCDate() - LMS_LOOKBACK_DAYS);
@@ -626,6 +637,7 @@ export async function runCertificateBackfill(input: {
   await usersService.requireRole([...CERTIFICATE_STAFF_ROLES]);
   const now = input.now ?? new Date();
   const today = now.toISOString().slice(0, 10);
+  if (certificateEligibility() === 'lms') return delegatedSummary(today);
   const batchIds = input.batchId
     ? [input.batchId]
     : await certificatesRepository.selectBatchIdsEndedOnOrBefore(today);
@@ -862,6 +874,9 @@ export async function issueForBatch(
           recipient_email: candidate.participantEmail || null,
         },
         context.courseCode,
+        undefined,
+        // A staff pick under CERTIFICATE_ELIGIBILITY=lms goes to the LMS issue door, choice kept.
+        certificateEligibility() === 'lms',
       ));
       result.issued += 1;
       if (input.sendEmail) {

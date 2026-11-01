@@ -1048,3 +1048,73 @@ describe('CERTIFICATE_ISSUER=lms (R3)', () => {
     expect(await issueCertificateIfEligible('reg-1')).toBeNull();
   });
 });
+
+
+describe('CERTIFICATE_ELIGIBILITY=lms (the LMS decides, Registration stops issuing)', () => {
+  const fetchMock = vi.fn();
+  const jsonRes = (status: number, body: unknown) =>
+    new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+    process.env.KNOWSIA_LMS_API_URL = 'https://lms.test';
+    process.env.KNOWSIA_APP_SERVICE_KEY = 'k';
+    process.env.CERTIFICATE_ELIGIBILITY = 'lms';
+    repositoryMock.selectBatchIdForRegistration.mockResolvedValue('batch-1');
+    repositoryMock.selectBatchIssueContext.mockResolvedValue({
+      courseCode: 'ca01', courseTitle: 'Sage', defaultHours: 6, defaultDescription: '', defaultCpdCredit: '6',
+      facilitatorName: 'G', batchIsFree: false, candidates: [candidate()],
+    });
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.CERTIFICATE_ELIGIBILITY;
+  });
+
+  it('auto-issue does nothing', async () => {
+    expect(await issueCertificateIfEligible('reg-1')).toBeNull();
+    expect(repositoryMock.insertCertificate).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('the daily run and the backfill return delegated and do nothing', async () => {
+    const daily = await runCompletedBatchCertificateIssuance(new Date('2026-10-31T07:00:00Z'));
+    expect(daily).toMatchObject({ delegated: 'lms', issued: 0, emailed: 0 });
+    const backfill = await runCertificateBackfill({ dryRun: false, batchId: 'batch-1' });
+    expect(backfill).toMatchObject({ delegated: 'lms', issued: 0 });
+    expect(repositoryMock.insertCertificate).not.toHaveBeenCalled();
+    expect(repositoryMock.selectBatchIdsEndedOn).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('issueForBatch forwards each staff pick to the LMS issue door', async () => {
+    repositoryMock.selectBatchIssueContext.mockResolvedValue({
+      courseCode: 'ca01', courseTitle: 'Sage', defaultHours: 6, defaultDescription: '', defaultCpdCredit: '6',
+      facilitatorName: 'G', batchIsFree: false, candidates: [candidate(), candidate({ registrationId: 'reg-2', participantName: 'Kofi A' })],
+    });
+    let n = 0;
+    fetchMock.mockImplementation(async (url: string) =>
+      String(url).includes('registrationRefs')
+        ? jsonRes(200, { items: [] })
+        : jsonRes(201, { id: `lms-${++n}`, certificateNumber: `KNS-CA01-2026-000${n}`, issuedDate: '2026-10-31', verifyUrl: 'v', existing: false }),
+    );
+    const result = await issueForBatch(
+      { batchId: 'batch-1', registrationIds: ['reg-1', 'reg-2'], hours: 6, description: 'd', cpdCredit: '6', sendEmail: false },
+      'staff-1',
+    );
+    expect(result.issued).toBe(2);
+    const issueCalls = fetchMock.mock.calls.filter(([u]) => String(u).endsWith('/certificates/issue'));
+    expect(issueCalls).toHaveLength(2);
+    expect(JSON.parse(issueCalls[0][1].body)).toMatchObject({ registrationRef: 'reg-1', hours: 6, description: 'd', cpdCredit: '6' });
+    expect(repositoryMock.insertCertificate).not.toHaveBeenCalled();
+  });
+
+  it('local mode (the default) never calls fetch', async () => {
+    delete process.env.CERTIFICATE_ELIGIBILITY;
+    repositoryMock.selectBatchIdsEndedOn.mockResolvedValue([]);
+    const daily = await runCompletedBatchCertificateIssuance(new Date('2026-10-31T07:00:00Z'));
+    expect(daily.delegated).toBeUndefined();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

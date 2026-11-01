@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const repositoryMock = {
   selectPublicFeedbackContext: vi.fn(),
@@ -24,6 +24,7 @@ vi.mock('@/modules/certificates/service', () => certificatesServiceMock);
 
 const {
   feedbackRequestDateFor,
+  getPublicFeedbackContext,
   getPublishableTestimonials,
   isPublishableTestimonial,
   getBatchFeedbackSummary,
@@ -396,5 +397,87 @@ describe('NPS on the batch summary (Revenue OS Phase 2)', () => {
 
     expect(summary.nps).toBeNull();
     expect(summary.npsResponses).toBe(0);
+  });
+});
+
+
+describe('CERTIFICATE_ELIGIBILITY=lms (feedback moved to the LMS)', () => {
+  const fetchMock = vi.fn();
+  const jsonRes = (status: number, body: unknown) =>
+    new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  const input = feedbackSubmissionSchema.parse({
+    overallRating: 5, relevanceRating: 5, facilitatorRating: 5, confidenceRating: 4,
+    materialsClarity: 'Yes', recommendation: 'Yes',
+  });
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+    process.env.KNOWSIA_LMS_API_URL = 'https://lms.test';
+    process.env.KNOWSIA_APP_SERVICE_KEY = 'k';
+    process.env.CERTIFICATE_ELIGIBILITY = 'lms';
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.CERTIFICATE_ELIGIBILITY;
+  });
+
+  it('submit posts to the LMS door and never touches the local repository', async () => {
+    fetchMock.mockResolvedValue(jsonRes(201, { id: 'f1' }));
+    const result = await submitFeedback('reg-1', input);
+    expect(String(fetchMock.mock.calls[0][0])).toBe('https://lms.test/api/v1/service/lms/feedback/reg-1');
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ overallRating: 5, recommendation: 'Yes' });
+    expect(repositoryMock.insertFeedback).not.toHaveBeenCalled();
+    expect(certificatesServiceMock.issueCertificateIfEligible).not.toHaveBeenCalled();
+    expect(result.certificateIssued).toBe(false);
+  });
+
+  it('an LMS 404 is the not-valid page, not a throw of another kind', async () => {
+    fetchMock.mockResolvedValue(jsonRes(404, { detail: 'feedback_link_not_valid' }));
+    await expect(submitFeedback('reg-1', input)).rejects.toMatchObject({ code: 'NOT_FOUND', httpStatus: 404 });
+    await expect(getPublicFeedbackContext('reg-1')).rejects.toMatchObject({ code: 'NOT_FOUND', httpStatus: 404 });
+  });
+
+  it('an LMS 409 is ALREADY_SUBMITTED', async () => {
+    fetchMock.mockResolvedValue(jsonRes(409, { detail: 'feedback_exists' }));
+    await expect(submitFeedback('reg-1', input)).rejects.toMatchObject({ code: 'ALREADY_SUBMITTED', httpStatus: 409 });
+  });
+
+  it('the public context is read from the LMS', async () => {
+    fetchMock.mockResolvedValue(jsonRes(200, { courseTitle: 'ESG 1', participantName: 'Ama Owusu', submitted: true }));
+    const ctx = await getPublicFeedbackContext('reg-1');
+    expect(ctx).toMatchObject({ courseName: 'ESG 1', participantFirstName: 'Ama', alreadySubmitted: true });
+    expect(repositoryMock.selectPublicFeedbackContext).not.toHaveBeenCalled();
+  });
+
+  it('the daily dispatch sends nothing and reports delegated', async () => {
+    const summary = await runFeedbackRequestDispatch(new Date('2026-07-20T07:00:00Z'));
+    expect(summary.delegated).toBe('lms');
+    expect(sendEmailOnceMock).not.toHaveBeenCalled();
+    expect(repositoryMock.selectBatchesEndedOn).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('summary and testimonials read the LMS', async () => {
+    const lmsSummary = { responses: 2, paidRegistrations: 3, rows: [] };
+    fetchMock.mockResolvedValueOnce(jsonRes(200, lmsSummary));
+    expect(await getBatchFeedbackSummary('batch-1')).toEqual(lmsSummary);
+    expect(String(fetchMock.mock.calls[0][0])).toBe('https://lms.test/api/v1/service/lms/cohorts/batch-1/feedback/summary');
+    fetchMock.mockResolvedValueOnce(jsonRes(200, [
+      { quote: 'x'.repeat(50), attributedName: null, courseName: 'ESG', overallRating: 5 },
+    ]));
+    const t = await getPublishableTestimonials(3);
+    expect(t).toHaveLength(1);
+    expect(String(fetchMock.mock.calls[1][0])).toContain('/api/v1/service/lms/testimonials?');
+    expect(repositoryMock.selectFeedbackForBatch).not.toHaveBeenCalled();
+  });
+
+  it('local mode (the default) makes no fetch', async () => {
+    delete process.env.CERTIFICATE_ELIGIBILITY;
+    repositoryMock.selectBatchesEndedOn.mockResolvedValue([]);
+    await submitFeedback('reg-1', input);
+    await runFeedbackRequestDispatch(new Date('2026-07-20T07:00:00Z'));
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

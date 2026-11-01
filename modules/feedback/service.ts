@@ -5,6 +5,7 @@
 // (post_training_thankyou) goes out the morning after the Batch end_date via
 // the daily cron, deduplicated by the email engine (BR-07).
 import { AppError } from '@/lib/errors';
+import * as lmsFeedback from '@/lib/knowsia-lms/feedback';
 import * as feedbackRepository from '@/modules/feedback/repository';
 import * as communicationsService from '@/modules/communications/service';
 import * as certificatesService from '@/modules/certificates/service';
@@ -30,6 +31,7 @@ export type { CourseRating } from '@/modules/feedback/course-ratings';
 export async function getPublicFeedbackContext(
   registrationId: string,
 ): Promise<PublicFeedbackContext> {
+  if (lmsFeedback.certificateEligibility() === 'lms') return lmsFeedback.feedbackContextOnLms(registrationId);
   const context = await feedbackRepository.selectPublicFeedbackContext(registrationId);
   // A deleted (DPA-erased) participant's link goes dark like an invalid one.
   if (!context || context.participantDeleted) {
@@ -51,6 +53,12 @@ export async function submitFeedback(
   registrationId: string,
   input: FeedbackSubmissionInput,
 ): Promise<FeedbackSubmissionResult> {
+  if (lmsFeedback.certificateEligibility() === 'lms') {
+    // The LMS stores the answer and decides the certificate (feedback counts as participation there);
+    // its submit door returns no certificate, so the page shows its plain thank-you.
+    await lmsFeedback.submitFeedbackOnLms(registrationId, input);
+    return { certificateIssued: false, certificateDownloadUrl: null };
+  }
   const context = await feedbackRepository.selectPublicFeedbackContext(registrationId);
   if (!context || context.participantDeleted) {
     throw new AppError('NOT_FOUND', 'This feedback link is not valid.', 404);
@@ -104,12 +112,16 @@ export async function runFeedbackRequestDispatch(
 ): Promise<FeedbackDispatchSummary> {
   const targetEndDate = feedbackRequestDateFor(now);
   const summary: FeedbackDispatchSummary = {
+    ...(lmsFeedback.certificateEligibility() === 'lms' ? { delegated: 'lms' as const } : {}),
     date: targetEndDate,
     batchesEvaluated: 0,
     emailsSent: 0,
     skipped: 0,
     errors: [],
   };
+
+  // The LMS sends its own feedback requests; doing it here too would mail everyone twice.
+  if (summary.delegated === 'lms') return summary;
 
   const batches = await feedbackRepository.selectBatchesEndedOn(targetEndDate);
   for (const batch of batches) {
@@ -225,6 +237,7 @@ export async function runFeedbackRequestForAttendeesAsStaff(params: {
 export async function getBatchFeedbackSummary(
   batchId: string,
 ): Promise<BatchFeedbackSummary> {
+  if (lmsFeedback.certificateEligibility() === 'lms') return lmsFeedback.feedbackSummaryOnLms(batchId);
   const [rows, paidRegistrations] = await Promise.all([
     feedbackRepository.selectFeedbackForBatch(batchId),
     feedbackRepository.countPaidRegistrationsForBatch(batchId),
@@ -334,7 +347,10 @@ export async function getPublishableTestimonials(
 ): Promise<PublishableTestimonial[]> {
   // Ask for far more than we need: the rules below reject a good proportion,
   // and asking for exactly `limit` would leave the page short.
-  const candidates = await feedbackRepository.selectPublishableTestimonialsSystem(60);
+  const candidates =
+    lmsFeedback.certificateEligibility() === 'lms'
+      ? await lmsFeedback.testimonialsOnLms(60)
+      : await feedbackRepository.selectPublishableTestimonialsSystem(60);
 
   return candidates
     .filter(isPublishableTestimonial)
