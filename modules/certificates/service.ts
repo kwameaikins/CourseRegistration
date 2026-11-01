@@ -831,6 +831,8 @@ export async function getBatchIssueContextSystem(batchId: string): Promise<{
         alreadyIssued: candidate.alreadyIssued,
         eligible:
           isCertificateEligible(candidate, context.batchIsFree) && !candidate.alreadyIssued,
+        attendedSessions: candidate.attendedSessions,
+        ruleEligible: isCertificateEligible(candidate, context.batchIsFree),
       })),
   };
 }
