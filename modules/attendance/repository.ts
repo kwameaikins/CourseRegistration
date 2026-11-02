@@ -568,3 +568,130 @@ export async function applyManualAttendanceCorrection(row: {
   );
   if (error) throw error;
 }
+
+// Every attendance row, for the LMS import (attendance history moves to the LMS).
+// Ids and times only. Paged because the service-role client caps a single read;
+// the batch and the live session's start are resolved in a second pass so the
+// read does not depend on a join the generated types do not describe.
+// An approved 'absent' correction has no attendance row (applyManualAttendanceCorrection
+// deletes it), so those come back as their own entries.
+export type AttendanceLmsExportRow = {
+  registrationId: string;
+  batchId: string | null;
+  sessionDate: string;
+  joinTime: string | null;
+  leaveTime: string | null;
+  durationMinutes: number;
+  sessionMinutes: number | null;
+  source: string;
+  liveSessionId: string | null;
+  liveSessionStartsAt: string | null;
+  absentCorrection: boolean;
+};
+
+async function inChunks<T>(ids: string[], run: (chunk: string[]) => Promise<T[]>): Promise<T[]> {
+  const out: T[] = [];
+  for (let i = 0; i < ids.length; i += 200) out.push(...(await run(ids.slice(i, i + 200))));
+  return out;
+}
+
+export async function selectAttendanceForLmsExport(
+  batchId?: string,
+): Promise<AttendanceLmsExportRow[]> {
+  const supabase = createSupabaseServiceRoleClient();
+
+  let scope: string[] | null = null;
+  if (batchId) {
+    const { data, error } = await supabase.from('registrations').select('id').eq('batch_id', batchId);
+    if (error) throw error;
+    scope = (data ?? []).map((r) => r.id);
+    if (scope.length === 0) return [];
+  }
+
+  const attendance: AttendanceRow[] = [];
+  const page = 500;
+  const read = async (ids: string[] | null) => {
+    for (let from = 0; ; from += page) {
+      let q = supabase.from('attendance').select('*');
+      if (ids) q = q.in('registration_id', ids);
+      const { data, error } = await q
+        .order('session_date', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, from + page - 1);
+      if (error) throw error;
+      attendance.push(...(data ?? []));
+      if (!data || data.length < page) break;
+    }
+  };
+  if (scope) {
+    for (let i = 0; i < scope.length; i += 200) await read(scope.slice(i, i + 200));
+  } else {
+    await read(null);
+  }
+
+  const absences: Array<{ registration_id: string; session_date: string }> = [];
+  {
+    let q = supabase
+      .from('attendance_exceptions')
+      .select('registration_id, session_date')
+      .eq('status', 'approved')
+      .eq('exception_type', 'correction_request')
+      .eq('requested_present', false);
+    if (batchId) q = q.eq('batch_id', batchId);
+    const { data, error } = await q;
+    if (error) throw error;
+    absences.push(...(data ?? []));
+  }
+
+  const registrationIds = [
+    ...new Set([...attendance.map((r) => r.registration_id), ...absences.map((r) => r.registration_id)]),
+  ];
+  const batchByRegistration = new Map<string, string>();
+  for (const r of await inChunks(registrationIds, async (chunk) => {
+    const { data, error } = await supabase.from('registrations').select('id, batch_id').in('id', chunk);
+    if (error) throw error;
+    return data ?? [];
+  })) {
+    batchByRegistration.set(r.id, r.batch_id);
+  }
+
+  const liveIds = [...new Set(attendance.map((r) => r.live_session_id).filter((v): v is string => !!v))];
+  const startsById = new Map<string, string>();
+  for (const s of await inChunks(liveIds, async (chunk) => {
+    const { data, error } = await supabase.from('live_sessions').select('id, starts_at').in('id', chunk);
+    if (error) throw error;
+    return data ?? [];
+  })) {
+    startsById.set(s.id, s.starts_at);
+  }
+
+  const rows: AttendanceLmsExportRow[] = attendance.map((r) => ({
+    registrationId: r.registration_id,
+    batchId: batchByRegistration.get(r.registration_id) ?? null,
+    sessionDate: r.session_date,
+    joinTime: r.join_time,
+    leaveTime: r.leave_time,
+    durationMinutes: r.duration_minutes,
+    sessionMinutes: r.session_minutes,
+    source: r.source,
+    liveSessionId: r.live_session_id,
+    liveSessionStartsAt: r.live_session_id ? (startsById.get(r.live_session_id) ?? null) : null,
+    absentCorrection: false,
+  }));
+  for (const a of absences) {
+    rows.push({
+      registrationId: a.registration_id,
+      batchId: batchByRegistration.get(a.registration_id) ?? null,
+      sessionDate: a.session_date,
+      joinTime: null,
+      leaveTime: null,
+      durationMinutes: 0,
+      sessionMinutes: null,
+      source: 'manual_correction',
+      liveSessionId: null,
+      liveSessionStartsAt: null,
+      absentCorrection: true,
+    });
+  }
+  return rows;
+}

@@ -842,3 +842,8 @@ export async function reviewAttendanceException(
     review_note: reviewNote ?? null,
   });
 }
+
+// Attendance history for the LMS import. Ids and times only, no names or emails.
+export async function exportAttendanceForLms(batchId?: string) {
+  return attendanceRepository.selectAttendanceForLmsExport(batchId);
+}
