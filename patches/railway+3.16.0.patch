@@ -1,0 +1,29 @@
+diff --git a/node_modules/railway/dist/iac/index.js b/node_modules/railway/dist/iac/index.js
+index a3068b3..c096eec 100644
+--- a/node_modules/railway/dist/iac/index.js
++++ b/node_modules/railway/dist/iac/index.js
+@@ -40,21 +40,9 @@ var MINIMUM_IAC_CLI_MESSAGE = `This version of railway/iac requires Railway CLI
+ 
+ // src/iac/cli-version.ts
+ function assertMinimumIacCliVersion() {
+-  if (!isNativeCliEvaluation()) return;
+-  const executable = process2.env._ || "railway";
+-  let output = "";
+-  try {
+-    output = execFileSync(executable, ["--version"], {
+-      encoding: "utf8",
+-      stdio: ["ignore", "pipe", "ignore"]
+-    });
+-  } catch {
+-    throw new Error(MINIMUM_IAC_CLI_MESSAGE);
+-  }
+-  const version = output.match(/\b(\d+)\.(\d+)\.(\d+)\b/);
+-  if (!version || compareVersions(version.slice(1).map(Number), [5, 42, 1]) < 0) {
+-    throw new Error(MINIMUM_IAC_CLI_MESSAGE);
+-  }
++  // PATCHED (patch-package): Windows npm shims break the execFileSync probe;
++  // CLI >= 5.42.1 is verified manually (5.71.0). Same patch as the study repo.
++  return;
+ }
+ function isNativeCliEvaluation() {
+   const evalFlag = process2.execArgv.indexOf("-e");
