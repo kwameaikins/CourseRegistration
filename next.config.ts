@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { NextConfig } from 'next';
 import { withSentryConfig } from '@sentry/nextjs';
 
-import { buildHostRedirects, sanitizeHost, toNextRedirects } from './config/host-redirects.mjs';
+import { buildHostRedirects, buildMovedPageRedirects, sanitizeHost, toNextRedirects } from './config/host-redirects.mjs';
 
 // ── Domain consolidation (Coding Docs/20, founder decision 2026-09-04) ──────
 //
@@ -92,6 +92,11 @@ const nextConfig: NextConfig = {
     for (const rule of buildHostRedirects({ canonicalHost: CANONICAL_HOST })) {
       rules.push({ ...rule, has: rule.has as { type: 'host'; value: string }[] });
     }
+
+    // /about and /contact moved to the study app's own frontend (2026-11-02);
+    // old links on reg 308 across. These are cross-host path rules, so they
+    // run regardless of CANONICAL_HOST.
+    rules.push(...buildMovedPageRedirects());
 
     if (LEARN_REDIRECT_ENABLED) {
       // The study app's root IS the question-bank landing page since

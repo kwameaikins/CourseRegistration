@@ -23,3 +23,11 @@ export function buildHostRedirects(opts: {
 export function toNextRedirects(
   entries: unknown[],
 ): { source: string; destination: string; permanent: true }[];
+
+/** /about and /contact moved to the study app's own frontend (2026-11-02);
+ *  old links on reg 308 across to knowsia.com, path and query preserved. */
+export function buildMovedPageRedirects(): {
+  source: string;
+  destination: string;
+  permanent: true;
+}[];

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildHostRedirects, sanitizeHost, toNextRedirects } from '@/config/host-redirects.mjs';
+import { buildHostRedirects, buildMovedPageRedirects, sanitizeHost, toNextRedirects } from '@/config/host-redirects.mjs';
 
 describe('sanitizeHost', () => {
   it('accepts a bare host and lower-cases it', () => {
@@ -54,6 +54,24 @@ describe('buildHostRedirects', () => {
       'reg\\.knowsia\\.com',
       'legacy\\.knowsia\\.com',
     ]);
+  });
+});
+
+describe('buildMovedPageRedirects — pages the study app now owns', () => {
+  // 2026-11-02: /about and /contact were ported to the study app, which owns
+  // knowsia.com. Old links to them on reg 308 there; the machine paths and
+  // every other reg page are untouched.
+  it('moves the ported pages off reg, path and query preserved', () => {
+    const rules = buildMovedPageRedirects();
+    expect(rules).toEqual([
+      { source: '/about', destination: 'https://knowsia.com/about', permanent: true },
+      { source: '/contact', destination: 'https://knowsia.com/contact', permanent: true },
+    ]);
+  });
+
+  it("never touches reg's API doors", () => {
+    const rules = buildMovedPageRedirects();
+    expect(rules.every((r) => !r.source.startsWith('/api'))).toBe(true);
   });
 });
 
