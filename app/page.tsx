@@ -122,7 +122,7 @@ const OFFERINGS = [
     title: 'Question bank and mock exams',
     body: 'Past questions organised by paper, level, sitting and topic, with model answers and explanations. Practise on your phone or laptop and track the topics that need work.',
     href: STUDY.register,
-    label: 'Start a free 14-day trial',
+    label: 'Start a free 7-day trial',
     event: 'home_offering_question_bank',
   },
   {
@@ -455,7 +455,7 @@ export default async function HomePage() {
                 </span>
                 <h3>Free to start</h3>
                 <p>
-                  Create an account and practise free for 14 days. Cohort students sign in with
+                  Create an account and practise free for 7 days. Cohort students sign in with
                   the same email and PIN they use for their portal.
                 </p>
               </div>
@@ -503,7 +503,7 @@ export default async function HomePage() {
             </div>
             <div style={{ marginTop: 28, textAlign: 'center' }} className="hero-cta">
               <TrackedLink href={STUDY.register} event="home_qb_register" className="btn btn-primary">
-                Start a free 14-day trial
+                Start a free 7-day trial
               </TrackedLink>
               <TrackedLink href={STUDY.catalogue} event="home_qb_catalogue" className="btn btn-outline">
                 Browse self-paced courses

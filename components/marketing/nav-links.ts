@@ -20,13 +20,20 @@ export type NavLink = {
   external?: boolean;
 };
 
+// The programmes page lives on the public site (knowsia.com/programmes, 2026-11-05;
+// founder: point the Programmes link there). It lists every programme with its
+// self-paced courses AND live classes, and each live class registers here. The
+// pages at /programmes on THIS host stay for the registration flow (/programmes/
+// <courseCode>) and are simply no longer what the menu offers.
+export const PROGRAMMES_HREF = 'https://knowsia.com/programmes';
+
 export const MARKETING_NAV_LINKS: NavLink[] = [
   // The logo links home too, but a wordmark is a convention rather than a
   // signpost — people look for the word (founder report, 2026-09-07).
   { href: '/', label: 'Home' },
   { href: '/learn/catalogue', label: 'Courses', external: true },
   { href: '/learn/questions', label: 'Question bank', external: true },
-  { href: '/programmes', label: 'Programmes' },
+  { href: PROGRAMMES_HREF, label: 'Programmes', external: true },
   { href: '/news', label: 'Insights' },
   { href: '/updates', label: 'Updates' },
   { href: '/about', label: 'About' },

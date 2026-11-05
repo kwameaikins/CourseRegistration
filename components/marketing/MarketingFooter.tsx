@@ -6,6 +6,7 @@ import {
   ORGANISATION_NAME,
   ORGANISATION_PHONES,
 } from '@/lib/organisation';
+import { PROGRAMMES_HREF } from './nav-links';
 
 // Shared footer for every marketing page (home, programmes, programme
 // detail, /about, /contact, /privacy-policy). Contact details come from
@@ -27,7 +28,7 @@ export function MarketingFooter() {
           {' · '}
           <a href="/learn/catalogue">Courses</a>
           {' · '}
-          <Link href="/programmes">All programmes</Link>
+          <a href={PROGRAMMES_HREF}>All programmes</a>
           {' · '}
           <Link href="/news">Insights</Link>
           {' · '}

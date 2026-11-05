@@ -997,7 +997,7 @@
             "type": "string"
           },
           "trial_days_on_first_sign_in": {
-            "default": 14,
+            "default": 7,
             "title": "Trial Days On First Sign In",
             "type": "integer"
           },
@@ -5596,7 +5596,7 @@
     },
     "/api/v1/service/auth/question-bank-access": {
       "post": {
-        "description": "RETIRED as a grant (founder, 2026-09-17: \"remove the cohort grant\naccess. they would have to subscribe to get access or try for free for\n14 days after\"). The Registration app still calls this on every paid\ncohort transition (Seam III), so it keeps answering 201 and still\ncreates or links the account \u2014 but grants NOTHING. The account is owed\nthe ordinary 14-day trial, started the first time the person signs in\n(`auth.start_trial_if_owed`), and must subscribe after it. The 327\ngrants that existed were ended by scripts/retire_cohort_grants.py.",
+        "description": "RETIRED as a grant (founder, 2026-09-17: \"remove the cohort grant\naccess. they would have to subscribe to get access or try for free for\n14 days after\" \u2014 the trial has been 7 days since 2026-11-05). The\nRegistration app still calls this on every paid\ncohort transition (Seam III), so it keeps answering 201 and still\ncreates or links the account \u2014 but grants NOTHING. The account is owed\nthe ordinary trial, started the first time the person signs in\n(`auth.start_trial_if_owed`), and must subscribe after it. The 327\ngrants that existed were ended by scripts/retire_cohort_grants.py.",
         "operationId": "grant_question_bank_access_api_v1_service_auth_question_bank_access_post",
         "requestBody": {
           "content": {
