@@ -15,6 +15,53 @@ type ParticipantRow = Database['public']['Tables']['participants']['Row'];
 type RegistrationRow = Database['public']['Tables']['registrations']['Row'];
 type PaymentRow = Database['public']['Tables']['payments']['Row'];
 
+// Every registration of one batch with its participant and payment, for the study app's
+// admin (service-key route /api/integration/batches/{id}/registrants; read only). Service
+// role because the caller is another service, not a staff session; the route has already
+// checked the service key.
+export async function selectBatchRegistrantsSystem(batchId: string): Promise<
+  Array<{
+    registration: Pick<RegistrationRow, 'id' | 'registration_status' | 'registered_at' | 'lapsed_at'>;
+    participant: Pick<ParticipantRow, 'full_name' | 'email' | 'phone'> | null;
+    payment: Pick<PaymentRow, 'payment_status' | 'course_fee' | 'amount_paid' | 'balance'> | null;
+  }>
+> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data: registrations, error } = await supabase
+    .from('registrations')
+    .select('id, participant_id, registration_status, registered_at, lapsed_at')
+    .eq('batch_id', batchId)
+    .order('registered_at', { ascending: false });
+  if (error) throw error;
+  if (registrations.length === 0) return [];
+
+  const [participantsResult, paymentsResult] = await Promise.all([
+    supabase
+      .from('participants')
+      .select('id, full_name, email, phone')
+      .in('id', [...new Set(registrations.map((r) => r.participant_id))]),
+    supabase
+      .from('payments')
+      .select('registration_id, payment_status, course_fee, amount_paid, balance')
+      .in('registration_id', registrations.map((r) => r.id)),
+  ]);
+  if (participantsResult.error) throw participantsResult.error;
+  if (paymentsResult.error) throw paymentsResult.error;
+
+  const participants = new Map(participantsResult.data.map((p) => [p.id, p]));
+  const payments = new Map(paymentsResult.data.map((p) => [p.registration_id, p]));
+  return registrations.map((r) => ({
+    registration: {
+      id: r.id,
+      registration_status: r.registration_status,
+      registered_at: r.registered_at,
+      lapsed_at: r.lapsed_at,
+    },
+    participant: participants.get(r.participant_id) ?? null,
+    payment: payments.get(r.id) ?? null,
+  }));
+}
+
 // One-click enrolment (BR-42, 2026-08-12) — every field the public registration
 // form would otherwise make a returning Participant re-type, read straight off
 // the record captured the first time they registered. consent_given/consent_at
