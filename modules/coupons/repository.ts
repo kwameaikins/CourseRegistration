@@ -7,6 +7,73 @@ import type { CreateCouponInput, UpdateCouponInput } from '@/modules/coupons/typ
 export type CouponRow = Database['public']['Tables']['coupons']['Row'];
 export type CouponRedemptionRow = Database['public']['Tables']['coupon_redemptions']['Row'];
 
+// --- Study-app service door (service role; the route has already checked the service key) ---
+
+// The one active admin or marketing staff user with exactly this name, or null when there is
+// none or more than one (a coupon is never recorded under a guess). The name is matched literally:
+// % and _ are escaped, so a caller's name can never act as a pattern and land on someone else.
+export async function selectStaffByNameSystem(fullName: string): Promise<{ id: string } | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const escaped = fullName.replace(/[\\%_]/g, '\\$&');
+  const { data, error } = await supabase
+    .from('staff_users')
+    .select('id, role')
+    .ilike('full_name', escaped)
+    .eq('is_active', true)
+    .in('role', ['admin', 'marketing']);
+  if (error) throw error;
+  return data && data.length === 1 ? { id: data[0].id } : null;
+}
+
+// Same, by exact email (case-insensitive): unambiguous where two people share a name.
+export async function selectStaffByEmailSystem(email: string): Promise<{ id: string } | null> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('staff_users')
+    .select('id')
+    .ilike('email', email)
+    .eq('is_active', true)
+    .in('role', ['admin', 'marketing']);
+  if (error) throw error;
+  return data && data.length === 1 ? { id: data[0].id } : null;
+}
+
+export async function insertCouponSystem(
+  input: CreateCouponInput,
+  createdByStaffId: string,
+): Promise<CouponRow> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('coupons')
+    .insert({
+      code: input.code,
+      description: input.description ?? null,
+      discount_type: input.discountType,
+      discount_value: input.discountValue,
+      applies_to_course_id: input.appliesToCourseId ?? null,
+      max_uses: input.maxUses ?? null,
+      one_per_participant: input.onePerParticipant,
+      starts_at: input.startsAt ?? null,
+      expires_at: input.expiresAt ?? null,
+      created_by: createdByStaffId,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function selectCouponsForCourseSystem(courseId: string): Promise<CouponRow[]> {
+  const supabase = createSupabaseServiceRoleClient();
+  const { data, error } = await supabase
+    .from('coupons')
+    .select('*')
+    .eq('applies_to_course_id', courseId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data ?? [];
+}
+
 // --- Staff-session reads/writes (RLS applies: admin+marketing manage, finance reads) ---
 
 export async function selectCoupons(): Promise<CouponRow[]> {

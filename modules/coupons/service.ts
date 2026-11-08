@@ -16,6 +16,7 @@ import type {
   CouponPreview,
   CouponStage,
   CreateCouponInput,
+  StudyAppCouponInput,
   UpdateCouponInput,
 } from '@/modules/coupons/types';
 import * as usersService from '@/modules/users/service';
@@ -206,6 +207,52 @@ export async function createCoupon(input: CreateCouponInput): Promise<Coupon> {
     }
     throw err;
   }
+}
+
+// The study app's cohort page makes and lists coupons through the service-key route. The coupon
+// is tied to the batch's course and recorded under a named staff member; no match, no coupon.
+export async function createCouponForStudyAppSystem(input: StudyAppCouponInput): Promise<Coupon> {
+  const batch = await coursesService.getBatchByIdSystem(input.batchId);
+  if (!batch) throw new AppError('NOT_FOUND', 'Batch not found.', 404);
+  const staff = input.creatorEmail
+    ? await couponsRepository.selectStaffByEmailSystem(input.creatorEmail)
+    : await couponsRepository.selectStaffByNameSystem(input.creatorName ?? '');
+  if (!staff) {
+    throw new AppError(
+      'NO_STAFF_MATCH',
+      `No single active admin or marketing staff user has that ${input.creatorEmail ? 'email' : 'name'}, so the coupon was not created.`,
+      422,
+    );
+  }
+  try {
+    const row = await couponsRepository.insertCouponSystem(
+      {
+        code: input.code,
+        description: input.description ?? null,
+        discountType: input.discountType,
+        discountValue: input.discountValue,
+        appliesToCourseId: batch.courseId,
+        maxUses: input.maxUses ?? null,
+        onePerParticipant: true,
+        startsAt: null,
+        expiresAt: input.expiresAt ?? null,
+      },
+      staff.id,
+    );
+    const coupon = toCoupon(row);
+    void mirrorToCore(coupon);
+    return coupon;
+  } catch (err) {
+    if (isUniqueViolation(err)) throw new AppError('DUPLICATE_COUPON', 'That code is already in use.', 409);
+    throw err;
+  }
+}
+
+export async function listCouponsForBatchSystem(batchId: string): Promise<Coupon[]> {
+  const batch = await coursesService.getBatchByIdSystem(batchId);
+  if (!batch) throw new AppError('NOT_FOUND', 'Batch not found.', 404);
+  const rows = await couponsRepository.selectCouponsForCourseSystem(batch.courseId);
+  return rows.map(toCoupon);
 }
 
 export async function updateCoupon(

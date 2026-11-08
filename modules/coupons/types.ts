@@ -52,6 +52,32 @@ export const createCouponInputSchema = z.object({
   expiresAt: z.string().nullish(),
 });
 
+// A coupon made from the study app's cohort page (2026-11-07). It is tied to the batch's COURSE
+// (a coupon here is course-scoped, never batch-scoped), and recorded under a named staff member,
+// because coupons.created_by must be a staff user and a service call has none of its own.
+export const studyAppCouponInputSchema = z
+  .object({
+    batchId: z.uuid(),
+    code: createCouponInputSchema.shape.code,
+    description: z.string().trim().max(200).nullish(),
+    discountType: z.enum(COUPON_DISCOUNT_TYPES),
+    discountValue: z.coerce.number().positive(),
+    maxUses: z.coerce.number().int().positive().nullish(),
+    expiresAt: z.string().nullish(),
+    // Who the coupon is recorded under: an exact staff email (preferred) or an exact full name.
+    creatorEmail: z.string().trim().email().max(200).nullish(),
+    creatorName: z.string().trim().min(3).max(120).nullish(),
+  })
+  .refine((v) => Boolean(v.creatorEmail) || Boolean(v.creatorName), {
+    message: 'Say which staff member the coupon is recorded under.',
+    path: ['creatorName'],
+  })
+  .refine((v) => v.discountType !== 'percentage' || v.discountValue <= 100, {
+    message: 'A percentage discount cannot be more than 100.',
+    path: ['discountValue'],
+  });
+export type StudyAppCouponInput = z.infer<typeof studyAppCouponInputSchema>;
+
 export const updateCouponInputSchema = z.object({
   description: z.string().trim().max(200).nullish(),
   maxUses: z.coerce.number().int().positive().nullish(),
